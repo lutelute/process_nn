@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ニューラルネットの学習過程</title>
+<style>
+  :root{
+    --bg:#0c1016;
+    --panel:#11161f;
+    --panel-2:#0e131b;
+    --line:#1d2735;
+    --grid:#172230;
+    --text:#e7edf5;
+    --muted:#8595a8;
+    --faint:#46566b;
+    --true:#cdb784;     /* 真の関数 (parchment) */
+    --dot:#d4a36a;      /* 教師データ */
+    --pred:#39e0c4;     /* NN予測 (teal) */
+    --pred-soft:rgba(57,224,196,0.16);
+    --loss:#f0b03a;     /* 損失 */
+    --pos:#39e0c4;      /* 正の重み */
+    --neg:#f06f7e;      /* 負の重み */
+    --node:#2b3a4d;
+    --accent:#39e0c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+    flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;letter-spacing:.03em;}
+  .readout{display:flex;gap:26px;font-family:var(--mono);}
+  .readout .item{text-align:right;}
+  .readout .k{font-size:10.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;}
+  .readout .v{font-size:24px;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.15;}
+  .readout .v.loss{color:var(--loss);}
+
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
+    padding:10px 14px 0;}
+  .canvas-host{position:relative;width:100%;}
+  canvas{display:block;width:100%;}
+  #fitHost{height:430px;}
+  #netHost{height:228px;}
+  #lossHost{height:178px;}
+  .side{display:flex;flex-direction:column;gap:14px;}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;padding:8px 14px 12px;font-size:12px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .swatch{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
+  .dotmark{width:9px;height:9px;border-radius:50%;}
+
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);letter-spacing:.04em;}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;
+    appearance:none;cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 16px) 53%,calc(100% - 11px) 53%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
+  select:focus{border-color:var(--accent);}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+    border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;
+    transition:border-color .15s,background .15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;letter-spacing:.02em;}
+
+  @media(max-width:860px){
+    .grid{grid-template-columns:1fr;}
+    .side{flex-direction:column;}
+    .controls{grid-template-columns:repeat(2,1fr);}
+    .readout{gap:18px;}
+    #fitHost{height:340px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>ニューラルネットの学習過程</h1>
+      <div class="sub">誤差逆伝播でネットワークが関数に近づいていく様子を、1ステップずつ観察する</div>
+    </div>
+    <div class="readout">
+      <div class="item"><div class="k">epoch</div><div class="v" id="epochOut">0</div></div>
+      <div class="item"><div class="k">loss (MSE)</div><div class="v loss" id="lossOut">—</div></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">関数近似</div>
+      <div class="canvas-host" id="fitHost"><canvas id="fit"></canvas></div>
+      <div class="legend">
+        <span><i class="dotmark" style="background:var(--dot)"></i>教師データ</span>
+        <span><i class="swatch" style="border-top-color:var(--true)"></i>真の関数</span>
+        <span><i class="swatch" style="border-top-color:var(--pred)"></i>NN の予測</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">ネットワーク（重み）</div>
+        <div class="canvas-host" id="netHost"><canvas id="net"></canvas></div>
+        <div class="legend" style="padding-top:0;">
+          <span><i class="swatch" style="border-top-color:var(--pos)"></i>正の重み</span>
+          <span><i class="swatch" style="border-top-color:var(--neg)"></i>負の重み</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">損失の推移（対数）</div>
+        <div class="canvas-host" id="lossHost"><canvas id="loss"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>近似する関数</label>
+      <select id="fnSel"></select>
+    </div>
+    <div class="field">
+      <label>活性化関数</label>
+      <select id="actSel">
+        <option value="tanh">tanh</option>
+        <option value="relu">ReLU</option>
+        <option value="sigmoid">sigmoid</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>最適化手法</label>
+      <select id="optSel">
+        <option value="adam">Adam</option>
+        <option value="sgd">SGD</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>学習率 <span class="val" id="lrVal"></span></label>
+      <input type="range" id="lrSlider" min="-3.3" max="-0.5" step="0.01">
+    </div>
+
+    <div class="field">
+      <label>隠れ層の数</label>
+      <select id="depthSel">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>各層のユニット数</label>
+      <select id="widthSel">
+        <option value="4">4</option>
+        <option value="8">8</option>
+        <option value="16" selected>16</option>
+        <option value="32">32</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>データのノイズ <span class="val" id="noiseVal"></span></label>
+      <input type="range" id="noiseSlider" min="0" max="0.4" step="0.01" value="0">
+    </div>
+    <div class="field">
+      <label>速度（更新/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="20" step="1" value="2">
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 再生</button>
+      <button id="stepBtn">⏭ 1ステップ</button>
+      <button id="burstBtn">⏩ 50ステップ</button>
+      <button id="resetBtn">↺ リセット</button>
+    </div>
+    <div class="note">入力 x を [-1,1]、教師 y を標準化して全バッチ勾配降下で学習。出力層は線形。本物の順伝播・誤差逆伝播・Adam/SGD を JavaScript で実装。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ====================== ニューラルネット中核 ====================== */
+function randn(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function actFn(name,z){
+  if(name==='tanh')return Math.tanh(z);
+  if(name==='relu')return z>0?z:0;
+  return 1/(1+Math.exp(-z));
+}
+function actDeriv(name,z,a){
+  if(name==='tanh')return 1-a*a;
+  if(name==='relu')return z>0?1:0;
+  return a*(1-a);
+}
+class MLP{
+  constructor(sizes,activation,optimizer){
+    this.sizes=sizes;this.L=sizes.length-1;this.act=activation;this.optimizer=optimizer;
+    this.W=[null];this.b=[null];
+    for(let l=1;l<=this.L;l++){
+      const nIn=sizes[l-1],nOut=sizes[l];
+      const scale=activation==='relu'?Math.sqrt(2/nIn):Math.sqrt(1/nIn);
+      const W=[];
+      for(let j=0;j<nOut;j++){const row=[];for(let k=0;k<nIn;k++)row.push(randn()*scale);W.push(row);}
+      this.W[l]=W;this.b[l]=new Array(nOut).fill(0);
+    }
+    this.initOpt();this.t=0;
+  }
+  initOpt(){
+    this.mW=[null];this.vW=[null];this.mB=[null];this.vB=[null];
+    for(let l=1;l<=this.L;l++){
+      const nIn=this.sizes[l-1],nOut=this.sizes[l];
+      const mW=[],vW=[];
+      for(let j=0;j<nOut;j++){mW.push(new Array(nIn).fill(0));vW.push(new Array(nIn).fill(0));}
+      this.mW[l]=mW;this.vW[l]=vW;
+      this.mB[l]=new Array(nOut).fill(0);this.vB[l]=new Array(nOut).fill(0);
+    }
+    this.t=0;
+  }
+  forward(x){
+    const a=[x.slice()],z=[null];
+    for(let l=1;l<=this.L;l++){
+      const nOut=this.sizes[l],nIn=this.sizes[l-1];
+      const zl=new Array(nOut),al=new Array(nOut);
+      const Wl=this.W[l],bl=this.b[l],aprev=a[l-1];
+      for(let j=0;j<nOut;j++){
+        let s=bl[j];const Wj=Wl[j];
+        for(let k=0;k<nIn;k++)s+=Wj[k]*aprev[k];
+        zl[j]=s;al[j]=(l===this.L)?s:actFn(this.act,s);
+      }
+      z[l]=zl;a[l]=al;
+    }
+    return{a,z};
+  }
+  predict1(x){
+    let a=[x];
+    for(let l=1;l<=this.L;l++){
+      const nOut=this.sizes[l],nIn=this.sizes[l-1];
+      const al=new Array(nOut);const Wl=this.W[l],bl=this.b[l];
+      for(let j=0;j<nOut;j++){let s=bl[j];const Wj=Wl[j];for(let k=0;k<nIn;k++)s+=Wj[k]*a[k];
+        al[j]=(l===this.L)?s:actFn(this.act,s);}
+      a=al;
+    }
+    return a[0];
+  }
+  trainStep(X,Y,lr){
+    const L=this.L;
+    const dW=[null],db=[null];
+    for(let l=1;l<=L;l++){
+      const nIn=this.sizes[l-1],nOut=this.sizes[l];
+      const g=[];for(let j=0;j<nOut;j++)g.push(new Array(nIn).fill(0));
+      dW[l]=g;db[l]=new Array(nOut).fill(0);
+    }
+    let loss=0;const N=X.length;
+    for(let n=0;n<N;n++){
+      const{a,z}=this.forward(X[n]);
+      const out=a[L];
+      let delta=new Array(this.sizes[L]);
+      for(let j=0;j<this.sizes[L];j++){const e=out[j]-Y[n][j];delta[j]=e;loss+=0.5*e*e;}
+      for(let l=L;l>=1;l--){
+        const nOut=this.sizes[l],nIn=this.sizes[l-1],aprev=a[l-1];
+        for(let j=0;j<nOut;j++){
+          const dj=delta[j];db[l][j]+=dj;const dWlj=dW[l][j];
+          for(let k=0;k<nIn;k++)dWlj[k]+=dj*aprev[k];
+        }
+        if(l>1){
+          const deltaPrev=new Array(nIn).fill(0);
+          for(let k=0;k<nIn;k++){
+            let s=0;for(let j=0;j<nOut;j++)s+=this.W[l][j][k]*delta[j];
+            deltaPrev[k]=s*actDeriv(this.act,z[l-1][k],a[l-1][k]);
+          }
+          delta=deltaPrev;
+        }
+      }
+    }
+    loss/=N;const invN=1/N;this.t++;
+    const b1=0.9,b2=0.999,eps=1e-8;
+    const bc1=1-Math.pow(b1,this.t),bc2=1-Math.pow(b2,this.t);
+    for(let l=1;l<=L;l++){
+      const nOut=this.sizes[l],nIn=this.sizes[l-1];
+      for(let j=0;j<nOut;j++){
+        let gb=db[l][j]*invN;
+        if(this.optimizer==='adam'){
+          this.mB[l][j]=b1*this.mB[l][j]+(1-b1)*gb;
+          this.vB[l][j]=b2*this.vB[l][j]+(1-b2)*gb*gb;
+          this.b[l][j]-=lr*(this.mB[l][j]/bc1)/(Math.sqrt(this.vB[l][j]/bc2)+eps);
+        }else this.b[l][j]-=lr*gb;
+        const Wj=this.W[l][j],dWj=dW[l][j],mWj=this.mW[l][j],vWj=this.vW[l][j];
+        for(let k=0;k<nIn;k++){
+          let gw=dWj[k]*invN;
+          if(this.optimizer==='adam'){
+            mWj[k]=b1*mWj[k]+(1-b1)*gw;vWj[k]=b2*vWj[k]+(1-b2)*gw*gw;
+            Wj[k]-=lr*(mWj[k]/bc1)/(Math.sqrt(vWj[k]/bc2)+eps);
+          }else Wj[k]-=lr*gw;
+        }
+      }
+    }
+    return loss;
+  }
+}
+
+/* ====================== 対象関数 ====================== */
+const FUNCS=[
+  {name:'2次曲線  y = x²',           f:x=>x*x,                         xMin:-3,        xMax:3},
+  {name:'正弦波  y = sin(x)',        f:x=>Math.sin(x),                 xMin:-2*Math.PI,xMax:2*Math.PI},
+  {name:'3次曲線  y = x³ − 3x',      f:x=>x*x*x-3*x,                   xMin:-2.5,      xMax:2.5},
+  {name:'減衰振動  y = sin(3x)·e^(−x²/8)', f:x=>Math.sin(3*x)*Math.exp(-x*x/8), xMin:-6, xMax:6},
+  {name:'sinc  y = sin(πx)/(πx)',    f:x=>{const t=Math.PI*x;return Math.abs(t)<1e-6?1:Math.sin(t)/t;}, xMin:-4, xMax:4},
+  {name:'階段  y = sign(x)',         f:x=>x<0?-1:(x>0?1:0),            xMin:-3,        xMax:3},
+  {name:'絶対値  y = |x|',           f:x=>Math.abs(x),                 xMin:-2,        xMax:2},
+];
+
+/* ====================== 状態 ====================== */
+const N_SAMPLE=80, N_PLOT=240;
+let net=null, data=null, epoch=0, lossHist=[], running=false, lastLoss=null;
+let netRedrawCtr=0;
+
+function buildData(fnIdx,noise){
+  const cfg=FUNCS[fnIdx];
+  const xData=[],yClean=[],yNoisy=[];
+  for(let i=0;i<N_SAMPLE;i++){
+    const x=cfg.xMin+(cfg.xMax-cfg.xMin)*i/(N_SAMPLE-1);
+    const y=cfg.f(x);
+    xData.push(x);yClean.push(y);
+  }
+  // 真の値の振幅でノイズスケールを決める
+  let yc0=yClean[0];let amp=0;
+  for(const y of yClean)amp=Math.max(amp,Math.abs(y));
+  for(let i=0;i<N_SAMPLE;i++)yNoisy.push(yClean[i]+randn()*noise*amp);
+  // 正規化
+  const xn=xData.map(x=>2*(x-cfg.xMin)/(cfg.xMax-cfg.xMin)-1);
+  const yMean=yNoisy.reduce((a,b)=>a+b,0)/N_SAMPLE;
+  const yStd=Math.sqrt(yNoisy.reduce((a,b)=>a+(b-yMean)**2,0)/N_SAMPLE)||1;
+  const yn=yNoisy.map(y=>(y-yMean)/yStd);
+  // 表示用 y 範囲（真の関数ベース＋余白）
+  let yLo=Math.min(...yClean,...yNoisy),yHi=Math.max(...yClean,...yNoisy);
+  const pad=(yHi-yLo)*0.18||1;yLo-=pad;yHi+=pad;
+  return{cfg,xData,yClean,yNoisy,X:xn.map(v=>[v]),Y:yn.map(v=>[v]),
+    yMean,yStd,yLo,yHi};
+}
+
+function currentSizes(){
+  const depth=+depthSel.value,width=+widthSel.value;
+  const s=[1];for(let i=0;i<depth;i++)s.push(width);s.push(1);return s;
+}
+
+function rebuildAll(resetData){
+  if(resetData||!data)data=buildData(+fnSel.value,+noiseSlider.value);
+  net=new MLP(currentSizes(),actSel.value,optSel.value);
+  epoch=0;lossHist=[];lastLoss=null;
+  updateReadout();drawAll();
+}
+function resetNetOnly(){
+  net=new MLP(currentSizes(),actSel.value,optSel.value);
+  epoch=0;lossHist=[];lastLoss=null;updateReadout();drawAll();
+}
+
+/* ====================== Canvas 準備 ====================== */
+function setupCanvas(id){
+  const c=document.getElementById(id);const ctx=c.getContext('2d');
+  function resize(){
+    const host=c.parentElement;const dpr=window.devicePixelRatio||1;
+    const w=host.clientWidth,h=host.clientHeight;
+    c.width=w*dpr;c.height=h*dpr;c.style.height=h+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);c._w=w;c._h=h;
+  }
+  return{c,ctx,resize};
+}
+const fit=setupCanvas('fit'),netv=setupCanvas('net'),lossv=setupCanvas('loss');
+function resizeAll(){fit.resize();netv.resize();lossv.resize();drawAll();}
+window.addEventListener('resize',resizeAll);
+
+/* ====================== 描画：関数近似 ====================== */
+function drawFit(){
+  const{ctx,c}=fit,w=c._w,h=c._h;const d=data;
+  ctx.clearRect(0,0,w,h);
+  const padL=46,padR=16,padT=14,padB=26;
+  const pw=w-padL-padR,ph=h-padT-padB;
+  const cfg=d.cfg;
+  const xToPx=x=>padL+(x-cfg.xMin)/(cfg.xMax-cfg.xMin)*pw;
+  const yToPx=y=>padT+(d.yHi-y)/(d.yHi-d.yLo)*ph;
+
+  // グリッド
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;
+  ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--faint');
+  ctx.textAlign='center';ctx.textBaseline='top';
+  const xticks=niceTicks(cfg.xMin,cfg.xMax,6);
+  for(const xt of xticks){const px=xToPx(xt);
+    ctx.beginPath();ctx.moveTo(px,padT);ctx.lineTo(px,padT+ph);ctx.stroke();
+    ctx.fillText(fmtTick(xt),px,padT+ph+5);}
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  const yticks=niceTicks(d.yLo,d.yHi,5);
+  for(const yt of yticks){const py=yToPx(yt);
+    ctx.beginPath();ctx.moveTo(padL,py);ctx.lineTo(padL+pw,py);ctx.stroke();
+    ctx.fillText(fmtTick(yt),padL-7,py);}
+  // 軸 (y=0,x=0) を強調
+  ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1.4;
+  if(0>=d.yLo&&0<=d.yHi){const p=yToPx(0);ctx.beginPath();ctx.moveTo(padL,p);ctx.lineTo(padL+pw,p);ctx.stroke();}
+  if(0>=cfg.xMin&&0<=cfg.xMax){const p=xToPx(0);ctx.beginPath();ctx.moveTo(p,padT);ctx.lineTo(p,padT+ph);ctx.stroke();}
+
+  // クリップ
+  ctx.save();ctx.beginPath();ctx.rect(padL,padT,pw,ph);ctx.clip();
+
+  // 真の関数（薄線）
+  ctx.strokeStyle=getCSS('--true');ctx.lineWidth=1.6;ctx.globalAlpha=.55;
+  ctx.beginPath();
+  for(let i=0;i<=N_PLOT;i++){const x=cfg.xMin+(cfg.xMax-cfg.xMin)*i/N_PLOT;
+    const px=xToPx(x),py=yToPx(cfg.f(x));i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  ctx.stroke();ctx.globalAlpha=1;
+
+  // 予測曲線
+  const pts=[];
+  for(let i=0;i<=N_PLOT;i++){
+    const x=cfg.xMin+(cfg.xMax-cfg.xMin)*i/N_PLOT;
+    const xn=2*(x-cfg.xMin)/(cfg.xMax-cfg.xMin)-1;
+    const yn=net.predict1([xn]);const y=yn*d.yStd+d.yMean;
+    pts.push([xToPx(x),yToPx(y)]);
+  }
+  // 誤差の薄い帯
+  ctx.fillStyle=getCSS('--pred-soft');ctx.beginPath();
+  for(let i=0;i<=N_PLOT;i++){const x=cfg.xMin+(cfg.xMax-cfg.xMin)*i/N_PLOT;
+    i?ctx.lineTo(pts[i][0],pts[i][1]):ctx.moveTo(pts[i][0],pts[i][1]);}
+  for(let i=N_PLOT;i>=0;i--){const x=cfg.xMin+(cfg.xMax-cfg.xMin)*i/N_PLOT;
+    ctx.lineTo(xToPx(x),yToPx(cfg.f(x)));}
+  ctx.closePath();ctx.fill();
+
+  // 教師データ点
+  ctx.fillStyle=getCSS('--dot');
+  for(let i=0;i<N_SAMPLE;i++){
+    ctx.beginPath();ctx.arc(xToPx(d.xData[i]),yToPx(d.yNoisy[i]),2.6,0,7);ctx.fill();
+  }
+  // 予測曲線（グロー）
+  ctx.save();ctx.shadowColor=getCSS('--pred');ctx.shadowBlur=10;
+  ctx.strokeStyle=getCSS('--pred');ctx.lineWidth=2.6;ctx.lineJoin='round';
+  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+}
+
+/* ====================== 描画：ネットワーク ====================== */
+function drawNet(){
+  const{ctx,c}=netv,w=c._w,h=c._h;ctx.clearRect(0,0,w,h);
+  const sizes=net.sizes,Lc=sizes.length;
+  const padX=22,padY=18;
+  const colX=i=>padX+(w-2*padX)*(Lc===1?0.5:i/(Lc-1));
+  const nodeY=(n,cnt)=>padY+(h-2*padY)*(cnt===1?0.5:n/(cnt-1));
+  // エッジ
+  for(let l=1;l<Lc;l++){
+    let maxAbs=1e-9;for(const row of net.W[l])for(const v of row)maxAbs=Math.max(maxAbs,Math.abs(v));
+    const x0=colX(l-1),x1=colX(l),cntPrev=sizes[l-1],cnt=sizes[l];
+    for(let j=0;j<cnt;j++){
+      const y1=nodeY(j,cnt);const Wj=net.W[l][j];
+      for(let k=0;k<cntPrev;k++){
+        const wv=Wj[k];const m=Math.abs(wv)/maxAbs;
+        ctx.strokeStyle=wv>=0?getCSS('--pos'):getCSS('--neg');
+        ctx.globalAlpha=0.04+0.5*m;ctx.lineWidth=0.4+1.6*m;
+        ctx.beginPath();ctx.moveTo(x0,nodeY(k,cntPrev));ctx.lineTo(x1,y1);ctx.stroke();
+      }
+    }
+  }
+  ctx.globalAlpha=1;
+  // ノード
+  for(let l=0;l<Lc;l++){
+    const x=colX(l),cnt=sizes[l];
+    const r=cnt>20?2.6:(cnt>10?3.4:4.6);
+    for(let n=0;n<cnt;n++){
+      ctx.beginPath();ctx.arc(x,nodeY(n,cnt),r,0,7);
+      ctx.fillStyle=getCSS('--node');ctx.fill();
+      ctx.lineWidth=1;ctx.strokeStyle=getCSS('--line');ctx.stroke();
+    }
+  }
+  // 入力/出力ラベル
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('x',colX(0),h-13);ctx.fillText('y',colX(Lc-1),h-13);
+}
+
+/* ====================== 描画：損失 ====================== */
+function drawLoss(){
+  const{ctx,c}=lossv,w=c._w,h=c._h;ctx.clearRect(0,0,w,h);
+  const padL=40,padR=10,padT=12,padB=18;
+  const pw=w-padL-padR,ph=h-padT-padB;
+  if(lossHist.length<1){
+    ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--gothic');
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('再生すると損失が表示されます',w/2,h/2);return;
+  }
+  const logs=lossHist.map(v=>Math.log10(Math.max(v,1e-7)));
+  let lo=Math.min(...logs),hi=Math.max(...logs);
+  hi=Math.ceil(hi);lo=Math.floor(lo);if(hi-lo<1)lo=hi-1;
+  const yToPx=v=>padT+(hi-v)/(hi-lo)*ph;
+  const xToPx=i=>padL+(lossHist.length<=1?0:i/(lossHist.length-1))*pw;
+  // グリッド（10のべき）
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let e=lo;e<=hi;e++){const py=yToPx(e);
+    ctx.beginPath();ctx.moveTo(padL,py);ctx.lineTo(padL+pw,py);ctx.stroke();
+    ctx.fillText('10'+sup(e),padL-6,py);}
+  // 曲線
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2;ctx.lineJoin='round';
+  ctx.beginPath();
+  const step=Math.max(1,Math.floor(lossHist.length/pw));
+  for(let i=0;i<lossHist.length;i+=step){
+    const px=xToPx(i),py=yToPx(logs[i]);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  const li=lossHist.length-1;ctx.lineTo(xToPx(li),yToPx(logs[li]));
+  ctx.stroke();
+}
+
+/* ====================== ユーティリティ ====================== */
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function niceTicks(lo,hi,count){
+  const span=hi-lo;const raw=span/count;const mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const norm=raw/mag;let step;
+  if(norm<1.5)step=1;else if(norm<3)step=2;else if(norm<7)step=5;else step=10;
+  step*=mag;const start=Math.ceil(lo/step)*step;const out=[];
+  for(let v=start;v<=hi+1e-9;v+=step)out.push(Math.abs(v)<1e-9?0:v);
+  return out;
+}
+function fmtTick(v){if(Math.abs(v)>=100)return v.toFixed(0);
+  if(Math.abs(v-Math.round(v))<1e-9)return v.toFixed(0);return v.toFixed(1);}
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function sup(n){return String(n).split('').map(ch=>SUP[ch]||ch).join('');}
+
+function updateReadout(){
+  document.getElementById('epochOut').textContent=epoch.toLocaleString();
+  document.getElementById('lossOut').textContent=lastLoss==null?'—':lastLoss.toExponential(2);
+}
+function drawAll(){drawFit();drawNet();drawLoss();}
+
+/* ====================== 学習ループ ====================== */
+function doSteps(n){
+  const lr=Math.pow(10,+lrSlider.value);
+  for(let i=0;i<n;i++){lastLoss=net.trainStep(data.X,data.Y,lr);epoch++;lossHist.push(lastLoss);}
+}
+function frame(){
+  if(!running)return;
+  doSteps(+spdSlider.value);
+  updateReadout();drawFit();drawLoss();
+  if((netRedrawCtr++ %3)===0)drawNet();
+  requestAnimationFrame(frame);
+}
+function setRunning(on){
+  running=on;document.getElementById('playBtn').textContent=on?'⏸ 一時停止':'▶ 再生';
+  document.getElementById('playBtn').classList.toggle('primary',!on);
+  if(on)requestAnimationFrame(frame);
+}
+
+/* ====================== UI 配線 ====================== */
+const fnSel=document.getElementById('fnSel'),actSel=document.getElementById('actSel'),
+  optSel=document.getElementById('optSel'),lrSlider=document.getElementById('lrSlider'),
+  depthSel=document.getElementById('depthSel'),widthSel=document.getElementById('widthSel'),
+  noiseSlider=document.getElementById('noiseSlider'),spdSlider=document.getElementById('spdSlider');
+
+FUNCS.forEach((f,i)=>{const o=document.createElement('option');o.value=i;o.textContent=f.name;
+  if(i===1)o.selected=true;fnSel.appendChild(o);});
+
+function updateLrLabel(){document.getElementById('lrVal').textContent=Math.pow(10,+lrSlider.value).toFixed(4);}
+function updateNoiseLabel(){document.getElementById('noiseVal').textContent=(+noiseSlider.value).toFixed(2);}
+function updateSpdLabel(){document.getElementById('spdVal').textContent=spdSlider.value;}
+
+lrSlider.value=Math.log10(0.02);updateLrLabel();updateNoiseLabel();updateSpdLabel();
+
+fnSel.onchange=()=>{setRunning(false);rebuildAll(true);};
+noiseSlider.oninput=()=>{updateNoiseLabel();};
+noiseSlider.onchange=()=>{setRunning(false);rebuildAll(true);};
+actSel.onchange=()=>{setRunning(false);resetNetOnly();};
+optSel.onchange=()=>{setRunning(false);lrSlider.value=Math.log10(optSel.value==='sgd'?0.1:0.02);
+  updateLrLabel();resetNetOnly();};
+depthSel.onchange=()=>{setRunning(false);resetNetOnly();};
+widthSel.onchange=()=>{setRunning(false);resetNetOnly();};
+lrSlider.oninput=updateLrLabel;
+spdSlider.oninput=updateSpdLabel;
+
+document.getElementById('playBtn').onclick=()=>setRunning(!running);
+document.getElementById('stepBtn').onclick=()=>{setRunning(false);doSteps(1);updateReadout();drawAll();};
+document.getElementById('burstBtn').onclick=()=>{setRunning(false);doSteps(50);updateReadout();drawAll();};
+document.getElementById('resetBtn').onclick=()=>{setRunning(false);resetNetOnly();};
+
+/* ====================== 起動 ====================== */
+function start(){fit.resize();netv.resize();lossv.resize();rebuildAll(true);}
+window.addEventListener('load',start);
+setTimeout(start,60);
+</script>
+</body>
+</html>
