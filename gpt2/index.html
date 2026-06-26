@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPT-2 の生成過程と内部構造</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --accent-soft:rgba(57,224,196,0.16);
+    --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);line-height:1.6;}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px;}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:8px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:26px;margin:0;letter-spacing:.02em;}
+  .sub{color:var(--muted);font-size:13.5px;margin:6px 0 0;}
+  .back{font-size:13px;color:var(--muted);}
+  h2{font-family:var(--mincho);font-weight:600;font-size:19px;margin:34px 0 10px;padding-left:10px;border-left:3px solid var(--accent);}
+  h3{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:.04em;text-transform:none;}
+  p.lead{color:var(--muted);font-size:14px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0;}
+  .panel.sub2{background:var(--panel-2);}
+  label{font-size:12.5px;color:var(--muted);display:block;margin:0 0 4px;}
+  textarea,input[type=text]{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:13px;resize:vertical;}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;}
+  .row>div{flex:1;min-width:120px;}
+  select,input[type=number]{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:13px;}
+  button{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:9px 14px;font-size:13px;font-family:var(--gothic);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){background:var(--accent);color:#04221d;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  button.ghost{background:transparent;color:var(--muted);border-color:var(--line);}
+  button.ghost:hover:not(:disabled){border-color:var(--muted);color:var(--text);background:transparent;}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .status{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;min-height:1.4em;}
+  .status.err{color:var(--neg);}
+  .status.ok{color:var(--accent);}
+  .chip{display:inline-block;padding:2px 6px;margin:2px 3px 2px 0;border-radius:5px;font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);}
+  .chip .id{color:var(--faint);font-size:10px;margin-left:4px;}
+  .tok-space{color:var(--warm);}
+  .gen-out{font-family:var(--mono);font-size:14px;line-height:2;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:14px;min-height:60px;white-space:pre-wrap;word-break:break-word;}
+  .gen-out .prompt{color:var(--muted);}
+  .gen-out .new{color:var(--accent);}
+  .gen-out .cursor{color:var(--warm);}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;font-family:var(--mono);}
+  th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;}
+  th{color:var(--muted);font-weight:500;background:var(--panel-2);}
+  .bar{height:13px;background:var(--accent);border-radius:3px;display:inline-block;vertical-align:middle;}
+  .prob-row{display:flex;align-items:center;gap:8px;margin:3px 0;font-family:var(--mono);font-size:12px;}
+  .prob-row .lbl{width:130px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .prob-row .pct{width:54px;color:var(--muted);text-align:right;}
+  canvas{image-rendering:pixelated;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);max-width:100%;}
+  .muted{color:var(--muted);}
+  .small{font-size:12px;}
+  .note{font-size:12px;color:var(--faint);border-top:1px dashed var(--line);margin-top:8px;padding-top:8px;}
+  details{margin:10px 0;}
+  summary{cursor:pointer;color:var(--muted);font-size:13px;}
+  .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted);margin-left:8px;vertical-align:middle;}
+  .flex2{display:flex;gap:18px;flex-wrap:wrap;}
+  .flex2>div{flex:1;min-width:280px;}
+  .kbd{font-family:var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>GPT-2 の生成過程と内部構造</h1>
+      <p class="sub">本物の GPT-2 small（124M）をブラウザで forward 実行し、生成を 1 トークンずつ進めながら attention・残差・logit lens・次トークン確率を覗く</p>
+    </div>
+    <a class="back" href="../">← ニューラルネットの学習過程へ</a>
+  </header>
+
+  <p class="lead">
+    フレームワークを使わず、トークナイザ（byte-level BPE）と forward（埋め込み → Transformer ブロック×12 → ln_f → lm_head）を
+    <b>素の JavaScript で実装</b>しています。<code class="kbd">transformers.js</code> は logits しか返さず内部を取り出せないため、
+    attention や残差を見るには自前 forward が必要、という方針です（詳細は
+    <a href="GPT_NOTES.md">GPT_NOTES.md</a>）。
+  </p>
+
+  <!-- ============ トークナイザ実演 ============ -->
+  <h2>1. トークナイザ実演 <span class="pill">重みDL不要・即動作</span></h2>
+  <p class="lead small">GPT-2 の byte-level BPE。テキスト → 事前分割 → バイト列 → BPE マージ → トークン ID。未知語が原理的に存在しません（日本語・絵文字も可）。</p>
+  <div class="panel">
+    <label>テキスト</label>
+    <textarea id="tokInput" rows="2">Hello world! 日本語も 👍 トークン化できる。</textarea>
+    <div class="btnrow">
+      <button id="tokBtn" disabled>トークン化</button>
+      <button class="ghost" data-ex="The quick brown fox jumps over the lazy dog.">英文例</button>
+      <button class="ghost" data-ex="def softmax(x):&#10;    return e**x / sum(e**x)">コード例</button>
+      <button class="ghost" data-ex="制御工学における可制御性と可観測性。">日本語例</button>
+    </div>
+    <div id="tokStatus" class="status">vocab.json / merges.txt を読み込み中…</div>
+    <div id="tokChips" style="margin-top:10px;"></div>
+    <div id="tokIds" class="status" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- ============ 生成過程＋内部構造 ============ -->
+  <h2>2. 生成過程と内部構造ビューア <span class="pill">要・重み読み込み</span></h2>
+  <p class="lead small">
+    本物の重み（<code class="kbd">model.safetensors</code>, 約 523MB）が必要です。<b>ローカルにあるファイルを選ぶ</b>のが最速。
+    無ければ HuggingFace から取得できます（初回 523MB ダウンロード）。読み込み後、生成を 1 トークンずつ進めて内部を観察できます。
+  </p>
+
+  <div class="panel">
+    <h3>モデル読み込み</h3>
+    <div class="row">
+      <div style="flex:2;">
+        <label>ローカルの model.safetensors を選択（推奨）</label>
+        <input type="file" id="fileInput" accept=".safetensors">
+      </div>
+      <div>
+        <label>または</label>
+        <button id="hfBtn" class="ghost" style="width:100%;">HuggingFace から取得（523MB）</button>
+      </div>
+    </div>
+    <div id="modelStatus" class="status">未読み込み</div>
+  </div>
+
+  <div class="panel" id="genPanel" style="opacity:.45;pointer-events:none;">
+    <h3>生成</h3>
+    <label>プロンプト</label>
+    <input type="text" id="prompt" value="The capital of France is">
+    <div class="row" style="margin-top:10px;">
+      <div><label>サンプリング</label>
+        <select id="mode"><option value="greedy">greedy（決定的）</option><option value="sample">確率サンプリング</option></select>
+      </div>
+      <div><label>temperature</label><input type="number" id="temp" value="0.8" step="0.1" min="0" max="2"></div>
+      <div><label>top-k</label><input type="number" id="topk" value="40" step="1" min="0"></div>
+      <div><label>最大トークン数</label><input type="number" id="maxtok" value="20" step="1" min="1" max="80"></div>
+    </div>
+    <div class="btnrow">
+      <button id="stepBtn">⏭ 1 トークン生成</button>
+      <button id="runBtn">⏩ 連続生成</button>
+      <button id="stopBtn" class="ghost" disabled>⏹ 停止</button>
+      <button id="resetBtn" class="ghost">↺ リセット</button>
+    </div>
+    <div id="genStatus" class="status"></div>
+    <h3 style="margin-top:16px;">出力</h3>
+    <div id="genOut" class="gen-out"><span class="muted">プロンプトから生成が始まります</span></div>
+
+    <div class="flex2" style="margin-top:18px;">
+      <div>
+        <h3>次トークン確率（top-12）</h3>
+        <div id="probView" class="muted small">—</div>
+      </div>
+      <div>
+        <h3>logit lens（層を追うごとの top-1 予測）</h3>
+        <div id="lensView" class="muted small">—</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:18px;">Attention 行列 <span class="muted small">softmax(QKᵀ/√d) ・下三角（因果）</span></h3>
+    <div class="row" style="margin-bottom:8px;">
+      <div><label>層 (0–11)</label><input type="number" id="attnLayer" value="0" min="0" max="11"></div>
+      <div><label>ヘッド (0–11)</label><input type="number" id="attnHead" value="0" min="0" max="11"></div>
+      <div style="flex:3;display:flex;align-items:flex-end;"><span class="muted small" id="attnHint">行=クエリ位置（どのトークンが）／列=キー位置（どこを見るか）。明るいほど強い注目。</span></div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+      <canvas id="attnCanvas" width="360" height="360"></canvas>
+      <div id="attnTokens" class="small muted" style="flex:1;min-width:200px;"></div>
+    </div>
+
+    <h3 style="margin-top:18px;">残差ストリームのノルム（最終位置・層ごと）</h3>
+    <canvas id="residCanvas" width="640" height="140"></canvas>
+  </div>
+
+  <p class="note">
+    実装は教育目的。素の JS のため WebGPU 等の最適化はしておらず、1 トークンの生成に数百ms〜数秒かかります。トークナイザは Node で
+    <code class="kbd">encode("Hello world") = [15496, 995]</code> と往復一致を検証済み。forward はコンポーネント単体テストと本物重みでの生成健全性で確認しています。
+  </p>
+</div>
+
+<script type="module">
+import { GPT2Tokenizer } from './tools/tokenizer.mjs';
+import { parseSafetensors, GPT2, sampleNext, topkSoftmax } from './tools/gpt2.mjs';
+
+const $ = (id) => document.getElementById(id);
+const CONFIG = { n_layer:12, n_head:12, n_embd:768, n_ctx:1024, vocab_size:50257, layer_norm_epsilon:1e-5 };
+
+// ---------- トークナイザ ----------
+let tok = null;
+(async () => {
+  try{
+    const [vocabText, mergesText] = await Promise.all([
+      fetch('./assets/vocab.json').then(r=>r.text()),
+      fetch('./assets/merges.txt').then(r=>r.text()),
+    ]);
+    tok = new GPT2Tokenizer(vocabText, mergesText);
+    $('tokStatus').textContent = '準備完了（語彙 50257）。';
+    $('tokStatus').className = 'status ok';
+    $('tokBtn').disabled = false;
+    renderTokens();
+  }catch(e){ $('tokStatus').textContent = '読み込み失敗: '+e.message; $('tokStatus').className='status err'; }
+})();
+
+function renderTokens(){
+  if(!tok) return;
+  const text = $('tokInput').value;
+  const detailed = tok.encodeDetailed(text);
+  const chips = $('tokChips'); chips.innerHTML='';
+  for(const d of detailed){
+    const span = document.createElement('span'); span.className='chip';
+    const disp = d.token.replace(/Ġ/g,'<span class="tok-space">␣</span>').replace(/Ċ/g,'<span class="tok-space">⏎</span>');
+    span.innerHTML = disp + '<span class="id">'+d.id+'</span>';
+    chips.appendChild(span);
+  }
+  $('tokIds').textContent = '['+detailed.map(d=>d.id).join(', ')+']  ·  '+detailed.length+' トークン';
+}
+$('tokBtn').addEventListener('click', renderTokens);
+$('tokInput').addEventListener('input', ()=>{ if(tok) renderTokens(); });
+document.querySelectorAll('[data-ex]').forEach(b=> b.addEventListener('click', ()=>{ $('tokInput').value=b.dataset.ex; renderTokens(); }));
+
+// ---------- モデル ----------
+let model = null;
+let genTokens = [];      // 現在の全トークン id
+let promptLen = 0;
+let lastForward = null;  // 直近 forward の capture
+let running = false;
+
+function setModelLoaded(ms){
+  try{
+    const weights = parseSafetensors(ms);
+    model = new GPT2(weights, CONFIG);
+    $('modelStatus').textContent = '読み込み完了（'+weights.size+' テンソル）。生成できます。';
+    $('modelStatus').className = 'status ok';
+    $('genPanel').style.opacity='1'; $('genPanel').style.pointerEvents='auto';
+    resetGen();
+  }catch(e){ $('modelStatus').textContent='解析失敗: '+e.message; $('modelStatus').className='status err'; }
+}
+
+$('fileInput').addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0]; if(!f) return;
+  $('modelStatus').textContent='読み込み中… ('+(f.size/1048576|0)+'MB)'; $('modelStatus').className='status';
+  try{ const buf = await f.arrayBuffer(); setModelLoaded(buf); }
+  catch(e){ $('modelStatus').textContent='失敗: '+e.message; $('modelStatus').className='status err'; }
+});
+
+$('hfBtn').addEventListener('click', async ()=>{
+  const url='https://huggingface.co/gpt2/resolve/main/model.safetensors';
+  $('modelStatus').textContent='HuggingFace から取得中…（523MB, 時間がかかります）'; $('modelStatus').className='status';
+  try{
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const total = +resp.headers.get('content-length')||0;
+    const reader = resp.body.getReader(); const chunks=[]; let recv=0;
+    while(true){ const {done,value}=await reader.read(); if(done) break; chunks.push(value); recv+=value.length;
+      if(total) $('modelStatus').textContent='ダウンロード '+(recv/1048576|0)+' / '+(total/1048576|0)+' MB'; }
+    const buf = new Uint8Array(recv); let off=0; for(const c of chunks){ buf.set(c,off); off+=c.length; }
+    setModelLoaded(buf.buffer);
+  }catch(e){ $('modelStatus').textContent='取得失敗: '+e.message+'（CORS やネットワークの可能性）'; $('modelStatus').className='status err'; }
+});
+
+// ---------- 生成 ----------
+function resetGen(){
+  if(!tok){ return; }
+  genTokens = tok.encode($('prompt').value);
+  promptLen = genTokens.length;
+  lastForward = null;
+  running = false;
+  $('stopBtn').disabled = true;
+  renderGenText(true);
+  $('probView').innerHTML='—'; $('lensView').innerHTML='—'; $('attnTokens').innerHTML='';
+  clearCanvas('attnCanvas'); clearCanvas('residCanvas');
+  $('genStatus').textContent = 'プロンプト '+promptLen+' トークン。';
+}
+$('resetBtn').addEventListener('click', resetGen);
+$('prompt').addEventListener('change', resetGen);
+
+function renderGenText(initial){
+  const out = $('genOut'); out.innerHTML='';
+  const ps = document.createElement('span'); ps.className='prompt';
+  ps.textContent = decodeRange(0, promptLen); out.appendChild(ps);
+  if(genTokens.length>promptLen){ const ns=document.createElement('span'); ns.className='new'; ns.textContent=decodeRange(promptLen, genTokens.length); out.appendChild(ns); }
+  if(initial){ const c=document.createElement('span'); c.className='cursor'; c.textContent=' ▍'; out.appendChild(c); }
+}
+function decodeRange(a,b){ return tok.decode(genTokens.slice(a,b)); }
+
+async function step(){
+  if(!model) return false;
+  if(genTokens.length >= CONFIG.n_ctx) { $('genStatus').textContent='文脈長 1024 に到達。'; return false; }
+  const t0 = performance.now();
+  $('genStatus').textContent = 'forward 計算中…（'+genTokens.length+' トークン）';
+  await new Promise(r=>setTimeout(r,10)); // UIを更新させる
+  const res = model.forward(genTokens, { capture:true, lensTopK:1 });
+  lastForward = res;
+  // 次トークン決定
+  const mode = $('mode').value;
+  let nextId;
+  if(mode==='greedy'){ nextId = sampleNext(res.logits, {greedy:true}); }
+  else { nextId = sampleNext(res.logits, { temperature:+$('temp').value, topK:+$('topk').value|0 }); }
+  // 可視化（選択前の分布・内部）
+  renderProb(res.logits);
+  renderLens(res.lens);
+  drawAttention();
+  drawResid(res.residNorm);
+  $('attnLayer').max=CONFIG.n_layer-1; $('attnHead').max=CONFIG.n_head-1;
+  buildAttnTokenList();
+  // 追加
+  genTokens.push(nextId);
+  renderGenText(false);
+  const dt = ((performance.now()-t0)/1000).toFixed(1);
+  $('genStatus').textContent = genTokens.length-promptLen+' トークン生成。直近 forward: '+dt+'s';
+  return true;
+}
+
+$('stepBtn').addEventListener('click', async ()=>{ disable(true); await step(); disable(false); });
+$('runBtn').addEventListener('click', async ()=>{
+  running=true; disable(true); $('stopBtn').disabled=false;
+  const limit = promptLen + (+$('maxtok').value||20);
+  while(running && genTokens.length<limit){ const ok=await step(); if(!ok) break; }
+  running=false; $('stopBtn').disabled=true; disable(false);
+});
+$('stopBtn').addEventListener('click', ()=>{ running=false; });
+function disable(b){ for(const id of ['stepBtn','runBtn','resetBtn','fileInput','hfBtn']) $(id).disabled=b; }
+
+// ---------- 可視化 ----------
+function renderProb(logits){
+  const top = topkSoftmax(logits, 12);
+  const v = $('probView'); v.innerHTML='';
+  for(const {id,prob} of top){
+    const row=document.createElement('div'); row.className='prob-row';
+    const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=showTok(id);
+    const bar=document.createElement('span'); bar.className='bar'; bar.style.width=Math.max(2,prob*220)+'px';
+    const pct=document.createElement('span'); pct.className='pct'; pct.textContent=(prob*100).toFixed(1)+'%';
+    row.append(lbl,bar,pct); v.appendChild(row);
+  }
+}
+function renderLens(lens){
+  if(!lens){ $('lensView').textContent='—'; return; }
+  let html='<table><tr><th>層</th><th>top-1 予測</th></tr>';
+  lens.forEach((arr,i)=>{ const t=arr[0]; html+='<tr><td>'+i+'</td><td>'+escapeHtml(showTok(t.id))+' <span class="muted">'+(t.prob*100).toFixed(0)+'%</span></td></tr>'; });
+  html+='</table>';
+  $('lensView').innerHTML=html;
+}
+function buildAttnTokenList(){
+  const el=$('attnTokens'); let s='系列（位置: トークン）<br>';
+  genTokens.forEach((id,i)=>{ s+='<span class="muted">'+i+':</span> '+escapeHtml(showTok(id))+'  '; });
+  el.innerHTML=s;
+}
+function drawAttention(){
+  if(!lastForward||!lastForward.attn) return;
+  const L=+$('attnLayer').value|0, Hh=+$('attnHead').value|0, T=lastForward.T;
+  const mat=lastForward.attn[L]; if(!mat) return;
+  const cv=$('attnCanvas'), ctx=cv.getContext('2d'); const W=cv.width, Hpx=cv.height;
+  ctx.clearRect(0,0,W,Hpx); const cell=Math.floor(Math.min(W,Hpx)/Math.max(T,1));
+  for(let i=0;i<T;i++) for(let j=0;j<T;j++){
+    const a = j<=i ? mat[Hh*T*T + i*T + j] : 0;
+    const c = Math.round(255*Math.pow(a,0.7));
+    ctx.fillStyle = j<=i ? `rgb(${Math.round(c*0.22)},${Math.round(c*0.88)},${Math.round(c*0.78)})` : '#0e131b';
+    ctx.fillRect(j*cell, i*cell, cell-0.5, cell-0.5);
+  }
+}
+$('attnLayer').addEventListener('input', drawAttention);
+$('attnHead').addEventListener('input', drawAttention);
+function drawResid(norms){
+  if(!norms) return;
+  const cv=$('residCanvas'), ctx=cv.getContext('2d'); const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+  const n=norms.length, pad=28; const max=Math.max(...norms), min=Math.min(...norms);
+  ctx.strokeStyle='#39e0c4'; ctx.lineWidth=2; ctx.beginPath();
+  norms.forEach((v,i)=>{ const x=pad+(W-2*pad)*i/(n-1); const y=H-20-(H-40)*(v-min)/(max-min+1e-9); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+  ctx.stroke();
+  ctx.fillStyle='#8595a8'; ctx.font='10px monospace';
+  ctx.fillText('‖h‖ '+min.toFixed(1)+'→'+max.toFixed(1), 4, 12);
+  ctx.fillText('embed', pad-10, H-6); ctx.fillText('層'+(n-1), W-pad-10, H-6);
+}
+function clearCanvas(id){ const cv=$(id); cv.getContext('2d').clearRect(0,0,cv.width,cv.height); }
+
+function showTok(id){ const s = tok? tok.decode([id]) : String(id); return JSON.stringify(s).slice(1,-1) || '∅'; }
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+</script>
+</body>
+</html>
