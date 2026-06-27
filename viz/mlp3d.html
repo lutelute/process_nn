@@ -86,11 +86,13 @@
     </div>
     <div class="buttons">
       <button class="primary" id="flowBtn">▶ 信号を流す</button>
+      <button id="learnBtn">🎓 学習させる</button>
       <button id="randBtn">🎲 入力＆重み再生成</button>
       <button id="spinBtn">⟲ 自動回転</button>
       <button id="resetBtn">↺ 視点リセット</button>
     </div>
-    <div class="note">2D 版の「信号の流れ」を立体化。各層は √ユニット数 のグリッド状シートとして奥行き方向に積層。信号が左奥のシートから右手前へ層ごとに流れ、各ニューロンが活性値で光ります。重みはランダム（学習はしていません）。</div>
+    <div id="narr3d" style="margin-top:12px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:1.7;color:var(--text);">課題: 9 入力の<b>合計が正か負か</b>を当てる。今はランダム重みなので当てずっぽう。「🎓 学習させる」で重み（結線の色）が立体空間で更新され、当てられるようになります。</div>
+    <div class="note">2D 版「信号の流れ」の立体版。各層は √ユニット数 のグリッド状シートとして奥行きに積層。学習＝合計の符号を当てるよう重みを調整（誤差逆伝播＋Adam）。学習が進むと結線の色・太さが変わり、信号フローが「意味のある計算」になります。</div>
   </div>
 </div>
 
@@ -102,8 +104,27 @@ let rng=mulberry32(7);
 function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
 function actFn(n,z){if(n==='tanh')return Math.tanh(z);if(n==='relu')return z>0?z:0;return 1/(1+Math.exp(-z));}
 
-let sizes=[9,16,16,4], W=[], B=[], acts=[], POS=[];
-function buildNet(){W=[null];B=[null];for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const s=(actSel.value==='relu')?Math.sqrt(2/nIn):Math.sqrt(1/nIn);const Wl=[];for(let j=0;j<nOut;j++){const r=new Float32Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s*1.3;Wl.push(r);}W[l]=Wl;B[l]=new Float32Array(nOut);}}
+let sizes=[9,16,16,2], W=[], B=[], acts=[], POS=[];
+let mW=[],vW=[],mB=[],vB=[],tAdam=0,trainSteps=0,learning=false;
+function buildNet(){W=[null];B=[null];for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const s=(actSel.value==='relu')?Math.sqrt(2/nIn):Math.sqrt(1/nIn);const Wl=[];for(let j=0;j<nOut;j++){const r=new Float32Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s*1.3;Wl.push(r);}W[l]=Wl;B[l]=new Float32Array(nOut);}initOpt();trainSteps=0;}
+function initOpt(){mW=[null];vW=[null];mB=[null];vB=[null];tAdam=0;for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const m=[],v=[];for(let j=0;j<nOut;j++){m.push(new Float32Array(nIn));v.push(new Float32Array(nIn));}mW[l]=m;vW[l]=v;mB[l]=new Float32Array(nOut);vB[l]=new Float32Array(nOut);}}
+function actDer(name,a){if(name==='tanh')return 1-a*a;if(name==='relu')return a>0?1:0;return a*(1-a);}
+function fwdX(x){let a=[Float32Array.from(x)];const L=sizes.length-1;for(let l=1;l<=L;l++){const nO=sizes[l],nI=sizes[l-1],al=new Float32Array(nO),prev=a[l-1];for(let j=0;j<nO;j++){let s=B[l][j];for(let k=0;k<nI;k++)s+=W[l][j][k]*prev[k];al[j]=(l===L)?s:actFn(actSel.value,s);}a.push(al);}return a;}
+function softmax2(o){const m=Math.max(o[0],o[1]),e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
+function trainStep(lr){const L=sizes.length-1,BB=24;const dW=[null],dB=[null];for(let l=1;l<=L;l++){const g=[];for(let j=0;j<sizes[l];j++)g.push(new Float32Array(sizes[l-1]));dW[l]=g;dB[l]=new Float32Array(sizes[l]);}
+  for(let b=0;b<BB;b++){const x=[];for(let q=0;q<sizes[0];q++)x.push(rng()*2-1);let sum=0;for(const v of x)sum+=v;const y=sum>0?1:0;const a=fwdX(x);const p=softmax2(a[L]);
+    let delta=new Float32Array(sizes[L]);delta[0]=p[0]-(y===0?1:0);delta[1]=p[1]-(y===1?1:0);
+    for(let l=L;l>=1;l--){const nO=sizes[l],nI=sizes[l-1],ap=a[l-1];for(let j=0;j<nO;j++){dB[l][j]+=delta[j];const r=dW[l][j];for(let k=0;k<nI;k++)r[k]+=delta[j]*ap[k];}
+      if(l>1){const dp=new Float32Array(nI);for(let k=0;k<nI;k++){let s=0;for(let j=0;j<nO;j++)s+=W[l][j][k]*delta[j];dp[k]=s*actDer(actSel.value,a[l-1][k]);}delta=dp;}}}
+  const iN=1/BB;tAdam++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,tAdam),bc2=1-Math.pow(b2,tAdam);
+  for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+0.1*gb;vB[l][j]=b2*vB[l][j]+0.001*gb*gb;B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+1e-8);for(let k=0;k<sizes[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+0.1*gw;vW[l][j][k]=b2*vW[l][j][k]+0.001*gw*gw;W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+1e-8);}}
+  trainSteps+=BB;}
+function evalAcc(){let ok=0;const n=50,L=sizes.length-1;for(let i=0;i<n;i++){const x=[];for(let q=0;q<sizes[0];q++)x.push(rng()*2-1);let sum=0;for(const v of x)sum+=v;const y=sum>0?1:0;const a=fwdX(x);const p=softmax2(a[L]);if((p[1]>p[0]?1:0)===y)ok++;}return ok/n;}
+function updateNarr(){const el=document.getElementById('narr3d');if(!el)return;let sum=0;for(const v of input)sum+=v;const L=sizes.length-1;const a=fwdX(input);const p=softmax2(a[L]);const predPos=p[1]>p[0],truth=sum>0;
+  let msg=`課題: 9 入力の<b>合計の符号</b>を当てる。今の合計 = <b>${sum.toFixed(2)}</b>（実際は ${truth?'正':'負'}）。判定: <b>${predPos?'正':'負'}</b>（${(Math.max(p[0],p[1])*100).toFixed(0)}%・${predPos===truth?'<span style="color:var(--accent)">正解</span>':'<span style="color:var(--neg)">不正解</span>'}）。`;
+  msg+=trainSteps===0?` ← 未学習。「🎓学習」で結線（重み）が更新され当たるように。`:` 学習 <b>${trainSteps}</b> step・正答率 約 <b>${Math.round(evalAcc()*100)}%</b>。`;
+  el.innerHTML=msg;}
+function learnLoop(){if(!learning)return;for(let i=0;i<3;i++)trainStep(0.02);forward();draw();updateNarr();if(trainSteps>=2400){learning=false;const lb=document.getElementById('learnBtn');if(lb)lb.textContent='🎓 もっと学習';}else requestAnimationFrame(learnLoop);}
 let input=[];
 function newInput(){input=[];for(let i=0;i<sizes[0];i++)input.push(randn()*0.8);}
 function forward(){acts=[Float32Array.from(input)];const L=sizes.length-1;for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],a=new Float32Array(nOut),prev=acts[l-1];for(let j=0;j<nOut;j++){let s=B[l][j];const Wj=W[l][j];for(let k=0;k<nIn;k++)s+=Wj[k]*prev[k];a[j]=(l===L)?s:actFn(actSel.value,s);}acts.push(a);}}
@@ -150,13 +171,14 @@ function frame(){if(!running){return;}prog+=(+spd.value);
   draw();requestAnimationFrame(frame);}
 
 const depthSel=document.getElementById('depthSel'),widthSel=document.getElementById('widthSel'),actSel=document.getElementById('actSel'),spd=document.getElementById('spd'),spdv=document.getElementById('spdv'),spinBtn=document.getElementById('spinBtn');
-function rebuild(){const d=+depthSel.value,w=+widthSel.value;sizes=[9];for(let i=0;i<d;i++)sizes.push(w);sizes.push(4);rng=mulberry32(7);buildNet();newInput();forward();layout();litUpTo=0;curTrans=-1;draw();}
+function rebuild(){learning=false;const d=+depthSel.value,w=+widthSel.value;sizes=[9];for(let i=0;i<d;i++)sizes.push(w);sizes.push(2);rng=mulberry32(7);buildNet();newInput();forward();layout();litUpTo=0;curTrans=-1;draw();updateNarr();}
 function lbls(){spdv.textContent=(+spd.value).toFixed(3);}
 depthSel.onchange=rebuild;widthSel.onchange=rebuild;
-actSel.onchange=()=>{buildNet();forward();litUpTo=0;curTrans=-1;draw();};
+actSel.onchange=()=>{learning=false;buildNet();forward();litUpTo=0;curTrans=-1;draw();updateNarr();};
 spd.oninput=lbls;
-document.getElementById('flowBtn').onclick=()=>{if(!running){running=false;}forward();startFlow();};
-document.getElementById('randBtn').onclick=()=>{rng=mulberry32((Math.floor(rng()*1e9))>>>0);buildNet();newInput();forward();litUpTo=0;curTrans=-1;draw();};
+document.getElementById('flowBtn').onclick=()=>{if(!running){running=false;}forward();startFlow();updateNarr();};
+document.getElementById('learnBtn').onclick=()=>{const lb=document.getElementById('learnBtn');if(learning){learning=false;lb.textContent='🎓 学習させる';return;}learning=true;lb.textContent='⏸ 停止';learnLoop();};
+document.getElementById('randBtn').onclick=()=>{learning=false;rng=mulberry32((Math.floor(rng()*1e9))>>>0);buildNet();newInput();forward();litUpTo=0;curTrans=-1;draw();updateNarr();};
 Lib3D.attachDrag(cv,cam,draw);
 let spin=false;spinBtn.onclick=()=>{spin=!spin;spinBtn.classList.toggle('primary',!spin);spinBtn.textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin&&!running)loop();};
 function loop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(loop);}
