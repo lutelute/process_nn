@@ -22,6 +22,7 @@
     { href: 'som.html',         label: 'SOM' },
     { href: 'dtree.html',       label: '決定木' },
     { href: 'knn.html',         label: 'kNN' },
+    { href: 'svm.html',         label: 'SVM' },
     { href: 'hopfield.html',    label: 'Hopfield' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: 'gpt3d.html',       label: 'GPT(3D)' },
