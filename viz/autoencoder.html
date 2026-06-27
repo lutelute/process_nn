@@ -82,6 +82,7 @@
           <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
           <div><div class="k">再構成loss</div><div class="v loss" id="lossOut">—</div></div>
         </div>
+        <div id="narrA" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ 入力をボトルネック z（少ない次元）へ圧縮し復元。学習で再構成（○）がデータ（●）に吸い付きます。</div>
       </div>
       <div class="card">
         <div class="cap">潜在コード z（ボトルネック・1 次元）</div>
@@ -206,7 +207,10 @@ function drawLoss(){const W2=lossC.width,H2=lossC.height;sx.clearRect(0,0,W2,H2)
   const lg=lossHist.map(v=>Math.log10(Math.max(v,1e-6)));let hi=Math.max(...lg),lo=Math.min(...lg);if(hi-lo<0.5)lo=hi-0.5;
   sx.strokeStyle=getCSS('--loss');sx.lineWidth=1.8;sx.beginPath();const st=Math.max(1,Math.floor(lg.length/(W2-2*pad)));
   for(let i=0;i<lg.length;i+=st){const px=pad+(W2-2*pad)*i/(lg.length-1),py=pad+(H2-2*pad)*(hi-lg[i])/(hi-lo);i?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();}
-function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);}
+function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);
+  const el=document.getElementById('narrA');if(el){const oneD=(dataSel.value!=='blob');
+    if(epoch===0||lastLoss==null)el.innerHTML='入力をボトルネック z へ圧縮→復元。▶学習で再構成誤差を下げます。'+(oneD?'この形は 1 本の線（1 次元）に並ぶので z 1 個で表せます。':'この「塊」は 2 次元的なので 1 次元 z では表しきれず潰れます。');
+    else el.innerHTML='epoch '+epoch+'・再構成loss <b>'+lastLoss.toExponential(1)+'</b>。'+(oneD?'再構成（○）がデータ（●）に吸い付き、潜在 z がデータ上の位置を 1 数値で表現。':'<span style="color:var(--neg)">塊は 1 次元 z に潰れ誤差が残る</span>＝圧縮の限界が見える。');}}
 function drawAll(){draw();drawLatent();drawLoss();updateReadout();}
 
 /* ===== ループ ===== */
