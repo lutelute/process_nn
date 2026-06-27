@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>畳み込みの流れ — CNN ビューア</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --accent-soft:rgba(57,224,196,0.16);
+    --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;letter-spacing:.02em;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:6px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;cursor:crosshair;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);letter-spacing:.04em;}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;cursor:pointer;}
+  select:focus{border-color:var(--accent);}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s,background .15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;letter-spacing:.02em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>畳み込みの流れ — CNN ビューア</h1>
+      <div class="sub">入力画像の上をフィルタ（カーネル）がスライドし、特徴マップへ変換される様子を 1 マスずつ観察する。マスをクリック／ドラッグで自分でも描けます</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a>
+      <span style="color:var(--faint);margin:0 7px;">·</span>
+      <a href="transformer.html">Transformer 学習</a>
+      <span style="color:var(--faint);margin:0 7px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cap">入力 → 畳み込み(conv) → ReLU → 最大プーリング(2×2)</div>
+    <div class="canvas-host"><canvas id="cnv" width="1040" height="430"></canvas></div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>入力パターン</label>
+      <select id="preset">
+        <option value="cross">＋（十字）</option>
+        <option value="x">×（バツ）</option>
+        <option value="box">□（四角）</option>
+        <option value="diag">／（斜め）</option>
+        <option value="t">T 字</option>
+        <option value="blank">空（自分で描く）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>フィルタ（カーネル）</label>
+      <select id="filter">
+        <option value="vedge">縦エッジ検出</option>
+        <option value="hedge">横エッジ検出</option>
+        <option value="diagedge">斜めエッジ</option>
+        <option value="laplace">ラプラシアン（輪郭）</option>
+        <option value="blur">ぼかし</option>
+        <option value="sharpen">シャープ</option>
+        <option value="rand">ランダム</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>スライド速度 <span class="val" id="spdv"></span></label>
+      <input type="range" id="spd" min="0.3" max="8" step="0.1" value="2.5">
+    </div>
+    <div class="field">
+      <label>現在の計算</label>
+      <div class="val" id="calcv" style="font-size:11.5px;line-height:1.5;">—</div>
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="runBtn">▶ 畳み込みを流す</button>
+      <button id="stepBtn">⏭ 1 マスずつ</button>
+      <button id="resetBtn">↺ 最初から</button>
+      <button id="clearBtn">🧹 入力をクリア</button>
+    </div>
+    <div class="note">畳み込み = フィルタ窓内のピクセルとカーネル係数を掛けて合計（積和）し、特徴マップ 1 マスにする操作。窓を 1 マスずつずらして全体を走査します。ReLU は負を 0 に、プーリングは 2×2 ごとの最大値で縮約。色：<span style="color:var(--pos)">正</span>／<span style="color:var(--neg)">負</span>。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const N=16, K=3, CONV=N-K+1 /*14*/, POOLN=CONV/2 /*7*/;
+const cv=document.getElementById('cnv'), ctx=cv.getContext('2d');
+const W0=1040, H0=430;
+
+/* ---- レイアウト（論理座標, canvas は CSS で 100% に縮小表示） ---- */
+const cell=16;
+const L={
+  in:{x:18,y:64,c:cell},
+  filt:{x:18,y:64+N*cell+26,c:20},
+  conv:{x:18+N*cell+58,y:64,c:cell},
+  relu:{x:18+N*cell+58+CONV*cell+44,y:64,c:cell},
+  pool:{x:18+N*cell+58+2*(CONV*cell+44),y:64,c:cell},
+};
+
+/* ---- データ ---- */
+let input=new Float32Array(N*N);
+const FILTERS={
+  vedge:[-1,0,1,-2,0,2,-1,0,1], hedge:[-1,-2,-1,0,0,0,1,2,1],
+  diagedge:[0,1,2,-1,0,1,-2,-1,0], laplace:[0,-1,0,-1,4,-1,0,-1,0],
+  blur:[1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9], sharpen:[0,-1,0,-1,5,-1,0,-1,0],
+};
+let F=FILTERS.vedge.slice();
+let conv=new Float32Array(CONV*CONV), relu=new Float32Array(CONV*CONV), pool=new Float32Array(POOLN*POOLN);
+let convMax=1;
+
+function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+function setPreset(name){
+  input=new Float32Array(N*N);
+  const set=(r,c)=>{if(r>=0&&r<N&&c>=0&&c<N)input[r*N+c]=1;};
+  const lo=3,hi=N-4;
+  if(name==='cross'){for(let i=lo;i<=hi;i++){set(i,Math.floor(N/2));set(i,Math.floor(N/2)-1);set(Math.floor(N/2),i);set(Math.floor(N/2)-1,i);}}
+  else if(name==='x'){for(let i=lo;i<=hi;i++){set(i,i);set(i,N-1-i);set(i,i-1);set(i,N-i);}}
+  else if(name==='box'){for(let i=lo;i<=hi;i++){set(lo,i);set(hi,i);set(i,lo);set(i,hi);}}
+  else if(name==='diag'){for(let i=lo;i<=hi;i++){set(i,N-1-i);set(i,N-2-i);}}
+  else if(name==='t'){for(let i=lo;i<=hi;i++)set(lo,i);for(let i=lo;i<=hi;i++){set(i,Math.floor(N/2));set(i,Math.floor(N/2)-1);}}
+  // blank → 何もしない
+}
+function setFilter(name){
+  if(name==='rand'){const r=mulberry32(7777);F=Array.from({length:9},()=>+(r()*2-1).toFixed(2));}
+  else F=FILTERS[name].slice();
+}
+
+function computeAll(){
+  // conv (valid)
+  convMax=1e-6;
+  for(let y=0;y<CONV;y++)for(let x=0;x<CONV;x++){
+    let s=0;
+    for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)s+=input[(y+dy)*N+(x+dx)]*F[dy*K+dx];
+    conv[y*CONV+x]=s; convMax=Math.max(convMax,Math.abs(s));
+    relu[y*CONV+x]=s>0?s:0;
+  }
+  // maxpool 2x2
+  for(let y=0;y<POOLN;y++)for(let x=0;x<POOLN;x++){
+    let m=-Infinity;
+    for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++)m=Math.max(m,relu[(2*y+dy)*CONV+(2*x+dx)]);
+    pool[y*POOLN+x]=m;
+  }
+}
+
+/* ---- 色 ---- */
+function grayCol(v){const g=Math.round(v*235);return `rgb(${g},${g},${g})`;}
+function sgnCol(v,scale){const t=Math.max(-1,Math.min(1,v/scale));
+  if(t>=0)return `rgba(57,224,196,${0.10+0.90*t})`; return `rgba(240,111,126,${0.10+0.90*(-t)})`;}
+
+/* ---- アニメ状態 ---- */
+let idxF=0, revealed=0, running=false, stopAfterOne=false, done=false;
+
+function resetAnim(){idxF=0;revealed=0;running=false;done=false;draw();updateCalc();}
+function run(one){
+  if(done)resetAnim();
+  running=true;stopAfterOne=one;requestAnimationFrame(frame);
+}
+function frame(){
+  if(!running)return;
+  const before=revealed;
+  idxF+=(+spd.value);
+  revealed=Math.min(CONV*CONV,Math.floor(idxF));
+  if(revealed>=CONV*CONV){revealed=CONV*CONV;running=false;done=true;draw();updateCalc();return;}
+  if(stopAfterOne&&revealed>before){running=false;}
+  draw();updateCalc();
+  if(running)requestAnimationFrame(frame);
+}
+function stepOne(){ if(done)resetAnim(); idxF=revealed+1; revealed=Math.min(CONV*CONV,revealed+1); if(revealed>=CONV*CONV)done=true; draw();updateCalc(); }
+
+/* ---- 描画 ---- */
+function gridBox(gx,gy,n,c){ctx.fillStyle='#0e131b';ctx.fillRect(gx-1,gy-1,n*c+2,n*c+2);}
+function label(x,y,txt,sub){ctx.fillStyle=getCSS('--text');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(txt,x,y-22);
+  if(sub){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText(sub,x,y-8);}}
+function arrow(x0,x1,y){ctx.strokeStyle=getCSS('--faint');ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x1-6,y-4);ctx.lineTo(x1-6,y+4);ctx.closePath();ctx.fillStyle=getCSS('--faint');ctx.fill();}
+
+function draw(){
+  ctx.clearRect(0,0,W0,H0);
+  const cy=revealed<CONV*CONV?Math.floor(revealed/CONV):CONV-1, cx=revealed<CONV*CONV?revealed%CONV:CONV-1;
+
+  // --- 入力 ---
+  label(L.in.x,L.in.y,'入力画像','16×16');
+  gridBox(L.in.x,L.in.y,N,L.in.c);
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){ctx.fillStyle=grayCol(input[r*N+c]);ctx.fillRect(L.in.x+c*L.in.c,L.in.y+r*L.in.c,L.in.c-1,L.in.c-1);}
+  // 走査窓
+  if(!done||running){ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=2;ctx.strokeRect(L.in.x+cx*L.in.c-1,L.in.y+cy*L.in.c-1,K*L.in.c+1,K*L.in.c+1);}
+
+  // --- フィルタ ---
+  label(L.filt.x,L.filt.y,'フィルタ 3×3','係数');
+  gridBox(L.filt.x,L.filt.y,K,L.filt.c);
+  let fmax=1e-6;for(const v of F)fmax=Math.max(fmax,Math.abs(v));
+  for(let r=0;r<K;r++)for(let c=0;c<K;c++){const v=F[r*K+c];
+    ctx.fillStyle=sgnCol(v,fmax);ctx.fillRect(L.filt.x+c*L.filt.c,L.filt.y+r*L.filt.c,L.filt.c-1,L.filt.c-1);
+    ctx.fillStyle='#0c1016';ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText((Math.round(v*100)/100).toString(),L.filt.x+c*L.filt.c+L.filt.c/2,L.filt.y+r*L.filt.c+L.filt.c/2);}
+
+  // --- conv ---
+  label(L.conv.x,L.conv.y,'特徴マップ (conv)','14×14');
+  gridBox(L.conv.x,L.conv.y,CONV,L.conv.c);
+  for(let i=0;i<CONV*CONV;i++){const r=Math.floor(i/CONV),c=i%CONV;
+    if(i<revealed){ctx.fillStyle=sgnCol(conv[i],convMax);}else{ctx.fillStyle='#11161f';}
+    ctx.fillRect(L.conv.x+c*L.conv.c,L.conv.y+r*L.conv.c,L.conv.c-1,L.conv.c-1);}
+  if(revealed<CONV*CONV){ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=2;ctx.strokeRect(L.conv.x+cx*L.conv.c-1,L.conv.y+cy*L.conv.c-1,L.conv.c+1,L.conv.c+1);}
+
+  // --- relu ---
+  label(L.relu.x,L.relu.y,'ReLU','負→0');
+  gridBox(L.relu.x,L.relu.y,CONV,L.relu.c);
+  for(let i=0;i<CONV*CONV;i++){const r=Math.floor(i/CONV),c=i%CONV;
+    if(i<revealed){ctx.fillStyle=relu[i]>0?sgnCol(relu[i],convMax):'#0e131b';}else{ctx.fillStyle='#11161f';}
+    ctx.fillRect(L.relu.x+c*L.relu.c,L.relu.y+r*L.relu.c,L.relu.c-1,L.relu.c-1);}
+
+  // --- pool ---
+  label(L.pool.x,L.pool.y,'最大プーリング','7×7');
+  gridBox(L.pool.x,L.pool.y,POOLN,L.pool.c);
+  for(let i=0;i<POOLN*POOLN;i++){const r=Math.floor(i/POOLN),c=i%POOLN;
+    ctx.fillStyle=done?(pool[i]>0?sgnCol(pool[i],convMax):'#0e131b'):'#11161f';
+    ctx.fillRect(L.pool.x+c*L.pool.c,L.pool.y+r*L.pool.c,L.pool.c-1,L.pool.c-1);}
+
+  // 矢印
+  arrow(L.in.x+N*cell+8,L.conv.x-8,L.in.y+N*cell/2);
+  arrow(L.conv.x+CONV*cell+8,L.relu.x-8,L.conv.y+CONV*cell/2);
+  arrow(L.relu.x+CONV*cell+8,L.pool.x-8,L.relu.y+CONV*cell/2);
+}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+function updateCalc(){
+  const i=Math.min(revealed,CONV*CONV-1);const cyy=Math.floor(i/CONV),cxx=i%CONV;
+  if(revealed===0&&!done){calcv.textContent='▶ を押すと左上から走査します';return;}
+  let parts=[],s=0;
+  for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++){const iv=input[(cyy+dy)*N+(cxx+dx)],fv=F[dy*K+dx];s+=iv*fv;}
+  calcv.innerHTML='位置('+cyy+','+cxx+') → 積和 = <b>'+s.toFixed(2)+'</b>'+(done?'　✓ 全'+(CONV*CONV)+'マス完了':'');
+}
+
+/* ---- 入力描画（クリック/ドラッグ） ---- */
+let painting=false, paintVal=1;
+function canvasToCell(ev){const rect=cv.getBoundingClientRect();
+  const lx=(ev.clientX-rect.left)*(W0/rect.width), ly=(ev.clientY-rect.top)*(H0/rect.height);
+  const c=Math.floor((lx-L.in.x)/L.in.c), r=Math.floor((ly-L.in.y)/L.in.c);
+  if(r>=0&&r<N&&c>=0&&c<N)return {r,c};return null;}
+cv.addEventListener('mousedown',e=>{const p=canvasToCell(e);if(!p)return;painting=true;paintVal=input[p.r*N+p.c]>0.5?0:1;input[p.r*N+p.c]=paintVal;computeAll();resetAnim();});
+cv.addEventListener('mousemove',e=>{if(!painting)return;const p=canvasToCell(e);if(!p)return;input[p.r*N+p.c]=paintVal;computeAll();draw();});
+window.addEventListener('mouseup',()=>painting=false);
+
+/* ---- UI ---- */
+const preset=document.getElementById('preset'),filter=document.getElementById('filter'),spd=document.getElementById('spd'),
+  calcv=document.getElementById('calcv'),spdv=document.getElementById('spdv');
+preset.addEventListener('change',()=>{setPreset(preset.value);computeAll();resetAnim();});
+filter.addEventListener('change',()=>{setFilter(filter.value);computeAll();resetAnim();});
+spd.addEventListener('input',()=>spdv.textContent=(+spd.value).toFixed(1));
+document.getElementById('runBtn').addEventListener('click',()=>run(false));
+document.getElementById('stepBtn').addEventListener('click',stepOne);
+document.getElementById('resetBtn').addEventListener('click',resetAnim);
+document.getElementById('clearBtn').addEventListener('click',()=>{input=new Float32Array(N*N);preset.value='blank';computeAll();resetAnim();});
+
+/* ---- 起動 ---- */
+function start(){spdv.textContent=(+spd.value).toFixed(1);setPreset('cross');setFilter('vedge');computeAll();resetAnim();}
+start();
+</script>
+</body>
+</html>
