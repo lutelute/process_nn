@@ -81,6 +81,7 @@
           <div><div class="k">対数尤度</div><div class="v ll" id="llOut">—</div></div>
         </div>
         <div class="note" style="padding:0 14px 12px;">EM は対数尤度を単調に増やし、必ず収束します（局所最適）。</div>
+        <div id="narrM" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ EM 反復で、各点の所属確率（E ステップ）と各成分の平均・共分散（M ステップ）を交互に更新します。</div>
       </div>
       <div class="card">
         <div class="cap">対数尤度の推移（増加＝改善）</div>
@@ -188,7 +189,8 @@ function drawLL(){const W2=llC.width,H2=llC.height;lx.clearRect(0,0,W2,H2);const
   let hi=Math.max(...llHist),lo=Math.min(...llHist);if(hi-lo<0.1)lo=hi-0.1;
   lx.strokeStyle=getCSS('--loss');lx.lineWidth=1.8;lx.beginPath();const st=Math.max(1,Math.floor(llHist.length/(W2-2*pad)));
   for(let i=0;i<llHist.length;i+=st){const px=pad+(W2-2*pad)*i/(llHist.length-1),py=pad+(H2-2*pad)*(hi-llHist[i])/(hi-lo);i?lx.lineTo(px,py):lx.moveTo(px,py);}lx.stroke();}
-function updateReadout(){itOut.textContent=it;llOut.textContent=lastLL==null?'—':lastLL.toFixed(3);}
+function updateReadout(){itOut.textContent=it;llOut.textContent=lastLL==null?'—':lastLL.toFixed(3);
+  const el=document.getElementById('narrM');if(el&&it>0){const up=(llHist.length>1&&llHist[llHist.length-1]>llHist[llHist.length-2]+1e-6)?'<span style="color:var(--accent)">↑ 改善中</span>':'ほぼ収束';el.innerHTML='反復 '+it+'：E＝各点が各成分に属す確率を計算 → M＝その重みで成分の平均・共分散・重みを更新。対数尤度 <b>'+lastLL.toFixed(3)+'</b>（'+up+'）。楕円がクラスタに吸い付きます。';}}
 
 /* ===== ループ ===== */
 let running=false;
