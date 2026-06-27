@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勾配降下の可視化 — オプティマイザ比較</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --sgd:#f06f7e; --mom:#f0b03a; --adam:#39e0c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);cursor:crosshair;}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .opt{display:flex;align-items:center;gap:10px;padding:8px 14px;font-family:var(--mono);font-size:12.5px;}
+  .opt .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+  .opt .nm{width:78px;color:var(--text);} .opt .ls{color:var(--muted);margin-left:auto;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>勾配降下の可視化 — オプティマイザ比較</h1>
+      <div class="sub">損失の「地形」の上を SGD・Momentum・Adam が転がって最小へ向かう経路を比較する。地形をクリックすると開始点を変えられます</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="classify.html">決定境界</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="transformer.html">Transformer</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">損失地形（等高線）と降下経路</div>
+      <div class="canvas-host"><canvas id="land" width="640" height="560"></canvas></div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">オプティマイザ（現在の損失）</div>
+        <div class="opt"><span class="dot" style="background:var(--sgd)"></span><span class="nm">SGD</span><span class="ls" id="lsSGD">—</span></div>
+        <div class="opt"><span class="dot" style="background:var(--mom)"></span><span class="nm">Momentum</span><span class="ls" id="lsMOM">—</span></div>
+        <div class="opt"><span class="dot" style="background:var(--adam)"></span><span class="nm">Adam</span><span class="ls" id="lsADAM">—</span></div>
+        <div class="note" style="padding:0 14px 12px;">明るい谷ほど損失が小さい。星 ★ が真の最小点。</div>
+      </div>
+      <div class="card">
+        <div class="cap">step</div>
+        <div class="opt"><span class="nm" style="width:auto;">経過 step</span><span class="ls" id="stepOut">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>損失関数（地形）</label>
+      <select id="fnSel">
+        <option value="bowl">楕円ボウル（凸・素直）</option>
+        <option value="rosen">Rosenbrock（細長い谷・難）</option>
+        <option value="saddle">鞍点（saddle）</option>
+        <option value="himmel">Himmelblau（複数の谷）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>学習率 <span class="val" id="lrVal"></span></label>
+      <input type="range" id="lrSlider" min="-3.2" max="-0.3" step="0.01">
+    </div>
+    <div class="field">
+      <label>速度（step/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="12" step="1" value="1">
+    </div>
+    <div class="field" style="justify-content:flex-end;">
+      <span class="note" style="grid-column:auto;">経路が消える＝発散（学習率が大きすぎ）</span>
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 降下</button>
+      <button id="stepBtn">⏭ 1 step</button>
+      <button id="resetBtn">↺ 開始点へ戻す</button>
+    </div>
+    <div class="note">同じ開始点・同じ学習率で 3 つの更新則を同時に走らせています。SGD は素直に勾配方向、Momentum は慣性で谷を加速、Adam は各軸の勾配履歴でステップを自動調整。数値勾配 (中心差分) で計算。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===== 損失関数（2D） ===== */
+const LOSSES={
+  bowl:{R:3.2, lr:0.08, f:(x,y)=>0.5*x*x+0.12*y*y, min:[0,0], start:[-2.6,2.6]},
+  rosen:{R:2.2, lr:0.002, f:(x,y)=>{const a=1-x,b=y-x*x;return (a*a+30*b*b)/30;}, min:[1,1], start:[-1.6,2.0]},
+  saddle:{R:2.6, lr:0.03, f:(x,y)=>x*x-0.6*y*y+0.5, min:null, start:[0.0,0.05]},
+  himmel:{R:5.0, lr:0.006, f:(x,y)=>{const a=x*x+y-11,b=x+y*y-7;return (a*a+b*b)/40;}, min:[3,2], start:[-0.2,0.1]},
+};
+let cur=LOSSES.bowl, R=cur.R, start=[...cur.start];
+function grad(f,x,y){const h=1e-4;return [ (f(x+h,y)-f(x-h,y))/(2*h), (f(x,y+h)-f(x,y-h))/(2*h) ];}
+
+/* ===== オプティマイザ ===== */
+function mkOpts(){return [
+  {key:'SGD',color:getCSS('--sgd'),pos:[...start],path:[[...start]],dead:false},
+  {key:'MOM',color:getCSS('--mom'),pos:[...start],vel:[0,0],path:[[...start]],dead:false},
+  {key:'ADAM',color:getCSS('--adam'),pos:[...start],m:[0,0],v:[0,0],t:0,path:[[...start]],dead:false},
+];}
+let opts=[], steps=0, running=false;
+function stepOpt(o,lr,f){
+  if(o.dead)return;
+  const g=grad(f,o.pos[0],o.pos[1]);
+  if(o.key==='SGD'){for(let i=0;i<2;i++)o.pos[i]-=lr*g[i];}
+  else if(o.key==='MOM'){for(let i=0;i<2;i++){o.vel[i]=0.9*o.vel[i]-lr*g[i];o.pos[i]+=o.vel[i];}}
+  else{o.t++;const b1=0.9,b2=0.999;for(let i=0;i<2;i++){o.m[i]=b1*o.m[i]+(1-b1)*g[i];o.v[i]=b2*o.v[i]+(1-b2)*g[i]*g[i];const mh=o.m[i]/(1-Math.pow(b1,o.t)),vh=o.v[i]/(1-Math.pow(b2,o.t));o.pos[i]-=lr*mh/(Math.sqrt(vh)+1e-8);}}
+  // 発散判定
+  if(!isFinite(o.pos[0])||!isFinite(o.pos[1])||Math.abs(o.pos[0])>R*1.6||Math.abs(o.pos[1])>R*1.6){o.dead=true;return;}
+  o.path.push([o.pos[0],o.pos[1]]);if(o.path.length>1200)o.path.shift();
+}
+
+/* ===== Canvas / 背景キャッシュ ===== */
+const land=document.getElementById('land'),ctx=land.getContext('2d');
+const W=land.width,H=land.height;
+const bg=document.createElement('canvas');bg.width=W;bg.height=H;const bgx=bg.getContext('2d');
+const xToPx=x=>(x+R)/(2*R)*W, yToPx=y=>(R-y)/(2*R)*H;
+const pxToX=px=>px/W*2*R-R, pyToY=py=>R-py/H*2*R;
+
+function renderBG(){
+  const f=cur.f, res=90, cw=W/res, ch=H/res;
+  let lo=Infinity,hi=-Infinity;const vals=[];
+  for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){const x=pxToX((gx+0.5)*cw),y=pyToY((gy+0.5)*ch);const v=Math.log(1+Math.max(0,f(x,y)));vals.push(v);if(v<lo)lo=v;if(v>hi)hi=v;}
+  let idx=0;
+  for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){const t=(vals[idx++]-lo)/(hi-lo+1e-9);
+    // 谷(小)=明るいteal, 山(大)=暗い
+    const b=1-t;const r=Math.round(14+(57-14)*b),g=Math.round(19+(224-19)*b*0.9),bl=Math.round(27+(196-27)*b*0.85);
+    bgx.fillStyle=`rgb(${r},${g},${bl})`;bgx.fillRect(gx*cw,gy*ch,cw+1,ch+1);}
+  // 等高線（log レベル）
+  bgx.strokeStyle='rgba(12,16,22,0.35)';bgx.lineWidth=1;
+  const levels=8;
+  for(let L=1;L<levels;L++){const lev=lo+(hi-lo)*L/levels;
+    for(let gy=0;gy<res-1;gy++)for(let gx=0;gx<res-1;gx++){
+      const i=gy*res+gx,a=vals[i],bb=vals[i+1],cc=vals[i+res];
+      if((a-lev)*(bb-lev)<0){bgx.fillStyle='rgba(12,16,22,0.4)';bgx.fillRect((gx+0.5)*cw,gy*ch,1.2,ch);}
+      if((a-lev)*(cc-lev)<0){bgx.fillStyle='rgba(12,16,22,0.4)';bgx.fillRect(gx*cw,(gy+0.5)*ch,cw,1.2);}
+    }}
+  // 最小点
+  if(cur.min){bgx.fillStyle='#fff';bgx.font='20px serif';bgx.textAlign='center';bgx.textBaseline='middle';bgx.fillText('★',xToPx(cur.min[0]),yToPx(cur.min[1]));}
+}
+
+function draw(){
+  ctx.drawImage(bg,0,0);
+  for(const o of opts){
+    // 経路
+    ctx.strokeStyle=o.color;ctx.lineWidth=2;ctx.globalAlpha=o.dead?0.35:0.95;ctx.beginPath();
+    o.path.forEach((p,i)=>{const px=xToPx(p[0]),py=yToPx(p[1]);i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();
+    // 現在地のボール
+    if(!o.dead){const px=xToPx(o.pos[0]),py=yToPx(o.pos[1]);ctx.beginPath();ctx.arc(px,py,5.5,0,7);ctx.fillStyle=o.color;
+      ctx.shadowColor=o.color;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1.5;ctx.strokeStyle='rgba(12,16,22,0.9)';ctx.stroke();}
+    ctx.globalAlpha=1;
+  }
+}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+function updateReadout(){
+  const f=cur.f;const m={SGD:'lsSGD',MOM:'lsMOM',ADAM:'lsADAM'};
+  for(const o of opts){const el=document.getElementById(m[o.key]);el.textContent=o.dead?'発散':f(o.pos[0],o.pos[1]).toFixed(4);}
+  document.getElementById('stepOut').textContent=steps.toLocaleString();
+}
+
+/* ===== ループ ===== */
+function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){for(const o of opts)stepOpt(o,lr,cur.f);steps++;}}
+function frame(){if(!running)return;doSteps(+spdSlider.value);draw();updateReadout();
+  if(opts.every(o=>o.dead||converged(o))){running=false;playBtn.textContent='▶ 降下';playBtn.classList.add('primary');return;}
+  requestAnimationFrame(frame);}
+function converged(o){const g=grad(cur.f,o.pos[0],o.pos[1]);return Math.hypot(g[0],g[1])<1e-3;}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 降下';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+function reset(){setRun(false);opts=mkOpts();steps=0;draw();updateReadout();}
+function rebuild(){cur=LOSSES[fnSel.value];R=cur.R;start=[...cur.start];lrSlider.value=Math.log10(cur.lr);lbls();renderBG();reset();}
+
+/* ===== UI ===== */
+const fnSel=document.getElementById('fnSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),playBtn=document.getElementById('playBtn');
+const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
+function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(4);spdVal.textContent=spdSlider.value;}
+land.addEventListener('click',e=>{const rect=land.getBoundingClientRect();const px=(e.clientX-rect.left)*(W/rect.width),py=(e.clientY-rect.top)*(H/rect.height);
+  start=[pxToX(px),pyToY(py)];reset();});
+fnSel.onchange=rebuild;
+lrSlider.oninput=lbls;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);doSteps(1);draw();updateReadout();};
+document.getElementById('resetBtn').onclick=reset;
+
+/* ===== 起動 ===== */
+function start_(){cur=LOSSES.bowl;R=cur.R;start=[...cur.start];lrSlider.value=Math.log10(cur.lr);lbls();renderBG();reset();}
+start_();
+</script>
+</body>
+</html>

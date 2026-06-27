@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RNN の時系列学習 — 記憶を持つネットワーク</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 12px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .readout{display:flex;gap:26px;font-family:var(--mono);padding:2px 14px 0;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.loss{color:var(--loss);}
+  .legend{display:flex;gap:16px;padding:4px 14px 10px;font-size:12px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .sw{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>RNN の時系列学習 — 記憶を持つネットワーク</h1>
+      <div class="sub">隠れ状態 h に過去を畳み込みながら 1 ステップ先を予測する再帰型ネット。学習で予測が真の系列に重なり、自由走行で波形を再生できるようになる様子を観察する</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="transformer.html">Transformer</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="gradient.html">勾配降下</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cap">系列の予測（teacher forcing）と自由走行による生成</div>
+    <div class="readout">
+      <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
+      <div><div class="k">loss (MSE)</div><div class="v loss" id="lossOut">—</div></div>
+    </div>
+    <div class="canvas-host"><canvas id="seqC" width="1100" height="300"></canvas></div>
+    <div class="legend">
+      <span><i class="sw" style="border-top-color:var(--true)"></i>真の系列</span>
+      <span><i class="sw" style="border-top-color:var(--accent)"></i>1 ステップ予測</span>
+      <span><i class="sw" style="border-top-color:var(--neg);border-top-style:dashed"></i>自由走行（生成）</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cap">隠れ状態 h の時間発展（行=ユニット, 列=時刻）</div>
+    <div class="canvas-host"><canvas id="hidC" width="1100" height="170"></canvas></div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>系列の種類</label>
+      <select id="serSel">
+        <option value="sine">正弦波</option>
+        <option value="sine2">2 つの正弦の合成</option>
+        <option value="saw">のこぎり波</option>
+        <option value="square">矩形波</option>
+        <option value="damp">減衰振動</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>隠れユニット数</label>
+      <select id="hSel"><option value="8">8</option><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option></select>
+    </div>
+    <div class="field">
+      <label>学習率 <span class="val" id="lrVal"></span></label>
+      <input type="range" id="lrSlider" min="-3" max="-1" step="0.01">
+    </div>
+    <div class="field">
+      <label>速度（epoch/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="12" step="1" value="3">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 学習</button>
+      <button id="stepBtn">⏭ 1 epoch</button>
+      <button id="resetBtn">↺ 重みリセット</button>
+      <button id="serBtn">🎲 系列を変える</button>
+    </div>
+    <div class="note">Elman RNN: hₜ = tanh(Wxh·xₜ + Whh·hₜ₋₁ + bₕ)、yₜ = Why·hₜ + by。損失は1ステップ先予測の MSE、学習は BPTT（時間方向の誤差逆伝播）+ Adam。自由走行は予測値を次の入力に戻して系列を伸ばします（学習が進むと真の波形を再生）。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=123; const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+
+/* ===== 系列生成（正規化 [-1,1] 付近） ===== */
+const T=64;
+let series=[];
+function genSeries(kind){
+  series=[];
+  for(let t=0;t<T+1;t++){
+    const p=t/8;let v;
+    if(kind==='sine')v=Math.sin(p);
+    else if(kind==='sine2')v=0.6*Math.sin(p)+0.4*Math.sin(2.3*p+1);
+    else if(kind==='saw')v=2*((p/Math.PI/2)%1)-1;
+    else if(kind==='square')v=Math.sin(p)>=0?0.8:-0.8;
+    else v=Math.sin(2*p)*Math.exp(-t/45);
+    series.push(v);
+  }
+}
+
+/* ===== Elman RNN（スカラー入出力, BPTT, Adam） ===== */
+let H=16;
+let Wxh,Whh,Why,bh,by;
+let aWxh,aWhh,aWhy,abh,aby; // adam m,v ペア（{m,v}）
+function zeros(n){return new Float64Array(n);}
+function mat(r,c){return Array.from({length:r},()=>new Float64Array(c));}
+function adamSlot(shape){return shape==='v'?{m:zeros(H),v:zeros(H)}:null;}
+function build(){
+  H=+hSel.value;const s=0.4/Math.sqrt(H);
+  Wxh=new Float64Array(H).map(()=>randn()*0.5);
+  Whh=mat(H,H);for(let i=0;i<H;i++)for(let j=0;j<H;j++)Whh[i][j]=randn()*s;
+  Why=new Float64Array(H).map(()=>randn()*s);
+  bh=zeros(H);by=0;
+  // adam states
+  aWxh={m:zeros(H),v:zeros(H)};
+  aWhh={m:mat(H,H),v:mat(H,H)};
+  aWhy={m:zeros(H),v:zeros(H)};
+  abh={m:zeros(H),v:zeros(H)};
+  aby={m:0,v:0};
+  tAdam=0;
+}
+let tAdam=0;
+// forward 全系列。返り値 hs[T+1][H], ys[T]
+function forward(){
+  const hs=[zeros(H)];const ys=new Float64Array(T);
+  for(let t=0;t<T;t++){
+    const x=series[t];const hp=hs[t];const a=new Float64Array(H);
+    for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}
+    hs.push(a);let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];ys[t]=y;
+  }
+  return{hs,ys};
+}
+function trainStep(lr){
+  const{hs,ys}=forward();
+  let loss=0;
+  const dWxh=zeros(H),dWhy=zeros(H),dbh=zeros(H);let dby=0;const dWhh=mat(H,H);
+  let dhNext=zeros(H);
+  for(let t=T-1;t>=0;t--){
+    const tgt=series[t+1];const dy=2*(ys[t]-tgt)/T;loss+=(ys[t]-tgt)*(ys[t]-tgt)/T;
+    const h=hs[t+1],hp=hs[t];
+    const dh=new Float64Array(H);
+    for(let i=0;i<H;i++){dWhy[i]+=dy*h[i];dh[i]=Why[i]*dy+dhNext[i];}
+    dby+=dy;
+    const da=new Float64Array(H);
+    for(let i=0;i<H;i++)da[i]=dh[i]*(1-h[i]*h[i]);
+    const x=series[t];
+    for(let i=0;i<H;i++){dWxh[i]+=da[i]*x;dbh[i]+=da[i];const Wi=dWhh[i];for(let j=0;j<H;j++)Wi[j]+=da[i]*hp[j];}
+    // dh for previous step
+    const dprev=zeros(H);
+    for(let j=0;j<H;j++){let s=0;for(let i=0;i<H;i++)s+=Whh[i][j]*da[i];dprev[j]=s;}
+    dhNext=dprev;
+  }
+  // grad clip
+  const clip=5;
+  const cl=v=>v>clip?clip:(v<-clip?-clip:v);
+  // Adam
+  tAdam++;const b1=0.9,b2=0.999,eps=1e-8,bc1=1-Math.pow(b1,tAdam),bc2=1-Math.pow(b2,tAdam);
+  const up1=(P,A,g,i)=>{const gg=cl(g);A.m[i]=b1*A.m[i]+(1-b1)*gg;A.v[i]=b2*A.v[i]+(1-b2)*gg*gg;return -lr*(A.m[i]/bc1)/(Math.sqrt(A.v[i]/bc2)+eps);};
+  for(let i=0;i<H;i++){Wxh[i]+=up1(Wxh,aWxh,dWxh[i],i);Why[i]+=up1(Why,aWhy,dWhy[i],i);bh[i]+=up1(bh,abh,dbh[i],i);}
+  {const gg=cl(dby);aby.m=b1*aby.m+(1-b1)*gg;aby.v=b2*aby.v+(1-b2)*gg*gg;by+=-lr*(aby.m/bc1)/(Math.sqrt(aby.v/bc2)+eps);}
+  for(let i=0;i<H;i++)for(let j=0;j<H;j++){const gg=cl(dWhh[i][j]);aWhh.m[i][j]=b1*aWhh.m[i][j]+(1-b1)*gg;aWhh.v[i][j]=b2*aWhh.v[i][j]+(1-b2)*gg*gg;Whh[i][j]+=-lr*(aWhh.m[i][j]/bc1)/(Math.sqrt(aWhh.v[i][j]/bc2)+eps);}
+  return loss;
+}
+// 自由走行: seed まで真値、その後は予測を入力に戻す
+function freeRun(seedLen){
+  const out=[];let hp=zeros(H);
+  for(let t=0;t<T;t++){
+    const x=t<seedLen?series[t]:out[t-1];
+    const a=new Float64Array(H);
+    for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}
+    let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];out.push(y);hp=a;
+  }
+  return out;
+}
+
+/* ===== 状態 ===== */
+let epoch=0,lastLoss=null,running=false,lastFwd=null;
+
+/* ===== Canvas ===== */
+const seqC=document.getElementById('seqC'),sx=seqC.getContext('2d');
+const hidC=document.getElementById('hidC'),hx=hidC.getContext('2d');
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function drawSeq(){
+  const W=seqC.width,Hh=seqC.height;sx.clearRect(0,0,W,Hh);const pad=30;
+  const xToP=t=>pad+(W-2*pad)*t/(T-1), yToP=v=>Hh/2-(Hh/2-20)*v;
+  // grid
+  sx.strokeStyle=getCSS('--grid');sx.lineWidth=1;sx.beginPath();sx.moveTo(pad,yToP(0));sx.lineTo(W-pad,yToP(0));sx.stroke();
+  // 真の系列（target = series[1..T]）
+  sx.strokeStyle=getCSS('--true');sx.lineWidth=1.8;sx.globalAlpha=.7;sx.beginPath();
+  for(let t=0;t<T;t++){const px=xToP(t),py=yToP(series[t+1]);t?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();sx.globalAlpha=1;
+  if(lastFwd){
+    // 1ステップ予測
+    sx.strokeStyle=getCSS('--accent');sx.lineWidth=2.2;sx.beginPath();
+    for(let t=0;t<T;t++){const px=xToP(t),py=yToP(lastFwd.ys[t]);t?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();
+  }
+  // 自由走行
+  const seedLen=8;const fr=freeRun(seedLen);
+  sx.strokeStyle=getCSS('--neg');sx.lineWidth=1.8;sx.setLineDash([5,4]);sx.beginPath();
+  for(let t=seedLen;t<T;t++){const px=xToP(t),py=yToP(fr[t]);t===seedLen?sx.moveTo(px,py):sx.lineTo(px,py);}sx.stroke();sx.setLineDash([]);
+  // seed 区切り
+  sx.strokeStyle=getCSS('--faint');sx.setLineDash([2,3]);sx.beginPath();sx.moveTo(xToP(seedLen),10);sx.lineTo(xToP(seedLen),Hh-10);sx.stroke();sx.setLineDash([]);
+  sx.fillStyle=getCSS('--faint');sx.font='10px '+getCSS('--mono');sx.textAlign='left';sx.fillText('← teacher forcing | 自由走行 →',xToP(seedLen)+4,14);
+}
+function drawHidden(){
+  const W=hidC.width,Hh=hidC.height;hx.clearRect(0,0,W,Hh);
+  if(!lastFwd)return;const hs=lastFwd.hs;const cw=W/T,ch=Hh/H;
+  for(let t=0;t<T;t++)for(let i=0;i<H;i++){const v=hs[t+1][i];const a=Math.max(-1,Math.min(1,v));
+    hx.fillStyle=a>=0?`rgba(57,224,196,${0.12+0.88*a})`:`rgba(240,111,126,${0.12+0.88*(-a)})`;
+    hx.fillRect(t*cw,i*ch,cw+0.5,ch+0.5);}
+}
+function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);}
+
+/* ===== ループ ===== */
+function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=trainStep(lr);epoch++;}lastFwd=forward();}
+function frame(){if(!running)return;doSteps(+spdSlider.value);drawSeq();drawHidden();updateReadout();requestAnimationFrame(frame);}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const serSel=document.getElementById('serSel'),hSel=document.getElementById('hSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),
+  epOut=document.getElementById('epOut'),lossOut=document.getElementById('lossOut'),playBtn=document.getElementById('playBtn');
+const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
+function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=spdSlider.value;}
+lrSlider.value=Math.log10(0.02);
+function rebuild(){setRun(false);build();epoch=0;lastLoss=null;lastFwd=forward();drawSeq();drawHidden();updateReadout();}
+function regen(){setRun(false);seed=(Math.floor(rng()*1e9))>>>0;genSeries(serSel.value);rebuild();}
+
+serSel.onchange=()=>{genSeries(serSel.value);rebuild();};
+hSel.onchange=rebuild;
+lrSlider.oninput=lbls;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);doSteps(1);drawSeq();drawHidden();updateReadout();};
+document.getElementById('resetBtn').onclick=rebuild;
+document.getElementById('serBtn').onclick=regen;
+
+lbls();genSeries('sine');rebuild();
+</script>
+</body>
+</html>

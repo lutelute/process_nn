@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>k-means クラスタリング — 教師なし学習</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:22px;font-family:var(--mono);padding:6px 14px 12px;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:19px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.in{color:var(--loss);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .phase{padding:0 14px 12px;font-size:12px;color:var(--muted);font-family:var(--mono);}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>k-means クラスタリング — 教師なし学習</h1>
+      <div class="sub">正解ラベル無しで、点群を k 個のまとまりに分ける。各点を最寄りの重心へ割当 → 重心を平均位置へ移動、を繰り返して収束する様子を観察する</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="classify.html">決定境界</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="gradient.html">勾配降下</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">クラスタと重心</div>
+      <div class="canvas-host"><canvas id="board" width="600" height="560"></canvas></div>
+      <div class="phase" id="phaseLine">＋ が重心。背景の色分け＝各点が属する領域（最寄りの重心）。</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">iteration</div><div class="v" id="itOut">0</div></div>
+          <div><div class="k">慣性 (SSE)</div><div class="v in" id="sseOut">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">慣性の推移</div>
+        <div class="canvas-host"><canvas id="sseC" width="300" height="150"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>真のまとまりの数</label>
+      <select id="blobSel"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select>
+    </div>
+    <div class="field">
+      <label>k（重心の数）</label>
+      <select id="kSel"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="8">8</option></select>
+    </div>
+    <div class="field">
+      <label>ばらつき <span class="val" id="spreadVal"></span></label>
+      <input type="range" id="spreadSlider" min="0.04" max="0.22" step="0.01" value="0.1">
+    </div>
+    <div class="field">
+      <label>速度（iter/秒） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="8" step="1" value="2">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 実行</button>
+      <button id="stepBtn">⏭ 1 反復</button>
+      <button id="resetBtn">↺ 重心リセット</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">手順（Lloyd 法）: ①各点を最寄り重心に割当 → ②各重心をその担当点の平均へ移動。慣性（重心からの距離²の総和）が下がり、変化しなくなれば収束。重心の初期位置で結果が変わります（局所最適）。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=7; const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const PALETTE=['#39e0c4','#d4a36a','#f06f7e','#f0b03a','#7e9cf0','#b07ef0','#7ef0a3','#e8e8e8'];
+
+/* ===== データ ===== */
+let pts=[];           // [{x,y}]
+let assign=[];        // 各点の重心index
+let cents=[];         // [{x,y}]
+let it=0, sseHist=[], running=false, phase='assign';
+
+function genData(){
+  const nb=+blobSel.value, spread=+spreadSlider.value, perBlob=55;
+  pts=[];
+  for(let b=0;b<nb;b++){
+    const cx=(rng()*1.5-0.75), cy=(rng()*1.5-0.75);
+    for(let i=0;i<perBlob;i++)pts.push({x:cx+randn()*spread,y:cy+randn()*spread});
+  }
+  assign=new Array(pts.length).fill(-1);
+}
+function initCents(){
+  const k=+kSel.value;cents=[];
+  // データ点からランダムに k 個選ぶ
+  const idx=[...Array(pts.length).keys()];
+  for(let i=0;i<k;i++){const j=Math.floor(rng()*idx.length);cents.push({x:pts[idx[j]].x,y:pts[idx[j]].y});idx.splice(j,1);}
+  it=0;sseHist=[];phase='assign';assign=new Array(pts.length).fill(-1);
+}
+
+/* ===== Lloyd ステップ ===== */
+function assignStep(){
+  let sse=0;
+  for(let i=0;i<pts.length;i++){
+    let best=0,bd=Infinity;
+    for(let c=0;c<cents.length;c++){const dx=pts[i].x-cents[c].x,dy=pts[i].y-cents[c].y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=c;}}
+    assign[i]=best;sse+=bd;
+  }
+  return sse;
+}
+function updateStep(){
+  const k=cents.length, sx=new Array(k).fill(0), sy=new Array(k).fill(0), cnt=new Array(k).fill(0);
+  for(let i=0;i<pts.length;i++){const a=assign[i];sx[a]+=pts[i].x;sy[a]+=pts[i].y;cnt[a]++;}
+  for(let c=0;c<k;c++){if(cnt[c]>0){cents[c].x=sx[c]/cnt[c];cents[c].y=sy[c]/cnt[c];}}
+}
+function oneIteration(){
+  const sse=assignStep();        // 割当
+  sseHist.push(sse);
+  updateStep();                  // 移動
+  it++;
+  return sse;
+}
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),ctx=board.getContext('2d');
+const sseC=document.getElementById('sseC'),sx=sseC.getContext('2d');
+const W=board.width,H=board.height,R=1.1;
+const toPx=x=>(x+R)/(2*R)*W, toPy=y=>(R-y)/(2*R)*H;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 背景 Voronoi（最寄り重心で色分け）
+  if(cents.length){
+    const res=60,cw=W/res,ch=H/res;
+    for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){
+      const x=(gx+0.5)/res*2*R-R,y=R-(gy+0.5)/res*2*R;
+      let best=0,bd=Infinity;for(let c=0;c<cents.length;c++){const dx=x-cents[c].x,dy=y-cents[c].y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=c;}}
+      const col=PALETTE[best%PALETTE.length];ctx.fillStyle=hexA(col,0.10);ctx.fillRect(gx*cw,gy*ch,cw+1,ch+1);
+    }
+  }
+  // 点
+  for(let i=0;i<pts.length;i++){const a=assign[i];const col=a>=0?PALETTE[a%PALETTE.length]:'#8595a8';
+    ctx.beginPath();ctx.arc(toPx(pts[i].x),toPy(pts[i].y),3.6,0,7);ctx.fillStyle=col;ctx.globalAlpha=0.9;ctx.fill();ctx.globalAlpha=1;}
+  // 重心
+  for(let c=0;c<cents.length;c++){const col=PALETTE[c%PALETTE.length];const px=toPx(cents[c].x),py=toPy(cents[c].y);
+    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.shadowColor=col;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(px-9,py);ctx.lineTo(px+9,py);ctx.moveTo(px,py-9);ctx.lineTo(px,py+9);ctx.stroke();ctx.shadowBlur=0;
+    ctx.fillStyle='#0c1016';ctx.beginPath();ctx.arc(px,py,3,0,7);ctx.fill();ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,py,2,0,7);ctx.fill();}
+}
+function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+function drawSSE(){
+  const W2=sseC.width,H2=sseC.height;sx.clearRect(0,0,W2,H2);const pad=8;
+  if(sseHist.length<2){sx.fillStyle=getCSS('--faint');sx.font='12px '+getCSS('--gothic');sx.textAlign='center';sx.fillText('実行すると表示',W2/2,H2/2);return;}
+  const hi=Math.max(...sseHist),lo=Math.min(...sseHist,0);
+  const xToP=i=>pad+(W2-2*pad)*i/(sseHist.length-1),yToP=v=>pad+(H2-2*pad)*(hi-v)/(hi-lo+1e-9);
+  sx.strokeStyle=getCSS('--loss');sx.lineWidth=2;sx.beginPath();
+  sseHist.forEach((v,i)=>{const px=xToP(i),py=yToP(v);i?sx.lineTo(px,py):sx.moveTo(px,py);});sx.stroke();
+  sseHist.forEach((v,i)=>{const px=xToP(i),py=yToP(v);sx.fillStyle=getCSS('--loss');sx.beginPath();sx.arc(px,py,2.5,0,7);sx.fill();});
+}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function updateReadout(){itOut.textContent=it;sseOut.textContent=sseHist.length?sseHist[sseHist.length-1].toFixed(3):'—';}
+
+/* ===== ループ（速度=iter/秒） ===== */
+let acc=0,last=0;
+function loop(ts){
+  if(!running)return;
+  if(!last)last=ts;const dt=(ts-last)/1000;last=ts;acc+=dt*(+spdSlider.value);
+  if(acc>=1){acc=0;const prev=sseHist.length?sseHist[sseHist.length-1]:Infinity;const sse=oneIteration();draw();drawSSE();updateReadout();
+    if(Math.abs(prev-sse)<1e-6){setRun(false);phaseLine.textContent='収束しました（割当が変化しなくなった）。';return;}}
+  requestAnimationFrame(loop);
+}
+function setRun(on){running=on;last=0;acc=0;playBtn.textContent=on?'⏸ 一時停止':'▶ 実行';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(loop);}
+
+/* ===== UI ===== */
+const blobSel=document.getElementById('blobSel'),kSel=document.getElementById('kSel'),spreadSlider=document.getElementById('spreadSlider'),spdSlider=document.getElementById('spdSlider'),
+  itOut=document.getElementById('itOut'),sseOut=document.getElementById('sseOut'),playBtn=document.getElementById('playBtn'),phaseLine=document.getElementById('phaseLine');
+const spreadVal=document.getElementById('spreadVal'),spdVal=document.getElementById('spdVal');
+function lbls(){spreadVal.textContent=(+spreadSlider.value).toFixed(2);spdVal.textContent=spdSlider.value;}
+function fullReset(){setRun(false);genData();initCents();assignStep();draw();drawSSE();updateReadout();phaseLine.textContent='＋ が重心。背景＝各点が属する領域（最寄りの重心）。';}
+function centReset(){setRun(false);initCents();assignStep();draw();drawSSE();updateReadout();}
+
+blobSel.onchange=fullReset;kSel.onchange=centReset;spreadSlider.onchange=fullReset;spreadSlider.oninput=lbls;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);const prev=sseHist.length?sseHist[sseHist.length-1]:Infinity;const sse=oneIteration();draw();drawSSE();updateReadout();if(Math.abs(prev-sse)<1e-6)phaseLine.textContent='収束しました。';};
+document.getElementById('resetBtn').onclick=centReset;
+document.getElementById('dataBtn').onclick=fullReset;
+
+lbls();fullReset();
+</script>
+</body>
+</html>
