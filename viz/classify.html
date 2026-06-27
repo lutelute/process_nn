@@ -83,6 +83,7 @@
           <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
           <div><div class="k">accuracy</div><div class="v acc" id="accOut">—</div></div>
         </div>
+        <div id="narrC" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶学習を押すと、背景の決定境界がデータの 2 クラスを分けるよう形成されていきます。</div>
       </div>
       <div class="card">
         <div class="cap">loss の推移（対数）</div>
@@ -241,7 +242,10 @@ function drawLoss(){
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 function accuracy(){let ok=0;for(let i=0;i<data.X.length;i++){const p=net.proba(data.X[i]);const pred=p[0]>=p[1]?0:1;if(pred===data.Y[i])ok++;}return ok/data.X.length;}
-function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toFixed(3);accOut.textContent=lastAcc==null?'—':(lastAcc*100).toFixed(1)+'%';}
+function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toFixed(3);accOut.textContent=lastAcc==null?'—':(lastAcc*100).toFixed(1)+'%';
+  const el=document.getElementById('narrC');if(el){const dn={circle:'同心円',moons:'二日月',spiral:'渦巻き',xor:'市松(XOR)',blobs:'2つの塊'}[dataSel.value]||'';
+    if(epoch===0||lastAcc==null)el.innerHTML='『'+dn+'』データ。学習前は境界がデタラメ。▶学習で誤差逆伝播により境界が 2 クラスを分離していきます。';
+    else el.innerHTML='『'+dn+'』を学習中。正答率 <b>'+(lastAcc*100).toFixed(0)+'%</b>。背景の色＝モデルが思う各点のクラス。loss が下がるほど境界がデータの形に適合（'+(lastAcc>0.97?'<span style="color:var(--accent)">ほぼ分離完了</span>':lastAcc>0.8?'分離が進行中':'まだ粗い')+'）。';}}
 
 /* ===== 学習ループ ===== */
 function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=net.trainStep(data.X,data.Y,lr);epoch++;lossHist.push(lastLoss);}}
