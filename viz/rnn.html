@@ -74,6 +74,7 @@
       <span><i class="sw" style="border-top-color:var(--accent)"></i>1 ステップ予測</span>
       <span><i class="sw" style="border-top-color:var(--neg);border-top-style:dashed"></i>自由走行（生成）</span>
     </div>
+    <div id="narrR2" style="padding:0 14px 14px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶学習で、1 ステップ先予測（teal）が真の系列（金）に重なり、自由走行（破線）も波形を再現するようになります。</div>
   </div>
 
   <div class="card">
@@ -245,7 +246,10 @@ function drawHidden(){
     hx.fillStyle=a>=0?`rgba(57,224,196,${0.12+0.88*a})`:`rgba(240,111,126,${0.12+0.88*(-a)})`;
     hx.fillRect(t*cw,i*ch,cw+0.5,ch+0.5);}
 }
-function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);}
+function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);
+  const el=document.getElementById('narrR2');if(el){
+    if(epoch===0||lastLoss==null)el.innerHTML='未学習。▶学習(BPTT)で 1 ステップ先予測の誤差を時間方向に逆伝播し、重みを調整します。';
+    else el.innerHTML='epoch '+epoch+'・loss <b>'+lastLoss.toExponential(1)+'</b>。'+(lastLoss<0.02?'予測(teal)が真の系列に<span style="color:var(--accent)">ほぼ一致</span>、自由走行も波形を再現。':'予測が真の系列へ近づき中。')+'隠れ状態 h が過去を記憶として運びます。';}}
 
 /* ===== ループ ===== */
 function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=trainStep(lr);epoch++;}lastFwd=forward();}
