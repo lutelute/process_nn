@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>t-SNE — 高次元データを2次元に埋め込む</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:20px;font-family:var(--mono);padding:6px 14px 12px;flex-wrap:wrap;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.kl{color:var(--loss);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{padding:0 14px 12px;font-size:12px;color:var(--muted);}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>t-SNE — 高次元データを2次元に埋め込む</h1>
+      <div class="sub">高次元（ここでは10次元）の点群を、近いものは近く・遠いものは遠くなるように2次元へ配置する。ランダムな初期状態から点が動き、隠れていたクラスタ構造が浮かび上がる様子を観察する</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="pca.html">PCA</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">2次元埋め込み（色＝本当のクラスタ。t-SNE はラベルを見ずに配置）</div>
+      <div class="canvas-host"><canvas id="board" width="600" height="520"></canvas></div>
+      <div class="legend">点は10次元空間のデータ。t-SNE は高次元での近さ（確率 P）と2次元での近さ（確率 Q）の差（KL）を小さくするよう動かす。色が分かれて集まれば成功。</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">反復</div><div class="v" id="itOut">0</div></div>
+          <div><div class="k">KL divergence</div><div class="v kl" id="klOut">—</div></div>
+        </div>
+        <div class="note" style="padding:0 14px 12px;">最初の100反復は「早期誇張」でクラスタを引き離します。</div>
+      </div>
+      <div class="card">
+        <div class="cap">KL の推移（減少＝改善）</div>
+        <div class="canvas-host"><canvas id="klC" width="300" height="150"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>クラスタ数（高次元）</label>
+      <select id="cSel"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option></select>
+    </div>
+    <div class="field">
+      <label>perplexity <span class="val" id="perpVal"></span></label>
+      <input type="range" id="perpSlider" min="5" max="45" step="1" value="25">
+    </div>
+    <div class="field">
+      <label>速度（反復/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="6" step="1" value="2">
+    </div>
+    <div class="field" style="justify-content:flex-end;">
+      <span class="note" style="grid-column:auto;">perplexity＝近傍の有効サイズ</span>
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 埋め込み開始</button>
+      <button id="stepBtn">⏭ 10 反復</button>
+      <button id="resetBtn">↺ 配置リセット</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">高次元の近さ P（点ごとに perplexity で帯域調整したガウス）と、2次元の近さ Q（裾の重い Student-t 分布）を定義し、KL(P‖Q) を勾配降下で最小化。Student-t を使うことで「混雑問題」を避け、クラスタが程よく離れて見える。PCA（線形）と違い非線形な近傍関係を保ちます。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=2025;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const PALETTE=['#39e0c4','#d4a36a','#f06f7e','#b07ef0','#f0b03a','#7e9cf0'];
+
+/* ===== 高次元データ ===== */
+const DIM=10;let N=0,X=[],label=[];
+function genData(){
+  const nc=+cSel.value;X=[];label=[];const per=30;
+  const centers=[];for(let c=0;c<nc;c++){const ce=new Float64Array(DIM);for(let d=0;d<DIM;d++)ce[d]=randn()*2.2;centers.push(ce);}
+  for(let c=0;c<nc;c++)for(let i=0;i<per;i++){const x=new Float64Array(DIM);for(let d=0;d<DIM;d++)x[d]=centers[c][d]+randn()*0.6;X.push(x);label.push(c);}
+  N=X.length;
+}
+
+/* ===== 高次元の親和性 P（perplexity 二分探索） ===== */
+let P=null;
+function computeP(perp){
+  const D2=[];for(let i=0;i<N;i++){D2.push(new Float64Array(N));}
+  for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){let s=0;for(let d=0;d<DIM;d++){const t=X[i][d]-X[j][d];s+=t*t;}D2[i][j]=s;D2[j][i]=s;}
+  const logU=Math.log(perp);P=[];for(let i=0;i<N;i++)P.push(new Float64Array(N));
+  for(let i=0;i<N;i++){
+    let beta=1,bmin=-Infinity,bmax=Infinity;const row=new Float64Array(N);
+    for(let tries=0;tries<60;tries++){
+      let sum=0;for(let j=0;j<N;j++){if(j===i){row[j]=0;continue;}row[j]=Math.exp(-D2[i][j]*beta);sum+=row[j];}
+      if(sum<1e-12)sum=1e-12;let H=0;for(let j=0;j<N;j++){if(j===i)continue;const p=row[j]/sum;if(p>1e-12)H-=p*Math.log(p);}
+      const diff=H-logU;if(Math.abs(diff)<1e-5)break;
+      if(diff>0){bmin=beta;beta=(bmax===Infinity)?beta*2:(beta+bmax)/2;}else{bmax=beta;beta=(bmin===-Infinity)?beta/2:(beta+bmin)/2;}
+    }
+    let sum=0;for(let j=0;j<N;j++){if(j===i){row[j]=0;continue;}row[j]=Math.exp(-D2[i][j]*beta);sum+=row[j];}if(sum<1e-12)sum=1e-12;
+    for(let j=0;j<N;j++)P[i][j]=row[j]/sum;
+  }
+  // 対称化
+  for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){const v=(P[i][j]+P[j][i])/(2*N);P[i][j]=Math.max(v,1e-12);P[j][i]=P[i][j];}
+  for(let i=0;i<N;i++)P[i][i]=0;
+}
+
+/* ===== 2次元埋め込み（勾配降下 + 早期誇張 + gains） ===== */
+let Y,dY,gains,it,klHist,lastKL,exag;
+function initEmbed(){
+  Y=[];dY=[];gains=[];for(let i=0;i<N;i++){Y.push([randn()*1e-2,randn()*1e-2]);dY.push([0,0]);gains.push([1,1]);}
+  it=0;klHist=[];lastKL=null;exag=4;
+}
+function tsneStep(){
+  const mom=it<250?0.5:0.8;const lr=12;const ex=(it<100)?exag:1;
+  // Q（Student-t）
+  const num=[];let sum=0;for(let i=0;i<N;i++){num.push(new Float64Array(N));}
+  for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){const dx=Y[i][0]-Y[j][0],dy=Y[i][1]-Y[j][1];const v=1/(1+dx*dx+dy*dy);num[i][j]=v;num[j][i]=v;sum+=2*v;}
+  if(sum<1e-12)sum=1e-12;
+  // 勾配 + KL
+  let kl=0;
+  for(let i=0;i<N;i++){let gx=0,gy=0;
+    for(let j=0;j<N;j++){if(i===j)continue;const q=num[i][j]/sum;const pij=P[i][j]*ex;const qc=Math.max(num[i][j]/sum,1e-12);
+      const mult=4*(pij-q)*num[i][j];gx+=mult*(Y[i][0]-Y[j][0]);gy+=mult*(Y[i][1]-Y[j][1]);
+      const p=P[i][j];if(p>1e-12)kl+=p*Math.log(p/qc);}
+    // gains
+    gains[i][0]=(Math.sign(gx)!==Math.sign(dY[i][0]))?gains[i][0]+0.2:Math.max(0.01,gains[i][0]*0.8);
+    gains[i][1]=(Math.sign(gy)!==Math.sign(dY[i][1]))?gains[i][1]+0.2:Math.max(0.01,gains[i][1]*0.8);
+    dY[i][0]=mom*dY[i][0]-lr*gains[i][0]*gx;dY[i][1]=mom*dY[i][1]-lr*gains[i][1]*gy;
+    Y[i][0]+=dY[i][0];Y[i][1]+=dY[i][1];
+    Y[i][0]=Math.max(-1e3,Math.min(1e3,Y[i][0]));Y[i][1]=Math.max(-1e3,Math.min(1e3,Y[i][1]));
+  }
+  // 中心化
+  let mx=0,my=0;for(let i=0;i<N;i++){mx+=Y[i][0];my+=Y[i][1];}mx/=N;my/=N;for(let i=0;i<N;i++){Y[i][0]-=mx;Y[i][1]-=my;}
+  it++;lastKL=kl;klHist.push(kl);if(klHist.length>2000)klHist.shift();
+}
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height;
+const klC=document.getElementById('klC'),lx=klC.getContext('2d');
+function getCSS(x){return getComputedStyle(document.documentElement).getPropertyValue(x).trim();}
+function draw(){
+  bx.clearRect(0,0,BW,BH);
+  let mx=0,my=0;for(let i=0;i<N;i++){mx=Math.max(mx,Math.abs(Y[i][0]));my=Math.max(my,Math.abs(Y[i][1]));}
+  const R=Math.max(mx,my,1e-3)*1.15;const toPx=x=>BW/2+x/R*BW/2*0.96,toPy=y=>BH/2-y/R*BH/2*0.96;
+  for(let i=0;i<N;i++){bx.beginPath();bx.arc(toPx(Y[i][0]),toPy(Y[i][1]),3.6,0,7);bx.fillStyle=PALETTE[label[i]%PALETTE.length];bx.globalAlpha=.9;bx.fill();bx.globalAlpha=1;}
+}
+function drawKL(){const W2=klC.width,H2=klC.height;lx.clearRect(0,0,W2,H2);const pad=8;
+  if(klHist.length<2){lx.fillStyle=getCSS('--faint');lx.font='12px '+getCSS('--gothic');lx.textAlign='center';lx.fillText('開始すると表示',W2/2,H2/2);return;}
+  let hi=Math.max(...klHist),lo=Math.min(...klHist);if(hi-lo<0.05)lo=hi-0.05;
+  lx.strokeStyle=getCSS('--loss');lx.lineWidth=1.8;lx.beginPath();const st=Math.max(1,Math.floor(klHist.length/(W2-2*pad)));
+  for(let i=0;i<klHist.length;i+=st){const px=pad+(W2-2*pad)*i/(klHist.length-1),py=pad+(H2-2*pad)*(hi-klHist[i])/(hi-lo);i?lx.lineTo(px,py):lx.moveTo(px,py);}lx.stroke();}
+function updateReadout(){itOut.textContent=it;klOut.textContent=lastKL==null?'—':lastKL.toFixed(3);}
+
+/* ===== ループ ===== */
+let running=false;
+function frame(){if(!running)return;for(let i=0;i<(+spdSlider.value);i++)tsneStep();draw();drawKL();updateReadout();requestAnimationFrame(frame);}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 埋め込み開始';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const cSel=document.getElementById('cSel'),perpSlider=document.getElementById('perpSlider'),spdSlider=document.getElementById('spdSlider'),
+  playBtn=document.getElementById('playBtn'),itOut=document.getElementById('itOut'),klOut=document.getElementById('klOut');
+const perpVal=document.getElementById('perpVal'),spdVal=document.getElementById('spdVal');
+function lbls(){perpVal.textContent=perpSlider.value;spdVal.textContent=spdSlider.value;}
+function rebuild(){setRun(false);computeP(+perpSlider.value);initEmbed();draw();drawKL();updateReadout();}
+function regen(){setRun(false);seed=(Math.floor(rng()*1e9))>>>0;genData();rebuild();}
+cSel.onchange=()=>{genData();rebuild();};
+perpSlider.oninput=lbls;perpSlider.onchange=rebuild;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);for(let i=0;i<10;i++)tsneStep();draw();drawKL();updateReadout();};
+document.getElementById('resetBtn').onclick=()=>{setRun(false);initEmbed();draw();drawKL();updateReadout();};
+document.getElementById('dataBtn').onclick=regen;
+
+lbls();genData();rebuild();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

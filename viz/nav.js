@@ -13,6 +13,7 @@
     { href: 'gmm.html',         label: 'GMM' },
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
     { href: 'pca.html',         label: 'PCA' },
+    { href: 'tsne.html',        label: 't-SNE' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: '../gpt2/',         label: 'GPT-2' },
   ];
