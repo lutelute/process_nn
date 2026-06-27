@@ -5,3 +5,7 @@ node_modules/
 # GPT-2 の重み（巨大・再DL可能なのでコミットしない）
 gpt2/assets/*.safetensors
 gpt2/assets/*.bin
+
+# Playwright 等での検証スクリーンショット（リポジトリ直下）と一時生成物
+/*.png
+.playwright-mcp/
