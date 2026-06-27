@@ -87,11 +87,13 @@
     </div>
     <div class="buttons">
       <button class="primary" id="flowBtn">▶ 時間を流す</button>
+      <button id="learnBtn">🎓 学習させる</button>
       <button id="randBtn">🎲 重み再生成</button>
       <button id="spinBtn">⟲ 自動回転</button>
       <button id="resetBtn">↺ 視点リセット</button>
     </div>
-    <div class="note">Elman RNN: hₜ = tanh(Wxh·xₜ + Whh·hₜ₋₁ + bₕ)、yₜ = Why·hₜ。同じセルが各時刻で使い回され（重み共有）、隠れ状態 h が「記憶」として時間方向に運ばれます。重みはランダム（構造可視化用）。色は活性値。</div>
+    <div id="narrR" style="margin-top:12px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:1.7;color:var(--text);">課題: 各時刻で<b>次の値を予測</b>する。今はランダム重み。「🎓 学習させる」で BPTT（時間方向の逆伝播）により重みが更新され、系列の規則を捉えるようになります。</div>
+    <div class="note">Elman RNN: hₜ = tanh(Wxh·xₜ + Whh·hₜ₋₁ + bₕ)、yₜ = Why·hₜ。同じセルを各時刻で使い回し（重み共有）、隠れ状態 h が「記憶」として時間方向に運ばれる。学習＝1ステップ先予測の誤差を BPTT で逆伝播し重みを調整。色は活性値。</div>
   </div>
 </div>
 
@@ -104,12 +106,37 @@ function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math
 
 let T=10, H=12;
 let Wxh,Whh,Why,bh,by,series=[],hs=[],ys=[];
+let mWxh,vWxh,mWhh,vWhh,mWhy,vWhy,mbh,vbh,mby,vby,tA=0,trainSteps=0,learning=false;
 function build(){const s=0.8/Math.sqrt(H);
   Wxh=new Float32Array(H).map(()=>randn()*0.7);
   Whh=Array.from({length:H},()=>Float32Array.from({length:H},()=>randn()*s));
-  Why=new Float32Array(H).map(()=>randn()*s);bh=new Float32Array(H);by=0;}
+  Why=new Float32Array(H).map(()=>randn()*s);bh=new Float32Array(H);by=0;initOptR();trainSteps=0;}
 function genSeries(){series=[];const k=serSel.value;for(let t=0;t<T;t++){const p=t/2.0;series.push(k==='sine'?Math.sin(p):k==='sine2'?0.6*Math.sin(p)+0.4*Math.sin(2.3*p):2*((p/Math.PI/2)%1)-1);}}
 function forward(){hs=[];ys=[];let hp=new Float32Array(H);for(let t=0;t<T;t++){const x=series[t];const a=new Float32Array(H);for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}hs.push(a);let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];ys.push(y);hp=a;}}
+
+/* ===== BPTT 学習（次の値を予測） ===== */
+function initOptR(){mWxh=new Float32Array(H);vWxh=new Float32Array(H);mWhy=new Float32Array(H);vWhy=new Float32Array(H);mbh=new Float32Array(H);vbh=new Float32Array(H);mby=0;vby=0;mWhh=Array.from({length:H},()=>new Float32Array(H));vWhh=Array.from({length:H},()=>new Float32Array(H));tA=0;}
+function trainStep(lr){const hsl=[new Float32Array(H)];const ysl=new Float32Array(T);
+  for(let t=0;t<T;t++){const x=series[t],hp=hsl[t],a=new Float32Array(H);for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}hsl.push(a);let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];ysl[t]=y;}
+  let loss=0;const cnt=Math.max(1,T-1);const dWxh=new Float32Array(H),dWhy=new Float32Array(H),dbh=new Float32Array(H);let dby=0;const dWhh=Array.from({length:H},()=>new Float32Array(H));let dhN=new Float32Array(H);
+  for(let t=T-1;t>=0;t--){const has=(t<T-1);const dy=has?2*(ysl[t]-series[t+1])/cnt:0;if(has)loss+=(ysl[t]-series[t+1])*(ysl[t]-series[t+1])/cnt;
+    const h=hsl[t+1],hp=hsl[t],dh=new Float32Array(H);
+    for(let i=0;i<H;i++){if(has)dWhy[i]+=dy*h[i];dh[i]=(has?Why[i]*dy:0)+dhN[i];}if(has)dby+=dy;
+    const da=new Float32Array(H);for(let i=0;i<H;i++)da[i]=dh[i]*(1-h[i]*h[i]);
+    const x=series[t];for(let i=0;i<H;i++){dWxh[i]+=da[i]*x;dbh[i]+=da[i];for(let j=0;j<H;j++)dWhh[i][j]+=da[i]*hp[j];}
+    const dp=new Float32Array(H);for(let j=0;j<H;j++){let s=0;for(let i=0;i<H;i++)s+=Whh[i][j]*da[i];dp[j]=s;}dhN=dp;}
+  const cl=v=>v>5?5:(v<-5?-5:v);tA++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,tA),bc2=1-Math.pow(b2,tA);
+  for(let i=0;i<H;i++){let g=cl(dWxh[i]);mWxh[i]=b1*mWxh[i]+.1*g;vWxh[i]=b2*vWxh[i]+.001*g*g;Wxh[i]-=lr*(mWxh[i]/bc1)/(Math.sqrt(vWxh[i]/bc2)+1e-8);
+    g=cl(dWhy[i]);mWhy[i]=b1*mWhy[i]+.1*g;vWhy[i]=b2*vWhy[i]+.001*g*g;Why[i]-=lr*(mWhy[i]/bc1)/(Math.sqrt(vWhy[i]/bc2)+1e-8);
+    g=cl(dbh[i]);mbh[i]=b1*mbh[i]+.1*g;vbh[i]=b2*vbh[i]+.001*g*g;bh[i]-=lr*(mbh[i]/bc1)/(Math.sqrt(vbh[i]/bc2)+1e-8);}
+  {let g=cl(dby);mby=b1*mby+.1*g;vby=b2*vby+.001*g*g;by-=lr*(mby/bc1)/(Math.sqrt(vby/bc2)+1e-8);}
+  for(let i=0;i<H;i++)for(let j=0;j<H;j++){let g=cl(dWhh[i][j]);mWhh[i][j]=b1*mWhh[i][j]+.1*g;vWhh[i][j]=b2*vWhh[i][j]+.001*g*g;Whh[i][j]-=lr*(mWhh[i][j]/bc1)/(Math.sqrt(vWhh[i][j]/bc2)+1e-8);}
+  trainSteps++;return loss;}
+function updateNarrR(){const el=document.getElementById('narrR');if(!el)return;forward();let err=0;const cnt=Math.max(1,T-1);for(let t=0;t<cnt;t++)err+=Math.abs(ys[t]-series[t+1]);err/=cnt;
+  let msg='課題: 各時刻で<b>次の値を予測</b>。';
+  msg+=trainSteps===0?'まだ未学習（予測はデタラメ）。「🎓学習」で BPTT により重みが更新されます。':'学習 <b>'+trainSteps+'</b> step・1ステップ予測の平均誤差 <b>'+err.toFixed(3)+'</b>（小さいほど良い）。隠れ状態が系列の規則を捉え、出力 yₜ が次の値に近づく。';
+  el.innerHTML=msg;}
+function learnLoopR(){if(!learning)return;for(let i=0;i<4;i++)trainStep(0.02);forward();draw();updateNarrR();if(trainSteps>=1500){learning=false;const lb=document.getElementById('learnBtn');if(lb)lb.textContent='🎓 もっと学習';}else requestAnimationFrame(learnLoopR);}
 
 // 3D 配置
 let POS=[]; // POS[t] = {hid:[[x,y,z]*H], inp:[x,y,z], out:[x,y,z]}
@@ -161,12 +188,13 @@ function frame(){if(!running)return;prog+=(+spd.value);
 
 const serSel=document.getElementById('serSel'),hSel=document.getElementById('hSel'),tSlider=document.getElementById('tSlider'),spd=document.getElementById('spd'),spdv=document.getElementById('spdv'),tVal=document.getElementById('tVal'),spinBtn=document.getElementById('spinBtn');
 function lbls(){spdv.textContent=(+spd.value).toFixed(3);tVal.textContent=tSlider.value;}
-function rebuild(){T=+tSlider.value;H=+hSel.value;rng=mulberry32(5);build();genSeries();forward();layout();litUpTo=-1;curT=0;draw();}
-serSel.onchange=()=>{genSeries();forward();litUpTo=-1;draw();};
+function rebuild(){learning=false;T=+tSlider.value;H=+hSel.value;rng=mulberry32(5);build();genSeries();forward();layout();litUpTo=-1;curT=0;draw();updateNarrR();}
+serSel.onchange=()=>{learning=false;genSeries();forward();litUpTo=-1;draw();updateNarrR();};
 hSel.onchange=rebuild;tSlider.oninput=()=>{lbls();rebuild();};
 spd.oninput=lbls;
 document.getElementById('flowBtn').onclick=()=>{forward();startFlow();};
-document.getElementById('randBtn').onclick=()=>{rng=mulberry32((Math.floor(rng()*1e9))>>>0);build();forward();litUpTo=-1;draw();};
+document.getElementById('learnBtn').onclick=()=>{const lb=document.getElementById('learnBtn');if(learning){learning=false;lb.textContent='🎓 学習させる';return;}learning=true;lb.textContent='⏸ 停止';learnLoopR();};
+document.getElementById('randBtn').onclick=()=>{learning=false;rng=mulberry32((Math.floor(rng()*1e9))>>>0);build();forward();litUpTo=-1;draw();updateNarrR();};
 Lib3D.attachDrag(cv,cam,draw);
 let spin=false;spinBtn.onclick=()=>{spin=!spin;spinBtn.classList.toggle('primary',!spin);spinBtn.textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin&&!running)loop();};
 function loop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(loop);}
