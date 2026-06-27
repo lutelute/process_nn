@@ -81,6 +81,7 @@
       <button id="resetBtn">↺ 視点リセット</button>
       <span class="note" style="grid-column:auto;border:none;padding:0;">フィルタ: 縦/横/斜めエッジ・輪郭(ラプラシアン)・ぼかし・鋭化</span>
     </div>
+    <div id="narrC3" style="grid-column:1/-1;margin-bottom:8px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#222a37);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">6 種のフィルタ応答を奥行きに積んだ立体です。</div>
     <div class="note">2D 版では 1 枚ずつだった特徴マップを、CNN の実際のデータ形「H×W×チャンネル」の立体として表示しています。畳み込みでチャンネル方向に厚みが増え、プーリングで H×W が縮む様子が立体で分かります。色：<span style="color:var(--accent)">正</span>／<span style="color:var(--neg)">負</span>。</div>
   </div>
 </div>
@@ -109,7 +110,8 @@ function compute(){conv=[];relu=[];pool=[];convMax=1e-6;poolMax=1e-6;
     for(let y=0;y<CONV;y++)for(let x=0;x<CONV;x++){let s=0;for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)s+=input[(y+dy)*N+(x+dx)]*F[dy*K+dx];cm[y*CONV+x]=s;rm[y*CONV+x]=s>0?s:0;convMax=Math.max(convMax,Math.abs(s));}
     conv.push(cm);relu.push(rm);
     const pm=new Float32Array(POOLN*POOLN);for(let y=0;y<POOLN;y++)for(let x=0;x<POOLN;x++){let m=-Infinity;for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++)m=Math.max(m,rm[(2*y+dy)*CONV+(2*x+dx)]);pm[y*POOLN+x]=m;poolMax=Math.max(poolMax,Math.abs(m));}
-    pool.push(pm);}}
+    pool.push(pm);}
+  const el=document.getElementById('narrC3');if(el)el.innerHTML='手前→奥の読み方：<b>入力</b>(1枚) → <b>畳み込み</b>(6 チャンネル＝6 種フィルタの応答を奥行きに積層) → <b>ReLU</b>(負を 0 に) → <b>最大プーリング</b>(H×W が半分に縮小)。各チャンネル＝1 種のフィルタが「その特徴がどこにあるか」を示す地図で、明るいマスほど強く反応した位置。畳み込みで厚み（チャンネル）が増え、プーリングで H×W が縮む＝これが CNN の実データ形「H×W×チャンネル」。層を重ねるほどエッジ→部品→物体へ抽象度が上がります。';}
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
 const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:70,dist:16});
