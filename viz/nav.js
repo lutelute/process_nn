@@ -11,6 +11,7 @@
     { href: 'rnn.html',         label: 'RNN' },
     { href: 'rnn3d.html',       label: 'RNN(3D)' },
     { href: 'transformer.html', label: 'Transformer' },
+    { href: 'attention3d.html', label: 'Attention(3D)' },
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'kmeans.html',      label: 'k-means' },
     { href: 'gmm.html',         label: 'GMM' },

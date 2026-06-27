@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention を立体で見る — 本物の注目を 3D で</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:radial-gradient(130% 130% at 50% 28%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  canvas:active{cursor:grabbing;}
+  .readout{display:flex;gap:24px;font-family:var(--mono);padding:4px 14px 10px;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:18px;color:var(--text);} .readout .v.loss{color:var(--loss);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;align-items:center;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Attention を立体で見る — 本物の注目を 3D で</h1>
+      <div class="sub">小型 Transformer を実際に学習させ、その<b>本物の attention</b> を 3D の弧で表示。各ヘッドを奥行きに分け、どのトークンがどこを見ているかを立体で観察。学習で注目パターンが形成される様子もリアルタイムに見える。<b>ドラッグで回転</b></div>
+    </div>
+    <div class="nav">
+      <a href="transformer.html">Transformer学習(2D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="gpt3d.html">GPT構造(3D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cap">attention の弧（キー位置 → クエリ位置 / ヘッドを奥行きに分離）※ドラッグで回転</div>
+    <div class="readout">
+      <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
+      <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
+      <div><div class="k">構成</div><div class="v" id="cfgOut" style="font-size:13px;">—</div></div>
+    </div>
+    <div class="canvas-host"><canvas id="cv" width="1080" height="560"></canvas></div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>学習コーパス</label>
+      <select id="corpus">
+        <option value="hello world. ">hello world.</option>
+        <option value="the cat sat on the mat. ">the cat sat...</option>
+        <option value="abcabcabc ">abcabc（周期）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>表示する層 <span class="val" id="layerVal"></span></label>
+      <input type="range" id="layerSlider" min="0" max="2" step="1" value="0">
+    </div>
+    <div class="field">
+      <label>弧のしきい値 <span class="val" id="thVal"></span></label>
+      <input type="range" id="thSlider" min="0.02" max="0.3" step="0.01" value="0.06">
+    </div>
+    <div class="field">
+      <label>学習速度 <span class="val" id="spdv"></span></label>
+      <input type="range" id="spd" min="1" max="12" step="1" value="4">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="trainBtn">▶ 学習</button>
+      <button id="stepBtn">⏭ 50 step</button>
+      <button id="resetBtn">↺ リセット</button>
+      <button id="spinBtn">⟲ 自動回転</button>
+    </div>
+    <div class="note">構造: 小型 decoder-only Transformer（3 層 × 4 ヘッド / 埋め込み 32）。因果的自己注意なので弧は必ず「過去（左）→現在（右）」へ。弧の明るさ・高さ＝注目の強さ。学習前はぼんやり、学習が進むと特定の位置に注目が集中していくのが立体で分かります。各ヘッドが別々のパターンを学ぶ様子も奥行きで比較できます。</div>
+  </div>
+</div>
+
+<script src="lib3d.js"></script>
+<script type="module">
+import { MiniGPT } from '../gpt2/tools/minigpt.mjs';
+const $=id=>document.getElementById(id);
+const NL=3, NH=4, T=12;
+let chars=[], stoi={}, itos=[], data=[], model=null, idx=[], att=null, epoch=0, lastLoss=null;
+
+function build(){
+  const base=$('corpus').value; const text=base.repeat(Math.ceil(300/base.length));
+  chars=[...new Set(text)].sort(); stoi=Object.fromEntries(chars.map((c,i)=>[c,i])); itos=chars.slice();
+  data=[...text].map(c=>stoi[c]);
+  model=new MiniGPT({nLayer:NL,nHead:NH,nEmbd:32,blockSize:T,vocabSize:chars.length});
+  idx=data.slice(0,T); epoch=0; lastLoss=null;
+  $('cfgOut').textContent=NL+'層×'+NH+'ヘッド';
+  capture();
+}
+function trainStep(){ const p=Math.floor(Math.random()*(data.length-T-1)); const x=data.slice(p,p+T), y=data.slice(p+1,p+T+1);
+  model.forward(x); lastLoss=model.backward(y); model.step(0.01); epoch++; }
+function capture(){ const {viz}=model.forward(idx,{capture:true}); att=viz.att; } // att[layer][head][i][j]
+
+const cv=$('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
+const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:54,dist:20,yaw:-0.5,pitch:0.34});
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const xGap=0.62, zGap=1.25, arcH=2.2;
+function tokPos(i,z){return [(i-(T-1)/2)*xGap, 0, z];}
+function bezier(a,b,h,z,seg){ const mx=(a+b)/2; const pts=[]; for(let s=0;s<=seg;s++){const t=s/seg; const x=(1-t)*(1-t)*a+2*(1-t)*t*mx+t*t*b; const y=2*(1-t)*t*h; pts.push([x,y,z]);} return pts; }
+
+function draw(){
+  ctx.clearRect(0,0,CW,CH); if(!att) return;
+  const L=+$('layerSlider').value|0; const th=+$('thSlider').value;
+  // ヘッド面を深度ソートして奥から描く
+  const order=[];for(let h=0;h<NH;h++){const z=(h-(NH-1)/2)*zGap;order.push({h,z,d:Lib3D.project([0,0.6,z],cam).depth});}
+  order.sort((a,b)=>a.d-b.d);
+  for(const {h,z} of order){
+    const A=att[L][h];
+    // 弧
+    for(let i=0;i<T;i++)for(let j=0;j<=i;j++){const a=A[i][j];if(a<th)continue;
+      const pa=tokPos(j,z)[0], pb=tokPos(i,z)[0];
+      const pts=bezier(pa,pb,arcH*(0.25+0.75*a)*(0.5+0.5*Math.min(1,(i-j)/4)),z,16);
+      ctx.beginPath();let first=true;for(const p of pts){const pr=Lib3D.project(p,cam);if(first){ctx.moveTo(pr.x,pr.y);first=false;}else ctx.lineTo(pr.x,pr.y);}
+      ctx.strokeStyle=`rgba(57,224,196,${0.12+0.85*a})`;ctx.lineWidth=0.6+2.6*a;ctx.stroke();}
+    // トークン基線ノード＋ラベル
+    for(let i=0;i<T;i++){const pr=Lib3D.project(tokPos(i,z),cam);const f=cam.dist/(cam.dist-pr.depth);
+      ctx.beginPath();ctx.arc(pr.x,pr.y,3*f,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();}
+    // ヘッドラベル
+    const hl=Lib3D.project([(-(T-1)/2-1)*xGap,0,z],cam);ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('H'+h,hl.x,hl.y);
+  }
+  // トークン文字ラベル（最前面の面のみ, 下に）
+  const zf=(NH-1-(NH-1)/2)*zGap;
+  for(let i=0;i<T;i++){const pr=Lib3D.project([(i-(T-1)/2)*xGap,-0.5,zf],cam);ctx.fillStyle=getCSS('--text');ctx.font='12px '+getCSS('--mono');ctx.textAlign='center';
+    const ch=itos[idx[i]]; ctx.fillText(ch===' '?'␣':ch, pr.x, pr.y);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+  const tl=Lib3D.project([0,-1.2,zf],cam);ctx.fillText('入力トークン（因果: 各位置は自分より左だけを見る）',tl.x,tl.y);
+}
+
+function updateReadout(){$('epOut').textContent=epoch.toLocaleString();$('lossOut').textContent=lastLoss==null?'—':lastLoss.toFixed(3);}
+
+/* ループ */
+let running=false;
+function frame(){if(!running)return;for(let i=0;i<(+$('spd').value);i++)trainStep();capture();draw();updateReadout();requestAnimationFrame(frame);}
+function setRun(on){running=on;$('trainBtn').textContent=on?'⏸ 一時停止':'▶ 学習';$('trainBtn').classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* UI */
+function lbls(){$('layerVal').textContent='層'+$('layerSlider').value;$('thVal').textContent=(+$('thSlider').value).toFixed(2);$('spdv').textContent=$('spd').value;}
+$('corpus').addEventListener('change',()=>{setRun(false);build();draw();updateReadout();});
+$('layerSlider').addEventListener('input',()=>{lbls();draw();});
+$('thSlider').addEventListener('input',()=>{lbls();draw();});
+$('spd').addEventListener('input',lbls);
+$('trainBtn').addEventListener('click',()=>setRun(!running));
+$('stepBtn').addEventListener('click',()=>{setRun(false);for(let i=0;i<50;i++)trainStep();capture();draw();updateReadout();});
+$('resetBtn').addEventListener('click',()=>{setRun(false);build();draw();updateReadout();});
+Lib3D.attachDrag(cv,cam,draw);
+let spin=false;$('spinBtn').addEventListener('click',()=>{spin=!spin;$('spinBtn').classList.toggle('primary',!spin);$('spinBtn').textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin&&!running)sloop();});
+function sloop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(sloop);}
+$('resetBtn2')?.addEventListener('click',()=>{});
+
+lbls(); build(); draw(); updateReadout();
+window.addEventListener('keydown',e=>{ if(e.key==='r'){cam.yaw=-0.5;cam.pitch=0.34;cam.scale=54;draw();} });
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
