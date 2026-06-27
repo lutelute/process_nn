@@ -11,6 +11,7 @@
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'kmeans.html',      label: 'k-means' },
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
+    { href: 'qlearning.html',   label: 'Q学習' },
     { href: '../gpt2/',         label: 'GPT-2' },
   ];
   let cur = location.pathname.split('/').pop();

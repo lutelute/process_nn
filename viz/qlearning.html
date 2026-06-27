@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q学習 — 強化学習でゴールへの道を学ぶ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --good:#5fd38a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:18px;font-family:var(--mono);padding:6px 14px 12px;flex-wrap:wrap;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.good{color:var(--good);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:14px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sq{width:11px;height:11px;border-radius:3px;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Q学習 — 強化学習でゴールへの道を学ぶ</h1>
+      <div class="sub">報酬だけを頼りに、エージェントが試行錯誤でゴールへの最短経路を学ぶ。各マスの「価値」がゴールから逆向きに染み出し、矢印（方策）が定まっていく様子を観察する</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">グリッドワールド（背景＝価値 V、矢印＝方策、●＝エージェント）</div>
+      <div class="canvas-host"><canvas id="board" width="640" height="460"></canvas></div>
+      <div class="legend">
+        <span><i class="sq" style="background:var(--good)"></i>ゴール +1</span>
+        <span><i class="sq" style="background:var(--neg)"></i>落とし穴 −1</span>
+        <span><i class="sq" style="background:#2b3a4d"></i>壁</span>
+        <span><i class="sq" style="background:var(--warm)"></i>エージェント</span>
+        <span>明るいマス＝価値が高い</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">episode</div><div class="v" id="epOut">0</div></div>
+          <div><div class="k">直近の歩数</div><div class="v" id="stOut">—</div></div>
+          <div><div class="k">ε（探索率）</div><div class="v" id="epsOut">—</div></div>
+          <div><div class="k">成功率</div><div class="v good" id="srOut">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">ゴール到達までの歩数（学習で短縮）</div>
+        <div class="canvas-host"><canvas id="stepC" width="300" height="150"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>迷路</label>
+      <select id="mazeSel"><option value="0">オープン</option><option value="1">回廊</option><option value="2">落とし穴あり</option></select>
+    </div>
+    <div class="field">
+      <label>学習率 α <span class="val" id="aVal"></span></label>
+      <input type="range" id="aSlider" min="0.05" max="0.8" step="0.05" value="0.3">
+    </div>
+    <div class="field">
+      <label>割引率 γ <span class="val" id="gVal"></span></label>
+      <input type="range" id="gSlider" min="0.7" max="0.99" step="0.01" value="0.95">
+    </div>
+    <div class="field">
+      <label>速度（歩/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="40" step="1" value="8">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 学習</button>
+      <button id="epBtn">⏭ 1 エピソード</button>
+      <button id="greedyBtn">🏁 学習結果で実行</button>
+      <button id="resetBtn">↺ リセット</button>
+    </div>
+    <div class="note">Q学習: Q(s,a) ← Q(s,a) + α[r + γ·maxₐ′Q(s′,a′) − Q(s,a)]。報酬はゴール +1・落とし穴 −1・1 歩 −0.01。行動は ε-greedy（確率 ε で探索、徐々に減衰）。価値 V(s)=maxₐQ(s,a) を背景色、各マスの最良行動を矢印で表示。ゴール周辺から価値が伝播していきます。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=5;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+
+/* ===== 迷路 ===== */
+const MAZES=[
+  ["S........",".###.###.",".#.....#.",".#.###.#.",".#...#...",".....#..G"],
+  ["S.......G","#######.#",".#......#",".#.#####.",".#......#",".####.#..","........."],
+  ["S....X...",".###.###.",".#...#..G",".#.#.#.#X","...#...#.","X..#.X..."],
+];
+let grid,W,H,start,goal;
+function parseMaze(idx){
+  const rows=MAZES[idx];H=rows.length;W=rows[0].length;grid=[];
+  for(let r=0;r<H;r++){const row=[];for(let c=0;c<W;c++){const ch=rows[r][c];row.push(ch);if(ch==='S')start=r*W+c;if(ch==='G')goal=r*W+c;}grid.push(row);}
+}
+const isWall=(r,c)=>r<0||c<0||r>=H||c>=W||grid[r][c]==='#';
+const cellType=(r,c)=>grid[r][c]; // S . # G X
+const ACT=[[-1,0],[1,0],[0,-1],[0,1]]; // 上下左右
+
+/* ===== Q ===== */
+let Q,eps,episode,stepsHist,lastSteps,successWin;
+function reset(){
+  parseMaze(+mazeSel.value);
+  Q=new Float64Array(W*H*4);
+  eps=0.35;episode=0;stepsHist=[];lastSteps=null;successWin=[];
+  agent=start;agentSteps=0;mode='idle';
+  draw();drawSteps();updateReadout();
+}
+function bestAction(s){let b=0,bv=-Infinity;for(let a=0;a<4;a++){const v=Q[s*4+a];if(v>bv){bv=v;b=a;}}return b;}
+function maxQ(s){let bv=-Infinity;for(let a=0;a<4;a++)if(Q[s*4+a]>bv)bv=Q[s*4+a];return bv;}
+function stepEnv(s,a){
+  const r=Math.floor(s/W),c=s%W;let nr=r+ACT[a][0],nc=c+ACT[a][1];
+  if(isWall(nr,nc)){nr=r;nc=c;} // 壁/外は留まる
+  const ns=nr*W+nc;const t=cellType(nr,nc);
+  let reward=-0.01,done=false;
+  if(t==='G'){reward=1;done=true;}else if(t==='X'){reward=-1;done=true;}
+  return{ns,reward,done};
+}
+
+/* ===== エピソード（1ステップ単位で進める） ===== */
+let agent,agentSteps,mode; // mode: 'idle','learn','greedy'
+const MAXSTEPS=()=>W*H*4;
+function learnStep(){
+  const s=agent;const a=(rng()<eps)?Math.floor(rng()*4):bestAction(s);
+  const{ns,reward,done}=stepEnv(s,a);
+  const target=reward+(done?0:0.95*maxQ(ns))*1; // γ は下で実際の値を使う
+  const g=+gSlider.value,al=+aSlider.value;
+  const tgt=reward+(done?0:g*maxQ(ns));
+  Q[s*4+a]+=al*(tgt-Q[s*4+a]);
+  agent=ns;agentSteps++;
+  if(done||agentSteps>=MAXSTEPS()){
+    const success=done&&cellType(Math.floor(ns/W),ns%W)==='G';
+    episode++;lastSteps=agentSteps;stepsHist.push(success?agentSteps:MAXSTEPS());if(stepsHist.length>2000)stepsHist.shift();
+    successWin.push(success?1:0);if(successWin.length>30)successWin.shift();
+    eps=Math.max(0.02,eps*0.985);
+    agent=start;agentSteps=0;
+    return true; // エピソード終了
+  }
+  return false;
+}
+let greedyDone=false;
+function greedyStep(){
+  const s=agent;const a=bestAction(s);const{ns,done}=stepEnv(s,a);agent=ns;agentSteps++;
+  if(done||agentSteps>=MAXSTEPS()){greedyDone=true;return true;}return false;
+}
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height;
+const stepC=document.getElementById('stepC'),sx=stepC.getContext('2d');
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+let cw,ch,ox,oy;
+function calcCell(){const pad=10;cw=Math.floor((BW-2*pad)/W);ch=Math.floor((BH-2*pad)/H);const s=Math.min(cw,ch);cw=ch=s;ox=(BW-cw*W)/2;oy=(BH-ch*H)/2;}
+function valColor(v){const t=Math.max(0,Math.min(1,v));return `rgba(57,224,196,${0.06+0.7*t})`;}
+function draw(){
+  bx.clearRect(0,0,BW,BH);calcCell();
+  // 価値レンジ
+  let vmax=1e-6;for(let s=0;s<W*H;s++){const r=Math.floor(s/W),c=s%W;if(grid[r][c]==='#')continue;vmax=Math.max(vmax,maxQ(s));}
+  for(let r=0;r<H;r++)for(let c=0;c<W;c++){const t=grid[r][c];const x=ox+c*cw,y=oy+r*ch;
+    if(t==='#'){bx.fillStyle='#2b3a4d';}
+    else if(t==='G'){bx.fillStyle='rgba(95,211,138,0.85)';}
+    else if(t==='X'){bx.fillStyle='rgba(240,111,126,0.8)';}
+    else{const s=r*W+c;const v=Math.max(0,maxQ(s))/vmax;bx.fillStyle=valColor(v);}
+    bx.fillRect(x+1,y+1,cw-2,ch-2);
+    // 方策矢印
+    if(t==='.'||t==='S'){const s=r*W+c;if(maxQ(s)>1e-4){const a=bestAction(s);drawArrow(x+cw/2,y+ch/2,a,Math.min(1,maxQ(s)/vmax));}}
+    if(t==='S'){bx.fillStyle=getCSS('--muted');bx.font=Math.floor(ch*0.3)+'px '+getCSS('--mono');bx.textAlign='center';bx.textBaseline='middle';bx.fillText('S',x+cw/2,y+ch*0.78);}
+    if(t==='G'){bx.fillStyle='#06231f';bx.font=Math.floor(ch*0.4)+'px '+getCSS('--gothic');bx.textAlign='center';bx.textBaseline='middle';bx.fillText('G',x+cw/2,y+ch/2);}
+  }
+  // エージェント
+  const ar=Math.floor(agent/W),ac=agent%W;bx.beginPath();bx.arc(ox+ac*cw+cw/2,oy+ar*ch+ch/2,cw*0.28,0,7);
+  bx.fillStyle=getCSS('--warm');bx.shadowColor=getCSS('--warm');bx.shadowBlur=10;bx.fill();bx.shadowBlur=0;
+}
+function drawArrow(cx,cy,a,al){const d=ACT[a];const len=cw*0.3;const ex=cx+d[1]*len,ey=cy+d[0]*len;
+  bx.strokeStyle=`rgba(231,237,245,${0.25+0.6*al})`;bx.lineWidth=1.8;bx.beginPath();bx.moveTo(cx-d[1]*len*0.4,cy-d[0]*len*0.4);bx.lineTo(ex,ey);bx.stroke();
+  const ang=Math.atan2(d[0],d[1]);bx.beginPath();bx.moveTo(ex,ey);bx.lineTo(ex-Math.cos(ang-0.5)*5,ey-Math.sin(ang-0.5)*5);bx.lineTo(ex-Math.cos(ang+0.5)*5,ey-Math.sin(ang+0.5)*5);bx.closePath();bx.fillStyle=`rgba(231,237,245,${0.3+0.6*al})`;bx.fill();}
+function drawSteps(){const W2=stepC.width,H2=stepC.height;sx.clearRect(0,0,W2,H2);const pad=8;
+  if(stepsHist.length<2){sx.fillStyle=getCSS('--faint');sx.font='12px '+getCSS('--gothic');sx.textAlign='center';sx.fillText('学習で表示',W2/2,H2/2);return;}
+  const hi=Math.max(...stepsHist),lo=0;
+  sx.strokeStyle=getCSS('--accent');sx.lineWidth=1.8;sx.beginPath();const st=Math.max(1,Math.floor(stepsHist.length/(W2-2*pad)));
+  for(let i=0;i<stepsHist.length;i+=st){const px=pad+(W2-2*pad)*i/(stepsHist.length-1),py=pad+(H2-2*pad)*(hi-stepsHist[i])/(hi-lo+1e-9);i?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();}
+function updateReadout(){epOut.textContent=episode;stOut.textContent=lastSteps==null?'—':lastSteps;epsOut.textContent=eps.toFixed(3);
+  const sr=successWin.length?Math.round(100*successWin.reduce((a,b)=>a+b,0)/successWin.length):0;srOut.textContent=successWin.length?sr+'%':'—';}
+
+/* ===== ループ ===== */
+let running=false;
+function frame(){if(!running)return;
+  if(mode==='greedy'){let done=false;for(let i=0;i<Math.max(1,(+spdSlider.value>>2));i++){if(greedyStep()){done=true;break;}}draw();if(done||greedyDone){running=false;playBtn.textContent='▶ 学習';playBtn.classList.add('primary');mode='idle';}requestAnimationFrame(frame);return;}
+  const n=+spdSlider.value;for(let i=0;i<n;i++)learnStep();
+  draw();drawSteps();updateReadout();requestAnimationFrame(frame);}
+function setRun(on){running=on;mode=on?'learn':'idle';playBtn.textContent=on?'⏸ 一時停止':'▶ 学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const mazeSel=document.getElementById('mazeSel'),aSlider=document.getElementById('aSlider'),gSlider=document.getElementById('gSlider'),spdSlider=document.getElementById('spdSlider'),
+  playBtn=document.getElementById('playBtn'),epOut=document.getElementById('epOut'),stOut=document.getElementById('stOut'),epsOut=document.getElementById('epsOut'),srOut=document.getElementById('srOut');
+const aVal=document.getElementById('aVal'),gVal=document.getElementById('gVal'),spdVal=document.getElementById('spdVal');
+function lbls(){aVal.textContent=(+aSlider.value).toFixed(2);gVal.textContent=(+gSlider.value).toFixed(2);spdVal.textContent=spdSlider.value;}
+mazeSel.onchange=reset;
+aSlider.oninput=lbls;gSlider.oninput=lbls;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('epBtn').onclick=()=>{setRun(false);let guard=0;while(!learnStep()&&guard++<MAXSTEPS()+5){}draw();drawSteps();updateReadout();};
+document.getElementById('greedyBtn').onclick=()=>{setRun(false);agent=start;agentSteps=0;greedyDone=false;mode='greedy';running=true;requestAnimationFrame(frame);};
+document.getElementById('resetBtn').onclick=reset;
+
+lbls();reset();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
