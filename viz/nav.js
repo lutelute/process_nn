@@ -6,6 +6,7 @@
     { href: 'backprop.html',    label: '逆伝播' },
     { href: 'classify.html',    label: '決定境界' },
     { href: 'cnn.html',         label: 'CNN' },
+    { href: 'cnn3d.html',       label: 'CNN(3D)' },
     { href: 'rnn.html',         label: 'RNN' },
     { href: 'transformer.html', label: 'Transformer' },
     { href: 'gradient.html',    label: '勾配降下' },
