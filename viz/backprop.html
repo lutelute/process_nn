@@ -86,6 +86,11 @@
         <div class="cap">loss の推移</div>
         <div class="canvas-host"><canvas id="lossC" width="300" height="150"></canvas></div>
       </div>
+      <div class="card">
+        <div class="cap">結果：関数の当てはまり（学習で更新）</div>
+        <div class="canvas-host"><canvas id="fitC" width="300" height="180"></canvas></div>
+        <div style="color:var(--faint);font-size:11px;padding:0 14px 12px;">薄線＝目標の関数 ／ 点＝学習データ ／ <span style="color:var(--fwd)">teal＝ネットの予測</span>。逆伝播の更新で予測曲線がデータへ近づく＝<b>プロセスと結果</b>がつながって見える。</div>
+      </div>
     </div>
   </div>
 
@@ -239,6 +244,20 @@ function drawLoss(){const c=document.getElementById('lossC'),x=c.getContext('2d'
   x.strokeStyle=getCSS('--loss');x.lineWidth=1.8;x.beginPath();const st=Math.max(1,Math.floor(logs.length/(W2-2*pad)));
   for(let i=0;i<logs.length;i+=st){const px=pad+(W2-2*pad)*i/(logs.length-1),py=pad+(H2-2*pad)*(hi-logs[i])/(hi-lo);i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();}
 
+/* ===== 結果：関数の当てはまり（プロセス→結果の転写） ===== */
+function targetF(x){const f=fnSel.value;return f==='sin'?Math.sin(Math.PI*x):f==='quad'?x*x*2-1:f==='abs'?Math.abs(x)*2-1:x*x*x;}
+function predict(x){let a=new Float64Array([x]);for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],al=new Float64Array(nOut);for(let j=0;j<nOut;j++){let v=B[l][j];for(let k=0;k<nIn;k++)v+=W[l][j][k]*a[k];al[j]=(l===L)?v:actFn(actSel.value,v);}a=al;}return a[0];}
+function drawFit(){const c=document.getElementById('fitC');if(!c)return;const x=c.getContext('2d'),W2=c.width,H2=c.height;x.clearRect(0,0,W2,H2);const pad=16,ylo=-1.5,yhi=1.5;
+  const xToP=xx=>pad+(W2-2*pad)*(xx+1)/2, yToP=yy=>pad+(H2-2*pad)*(yhi-yy)/(yhi-ylo);
+  x.strokeStyle=getCSS('--grid');x.lineWidth=1;x.beginPath();x.moveTo(pad,yToP(0));x.lineTo(W2-pad,yToP(0));x.stroke();
+  x.strokeStyle=getCSS('--true');x.lineWidth=1.6;x.globalAlpha=.6;x.beginPath();
+  for(let i=0;i<=60;i++){const xx=-1+2*i/60,px=xToP(xx),py=yToP(targetF(xx));i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();x.globalAlpha=1;
+  x.fillStyle=getCSS('--warm');for(const d of data){x.beginPath();x.arc(xToP(d.x),yToP(d.y),2.6,0,7);x.fill();}
+  x.strokeStyle=getCSS('--fwd');x.lineWidth=2.4;x.beginPath();
+  for(let i=0;i<=60;i++){const xx=-1+2*i/60,px=xToP(xx),py=yToP(predict(xx));i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();
+  if(cmp&&data[si]){const d=data[si];x.fillStyle=getCSS('--loss');x.beginPath();x.arc(xToP(d.x),yToP(d.y),4.5,0,7);x.fill();x.strokeStyle='#0c1016';x.lineWidth=1.5;x.stroke();}
+}
+
 const PH={fwd:['順伝播','var(--fwd)','#06231f','入力を右へ流して活性値を作り、予測 ŷ を出す'],
   loss:['誤差','var(--loss)','#3a2c06','予測 ŷ と目標 y の差から損失と出力の誤差を求める'],
   bwd:['逆伝播','var(--bwd)','#3a2c06','誤差信号 δ を右から左へ逆流させ、各ノードの責任を配分'],
@@ -252,7 +271,7 @@ function updateUI(){
 }
 
 /* ===== ループ ===== */
-function frame(){if(!running)return;tick();draw();drawLoss();updateUI();requestAnimationFrame(frame);}
+function frame(){if(!running)return;tick();draw();drawLoss();updateUI();drawFit();requestAnimationFrame(frame);}
 function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 自動学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
 // 1サンプル: idle→fwd→loss→bwd→upd→idle を一気に進める
 function stepSample(){if(phase==='idle')startSample();let guard=0;
@@ -262,7 +281,7 @@ function stepSample(){if(phase==='idle')startSample();let guard=0;
     else if(phase==='bwd'){pl=-1;nextPhase();}
     else nextPhase();
   }
-  draw();drawLoss();updateUI();}
+  draw();drawLoss();updateUI();drawFit();}
 
 /* ===== UI ===== */
 const fnSel=document.getElementById('fnSel'),actSel=document.getElementById('actSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),
@@ -270,7 +289,7 @@ const fnSel=document.getElementById('fnSel'),actSel=document.getElementById('act
 const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
 function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=(+spdSlider.value).toFixed(3);}
 lrSlider.value=Math.log10(0.05);
-function reset(){setRun(false);seed=99;build();genData();epoch=0;si=0;cmp=null;phase='idle';lossHist=[];lastLoss=null;startSample();phase='idle';cmp=computeSample(data[0]);draw();drawLoss();updateUI();}
+function reset(){setRun(false);seed=99;build();genData();epoch=0;si=0;cmp=null;phase='idle';lossHist=[];lastLoss=null;startSample();phase='idle';cmp=computeSample(data[0]);draw();drawLoss();updateUI();drawFit();}
 
 fnSel.onchange=()=>{genData();reset();};
 actSel.onchange=reset;
