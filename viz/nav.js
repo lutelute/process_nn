@@ -8,6 +8,7 @@
     { href: 'classify.html',    label: '決定境界' },
     { href: 'cnn.html',         label: 'CNN' },
     { href: 'cnn3d.html',       label: 'CNN(3D)' },
+    { href: 'digit.html',       label: '数字認識' },
     { href: 'rnn.html',         label: 'RNN' },
     { href: 'rnn3d.html',       label: 'RNN(3D)' },
     { href: 'transformer.html', label: 'Transformer' },
