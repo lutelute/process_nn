@@ -19,6 +19,7 @@
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
     { href: 'pca.html',         label: 'PCA' },
     { href: 'tsne.html',        label: 't-SNE' },
+    { href: 'som.html',         label: 'SOM' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: 'gpt3d.html',       label: 'GPT(3D)' },
     { href: '../gpt2/',         label: 'GPT-2' },

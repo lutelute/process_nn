@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自己組織化マップ — SOM（コホネン）</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a; --dot:#d4a36a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:23px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;letter-spacing:.02em;line-height:1.6;}
+  .nav{font-size:12.5px;margin:12px 0 16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:10px 14px 14px;}
+  canvas{display:block;width:100%;border-radius:6px;}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:22px;font-family:var(--mono);padding:8px 14px 12px;flex-wrap:wrap;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:19px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.qe{color:var(--loss);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select,input[type=range]{width:100%;}
+  select{background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;cursor:pointer;}
+  select:focus{border-color:var(--accent);}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s,background .15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;line-height:1.6;}
+  .narr{margin:0 14px 14px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text);}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}.controls{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>自己組織化マップ — SOM（コホネン）</h1>
+    <div class="sub">格子状に並んだノードが、競合学習で<b>データの形に広がって組織化</b>していく様子を観察する。教師なし学習・近傍を保ったまま高次元構造を低次元格子へ写し取る。</div>
+  </header>
+  <div class="nav"></div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">入力空間：格子（teal）がデータ（点）の形へ広がる</div>
+      <div class="canvas-host"><canvas id="cv" width="600" height="600"></canvas></div>
+      <div class="narr" id="narrS">▶ 学習すると、各データ点に最も近いノード（BMU）と<b>その近傍</b>を点へ引き寄せ、格子がデータの形に広がります。</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">iteration</div><div class="v" id="itOut">0</div></div>
+          <div><div class="k">近傍半径 σ</div><div class="v" id="sigOut">—</div></div>
+          <div><div class="k">量子化誤差</div><div class="v qe" id="qeOut">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">量子化誤差の推移（小さいほど適合）</div>
+        <div class="canvas-host"><canvas id="qeC" width="300" height="150"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>データの形</label>
+      <select id="shapeSel">
+        <option value="ring">リング（円環）</option>
+        <option value="two">2 つの塊</option>
+        <option value="grid">一様（正方）</option>
+        <option value="spiral">三日月</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>格子サイズ</label>
+      <select id="gSel"><option value="6">6×6</option><option value="8" selected>8×8</option><option value="12">12×12</option></select>
+    </div>
+    <div class="field">
+      <label>速度（更新/フレーム） <span class="val" id="spdv"></span></label>
+      <input type="range" id="spd" min="5" max="120" step="5" value="40">
+    </div>
+    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">緑線＝格子の隣接、点＝データ</span></div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 学習</button>
+      <button id="stepBtn">⏭ 1 回</button>
+      <button id="resetBtn">↺ リセット</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">競合学習: 各データ x に最も近いノード（BMU）を選び、BMU とその<b>格子上の近傍</b>を x へ少し動かす（近傍関数 h=exp(−d²/2σ²)）。学習率と近傍半径 σ は時間とともに縮小し、まず全体の形、次に細部へ適合。素の JavaScript 実装。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rng=mulberry32(3);
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const qeC=document.getElementById('qeC'),qx=qeC.getContext('2d');
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+let G=8, NODES=64, W=[], data=[], iter=0, sigma=0, lr=0, qeHist=[], lastBMU=-1, lastX=null, running=false;
+const TMAX=4000, LR0=0.4;
+const shapeSel=document.getElementById('shapeSel'),gSel=document.getElementById('gSel'),spd=document.getElementById('spd'),spdv=document.getElementById('spdv');
+
+function dataPoint(kind){
+  if(kind==='ring'){const a=2*Math.PI*rng(),r=0.72+rng()*0.12;return [Math.cos(a)*r,Math.sin(a)*r];}
+  if(kind==='two'){const c=rng()<0.5?-0.55:0.55;return [c+(rng()-0.5)*0.55,(rng()-0.5)*1.0];}
+  if(kind==='spiral'){const th=Math.PI*rng();const c=rng()<0.5?0:1;let x,y;if(c===0){x=Math.cos(th)-0.4;y=Math.sin(th)-0.2;}else{x=Math.cos(th+Math.PI)+0.4;y=Math.sin(th+Math.PI)+0.2;}return [x*0.85,y*0.85];}
+  return [(rng()-0.5)*1.7,(rng()-0.5)*1.7];
+}
+function genData(){data=[];for(let i=0;i<600;i++)data.push(dataPoint(shapeSel.value));}
+function reset(){G=+gSel.value;NODES=G*G;W=[];
+  // 中心付近に小さく初期化（格子が"つぼみ"から開く様子を見せる）
+  for(let i=0;i<NODES;i++)W.push([(rng()-0.5)*0.12,(rng()-0.5)*0.12]);
+  iter=0;sigma=G*0.6;lr=LR0;qeHist=[];lastBMU=-1;lastX=null;updateReadout();draw();drawQE();updateNarr();
+}
+const gx=i=>i%G, gy=i=>Math.floor(i/G);
+function bmu(x){let b=0,bd=1e9;for(let i=0;i<NODES;i++){const dx=W[i][0]-x[0],dy=W[i][1]-x[1],d=dx*dx+dy*dy;if(d<bd){bd=d;b=i;}}return b;}
+function QE(){let s=0,n=Math.min(200,data.length);for(let k=0;k<n;k++){const x=data[(k*7)%data.length];const dx=W[bmu(x)][0]-x[0],dy=W[bmu(x)][1]-x[1];s+=Math.hypot(dx,dy);}return s/n;}
+function step1(){const x=data[(rng()*data.length)|0];const b=bmu(x);
+  const frac=Math.min(1,iter/TMAX);lr=LR0*Math.pow(0.02,frac);sigma=Math.max(0.7,G*0.6*Math.pow(0.05,frac));
+  const bxg=gx(b),byg=gy(b),s2=2*sigma*sigma;
+  for(let i=0;i<NODES;i++){const dd=(gx(i)-bxg)**2+(gy(i)-byg)**2;const h=Math.exp(-dd/s2);if(h<0.01)continue;W[i][0]+=lr*h*(x[0]-W[i][0]);W[i][1]+=lr*h*(x[1]-W[i][1]);}
+  iter++;lastBMU=b;lastX=x;
+}
+function steps(n){for(let i=0;i<n;i++)step1();const q=QE();qeHist.push(q);if(qeHist.length>3000)qeHist.shift();}
+
+// 座標変換（入力 [-1.3,1.3] → canvas）
+const LO=-1.35,HI=1.35;
+const px=x=>20+(x-LO)/(HI-LO)*(CW-40);
+const py=y=>20+(HI-y)/(HI-LO)*(CH-40);
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  // データ点
+  ctx.fillStyle='rgba(212,163,106,0.5)';
+  for(let i=0;i<data.length;i+=2){ctx.beginPath();ctx.arc(px(data[i][0]),py(data[i][1]),1.7,0,7);ctx.fill();}
+  // 格子メッシュ（隣接ノードを結ぶ）
+  ctx.strokeStyle='rgba(57,224,196,0.55)';ctx.lineWidth=1;
+  for(let i=0;i<NODES;i++){const cx=gx(i),cy=gy(i);
+    if(cx<G-1){const j=i+1;ctx.beginPath();ctx.moveTo(px(W[i][0]),py(W[i][1]));ctx.lineTo(px(W[j][0]),py(W[j][1]));ctx.stroke();}
+    if(cy<G-1){const j=i+G;ctx.beginPath();ctx.moveTo(px(W[i][0]),py(W[i][1]));ctx.lineTo(px(W[j][0]),py(W[j][1]));ctx.stroke();}}
+  // ノード
+  for(let i=0;i<NODES;i++){ctx.beginPath();ctx.arc(px(W[i][0]),py(W[i][1]),2.6,0,7);ctx.fillStyle='#7ef0dd';ctx.fill();}
+  // 現在の BMU と データ点を強調
+  if(lastBMU>=0&&lastX){
+    ctx.strokeStyle='rgba(240,176,58,0.9)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(px(lastX[0]),py(lastX[1]));ctx.lineTo(px(W[lastBMU][0]),py(W[lastBMU][1]));ctx.stroke();
+    ctx.fillStyle='#f0b03a';ctx.beginPath();ctx.arc(px(lastX[0]),py(lastX[1]),4,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(px(W[lastBMU][0]),py(W[lastBMU][1]),5,0,7);ctx.strokeStyle='#f0b03a';ctx.lineWidth=2;ctx.stroke();
+  }
+}
+function drawQE(){const W2=qeC.width,H2=qeC.height;qx.clearRect(0,0,W2,H2);
+  if(qeHist.length<2){qx.fillStyle=getCSS('--faint');qx.font='12px '+getCSS('--gothic');qx.textAlign='center';qx.fillText('学習すると誤差が表示されます',W2/2,H2/2);return;}
+  let hi=Math.max(...qeHist),lo=Math.min(...qeHist);if(hi-lo<1e-6)hi=lo+1e-6;
+  const xToP=i=>34+(W2-44)*i/(qeHist.length-1),yToP=v=>10+(H2-26)*(hi-v)/(hi-lo);
+  qx.strokeStyle=getCSS('--grid');qx.lineWidth=1;qx.beginPath();qx.moveTo(34,H2-16);qx.lineTo(W2-10,H2-16);qx.stroke();
+  qx.strokeStyle=getCSS('--loss');qx.lineWidth=2;qx.beginPath();
+  const stp=Math.max(1,Math.floor(qeHist.length/(W2-44)));
+  for(let i=0;i<qeHist.length;i+=stp){const X=xToP(i),Y=yToP(qeHist[i]);i?qx.lineTo(X,Y):qx.moveTo(X,Y);}
+  qx.lineTo(xToP(qeHist.length-1),yToP(qeHist[qeHist.length-1]));qx.stroke();
+}
+function updateReadout(){document.getElementById('itOut').textContent=iter.toLocaleString();
+  document.getElementById('sigOut').textContent=sigma?sigma.toFixed(2):'—';
+  document.getElementById('qeOut').textContent=qeHist.length?qeHist[qeHist.length-1].toFixed(3):'—';}
+function updateNarr(){const el=document.getElementById('narrS');if(!el)return;
+  if(iter===0){el.innerHTML='中心の「つぼみ」状態（格子は縮こまっている）。▶ 学習で、各データ点に最も近いノード（BMU）と<b>その近傍</b>を点へ引き寄せ、格子がデータの形へ広がります。';return;}
+  const phase=sigma>G*0.25?'近傍半径 σ が大きく、<b>格子全体が大きく広がる</b>段階':'σ が小さくなり、<b>細部に適合</b>する段階';
+  el.innerHTML='iteration '+iter.toLocaleString()+'：'+phase+'。近傍半径 σ='+sigma.toFixed(2)+'・量子化誤差='+(qeHist.length?qeHist[qeHist.length-1].toFixed(3):'—')+'（データと最寄りノードの平均ズレ）。橙線＝今のデータ点と選ばれた BMU。格子の隣接関係（緑線）を保ったままデータの形を写し取ります。';
+}
+
+function frame(){if(!running)return;steps(+spd.value);draw();drawQE();updateReadout();updateNarr();requestAnimationFrame(frame);}
+function setRun(on){running=on;const b=document.getElementById('playBtn');b.textContent=on?'⏸ 一時停止':'▶ 学習';b.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+document.getElementById('playBtn').onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);steps(20);draw();drawQE();updateReadout();updateNarr();};
+document.getElementById('resetBtn').onclick=()=>{setRun(false);rng=mulberry32(3);reset();};
+document.getElementById('dataBtn').onclick=()=>{setRun(false);rng=mulberry32((rng()*1e9)>>>0);genData();reset();};
+shapeSel.onchange=()=>{setRun(false);genData();reset();};
+gSel.onchange=()=>{setRun(false);reset();};
+spd.oninput=()=>spdv.textContent=spd.value;
+
+spdv.textContent=spd.value;genData();reset();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
