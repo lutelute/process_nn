@@ -4,6 +4,7 @@
   const pages = [
     { href: 'index.html',       label: '信号の流れ' },
     { href: 'backprop.html',    label: '逆伝播' },
+    { href: 'mlp3d.html',       label: 'MLP(3D)' },
     { href: 'classify.html',    label: '決定境界' },
     { href: 'cnn.html',         label: 'CNN' },
     { href: 'cnn3d.html',       label: 'CNN(3D)' },

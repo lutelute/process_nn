@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLP を立体で見る — 信号の流れ 3D</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:radial-gradient(130% 130% at 50% 30%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  canvas:active{cursor:grabbing;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;align-items:center;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dotmark{width:10px;height:10px;border-radius:50%;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>MLP を立体で見る — 信号の流れ 3D</h1>
+      <div class="sub">各層をニューロンの「シート」として奥行きに並べ、入力信号が立体空間を流れて層ごとに変換されていく様子を 3D で観察。<b>ドラッグで回転・ホイールで拡大</b></div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(2D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="cnn3d.html">CNN(3D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cap">入力シート → 隠れ層シート → 出力シート　※ドラッグで回転</div>
+    <div class="canvas-host"><canvas id="cv" width="1080" height="600"></canvas></div>
+    <div class="legend">
+      <span><i class="dotmark" style="background:var(--pos)"></i>正の活性</span>
+      <span><i class="dotmark" style="background:var(--neg)"></i>負の活性</span>
+      <span>結線＝重み（色＝符号）／流れる粒＝信号 w·a</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>隠れ層の数</label>
+      <select id="depthSel"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select>
+    </div>
+    <div class="field">
+      <label>各層のユニット数</label>
+      <select id="widthSel"><option value="9">9</option><option value="16" selected>16</option><option value="25">25</option></select>
+    </div>
+    <div class="field">
+      <label>活性化関数</label>
+      <select id="actSel"><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sigmoid">sigmoid</option></select>
+    </div>
+    <div class="field">
+      <label>流れる速度 <span class="val" id="spdv"></span></label>
+      <input type="range" id="spd" min="0.005" max="0.05" step="0.002" value="0.018">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="flowBtn">▶ 信号を流す</button>
+      <button id="randBtn">🎲 入力＆重み再生成</button>
+      <button id="spinBtn">⟲ 自動回転</button>
+      <button id="resetBtn">↺ 視点リセット</button>
+    </div>
+    <div class="note">2D 版の「信号の流れ」を立体化。各層は √ユニット数 のグリッド状シートとして奥行き方向に積層。信号が左奥のシートから右手前へ層ごとに流れ、各ニューロンが活性値で光ります。重みはランダム（学習はしていません）。</div>
+  </div>
+</div>
+
+<script src="lib3d.js"></script>
+<script>
+"use strict";
+function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rng=mulberry32(7);
+function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function actFn(n,z){if(n==='tanh')return Math.tanh(z);if(n==='relu')return z>0?z:0;return 1/(1+Math.exp(-z));}
+
+let sizes=[9,16,16,4], W=[], B=[], acts=[], POS=[];
+function buildNet(){W=[null];B=[null];for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const s=(actSel.value==='relu')?Math.sqrt(2/nIn):Math.sqrt(1/nIn);const Wl=[];for(let j=0;j<nOut;j++){const r=new Float32Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s*1.3;Wl.push(r);}W[l]=Wl;B[l]=new Float32Array(nOut);}}
+let input=[];
+function newInput(){input=[];for(let i=0;i<sizes[0];i++)input.push(randn()*0.8);}
+function forward(){acts=[Float32Array.from(input)];const L=sizes.length-1;for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],a=new Float32Array(nOut),prev=acts[l-1];for(let j=0;j<nOut;j++){let s=B[l][j];const Wj=W[l][j];for(let k=0;k<nIn;k++)s+=Wj[k]*prev[k];a[j]=(l===L)?s:actFn(actSel.value,s);}acts.push(a);}}
+function layout(){POS=[];const L=sizes.length;const zSpan=6.0;
+  for(let l=0;l<L;l++){const n=sizes[l];const cols=Math.ceil(Math.sqrt(n)),rows=Math.ceil(n/cols);const gap=2.4/Math.max(cols,rows);const col=[];
+    for(let k=0;k<n;k++){const c=k%cols,r=Math.floor(k/cols);const x=(c-(cols-1)/2)*gap,y=(r-(rows-1)/2)*gap,z=(l/(L-1)-0.5)*zSpan;col.push([x,y,z]);}POS.push(col);}}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
+const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:96,dist:18,yaw:-0.62,pitch:0.3});
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.5));if(t>=0)return`rgba(57,224,196,${(0.2+0.8*t)*al})`;return`rgba(240,111,126,${(0.2+0.8*(-t))*al})`;}
+
+let litUpTo=0,curTrans=-1,prog=0,running=false;
+function draw(){
+  ctx.clearRect(0,0,CW,CH);const L=sizes.length;
+  // 結線（薄く）
+  for(let l=1;l<L;l++){let mx=1e-9;for(const row of W[l])for(const v of row)mx=Math.max(mx,Math.abs(v));
+    for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const wv=W[l][j][k],m=Math.abs(wv)/mx;
+      Lib3D.line(ctx,POS[l-1][k],POS[l][j],cam,wv>=0?`rgba(57,224,196,${0.02+0.08*m})`:`rgba(240,111,126,${0.02+0.08*m})`,0.4+0.8*m);}}
+  // 流れる粒（現在の遷移）
+  if(running&&curTrans>=0&&curTrans<L-1){const l=curTrans+1,prev=acts[l-1];let mc=1e-9;for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++)mc=Math.max(mc,Math.abs(W[l][j][k]*prev[k]));
+    const ease=prog<0.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
+    for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const c=W[l][j][k]*prev[k],m=Math.abs(c)/mc;if(m<0.06)continue;
+      const a=POS[l-1][k],b=POS[l][j];const p=[a[0]+(b[0]-a[0])*ease,a[1]+(b[1]-a[1])*ease,a[2]+(b[2]-a[2])*ease];
+      const pr=Lib3D.project(p,cam);const f=cam.dist/(cam.dist-pr.depth);ctx.beginPath();ctx.arc(pr.x,pr.y,(1+2.4*m)*f,0,7);
+      ctx.fillStyle=c>=0?`rgba(57,224,196,${0.3+0.6*m})`:`rgba(240,111,126,${0.3+0.6*m})`;ctx.fill();}}
+  // ノード（深度ソート）
+  const nodes=[];for(let l=0;l<L;l++){const lit=l<=litUpTo;for(let n=0;n<sizes[l];n++){const pr=Lib3D.project(POS[l][n],cam);nodes.push({pr,lit,v:acts[l]?acts[l][n]:0,l});}}
+  nodes.sort((a,b)=>a.pr.depth-b.pr.depth);
+  for(const nd of nodes){const f=cam.dist/(cam.dist-nd.pr.depth);const r=(nd.l===0||nd.l===L-1?6:5)*f;
+    ctx.beginPath();ctx.arc(nd.pr.x,nd.pr.y,r,0,7);
+    if(nd.lit){ctx.fillStyle=actColor(nd.v,1);ctx.shadowColor=actColor(nd.v,0.9);ctx.shadowBlur=8*Math.min(1,Math.abs(nd.v));ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1;ctx.strokeStyle='rgba(231,237,245,0.3)';ctx.stroke();}
+    else{ctx.fillStyle='#2b3a4d';ctx.fill();}}
+  // ラベル
+  ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';
+  const names=['入力',...Array(L-2).fill('隠れ層'),'出力'];
+  for(let l=0;l<L;l++){const c=POS[l][0];const pr=Lib3D.project([c[0],c[1]+1.7,c[2]],cam);ctx.fillText(names[l]||'隠れ層',pr.x,pr.y);}
+}
+
+let curTransStart;
+function startFlow(){litUpTo=0;curTrans=0;prog=0;running=true;requestAnimationFrame(frame);}
+function frame(){if(!running){return;}prog+=(+spd.value);
+  if(prog>=1){prog=0;litUpTo=curTrans+1;curTrans++;if(curTrans>sizes.length-2){running=false;curTrans=-1;draw();if(spin)loop();return;}}
+  draw();requestAnimationFrame(frame);}
+
+const depthSel=document.getElementById('depthSel'),widthSel=document.getElementById('widthSel'),actSel=document.getElementById('actSel'),spd=document.getElementById('spd'),spdv=document.getElementById('spdv'),spinBtn=document.getElementById('spinBtn');
+function rebuild(){const d=+depthSel.value,w=+widthSel.value;sizes=[9];for(let i=0;i<d;i++)sizes.push(w);sizes.push(4);rng=mulberry32(7);buildNet();newInput();forward();layout();litUpTo=0;curTrans=-1;draw();}
+function lbls(){spdv.textContent=(+spd.value).toFixed(3);}
+depthSel.onchange=rebuild;widthSel.onchange=rebuild;
+actSel.onchange=()=>{buildNet();forward();litUpTo=0;curTrans=-1;draw();};
+spd.oninput=lbls;
+document.getElementById('flowBtn').onclick=()=>{if(!running){running=false;}forward();startFlow();};
+document.getElementById('randBtn').onclick=()=>{rng=mulberry32((Math.floor(rng()*1e9))>>>0);buildNet();newInput();forward();litUpTo=0;curTrans=-1;draw();};
+Lib3D.attachDrag(cv,cam,draw);
+let spin=false;spinBtn.onclick=()=>{spin=!spin;spinBtn.classList.toggle('primary',!spin);spinBtn.textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin&&!running)loop();};
+function loop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(loop);}
+document.getElementById('resetBtn').onclick=()=>{cam.yaw=-0.62;cam.pitch=0.3;cam.scale=96;draw();};
+
+lbls();rebuild();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
