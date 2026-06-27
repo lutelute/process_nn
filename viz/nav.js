@@ -9,6 +9,7 @@
     { href: 'cnn.html',         label: 'CNN' },
     { href: 'cnn3d.html',       label: 'CNN(3D)' },
     { href: 'rnn.html',         label: 'RNN' },
+    { href: 'rnn3d.html',       label: 'RNN(3D)' },
     { href: 'transformer.html', label: 'Transformer' },
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'kmeans.html',      label: 'k-means' },

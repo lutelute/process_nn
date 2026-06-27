@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RNN を立体で見る — 時間展開 3D</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --true:#cdb784;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:radial-gradient(130% 130% at 50% 30%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  canvas:active{cursor:grabbing;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;align-items:center;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dotmark{width:10px;height:10px;border-radius:50%;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>RNN を立体で見る — 時間展開 3D</h1>
+      <div class="sub">再帰型ネットを時間方向に「展開」。各時刻に隠れ状態のシートを置き、隠れ状態が前の時刻から次へ受け渡されながら系列を処理する様子を立体で観察。<b>ドラッグで回転・ホイールで拡大</b></div>
+    </div>
+    <div class="nav">
+      <a href="rnn.html">RNN(2D学習)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="mlp3d.html">MLP(3D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cap">入力系列 → 隠れ状態シート（時刻ごと）→ 出力　※ドラッグで回転</div>
+    <div class="canvas-host"><canvas id="cv" width="1080" height="600"></canvas></div>
+    <div class="legend">
+      <span><i class="dotmark" style="background:var(--pos)"></i>正の活性</span>
+      <span><i class="dotmark" style="background:var(--neg)"></i>負の活性</span>
+      <span><i class="dotmark" style="background:var(--true)"></i>入力/出力</span>
+      <span>横軸＝時間。隠れ状態が時刻 t→t+1 へ受け渡される（再帰 Whh）</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>系列の種類</label>
+      <select id="serSel"><option value="sine">正弦波</option><option value="sine2">合成波</option><option value="saw">のこぎり波</option></select>
+    </div>
+    <div class="field">
+      <label>隠れユニット数</label>
+      <select id="hSel"><option value="9">9</option><option value="12" selected>12</option><option value="16">16</option></select>
+    </div>
+    <div class="field">
+      <label>時刻数 T <span class="val" id="tVal"></span></label>
+      <input type="range" id="tSlider" min="6" max="14" step="1" value="10">
+    </div>
+    <div class="field">
+      <label>流れる速度 <span class="val" id="spdv"></span></label>
+      <input type="range" id="spd" min="0.01" max="0.08" step="0.005" value="0.03">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="flowBtn">▶ 時間を流す</button>
+      <button id="randBtn">🎲 重み再生成</button>
+      <button id="spinBtn">⟲ 自動回転</button>
+      <button id="resetBtn">↺ 視点リセット</button>
+    </div>
+    <div class="note">Elman RNN: hₜ = tanh(Wxh·xₜ + Whh·hₜ₋₁ + bₕ)、yₜ = Why·hₜ。同じセルが各時刻で使い回され（重み共有）、隠れ状態 h が「記憶」として時間方向に運ばれます。重みはランダム（構造可視化用）。色は活性値。</div>
+  </div>
+</div>
+
+<script src="lib3d.js"></script>
+<script>
+"use strict";
+function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rng=mulberry32(5);
+function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+let T=10, H=12;
+let Wxh,Whh,Why,bh,by,series=[],hs=[],ys=[];
+function build(){const s=0.8/Math.sqrt(H);
+  Wxh=new Float32Array(H).map(()=>randn()*0.7);
+  Whh=Array.from({length:H},()=>Float32Array.from({length:H},()=>randn()*s));
+  Why=new Float32Array(H).map(()=>randn()*s);bh=new Float32Array(H);by=0;}
+function genSeries(){series=[];const k=serSel.value;for(let t=0;t<T;t++){const p=t/2.0;series.push(k==='sine'?Math.sin(p):k==='sine2'?0.6*Math.sin(p)+0.4*Math.sin(2.3*p):2*((p/Math.PI/2)%1)-1);}}
+function forward(){hs=[];ys=[];let hp=new Float32Array(H);for(let t=0;t<T;t++){const x=series[t];const a=new Float32Array(H);for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}hs.push(a);let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];ys.push(y);hp=a;}}
+
+// 3D 配置
+let POS=[]; // POS[t] = {hid:[[x,y,z]*H], inp:[x,y,z], out:[x,y,z]}
+function layout(){POS=[];const cols=Math.ceil(Math.sqrt(H)),rows=Math.ceil(H/cols);const g=0.42;const xGap=1.25;
+  for(let t=0;t<T;t++){const X=(t-(T-1)/2)*xGap;const hid=[];
+    for(let k=0;k<H;k++){const c=k%cols,r=Math.floor(k/cols);hid.push([X,(r-(rows-1)/2)*g,(c-(cols-1)/2)*g]);}
+    POS.push({hid,inp:[X,-1.5,0],out:[X,1.55,0]});}}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
+const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:80,dist:20,yaw:-0.5,pitch:0.26});
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.2));if(t>=0)return`rgba(57,224,196,${(0.2+0.8*t)*al})`;return`rgba(240,111,126,${(0.2+0.8*(-t))*al})`;}
+function warmColor(v,al){const t=Math.max(-1,Math.min(1,v));return`rgba(205,183,132,${(0.35+0.6*Math.abs(t))*al})`;}
+
+let litUpTo=-1, running=false, prog=0, curT=0;
+function draw(){
+  ctx.clearRect(0,0,CW,CH);const cols=Math.ceil(Math.sqrt(H));
+  // 再帰の結線 h_t -> h_{t+1}（薄く）
+  for(let t=0;t<T-1;t++){if(t>litUpTo)break;let mx=1e-9;for(const r of Whh)for(const v of r)mx=Math.max(mx,Math.abs(v));
+    for(let i=0;i<H;i++)for(let j=0;j<H;j++){const w=Whh[j][i],m=Math.abs(w)/mx;if(m<0.25)continue;Lib3D.line(ctx,POS[t].hid[i],POS[t+1].hid[j],cam,w>=0?`rgba(57,224,196,${0.03+0.07*m})`:`rgba(240,111,126,${0.03+0.07*m})`,0.4+0.6*m);}}
+  // 入力→隠れ, 隠れ→出力（各時刻, 薄く）
+  for(let t=0;t<T;t++){if(t>litUpTo)break;for(let i=0;i<H;i++){Lib3D.line(ctx,POS[t].inp,POS[t].hid[i],cam,'rgba(205,183,132,0.06)',0.5);Lib3D.line(ctx,POS[t].hid[i],POS[t].out,cam,'rgba(205,183,132,0.06)',0.5);}}
+  // 流れる粒（再帰 curT-1 -> curT）
+  if(running&&curT>0&&curT<T){const ease=prog<0.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
+    for(let i=0;i<H;i++){const a=POS[curT-1].hid[i],b=POS[curT].hid[i];const p=[a[0]+(b[0]-a[0])*ease,a[1]+(b[1]-a[1])*ease,a[2]+(b[2]-a[2])*ease];const pr=Lib3D.project(p,cam);const f=cam.dist/(cam.dist-pr.depth);ctx.beginPath();ctx.arc(pr.x,pr.y,2*f,0,7);ctx.fillStyle='rgba(57,224,196,0.7)';ctx.fill();}}
+  // ノード収集（深度ソート）
+  const nodes=[];
+  for(let t=0;t<T;t++){const lit=t<=litUpTo;
+    nodes.push({pr:Lib3D.project(POS[t].inp,cam),type:'io',v:series[t],lit,big:1});
+    if(t<ys.length)nodes.push({pr:Lib3D.project(POS[t].out,cam),type:'io',v:ys[t],lit,big:1});
+    for(let k=0;k<H;k++)nodes.push({pr:Lib3D.project(POS[t].hid[k],cam),type:'h',v:hs[t]?hs[t][k]:0,lit,big:0});}
+  nodes.sort((a,b)=>a.pr.depth-b.pr.depth);
+  for(const nd of nodes){const f=cam.dist/(cam.dist-nd.pr.depth);const r=(nd.big?5.5:4.2)*f;ctx.beginPath();ctx.arc(nd.pr.x,nd.pr.y,r,0,7);
+    if(nd.lit){ctx.fillStyle=nd.type==='io'?warmColor(nd.v,1):actColor(nd.v,1);if(nd.type==='h'){ctx.shadowColor=actColor(nd.v,0.9);ctx.shadowBlur=7*Math.min(1,Math.abs(nd.v));}ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1;ctx.strokeStyle='rgba(231,237,245,0.28)';ctx.stroke();}
+    else{ctx.fillStyle='#2b3a4d';ctx.fill();}}
+  // ラベル
+  ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--mono');ctx.textAlign='center';
+  for(let t=0;t<T;t++){const pr=Lib3D.project([POS[t].inp[0],-2.0,0],cam);ctx.fillText('t='+t,pr.x,pr.y);}
+  ctx.font='12px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');
+  const pi=Lib3D.project([POS[0].inp[0]-1.0,-1.5,0],cam);ctx.textAlign='right';ctx.fillText('入力 xₜ',pi.x,pi.y);
+  const po=Lib3D.project([POS[0].out[0]-1.0,1.55,0],cam);ctx.fillText('出力 yₜ',po.x,po.y);
+  const ph=Lib3D.project([POS[0].hid[0][0]-1.0,0,0],cam);ctx.fillText('隠れ hₜ',ph.x,ph.y);
+}
+
+function startFlow(){litUpTo=-1;curT=0;prog=0;running=true;litUpTo=0;requestAnimationFrame(frame);}
+function frame(){if(!running)return;prog+=(+spd.value);
+  if(prog>=1){prog=0;curT++;litUpTo=curT;if(curT>=T){running=false;litUpTo=T-1;draw();if(spin)loop();return;}}
+  draw();requestAnimationFrame(frame);}
+
+const serSel=document.getElementById('serSel'),hSel=document.getElementById('hSel'),tSlider=document.getElementById('tSlider'),spd=document.getElementById('spd'),spdv=document.getElementById('spdv'),tVal=document.getElementById('tVal'),spinBtn=document.getElementById('spinBtn');
+function lbls(){spdv.textContent=(+spd.value).toFixed(3);tVal.textContent=tSlider.value;}
+function rebuild(){T=+tSlider.value;H=+hSel.value;rng=mulberry32(5);build();genSeries();forward();layout();litUpTo=-1;curT=0;draw();}
+serSel.onchange=()=>{genSeries();forward();litUpTo=-1;draw();};
+hSel.onchange=rebuild;tSlider.oninput=()=>{lbls();rebuild();};
+spd.oninput=lbls;
+document.getElementById('flowBtn').onclick=()=>{forward();startFlow();};
+document.getElementById('randBtn').onclick=()=>{rng=mulberry32((Math.floor(rng()*1e9))>>>0);build();forward();litUpTo=-1;draw();};
+Lib3D.attachDrag(cv,cam,draw);
+let spin=false;spinBtn.onclick=()=>{spin=!spin;spinBtn.classList.toggle('primary',!spin);spinBtn.textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin&&!running)loop();};
+function loop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(loop);}
+document.getElementById('resetBtn').onclick=()=>{cam.yaw=-0.5;cam.pitch=0.26;cam.scale=80;draw();};
+
+lbls();rebuild();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
