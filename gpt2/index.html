@@ -170,6 +170,22 @@
 
     <h3 style="margin-top:18px;">残差ストリームのノルム（最終位置・層ごと）</h3>
     <canvas id="residCanvas" width="640" height="140"></canvas>
+
+    <h3 style="margin-top:18px;">全ヘッドの Attention <span class="muted small">選択層の 12 ヘッドを一覧（個々の役割の違いが見える）</span></h3>
+    <canvas id="headsCanvas" width="660" height="200"></canvas>
+
+    <div class="flex2" style="margin-top:18px;">
+      <div>
+        <h3>各ブロックの寄与（残差に足す量）</h3>
+        <canvas id="contribCanvas" width="520" height="170"></canvas>
+        <div class="note">各 Transformer ブロックの<span style="color:var(--accent)">注意</span>と<span style="color:var(--warm)">MLP</span>が残差ストリームをどれだけ変えたか（最終位置の L2 ノルム）。どの層で大きく処理されるかが分かる。</div>
+      </div>
+      <div>
+        <h3>MLP 活性（選択層・gelu 後 3072 次元）</h3>
+        <canvas id="mlpCanvas" width="520" height="170"></canvas>
+        <div class="note">選択層 MLP 中間層の活性。<span style="color:var(--accent)">正</span>／<span style="color:var(--neg)">負</span>、明るいほど強く発火。どのニューロンが反応したか。</div>
+      </div>
+    </div>
   </div>
 
   <p class="note">
@@ -268,7 +284,7 @@ function resetGen(){
   $('stopBtn').disabled = true;
   renderGenText(true);
   $('probView').innerHTML='—'; $('lensView').innerHTML='—'; $('attnTokens').innerHTML='';
-  clearCanvas('attnCanvas'); clearCanvas('residCanvas');
+  clearCanvas('attnCanvas'); clearCanvas('residCanvas'); clearCanvas('headsCanvas'); clearCanvas('contribCanvas'); clearCanvas('mlpCanvas');
   $('genStatus').textContent = 'プロンプト '+promptLen+' トークン。';
 }
 $('resetBtn').addEventListener('click', resetGen);
@@ -301,6 +317,7 @@ async function step(){
   renderLens(res.lens);
   drawAttention();
   drawResid(res.residNorm);
+  drawHeads(); drawContrib(); drawMlp();
   $('attnLayer').max=CONFIG.n_layer-1; $('attnHead').max=CONFIG.n_head-1;
   buildAttnTokenList();
   // 追加
@@ -358,7 +375,7 @@ function drawAttention(){
     ctx.fillRect(j*cell, i*cell, cell-0.5, cell-0.5);
   }
 }
-$('attnLayer').addEventListener('input', drawAttention);
+$('attnLayer').addEventListener('input', ()=>{ drawAttention(); drawHeads(); drawMlp(); });
 $('attnHead').addEventListener('input', drawAttention);
 function drawResid(norms){
   if(!norms) return;
@@ -370,6 +387,42 @@ function drawResid(norms){
   ctx.fillStyle='#8595a8'; ctx.font='10px monospace';
   ctx.fillText('‖h‖ '+min.toFixed(1)+'→'+max.toFixed(1), 4, 12);
   ctx.fillText('embed', pad-10, H-6); ctx.fillText('層'+(n-1), W-pad-10, H-6);
+}
+function drawHeads(){
+  if(!lastForward||!lastForward.attn) return;
+  const L=+$('attnLayer').value|0, T=lastForward.T, H=CONFIG.n_head;
+  const mat=lastForward.attn[L]; if(!mat) return;
+  const cv=$('headsCanvas'), ctx=cv.getContext('2d'), W=cv.width, Hpx=cv.height; ctx.clearRect(0,0,W,Hpx);
+  const cols=6, rows=Math.ceil(H/cols), cellW=W/cols, cellH=Hpx/rows, sz=Math.min(cellW,cellH)-20;
+  for(let head=0;head<H;head++){
+    const r=Math.floor(head/cols), c=head%cols, ox=c*cellW+(cellW-sz)/2, oy=r*cellH+14, cs=sz/Math.max(T,1);
+    for(let i=0;i<T;i++)for(let j=0;j<T;j++){ const a=j<=i?mat[head*T*T+i*T+j]:0; const cc=Math.round(255*Math.pow(a,0.7));
+      ctx.fillStyle=j<=i?`rgb(${Math.round(cc*0.22)},${Math.round(cc*0.88)},${Math.round(cc*0.78)})`:'#0e131b';
+      ctx.fillRect(ox+j*cs, oy+i*cs, Math.max(1,cs-0.3), Math.max(1,cs-0.3)); }
+    ctx.fillStyle='#8595a8'; ctx.font='9px monospace'; ctx.textAlign='center'; ctx.fillText('層'+L+' H'+head, ox+sz/2, oy-3);
+  }
+}
+function drawContrib(){
+  const a=lastForward&&lastForward.attnContrib, m=lastForward&&lastForward.mlpContrib; if(!a||!m) return;
+  const cv=$('contribCanvas'), ctx=cv.getContext('2d'), W=cv.width, H=cv.height; ctx.clearRect(0,0,W,H);
+  const n=a.length, pad=24, mx=Math.max(...a,...m,1e-6), bw=(W-2*pad)/n;
+  ctx.fillStyle='rgba(57,224,196,0.9)'; ctx.font='10px monospace'; ctx.textAlign='left'; ctx.fillText('■ 注意',pad,12);
+  ctx.fillStyle='rgba(212,163,106,0.95)'; ctx.fillText('■ MLP',pad+50,12);
+  for(let i=0;i<n;i++){ const x=pad+i*bw, ha=(H-2*pad)*a[i]/mx, hm=(H-2*pad)*m[i]/mx;
+    ctx.fillStyle='rgba(57,224,196,0.8)'; ctx.fillRect(x+bw*0.12,H-pad-ha,bw*0.34,ha);
+    ctx.fillStyle='rgba(212,163,106,0.85)'; ctx.fillRect(x+bw*0.52,H-pad-hm,bw*0.34,hm); }
+  ctx.fillStyle='#8595a8'; ctx.font='9px monospace'; ctx.textAlign='center';
+  for(let i=0;i<n;i++) ctx.fillText(i, pad+i*bw+bw/2, H-pad+11);
+  ctx.textAlign='left'; ctx.fillText('層 →', 2, H-pad+11);
+}
+function drawMlp(){
+  const acts=lastForward&&lastForward.mlpAct; if(!acts) return;
+  const L=+$('attnLayer').value|0, a=acts[L]; if(!a) return;
+  const cv=$('mlpCanvas'), ctx=cv.getContext('2d'), W=cv.width, H=cv.height; ctx.clearRect(0,0,W,H);
+  const cols=64, rows=Math.ceil(a.length/cols), cw=W/cols, ch=H/rows; let mx=1e-6; for(const v of a) mx=Math.max(mx,Math.abs(v));
+  for(let k=0;k<a.length;k++){ const r=Math.floor(k/cols),c=k%cols,t=Math.max(-1,Math.min(1,a[k]/mx));
+    ctx.fillStyle=t>=0?`rgba(57,224,196,${0.06+0.94*t})`:`rgba(240,111,126,${0.06+0.94*(-t)})`;
+    ctx.fillRect(c*cw,r*ch,cw+0.5,ch+0.5); }
 }
 function clearCanvas(id){ const cv=$(id); cv.getContext('2d').clearRect(0,0,cv.width,cv.height); }
 

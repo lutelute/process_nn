@@ -123,7 +123,7 @@ export class GPT2 {
       h.push(row);
     }
 
-    const cap = capture ? { attn: [], lens: [], residNorm: [] } : null;
+    const cap = capture ? { attn: [], lens: [], residNorm: [], attnContrib: [], mlpContrib: [], mlpAct: [] } : null;
     if (cap) cap.residNorm.push(vecNorm(h[T - 1]));
 
     for (let l = 0; l < L; l++) {
@@ -169,6 +169,7 @@ export class GPT2 {
       // c_proj + residual add
       for (let t = 0; t < T; t++) {
         const proj = linearVec(attnOut[t], pW, pB, D, D);
+        if (cap && t === T - 1) cap.attnContrib.push(vecNorm(proj)); // 注意が残差に足す量（最終位置）
         for (let i = 0; i < D; i++) h[t][i] += proj[i];
       }
 
@@ -181,6 +182,7 @@ export class GPT2 {
         const a = linearVec(x, fcW, fcB, D, 4 * D);
         for (let k = 0; k < a.length; k++) a[k] = geluNew(a[k]);
         const m = linearVec(a, mpW, mpB, 4 * D, D);
+        if (cap && t === T - 1) { cap.mlpAct.push(a.slice()); cap.mlpContrib.push(vecNorm(m)); } // MLP中間活性(3072)とMLPが残差に足す量
         for (let i = 0; i < D; i++) h[t][i] += m[i];
       }
 
@@ -195,7 +197,8 @@ export class GPT2 {
     const lnfg = this._t('ln_f.weight'), lnfb = this._t('ln_f.bias');
     const hf = layerNormVec(h[T - 1], lnfg, lnfb, D, this.eps);
     const logits = this._lmHead(hf);
-    return { T, logits, attn: cap?.attn ?? null, lens: cap?.lens ?? null, residNorm: cap?.residNorm ?? null };
+    return { T, logits, attn: cap?.attn ?? null, lens: cap?.lens ?? null, residNorm: cap?.residNorm ?? null,
+      attnContrib: cap?.attnContrib ?? null, mlpContrib: cap?.mlpContrib ?? null, mlpAct: cap?.mlpAct ?? null };
   }
 
   _lmHead(vec) {
