@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCA — 主成分分析（最大分散方向を見つける）</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --pc2:#b07ef0;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:20px;font-family:var(--mono);padding:6px 14px 12px;flex-wrap:wrap;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.pc1{color:var(--accent);} .readout .v.pc2{color:var(--pc2);}
+  .bar{height:14px;border-radius:3px;background:var(--accent);display:inline-block;vertical-align:middle;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .sw{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>PCA — 主成分分析（最大分散方向を見つける）</h1>
+      <div class="sub">データが最も広がる向き＝第1主成分を、ランダムな矢印から「べき乗反復」で回転させて見つける。2 次元を 1 次元に圧縮する線形版（オートエンコーダの線形対応）</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="autoencoder.html">オートエンコーダ</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">データと主成分軸（PC1・PC2）／反復中の探索ベクトル</div>
+      <div class="canvas-host"><canvas id="board" width="600" height="520"></canvas></div>
+      <div class="legend">
+        <span><i class="sw" style="border-top-color:var(--accent)"></i>PC1（最大分散）</span>
+        <span><i class="sw" style="border-top-color:var(--pc2)"></i>PC2</span>
+        <span><i class="sw" style="border-top-color:var(--warm);border-top-style:dashed"></i>反復中の探索ベクトル</span>
+        <span>細線＝PC1 への射影（1 次元化）</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">反復</div><div class="v" id="itOut">0</div></div>
+          <div><div class="k">PC1 と探索の一致</div><div class="v" id="alignOut">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">寄与率（各主成分の分散の割合）</div>
+        <div style="padding:12px 14px;font-family:var(--mono);font-size:12px;">
+          <div style="margin-bottom:8px;">PC1 <span id="pc1pct" class="v pc1" style="font-size:14px;">—</span><br><span class="bar" id="pc1bar" style="width:0;"></span></div>
+          <div>PC2 <span id="pc2pct" class="v pc2" style="font-size:14px;">—</span><br><span class="bar" id="pc2bar" style="width:0;background:var(--pc2);"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>データの傾き <span class="val" id="angVal"></span></label>
+      <input type="range" id="angSlider" min="0" max="180" step="1" value="35">
+    </div>
+    <div class="field">
+      <label>細長さ（分散比） <span class="val" id="elVal"></span></label>
+      <input type="range" id="elSlider" min="1.2" max="6" step="0.1" value="3.2">
+    </div>
+    <div class="field">
+      <label>速度（反復/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="10" step="1" value="2">
+    </div>
+    <div class="field" style="justify-content:flex-end;">
+      <span class="note" style="grid-column:auto;">探索ベクトルが PC1 に揃うと一致＝1.000</span>
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ べき乗反復</button>
+      <button id="stepBtn">⏭ 1 反復</button>
+      <button id="resetBtn">↺ ランダム向きから</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">べき乗反復: 共分散行列 C にベクトル v を掛けて正規化（v ← C·v / |C·v|）を繰り返すと、v は最大固有値の固有ベクトル＝第1主成分へ収束する。PC1 はデータが最も広がる向き、PC2 はそれに直交。各点を PC1 に射影すれば 2 次元→1 次元の圧縮になる。寄与率＝その軸が説明する分散の割合。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=11;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+
+/* ===== データ＆共分散 ===== */
+let pts=[],C=[1,0,0,1],mean=[0,0];
+let v=[1,0];          // 反復中の探索ベクトル
+let trueV=[1,0];      // 解析的 PC1
+let lam1=1,lam2=1,it=0;
+function genData(){
+  const ang=(+angSlider.value)*Math.PI/180, el=+elSlider.value;
+  const sx=0.62*el/Math.sqrt(el), sy=0.62/Math.sqrt(el); // 長軸/短軸
+  const ca=Math.cos(ang),sa=Math.sin(ang);
+  pts=[];for(let i=0;i<160;i++){const a=randn()*sx,b=randn()*sy;pts.push([ca*a-sa*b,sa*a+ca*b]);}
+  // 中心化
+  let mx=0,my=0;for(const p of pts){mx+=p[0];my+=p[1];}mx/=pts.length;my/=pts.length;mean=[mx,my];
+  for(const p of pts){p[0]-=mx;p[1]-=my;}
+  // 共分散
+  let a=0,bb=0,d=0;for(const p of pts){a+=p[0]*p[0];bb+=p[0]*p[1];d+=p[1]*p[1];}const n=pts.length;C=[a/n,bb/n,bb/n,d/n];
+  // 解析的固有値・PC1
+  const tr=C[0]+C[3],det=C[0]*C[3]-C[1]*C[2];const disc=Math.sqrt(Math.max(0,tr*tr/4-det));
+  lam1=tr/2+disc;lam2=tr/2-disc;
+  // PC1 固有ベクトル
+  let ex,ey;if(Math.abs(C[1])>1e-9){ex=lam1-C[3];ey=C[1];}else{ex=C[0]>=C[3]?1:0;ey=C[0]>=C[3]?0:1;}
+  const nrm=Math.hypot(ex,ey)||1;trueV=[ex/nrm,ey/nrm];
+}
+function resetVec(){const a=2*Math.PI*rng();v=[Math.cos(a),Math.sin(a)];it=0;}
+function powerStep(){
+  const cx=C[0]*v[0]+C[1]*v[1], cy=C[2]*v[0]+C[3]*v[1];
+  const n=Math.hypot(cx,cy)||1;v=[cx/n,cy/n];it++;
+}
+function align(){return Math.abs(v[0]*trueV[0]+v[1]*trueV[1]);}
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height;
+let R=2.2;
+function getCSS(x){return getComputedStyle(document.documentElement).getPropertyValue(x).trim();}
+const toPx=x=>BW/2+x/R*BW/2, toPy=y=>BH/2-y/R*BH/2;
+function draw(){
+  bx.clearRect(0,0,BW,BH);
+  // 軸グリッド
+  bx.strokeStyle=getCSS('--grid');bx.lineWidth=1;bx.beginPath();bx.moveTo(0,BH/2);bx.lineTo(BW,BH/2);bx.moveTo(BW/2,0);bx.lineTo(BW/2,BH);bx.stroke();
+  // PC1 への射影（細線＋射影点）
+  const pc1=trueV;
+  bx.strokeStyle='rgba(57,224,196,0.18)';bx.lineWidth=1;
+  for(const p of pts){const t=p[0]*pc1[0]+p[1]*pc1[1];const px=pc1[0]*t,py=pc1[1]*t;
+    bx.beginPath();bx.moveTo(toPx(p[0]),toPy(p[1]));bx.lineTo(toPx(px),toPy(py));bx.stroke();}
+  // データ点
+  for(const p of pts){bx.beginPath();bx.arc(toPx(p[0]),toPy(p[1]),3,0,7);bx.fillStyle=getCSS('--muted');bx.globalAlpha=.85;bx.fill();bx.globalAlpha=1;}
+  // 射影点（PC1上, 1次元化）
+  for(const p of pts){const t=p[0]*pc1[0]+p[1]*pc1[1];bx.beginPath();bx.arc(toPx(pc1[0]*t),toPy(pc1[1]*t),2.4,0,7);bx.fillStyle=getCSS('--accent');bx.fill();}
+  // PC2 軸
+  const s2=Math.sqrt(Math.max(lam2,1e-6))*2.3,pc2=[-pc1[1],pc1[0]];
+  drawAxis(pc2,s2,getCSS('--pc2'),false);
+  // PC1 軸
+  const s1=Math.sqrt(Math.max(lam1,1e-6))*2.3;
+  drawAxis(pc1,s1,getCSS('--accent'),false);
+  // 探索ベクトル（破線, 反復中）
+  drawAxis(v,Math.sqrt(Math.max(lam1,1e-6))*2.3,getCSS('--warm'),true);
+}
+function drawAxis(dir,len,col,dash){
+  bx.strokeStyle=col;bx.lineWidth=2.4;if(dash)bx.setLineDash([6,5]);else bx.setLineDash([]);
+  bx.beginPath();bx.moveTo(toPx(-dir[0]*len),toPy(-dir[1]*len));bx.lineTo(toPx(dir[0]*len),toPy(dir[1]*len));bx.stroke();bx.setLineDash([]);
+  // 矢印先
+  if(!dash){const ex=toPx(dir[0]*len),ey=toPy(dir[1]*len),ang=Math.atan2(-dir[1],dir[0]);
+    bx.beginPath();bx.moveTo(ex,ey);bx.lineTo(ex-Math.cos(ang-0.4)*9,ey+Math.sin(ang-0.4)*9);bx.lineTo(ex-Math.cos(ang+0.4)*9,ey+Math.sin(ang+0.4)*9);bx.closePath();bx.fillStyle=col;bx.fill();}
+}
+function updateReadout(){
+  itOut.textContent=it;alignOut.textContent=align().toFixed(3);
+  const tot=lam1+lam2||1;const p1=Math.round(100*lam1/tot),p2=100-p1;
+  pc1pct.textContent=p1+'%';pc2pct.textContent=p2+'%';
+  pc1bar.style.width=Math.max(2,p1*1.6)+'px';pc2bar.style.width=Math.max(2,p2*1.6)+'px';
+}
+
+/* ===== ループ ===== */
+let running=false;
+function frame(){if(!running)return;for(let i=0;i<(+spdSlider.value);i++)powerStep();draw();updateReadout();
+  if(align()>0.99999){running=false;playBtn.textContent='▶ べき乗反復';playBtn.classList.add('primary');}requestAnimationFrame(frame);}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ べき乗反復';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const angSlider=document.getElementById('angSlider'),elSlider=document.getElementById('elSlider'),spdSlider=document.getElementById('spdSlider'),
+  playBtn=document.getElementById('playBtn'),itOut=document.getElementById('itOut'),alignOut=document.getElementById('alignOut'),
+  pc1pct=document.getElementById('pc1pct'),pc2pct=document.getElementById('pc2pct'),pc1bar=document.getElementById('pc1bar'),pc2bar=document.getElementById('pc2bar');
+const angVal=document.getElementById('angVal'),elVal=document.getElementById('elVal'),spdVal=document.getElementById('spdVal');
+function lbls(){angVal.textContent=angSlider.value+'°';elVal.textContent=(+elSlider.value).toFixed(1);spdVal.textContent=spdSlider.value;}
+function regen(){setRun(false);genData();resetVec();draw();updateReadout();}
+angSlider.oninput=()=>{lbls();genData();resetVec();draw();updateReadout();};
+elSlider.oninput=()=>{lbls();genData();resetVec();draw();updateReadout();};
+spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);powerStep();draw();updateReadout();};
+document.getElementById('resetBtn').onclick=()=>{setRun(false);resetVec();draw();updateReadout();};
+document.getElementById('dataBtn').onclick=()=>{seed=(Math.floor(rng()*1e9))>>>0;regen();};
+
+lbls();genData();resetVec();draw();updateReadout();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
