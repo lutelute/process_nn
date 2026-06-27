@@ -16,6 +16,7 @@
     { href: 'pca.html',         label: 'PCA' },
     { href: 'tsne.html',        label: 't-SNE' },
     { href: 'qlearning.html',   label: 'Q学習' },
+    { href: 'gpt3d.html',       label: 'GPT(3D)' },
     { href: '../gpt2/',         label: 'GPT-2' },
   ];
   let cur = location.pathname.split('/').pop();

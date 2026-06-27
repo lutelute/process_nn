@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPT-2 の構造を立体で見る</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --attn:#39e0c4; --mlp:#d4a36a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:radial-gradient(130% 130% at 50% 25%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  canvas:active{cursor:grabbing;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;align-items:center;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 4px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .sq{width:11px;height:11px;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>GPT-2 の構造を立体で見る</h1>
+      <div class="sub">GPT-2 small（12 層 × 12 ヘッド / 768 次元）の構造を 3D で俯瞰。下からトークン → 埋め込み → Transformer ブロック ×12 → 出力。選択中のブロックは内部（12 ヘッド注意・MLP）を展開。<b>ドラッグで回転・ホイールで拡大</b></div>
+    </div>
+    <div class="nav">
+      <a href="../gpt2/">GPT-2 推論（実データ）</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="cap">GPT-2 アーキテクチャ（立体・回転可）</div>
+    <div class="canvas-host"><canvas id="cv" width="1080" height="640"></canvas></div>
+    <div class="legend" style="padding:0 14px 12px;">
+      <span><i class="sq" style="background:var(--accent)"></i>残差ストリーム</span>
+      <span><i class="sq" style="background:var(--attn)"></i>自己注意（12ヘッド）</span>
+      <span><i class="sq" style="background:var(--mlp)"></i>MLP（768→3072→768）</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>展開するブロック <span class="val" id="blkVal"></span></label>
+      <input type="range" id="blkSlider" min="0" max="11" step="1" value="0">
+    </div>
+    <div class="field">
+      <label>トークン数 T <span class="val" id="tVal"></span></label>
+      <input type="range" id="tSlider" min="3" max="10" step="1" value="6">
+    </div>
+    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">数式は GPT_NOTES に対応</span></div>
+    <div class="buttons">
+      <button class="primary" id="spinBtn">⟲ 自動回転</button>
+      <button id="resetBtn">↺ 視点リセット</button>
+      <span class="note" style="grid-column:auto;border:none;padding:0;">各ブロック: x = x + Attn(LN₁(x)) → x = x + MLP(LN₂(x))</span>
+    </div>
+    <div class="note">残差ストリーム（中央の柱）にブロックごとに「注意の出力」と「MLP の出力」が足し込まれていく Pre-LN 構造。注意は 12 ヘッドに分かれて系列内の関係を見る。最上部で最終 LayerNorm → lm_head（語彙 50257 への射影）。実データでの attention や予測は「GPT-2 推論」ページで観察できます。</div>
+  </div>
+</div>
+
+<script src="lib3d.js"></script>
+<script>
+"use strict";
+const NL=12, NH=12;
+let Tk=6, selBlk=0;
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
+const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:28,dist:26,yaw:-0.7,pitch:0.34});
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+// 立方体の面と辺を quads/edges に積む
+function cuboid(out, cx, cy, cz, sx, sy, sz, faceCol, edgeCol){
+  const x0=cx-sx/2,x1=cx+sx/2,y0=cy-sy/2,y1=cy+sy/2,z0=cz-sz/2,z1=cz+sz/2;
+  const v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  const faces=[[0,1,2,3],[4,5,6,7],[0,1,5,4],[2,3,7,6],[1,2,6,5],[0,3,7,4]];
+  if(faceCol)for(const f of faces)out.quads.push({c:f.map(i=>v[i]),fill:faceCol});
+  if(edgeCol){const E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];for(const e of E)out.edges.push({a:v[e[0]],b:v[e[1]],col:edgeCol});}
+}
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  const out={quads:[],edges:[],labels:[]};
+  const yStep=1.3; const yOf=l=>l*yStep; // l: 0=埋め込み, 1..12 ブロック, 13=出力
+  // トークン行（最下部）
+  for(let t=0;t<Tk;t++){const x=(t-(Tk-1)/2)*0.5;cuboid(out,x,-1.3,0,0.36,0.36,0.36,'rgba(133,149,168,0.18)','rgba(133,149,168,0.7)');}
+  out.labels.push({p:[0,-1.9,0],t:'トークン列 ('+Tk+')',col:getCSS('--muted'),font:'12px'});
+  // 残差スピン（中央の柱）
+  out.edges.push({a:[0,-0.6,0],b:[0,yOf(13)+0.4,0],col:'rgba(57,224,196,0.55)',w:3});
+  // 埋め込み
+  cuboid(out,0,yOf(0),0,4.4,0.5,2.4,'rgba(57,224,196,0.08)','rgba(57,224,196,0.5)');
+  out.labels.push({p:[2.6,yOf(0),0],t:'埋め込み wte+wpe',col:getCSS('--accent'),font:'11px',align:'left'});
+  // 12 ブロック
+  for(let l=0;l<NL;l++){const y=yOf(l+1);const sel=(l===selBlk);
+    const fc=sel?'rgba(57,224,196,0.10)':'rgba(120,140,165,0.05)';
+    const ec=sel?'rgba(57,224,196,0.7)':'rgba(90,108,130,0.45)';
+    cuboid(out,0,y,0,4.4,0.62,2.4,fc,ec);
+    out.labels.push({p:[-2.55,y,0],t:'Block '+l,col:sel?getCSS('--accent'):getCSS('--faint'),font:sel?'12px':'10px',align:'right'});
+    if(sel){
+      // 12 ヘッド（前面に12個の小箱を横並び）
+      for(let h=0;h<NH;h++){const hx=(h-(NH-1)/2)*0.32;cuboid(out,hx,y-0.02,1.0,0.26,0.34,0.34,'rgba(57,224,196,0.30)','rgba(57,224,196,0.85)');}
+      out.labels.push({p:[0,y+0.55,1.05],t:'自己注意 12 ヘッド',col:getCSS('--attn'),font:'11px'});
+      // MLP（背面に幅広バー = 3072）
+      cuboid(out,0,y+0.02,-0.95,3.4,0.34,0.5,'rgba(212,163,106,0.28)','rgba(212,163,106,0.85)');
+      out.labels.push({p:[0,y+0.5,-1.0],t:'MLP 768→3072→768',col:getCSS('--mlp'),font:'11px'});
+    }
+  }
+  // 出力
+  cuboid(out,0,yOf(13),0,4.4,0.5,2.4,'rgba(240,176,58,0.08)','rgba(240,176,58,0.5)');
+  out.labels.push({p:[2.6,yOf(13),0],t:'ln_f → lm_head → logits[50257]',col:getCSS('--loss'),font:'11px',align:'left'});
+
+  // 描画: 面を深度ソート → 辺 → ラベル
+  for(const q of out.quads){let cx=0,cy=0,cz=0;for(const p of q.c){cx+=p[0];cy+=p[1];cz+=p[2];}q.d=Lib3D.project([cx/4,cy/4,cz/4],cam).depth;}
+  out.quads.sort((a,b)=>a.d-b.d);
+  for(const q of out.quads)Lib3D.quad(ctx,q.c,cam,q.fill);
+  for(const e of out.edges)Lib3D.line(ctx,e.a,e.b,cam,e.col,e.w||1.2);
+  for(const L of out.labels){const p=Lib3D.project(L.p,cam);ctx.fillStyle=L.col;ctx.font=(L.font||'11px')+' '+getCSS('--gothic');ctx.textAlign=L.align||'center';ctx.textBaseline='middle';ctx.fillText(L.t,p.x,p.y);}
+}
+
+/* ===== UI ===== */
+const blkSlider=document.getElementById('blkSlider'),tSlider=document.getElementById('tSlider'),spinBtn=document.getElementById('spinBtn');
+const blkVal=document.getElementById('blkVal'),tVal=document.getElementById('tVal');
+function lbls(){blkVal.textContent='Block '+blkSlider.value;tVal.textContent=tSlider.value;}
+blkSlider.oninput=()=>{selBlk=+blkSlider.value;lbls();draw();};
+tSlider.oninput=()=>{Tk=+tSlider.value;lbls();draw();};
+Lib3D.attachDrag(cv,cam,draw);
+let spin=false;spinBtn.onclick=()=>{spin=!spin;spinBtn.classList.toggle('primary',!spin);spinBtn.textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin)loop();};
+function loop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(loop);}
+document.getElementById('resetBtn').onclick=()=>{cam.yaw=-0.7;cam.pitch=0.25;cam.scale=30;draw();};
+
+lbls();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
