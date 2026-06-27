@@ -76,6 +76,7 @@
           <div><div class="k">KL divergence</div><div class="v kl" id="klOut">—</div></div>
         </div>
         <div class="note" style="padding:0 14px 12px;">最初の100反復は「早期誇張」でクラスタを引き離します。</div>
+        <div id="narrT" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ ランダム配置から、各点を「高次元で近い点とは近く」なるよう動かし、隠れたクラスタを浮かび上がらせます。</div>
       </div>
       <div class="card">
         <div class="cap">KL の推移（減少＝改善）</div>
@@ -192,7 +193,10 @@ function drawKL(){const W2=klC.width,H2=klC.height;lx.clearRect(0,0,W2,H2);const
   let hi=Math.max(...klHist),lo=Math.min(...klHist);if(hi-lo<0.05)lo=hi-0.05;
   lx.strokeStyle=getCSS('--loss');lx.lineWidth=1.8;lx.beginPath();const st=Math.max(1,Math.floor(klHist.length/(W2-2*pad)));
   for(let i=0;i<klHist.length;i+=st){const px=pad+(W2-2*pad)*i/(klHist.length-1),py=pad+(H2-2*pad)*(hi-klHist[i])/(hi-lo);i?lx.lineTo(px,py):lx.moveTo(px,py);}lx.stroke();}
-function updateReadout(){itOut.textContent=it;klOut.textContent=lastKL==null?'—':lastKL.toFixed(3);}
+function updateReadout(){itOut.textContent=it;klOut.textContent=lastKL==null?'—':lastKL.toFixed(3);
+  const el=document.getElementById('narrT');if(el){
+    if(it===0)el.innerHTML='ランダム配置から開始。各点を「高次元で近い点とは近く」なるよう動かします。';
+    else{const phase=it<100?'<span style="color:var(--accent)">早期誇張</span>（クラスタを大きく引き離す）':'微調整（形を整える）';el.innerHTML='反復 '+it+'：'+phase+'。高次元の近さ P と 2 次元の近さ Q の差（KL='+lastKL.toFixed(2)+'）を縮小中。色が分かれて集まれば、隠れていたクラスタ構造が見えた状態。';}}}
 
 /* ===== ループ ===== */
 let running=false;
