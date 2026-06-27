@@ -143,10 +143,12 @@
     <div class="buttons">
       <button class="primary" id="flowBtn">▶ 信号を流す</button>
       <button id="stepBtn">⏭ 1 層ずつ</button>
+      <button id="learnBtn">🎓 学習させる</button>
       <button id="resetBtn">↺ リセット</button>
       <button id="randBtn">🎲 重みを再生成</button>
     </div>
-    <div class="note">重みはランダム初期化（学習はしていません）。各ノードの色＝活性値、ノード間を流れるパルスの色と太さ＝その結線の寄与 w·a。「入力 → ×W+b → 活性化 → 次の層」という変換が左から右へ進みます。</div>
+    <div id="narr" style="margin-top:12px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:1.7;color:var(--text);">課題: 3 つの入力の<b>合計が正か負か</b>を当てる。今はランダム重みなので当てずっぽう。「🎓 学習させる」で重みが更新され、正しく判定できるようになります。</div>
+    <div class="note">出力 2 ノード＝2 クラス（合計≤0 / 合計&gt;0）。学習＝合計の符号を当てるよう重みを調整（誤差逆伝播＋Adam）。学習が進むと結線（重み）の色・太さが変わり、信号フローが「意味のある計算」になります。色＝活性値、流れるパルス＝寄与 w·a。</div>
   </div>
 </div>
 
@@ -171,6 +173,7 @@ function buildNet(){
     const Wl=[];for(let j=0;j<nOut;j++){const row=new Float32Array(nIn);for(let k=0;k<nIn;k++)row[k]=randn()*scale*1.4;Wl.push(row);}
     W[l]=Wl;B[l]=new Float32Array(nOut);
   }
+  initOpt();trainSteps=0;
 }
 /* forward：各層の活性 acts を返す（acts[0]=入力, acts[L]=出力） */
 let acts=[];
@@ -188,6 +191,30 @@ function forward(){
     acts.push(a);
   }
 }
+
+/* ===== 学習：3入力の合計の符号を当てる課題（実学習＋実況） ===== */
+let mW=[],vW=[],mB=[],vB=[],tAdam=0,trainSteps=0,learning=false;
+function initOpt(){mW=[null];vW=[null];mB=[null];vB=[null];tAdam=0;for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const m=[],v=[];for(let j=0;j<nOut;j++){m.push(new Float32Array(nIn));v.push(new Float32Array(nIn));}mW[l]=m;vW[l]=v;mB[l]=new Float32Array(nOut);vB[l]=new Float32Array(nOut);}}
+function actDer(name,a){if(name==='tanh')return 1-a*a;if(name==='relu')return a>0?1:0;return a*(1-a);}
+function fwdX(x){let a=[Float32Array.from(x)];const L=sizes.length-1;for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],al=new Float32Array(nOut),prev=a[l-1];for(let j=0;j<nOut;j++){let s=B[l][j];for(let k=0;k<nIn;k++)s+=W[l][j][k]*prev[k];al[j]=(l===L)?s:actFn(actSel.value,s);}a.push(al);}return a;}
+function softmax2(o){const m=Math.max(o[0],o[1]),e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
+function trainStep(lr){const L=sizes.length-1,BB=24;const dW=[null],dB=[null];for(let l=1;l<=L;l++){const g=[];for(let j=0;j<sizes[l];j++)g.push(new Float32Array(sizes[l-1]));dW[l]=g;dB[l]=new Float32Array(sizes[l]);}
+  for(let b=0;b<BB;b++){const x=[rng()*2-1,rng()*2-1,rng()*2-1];const y=(x[0]+x[1]+x[2])>0?1:0;const a=fwdX(x);const p=softmax2(a[L]);
+    let delta=new Float32Array(sizes[L]);delta[0]=p[0]-(y===0?1:0);delta[1]=p[1]-(y===1?1:0);
+    for(let l=L;l>=1;l--){const nOut=sizes[l],nIn=sizes[l-1],ap=a[l-1];for(let j=0;j<nOut;j++){dB[l][j]+=delta[j];const r=dW[l][j];for(let k=0;k<nIn;k++)r[k]+=delta[j]*ap[k];}
+      if(l>1){const dp=new Float32Array(nIn);for(let k=0;k<nIn;k++){let s=0;for(let j=0;j<nOut;j++)s+=W[l][j][k]*delta[j];dp[k]=s*actDer(actSel.value,a[l-1][k]);}delta=dp;}}}
+  const iN=1/BB;tAdam++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,tAdam),bc2=1-Math.pow(b2,tAdam);
+  for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+0.1*gb;vB[l][j]=b2*vB[l][j]+0.001*gb*gb;B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+1e-8);for(let k=0;k<sizes[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+0.1*gw;vW[l][j][k]=b2*vW[l][j][k]+0.001*gw*gw;W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+1e-8);}}
+  trainSteps+=BB;}
+function evalAcc(){let ok=0;const n=60,L=sizes.length-1;for(let i=0;i<n;i++){const x=[rng()*2-1,rng()*2-1,rng()*2-1];const y=(x[0]+x[1]+x[2])>0?1:0;const a=fwdX(x);const p=softmax2(a[L]);if((p[1]>p[0]?1:0)===y)ok++;}return ok/n;}
+function updateNarr(){const el=document.getElementById('narr');if(!el)return;const x=[+x0.value,+x1.value,+x2.value];const sum=x[0]+x[1]+x[2];const L=sizes.length-1;const a=fwdX(x);const p=softmax2(a[L]);const predPos=p[1]>p[0];const conf=(Math.max(p[0],p[1])*100).toFixed(0);const truth=sum>0;
+  let msg=`課題: 入力の<b>合計の符号</b>を当てる。今の合計 = <b>${sum.toFixed(2)}</b>（実際は ${truth?'正':'負'}）。`;
+  msg+=`<br>ネットの判定: <b>${predPos?'正 (&gt;0)':'負 (≤0)'}</b>（信頼度 ${conf}%・${predPos===truth?'<span style="color:var(--accent)">正解</span>':'<span style="color:var(--neg)">不正解</span>'}）。`;
+  if(trainSteps===0)msg+=`<br>← まだ未学習。「🎓 学習させる」で重みが更新され、当てられるようになります。`;
+  else msg+=`<br>学習ステップ <b>${trainSteps}</b>・正答率 約 <b>${Math.round(evalAcc()*100)}%</b>（結線の色＝学習された重み）。`;
+  el.innerHTML=msg;}
+function learnLoop(){if(!learning)return;for(let i=0;i<3;i++)trainStep(0.03);recomputeActs();draw();updateNarr();
+  if(trainSteps>=2000){learning=false;document.getElementById('learnBtn').textContent='🎓 もっと学習';}else requestAnimationFrame(learnLoop);}
 
 /* ===== Canvas ===== */
 const cv=document.getElementById('net'),ctx=cv.getContext('2d');
@@ -234,7 +261,7 @@ function startFlow(one){
   if(curTrans<0){curTrans=litUpTo;prog=0;}
   requestAnimationFrame(frame);
 }
-function resetFlow(){running=false;litUpTo=0;curTrans=-1;prog=0;recomputeActs();draw();}
+function resetFlow(){running=false;learning=false;const lb=document.getElementById('learnBtn');if(lb)lb.textContent='🎓 学習させる';litUpTo=0;curTrans=-1;prog=0;recomputeActs();draw();updateNarr();}
 
 function frame(){
   if(!running)return;
@@ -317,7 +344,7 @@ const x0v=document.getElementById('x0v'),x1v=document.getElementById('x1v'),x2v=
 function rebuildArch(){sizes=[3];const d=+depthSel.value,w=+widthSel.value;for(let i=0;i<d;i++)sizes.push(w);sizes.push(2);
   rng=mulberry32(12345);buildNet();layout();resetFlow();}
 
-[x0,x1,x2].forEach(s=>s.addEventListener('input',()=>{lbl();recomputeActs();if(!running){draw();}}));
+[x0,x1,x2].forEach(s=>s.addEventListener('input',()=>{lbl();recomputeActs();if(!running){draw();}updateNarr();}));
 spd.addEventListener('input',lbl);
 actSel.addEventListener('change',()=>{buildNet();resetFlow();});
 depthSel.addEventListener('change',rebuildArch);
@@ -326,9 +353,10 @@ document.getElementById('flowBtn').addEventListener('click',()=>startFlow(false)
 document.getElementById('stepBtn').addEventListener('click',()=>startFlow(true));
 document.getElementById('resetBtn').addEventListener('click',resetFlow);
 document.getElementById('randBtn').addEventListener('click',()=>{rng=mulberry32((Math.floor(rng()*1e9))>>>0);buildNet();resetFlow();});
+document.getElementById('learnBtn').addEventListener('click',()=>{const lb=document.getElementById('learnBtn');if(learning){learning=false;lb.textContent='🎓 学習させる';return;}learning=true;lb.textContent='⏸ 停止';learnLoop();});
 
 /* ===== 起動 ===== */
-function start(){lbl();buildNet();recomputeActs();resize();draw();}
+function start(){lbl();buildNet();recomputeActs();resize();draw();updateNarr();}
 window.addEventListener('load',start);
 setTimeout(start,60);
 </script>
