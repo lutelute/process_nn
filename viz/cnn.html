@@ -101,6 +101,7 @@
       <button id="resetBtn">↺ 最初から</button>
       <button id="clearBtn">🧹 入力をクリア</button>
     </div>
+    <div id="narrCNN" style="margin:0 0 10px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#222a37);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">このフィルタ＝<b>縦エッジ</b>。縦の輪郭を検出します。</div>
     <div class="note">畳み込み = フィルタ窓内のピクセルとカーネル係数を掛けて合計（積和）し、特徴マップ 1 マスにする操作。窓を 1 マスずつずらして全体を走査します。ReLU は負を 0 に、プーリングは 2×2 ごとの最大値で縮約。色：<span style="color:var(--pos)">正</span>／<span style="color:var(--neg)">負</span>。</div>
   </div>
 </div>
@@ -148,6 +149,10 @@ function setPreset(name){
 function setFilter(name){
   if(name==='rand'){const r=mulberry32(7777);F=Array.from({length:9},()=>+(r()*2-1).toFixed(2));}
   else F=FILTERS[name].slice();
+  const el=document.getElementById('narrCNN');if(el){
+    const nm={vedge:'縦エッジ',hedge:'横エッジ',diagedge:'斜めエッジ',laplace:'ラプラシアン',blur:'ぼかし',sharpen:'シャープ'}[name]||name;
+    const desc={vedge:'縦の輪郭（左右で明るさが変わる所）を検出。左がマイナス・右がプラスの Sobel 核なので、縦線が強く光ります。',hedge:'横の輪郭（上下で明るさが変わる所）を検出。横線が強く反応。',diagedge:'斜め方向のエッジに反応。',laplace:'全方向の輪郭を抽出（中心＋4・周囲−1）。塗りつぶし部分は 0 になり境界だけ残る。',blur:'近傍 9 マスの平均でぼかす（ノイズ低減）。',sharpen:'中心を強調し輪郭をくっきりさせる。'}[name]||'ランダムな係数＝学習前のフィルタはこんな無意味なパターン（CNN は学習でこの係数を獲得します）。';
+    el.innerHTML='このフィルタ＝<b>'+nm+'</b>。'+desc+' 積和 → ReLU(負を0) → 2×2 最大プーリングで「その特徴がどこにあるか」の地図になります。';}
 }
 
 function computeAll(){
