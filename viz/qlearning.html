@@ -84,6 +84,7 @@
           <div><div class="k">ε（探索率）</div><div class="v" id="epsOut">—</div></div>
           <div><div class="k">成功率</div><div class="v good" id="srOut">—</div></div>
         </div>
+        <div id="narrQ" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶学習で、ゴールの価値が周囲のマスへ染み出し、各マスの矢印（方策）が最短経路を指すようになります。</div>
       </div>
       <div class="card">
         <div class="cap">ゴール到達までの歩数（学習で短縮）</div>
@@ -220,7 +221,10 @@ function drawSteps(){const W2=stepC.width,H2=stepC.height;sx.clearRect(0,0,W2,H2
   sx.strokeStyle=getCSS('--accent');sx.lineWidth=1.8;sx.beginPath();const st=Math.max(1,Math.floor(stepsHist.length/(W2-2*pad)));
   for(let i=0;i<stepsHist.length;i+=st){const px=pad+(W2-2*pad)*i/(stepsHist.length-1),py=pad+(H2-2*pad)*(hi-stepsHist[i])/(hi-lo+1e-9);i?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();}
 function updateReadout(){epOut.textContent=episode;stOut.textContent=lastSteps==null?'—':lastSteps;epsOut.textContent=eps.toFixed(3);
-  const sr=successWin.length?Math.round(100*successWin.reduce((a,b)=>a+b,0)/successWin.length):0;srOut.textContent=successWin.length?sr+'%':'—';}
+  const sr=successWin.length?Math.round(100*successWin.reduce((a,b)=>a+b,0)/successWin.length):0;srOut.textContent=successWin.length?sr+'%':'—';
+  const el=document.getElementById('narrQ');if(el){
+    if(episode===0)el.innerHTML='報酬だけが頼り。▶学習で試行錯誤しながら、ゴール(+1)の価値が隣のマスへ伝播し方策(矢印)が定まります。';
+    else el.innerHTML='episode '+episode+'：探索率 ε='+eps.toFixed(2)+'（徐々に減り探索→活用へ）。直近成功率 <b>'+sr+'%</b>。価値 V=maxQ が背景色、矢印＝各マスの最良行動。ゴールから価値が染み出し最短経路が形成。';}}
 
 /* ===== ループ ===== */
 let running=false;
