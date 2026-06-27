@@ -324,7 +324,7 @@ document.getElementById('resetBtn').addEventListener('click',resetFlow);
 document.getElementById('randBtn').addEventListener('click',()=>{rng=mulberry32((Math.floor(rng()*1e9))>>>0);buildNet();resetFlow();});
 
 /* ===== 起動 ===== */
-function start(){lbl();buildNet();resize();recomputeActs();draw();}
+function start(){lbl();buildNet();recomputeActs();resize();draw();}
 window.addEventListener('load',start);
 setTimeout(start,60);
 </script>
