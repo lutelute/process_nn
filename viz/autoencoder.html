@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オートエンコーダ — 次元圧縮と再構成</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:22px;font-family:var(--mono);padding:6px 14px 12px;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:19px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.loss{color:var(--loss);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dotmark{width:10px;height:10px;border-radius:50%;}
+  .ringmark{width:10px;height:10px;border-radius:50%;border:2px solid var(--warm);}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>オートエンコーダ — 次元圧縮と再構成</h1>
+      <div class="sub">入力を一度「ボトルネック（少ない次元）」へ押し込めてから復元するネット。学習が進むと再構成がデータの形に吸い付く。1 次元に絞れる形は復元でき、絞れない形は崩れる</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="kmeans.html">k-means</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">データ（●）と再構成（○）— 2 次元 → ボトルネック → 2 次元</div>
+      <div class="canvas-host"><canvas id="board" width="600" height="520"></canvas></div>
+      <div class="legend">
+        <span><i class="dotmark" style="background:var(--accent)"></i>入力データ（色＝潜在コード）</span>
+        <span><i class="ringmark"></i>再構成</span>
+        <span>細線＝再構成誤差</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
+          <div><div class="k">再構成loss</div><div class="v loss" id="lossOut">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">潜在コード z（ボトルネック・1 次元）</div>
+        <div class="canvas-host"><canvas id="latC" width="300" height="70"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="cap">loss の推移（対数）</div>
+        <div class="canvas-host"><canvas id="lossC" width="300" height="140"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>データの形</label>
+      <select id="dataSel">
+        <option value="circle">円（1 次元に絞れる）</option>
+        <option value="scurve">S 字カーブ（1 次元）</option>
+        <option value="spiral">渦巻き（1 次元）</option>
+        <option value="blob">2 次元の塊（絞れない→崩れる）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>ボトルネック次元</label>
+      <select id="bnSel"><option value="1" selected>1（強い圧縮）</option><option value="2">2</option></select>
+    </div>
+    <div class="field">
+      <label>学習率 <span class="val" id="lrVal"></span></label>
+      <input type="range" id="lrSlider" min="-3" max="-1" step="0.01">
+    </div>
+    <div class="field">
+      <label>速度（epoch/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="12" step="1" value="3">
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 学習</button>
+      <button id="stepBtn">⏭ 1 epoch</button>
+      <button id="resetBtn">↺ 重みリセット</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">構造: 2 → 12 → <b>z</b> → 12 → 2（z がボトルネック）。エンコーダが入力を z に圧縮し、デコーダが z から復元。損失は入力と再構成の二乗誤差、最適化は Adam。1 次元多様体（円・S 字・渦巻き）は z 1 個で表せるため再構成（○）がデータ（●）に重なり、2 次元の塊は 1 次元に潰れて誤差が残ります。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=2024;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const act=z=>Math.tanh(z),der=(z,a)=>1-a*a;
+
+/* ===== オートエンコーダ MLP（2→12→z→12→2, tanh, 出力線形, MSE, Adam） ===== */
+let sizes=[2,12,1,12,2],L,bnLayer=2;
+let W,B,mW,vW,mB,vB,tA;
+function build(){
+  const bn=+bnSel.value;sizes=[2,12,bn,12,2];L=sizes.length-1;bnLayer=2;
+  W=[null];B=[null];mW=[null];vW=[null];mB=[null];vB=[null];tA=0;
+  for(let l=1;l<=L;l++){const nIn=sizes[l-1],nOut=sizes[l],s=Math.sqrt(1/nIn);
+    const Wl=[],mw=[],vw=[];for(let j=0;j<nOut;j++){const r=new Float64Array(nIn),m=new Float64Array(nIn),v=new Float64Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s;Wl.push(r);mw.push(m);vw.push(v);}
+    W[l]=Wl;mW[l]=mw;vW[l]=vw;B[l]=new Float64Array(nOut);mB[l]=new Float64Array(nOut);vB[l]=new Float64Array(nOut);}
+}
+function forward(x){const a=[x],z=[null];for(let l=1;l<=L;l++){const nO=sizes[l],nI=sizes[l-1],zl=new Float64Array(nO),al=new Float64Array(nO);for(let j=0;j<nO;j++){let v=B[l][j];for(let k=0;k<nI;k++)v+=W[l][j][k]*a[l-1][k];zl[j]=v;al[j]=(l===L)?v:act(v);}z[l]=zl;a[l]=al;}return{a,z};}
+function latent(x){return forward(x).a[bnLayer];}
+function recon(x){return forward(x).a[L];}
+function trainEpoch(lr){
+  const dW=[null],dB=[null];for(let l=1;l<=L;l++){const g=[];for(let j=0;j<sizes[l];j++)g.push(new Float64Array(sizes[l-1]));dW[l]=g;dB[l]=new Float64Array(sizes[l]);}
+  let loss=0;const N=data.length;
+  for(const x of data){const{a,z}=forward(x);
+    let delta=new Float64Array(sizes[L]);for(let j=0;j<sizes[L];j++){const e=a[L][j]-x[j];delta[j]=e;loss+=0.5*e*e;}
+    for(let l=L;l>=1;l--){const nO=sizes[l],nI=sizes[l-1];for(let j=0;j<nO;j++){dB[l][j]+=delta[j];const r=dW[l][j];for(let k=0;k<nI;k++)r[k]+=delta[j]*a[l-1][k];}
+      if(l>1){const dp=new Float64Array(nI);for(let k=0;k<nI;k++){let v=0;for(let j=0;j<nO;j++)v+=W[l][j][k]*delta[j];dp[k]=v*der(z[l-1][k],a[l-1][k]);}delta=dp;}}}
+  loss/=N;const iN=1/N;tA++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,tA),bc2=1-Math.pow(b2,tA),eps=1e-8;
+  for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+.1*gb;vB[l][j]=b2*vB[l][j]+.001*gb*gb;B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+eps);
+    for(let k=0;k<sizes[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+.1*gw;vW[l][j][k]=b2*vW[l][j][k]+.001*gw*gw;W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+eps);}}
+  return loss;
+}
+
+/* ===== データ ===== */
+let data=[];
+function genData(){data=[];const N=120,k=dataSel.value;
+  for(let i=0;i<N;i++){let x,y;const t=i/N;
+    if(k==='circle'){const th=2*Math.PI*t;x=0.8*Math.cos(th);y=0.8*Math.sin(th);}
+    else if(k==='scurve'){x=-0.9+1.8*t;y=0.6*Math.sin(Math.PI*x);}
+    else if(k==='spiral'){const r=0.15+0.7*t,th=t*3*Math.PI;x=r*Math.cos(th);y=r*Math.sin(th);}
+    else{x=randn()*0.45;y=randn()*0.45;}
+    data.push([x+randn()*0.02,y+randn()*0.02]);}
+}
+
+/* ===== 状態 ===== */
+let epoch=0,lastLoss=null,lossHist=[],running=false;
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height,R=1.25;
+const latC=document.getElementById('latC'),lx=latC.getContext('2d');
+const lossC=document.getElementById('lossC'),sx=lossC.getContext('2d');
+const toPx=x=>(x+R)/(2*R)*BW, toPy=y=>(R-y)/(2*R)*BH;
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function latColor(t){const h=Math.round(170+120*t);return `hsl(${h},65%,60%)`;} // teal→violet
+
+function draw(){
+  bx.clearRect(0,0,BW,BH);
+  // grid
+  bx.strokeStyle=getCSS('--grid');bx.lineWidth=1;bx.beginPath();bx.moveTo(toPx(0),0);bx.lineTo(toPx(0),BH);bx.moveTo(0,toPy(0));bx.lineTo(BW,toPy(0));bx.stroke();
+  // 潜在の範囲を求めて色正規化
+  let zs=data.map(x=>latent(x)[0]),zlo=Math.min(...zs),zhi=Math.max(...zs);const zn=v=>(v-zlo)/(zhi-zlo+1e-9);
+  // 誤差線
+  bx.strokeStyle='rgba(240,111,126,0.35)';bx.lineWidth=1;
+  for(const x of data){const r=recon(x);bx.beginPath();bx.moveTo(toPx(x[0]),toPy(x[1]));bx.lineTo(toPx(r[0]),toPy(r[1]));bx.stroke();}
+  // データ点（色=潜在）
+  for(let i=0;i<data.length;i++){const x=data[i];bx.beginPath();bx.arc(toPx(x[0]),toPy(x[1]),3.6,0,7);bx.fillStyle=latColor(zn(zs[i]));bx.globalAlpha=.92;bx.fill();bx.globalAlpha=1;}
+  // 再構成（○）
+  for(const x of data){const r=recon(x);bx.beginPath();bx.arc(toPx(r[0]),toPy(r[1]),3.4,0,7);bx.strokeStyle=getCSS('--warm');bx.lineWidth=1.6;bx.stroke();}
+}
+function drawLatent(){
+  const W2=latC.width,H2=latC.height;lx.clearRect(0,0,W2,H2);const pad=14,y=H2/2;
+  lx.strokeStyle=getCSS('--line');lx.lineWidth=1;lx.beginPath();lx.moveTo(pad,y);lx.lineTo(W2-pad,y);lx.stroke();
+  let zs=data.map(x=>latent(x)[0]),zlo=Math.min(...zs),zhi=Math.max(...zs);const zn=v=>(v-zlo)/(zhi-zlo+1e-9);
+  for(let i=0;i<data.length;i++){const t=zn(zs[i]);const px=pad+(W2-2*pad)*t;lx.beginPath();lx.arc(px,y,3,0,7);lx.fillStyle=latColor(t);lx.fill();}
+  lx.fillStyle=getCSS('--faint');lx.font='9px '+getCSS('--mono');lx.textAlign='left';lx.fillText('z 小',pad,H2-4);lx.textAlign='right';lx.fillText('z 大',W2-pad,H2-4);
+}
+function drawLoss(){const W2=lossC.width,H2=lossC.height;sx.clearRect(0,0,W2,H2);const pad=8;
+  if(lossHist.length<2){sx.fillStyle=getCSS('--faint');sx.font='12px '+getCSS('--gothic');sx.textAlign='center';sx.fillText('学習で表示',W2/2,H2/2);return;}
+  const lg=lossHist.map(v=>Math.log10(Math.max(v,1e-6)));let hi=Math.max(...lg),lo=Math.min(...lg);if(hi-lo<0.5)lo=hi-0.5;
+  sx.strokeStyle=getCSS('--loss');sx.lineWidth=1.8;sx.beginPath();const st=Math.max(1,Math.floor(lg.length/(W2-2*pad)));
+  for(let i=0;i<lg.length;i+=st){const px=pad+(W2-2*pad)*i/(lg.length-1),py=pad+(H2-2*pad)*(hi-lg[i])/(hi-lo);i?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();}
+function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);}
+function drawAll(){draw();drawLatent();drawLoss();updateReadout();}
+
+/* ===== ループ ===== */
+function doEpochs(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=trainEpoch(lr);epoch++;lossHist.push(lastLoss);if(lossHist.length>3000)lossHist.shift();}}
+function frame(){if(!running)return;doEpochs(+spdSlider.value);drawAll();requestAnimationFrame(frame);}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const dataSel=document.getElementById('dataSel'),bnSel=document.getElementById('bnSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),
+  playBtn=document.getElementById('playBtn'),epOut=document.getElementById('epOut'),lossOut=document.getElementById('lossOut');
+const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
+function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=spdSlider.value;}
+lrSlider.value=Math.log10(0.02);
+function reset(){setRun(false);build();epoch=0;lastLoss=null;lossHist=[];drawAll();}
+function regen(){setRun(false);seed=(Math.floor(rng()*1e9))>>>0;genData();reset();}
+
+dataSel.onchange=()=>{genData();reset();};
+bnSel.onchange=reset;
+lrSlider.oninput=lbls;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);doEpochs(1);drawAll();};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('dataBtn').onclick=regen;
+
+lbls();genData();build();reset();
+</script>
+</body>
+</html>
