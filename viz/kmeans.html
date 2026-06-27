@@ -200,7 +200,8 @@ function drawSSE(){
   sseHist.forEach((v,i)=>{const px=xToP(i),py=yToP(v);sx.fillStyle=getCSS('--loss');sx.beginPath();sx.arc(px,py,2.5,0,7);sx.fill();});
 }
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function updateReadout(){itOut.textContent=it;sseOut.textContent=sseHist.length?sseHist[sseHist.length-1].toFixed(3):'—';}
+function updateReadout(){itOut.textContent=it;const sse=sseHist.length?sseHist[sseHist.length-1]:null;sseOut.textContent=sse==null?'—':sse.toFixed(3);
+  const pl=document.getElementById('phaseLine');if(pl&&it>0){const trend=(sseHist.length>1&&sseHist[sseHist.length-1]<sseHist[sseHist.length-2]-1e-6)?'<span style="color:var(--accent)">↓ 改善中</span>':'ほぼ収束';pl.innerHTML='反復 '+it+'：①各点を最寄り重心へ割当 → ②重心を担当点の平均へ移動。慣性(SSE) <b>'+(sse!=null?sse.toFixed(2):'')+'</b>（'+trend+'・小さいほどまとまり良）。＋＝重心、背景＝各点の所属領域。';}}
 
 /* ===== ループ（速度=iter/秒） ===== */
 let acc=0,last=0;
