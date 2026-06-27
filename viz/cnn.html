@@ -101,6 +101,11 @@
       <button id="resetBtn">↺ 最初から</button>
       <button id="clearBtn">🧹 入力をクリア</button>
     </div>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:4px 0 10px;">
+      <button id="learnBtn">🎓 フィルタを学習させる</button>
+      <canvas id="filtEvo" width="280" height="84" style="background:#0e131b;border:1px solid var(--line,#222a37);border-radius:6px;"></canvas>
+      <span id="learnStat" style="font-size:12px;color:var(--faint);max-width:360px;">ランダムなフィルタから、5 形状（＋ × □ ／ T）を分類するよう CNN を学習させます。手設計でなく、フィルタが特徴検出器に育つ様子を観察。</span>
+    </div>
     <div id="narrCNN" style="margin:0 0 10px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#222a37);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">このフィルタ＝<b>縦エッジ</b>。縦の輪郭を検出します。</div>
     <div class="note">畳み込み = フィルタ窓内のピクセルとカーネル係数を掛けて合計（積和）し、特徴マップ 1 マスにする操作。窓を 1 マスずつずらして全体を走査します。ReLU は負を 0 に、プーリングは 2×2 ごとの最大値で縮約。色：<span style="color:var(--pos)">正</span>／<span style="color:var(--neg)">負</span>。</div>
   </div>
@@ -148,12 +153,54 @@ function setPreset(name){
 }
 function setFilter(name){
   if(name==='rand'){const r=mulberry32(7777);F=Array.from({length:9},()=>+(r()*2-1).toFixed(2));}
-  else F=FILTERS[name].slice();
+  else if(name.indexOf('learn')===0&&learnedF){F=learnedF[+name.slice(5)].slice();}
+  else if(FILTERS[name])F=FILTERS[name].slice();
   const el=document.getElementById('narrCNN');if(el){
+    if(name.indexOf('learn')===0){el.innerHTML='このフィルタ＝<b>学習フィルタ'+(+name.slice(5)+1)+'</b>。CNN が 5 形状の分類を学ぶ中で<b>自力で獲得</b>した特徴検出器です（最初はランダムだった）。手設計の Sobel 等と違い、データから「役立つ模様」が現れます。積和→ReLU→プーリングの流れは同じ。';return;}
     const nm={vedge:'縦エッジ',hedge:'横エッジ',diagedge:'斜めエッジ',laplace:'ラプラシアン',blur:'ぼかし',sharpen:'シャープ'}[name]||name;
     const desc={vedge:'縦の輪郭（左右で明るさが変わる所）を検出。左がマイナス・右がプラスの Sobel 核なので、縦線が強く光ります。',hedge:'横の輪郭（上下で明るさが変わる所）を検出。横線が強く反応。',diagedge:'斜め方向のエッジに反応。',laplace:'全方向の輪郭を抽出（中心＋4・周囲−1）。塗りつぶし部分は 0 になり境界だけ残る。',blur:'近傍 9 マスの平均でぼかす（ノイズ低減）。',sharpen:'中心を強調し輪郭をくっきりさせる。'}[name]||'ランダムな係数＝学習前のフィルタはこんな無意味なパターン（CNN は学習でこの係数を獲得します）。';
     el.innerHTML='このフィルタ＝<b>'+nm+'</b>。'+desc+' 積和 → ReLU(負を0) → 2×2 最大プーリングで「その特徴がどこにあるか」の地図になります。';}
 }
+
+/* ===== CNN フィルタの実学習（4 フィルタ3×3→ReLU→2×2maxpool→dense→softmax5） ===== */
+const NF=4, NC=5;
+let Wf=null,bf=null,Wd=null,bd=null,optM=null,optV=null,tAdam=0,learnedF=null,learning=false,lrng=mulberry32(7),lcEpoch=0,lcAcc=0;
+function randnL(){let u=0,v=0;while(u===0)u=lrng();while(v===0)v=lrng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function initCNN(){lrng=mulberry32(7);Wf=Array.from({length:NF},()=>Float32Array.from({length:9},()=>randnL()*0.3));bf=new Float32Array(NF);
+  const FEAT=POOLN*POOLN*NF;Wd=Array.from({length:NC},()=>Float32Array.from({length:FEAT},()=>randnL()*Math.sqrt(1/FEAT)));bd=new Float32Array(NC);
+  const z=()=>({Wf:Wf.map(()=>new Float32Array(9)),bf:new Float32Array(NF),Wd:Wd.map(()=>new Float32Array(FEAT)),bd:new Float32Array(NC)});optM=z();optV=z();tAdam=0;lcEpoch=0;lcAcc=0;}
+function genShape(c,jx,jy){const im=new Float32Array(N*N);const set=(r,cc)=>{r+=jy;cc+=jx;if(r>=0&&r<N&&cc>=0&&cc<N)im[r*N+cc]=1;};const lo=3,hi=N-4,mid=Math.floor(N/2);
+  if(c===0){for(let i=lo;i<=hi;i++){set(mid,i);set(i,mid);}}else if(c===1){for(let i=lo;i<=hi;i++){set(i,i);set(i,N-1-i);}}else if(c===2){for(let i=lo;i<=hi;i++){set(lo,i);set(hi,i);set(i,lo);set(i,hi);}}else if(c===3){for(let i=lo;i<=hi;i++)set(i,i);}else{for(let i=lo;i<=hi;i++)set(lo,i);for(let i=lo;i<=hi;i++)set(i,mid);}
+  for(let i=0;i<N*N;i++)if(im[i]&&lrng()<0.08)im[i]=0;return im;}
+function fwdCNN(im){const reluA=[],amax=[];const FEAT=POOLN*POOLN*NF,feat=new Float32Array(FEAT);let p=0;
+  for(let f=0;f<NF;f++){const rm=new Float32Array(CONV*CONV);for(let y=0;y<CONV;y++)for(let x=0;x<CONV;x++){let s=bf[f];for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)s+=im[(y+dy)*N+(x+dx)]*Wf[f][dy*K+dx];rm[y*CONV+x]=s>0?s:0;}reluA.push(rm);
+    const am=new Int32Array(POOLN*POOLN);for(let y=0;y<POOLN;y++)for(let x=0;x<POOLN;x++){let mv=-1e9,mi=0;for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){const idx=(2*y+dy)*CONV+(2*x+dx);if(rm[idx]>mv){mv=rm[idx];mi=idx;}}am[y*POOLN+x]=mi;feat[p++]=mv;}amax.push(am);}
+  const logit=new Float32Array(NC);for(let c=0;c<NC;c++){let s=bd[c];for(let i=0;i<FEAT;i++)s+=Wd[c][i]*feat[i];logit[c]=s;}
+  let mx=Math.max(...logit),se=0;const pr=new Float32Array(NC);for(let c=0;c<NC;c++){pr[c]=Math.exp(logit[c]-mx);se+=pr[c];}for(let c=0;c<NC;c++)pr[c]/=se;
+  return{reluA,amax,feat,pr};}
+function trainCNN(lr){const B=20,FEAT=POOLN*POOLN*NF;let loss=0,ok=0;const gWf=Wf.map(()=>new Float32Array(9)),gbf=new Float32Array(NF),gWd=Wd.map(()=>new Float32Array(FEAT)),gbd=new Float32Array(NC);
+  for(let n=0;n<B;n++){const c=n%NC,jx=(lrng()*3|0)-1,jy=(lrng()*3|0)-1,im=genShape(c,jx,jy),{reluA,amax,feat,pr}=fwdCNN(im);loss+=-Math.log(pr[c]+1e-9);let am=0;for(let k=1;k<NC;k++)if(pr[k]>pr[am])am=k;if(am===c)ok++;
+    const dlog=new Float32Array(NC);for(let k=0;k<NC;k++)dlog[k]=pr[k]-(k===c?1:0);const dfeat=new Float32Array(FEAT);for(let k=0;k<NC;k++){gbd[k]+=dlog[k];for(let i=0;i<FEAT;i++){gWd[k][i]+=dlog[k]*feat[i];dfeat[i]+=Wd[k][i]*dlog[k];}}
+    let q=0;for(let f=0;f<NF;f++){const drelu=new Float32Array(CONV*CONV);for(let i=0;i<POOLN*POOLN;i++)drelu[amax[f][i]]+=dfeat[q++];for(let y=0;y<CONV;y++)for(let x=0;x<CONV;x++){const idx=y*CONV+x;if(reluA[f][idx]<=0)continue;const g=drelu[idx];gbf[f]+=g;for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)gWf[f][dy*K+dx]+=g*im[(y+dy)*N+(x+dx)];}}}
+  const iN=1/B;tAdam++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,tAdam),bc2=1-Math.pow(b2,tAdam);const upd=(Wv,g,M,V)=>{for(let i=0;i<Wv.length;i++){const gg=g[i]*iN;M[i]=b1*M[i]+.1*gg;V[i]=b2*V[i]+.001*gg*gg;Wv[i]-=lr*(M[i]/bc1)/(Math.sqrt(V[i]/bc2)+1e-8);}};
+  for(let f=0;f<NF;f++)upd(Wf[f],gWf[f],optM.Wf[f],optV.Wf[f]);upd(bf,gbf,optM.bf,optV.bf);for(let c=0;c<NC;c++)upd(Wd[c],gWd[c],optM.Wd[c],optV.Wd[c]);upd(bd,gbd,optM.bd,optV.bd);
+  return{loss:loss/B,acc:ok/B};}
+function drawFiltEvo(){const c=document.getElementById('filtEvo');if(!c)return;const g=c.getContext('2d'),W=c.width,H=c.height;g.clearRect(0,0,W,H);
+  if(!Wf){g.fillStyle='#5a6678';g.font='12px sans-serif';g.textAlign='left';g.fillText('「🎓 フィルタを学習」で開始',8,H/2);return;}
+  let mx=1e-6;for(const f of Wf)for(const v of f)mx=Math.max(mx,Math.abs(v));
+  const cs=11,bw=3*cs,gap=(W-NF*bw)/(NF+1);
+  for(let f=0;f<NF;f++){const bx=gap+f*(bw+gap),by=20;
+    for(let i=0;i<9;i++){const v=Wf[f][i]/mx,r=Math.floor(i/3),cc=i%3;g.fillStyle=v>=0?'rgba(57,224,196,'+(0.12+0.88*Math.min(1,v))+')':'rgba(240,111,126,'+(0.12+0.88*Math.min(1,-v))+')';g.fillRect(bx+cc*cs,by+r*cs,cs-1,cs-1);}
+    g.fillStyle='#8a93a3';g.font='10px sans-serif';g.textAlign='center';g.fillText('F'+(f+1),bx+bw/2,14);}
+  g.fillStyle='#9aa3b3';g.font='11px sans-serif';g.textAlign='left';g.fillText('epoch '+lcEpoch+' ／ 分類精度 '+(lcAcc*100).toFixed(0)+'%',8,H-7);
+}
+function learnLoop(){if(!learning)return;let r;for(let i=0;i<5;i++){r=trainCNN(0.02);lcEpoch++;}lcAcc=r.acc;drawFiltEvo();
+  const st=document.getElementById('learnStat');if(st)st.innerHTML='学習中… フィルタがランダムな模様から特徴検出器へ変化中（精度 '+(lcAcc*100).toFixed(0)+'%）';
+  if(lcEpoch>=500||(lcAcc>=0.999&&lcEpoch>=200))finishLearn();else requestAnimationFrame(learnLoop);}
+function finishLearn(){learning=false;learnedF=Wf.map(f=>Array.from(f));
+  const sel=document.getElementById('filter');if(sel&&!sel.querySelector('option[value="learn0"]')){const og=document.createElement('optgroup');og.label='学習で獲得';for(let f=0;f<NF;f++){const o=document.createElement('option');o.value='learn'+f;o.textContent='学習フィルタ '+(f+1);og.appendChild(o);}sel.appendChild(og);}
+  const st=document.getElementById('learnStat');if(st)st.innerHTML='✓ 学習完了（精度 '+(lcAcc*100).toFixed(0)+'%）。上の「フィルタ」で <b>学習フィルタ1〜4</b> を選ぶと、CNN が自力で獲得した検出器で畳み込めます。';
+  const lb=document.getElementById('learnBtn');if(lb)lb.textContent='🎓 再学習';}
 
 function computeAll(){
   // conv (valid)
@@ -281,9 +328,10 @@ document.getElementById('runBtn').addEventListener('click',()=>run(false));
 document.getElementById('stepBtn').addEventListener('click',stepOne);
 document.getElementById('resetBtn').addEventListener('click',resetAnim);
 document.getElementById('clearBtn').addEventListener('click',()=>{input=new Float32Array(N*N);preset.value='blank';computeAll();resetAnim();});
+document.getElementById('learnBtn').addEventListener('click',()=>{if(learning)return;initCNN();drawFiltEvo();learning=true;learnLoop();});
 
 /* ---- 起動 ---- */
-function start(){spdv.textContent=(+spd.value).toFixed(1);setPreset('cross');setFilter('vedge');computeAll();resetAnim();}
+function start(){spdv.textContent=(+spd.value).toFixed(1);setPreset('cross');setFilter('vedge');computeAll();resetAnim();drawFiltEvo();}
 start();
 </script>
 <script src="nav.js"></script>
