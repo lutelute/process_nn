@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMM — 混合ガウスモデルを EM 法で学習</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:20px;font-family:var(--mono);padding:6px 14px 12px;flex-wrap:wrap;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.ll{color:var(--loss);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dotmark{width:10px;height:10px;border-radius:50%;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>GMM — 混合ガウスを EM 法で学習</h1>
+      <div class="sub">データを複数のガウス分布の重ね合わせで説明する。E ステップ（各点がどの成分に属すかの確率）と M ステップ（成分の更新）を繰り返し、楕円がクラスタに吸い付く。k-means の「ソフト版」</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="kmeans.html">k-means</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">データ（色＝所属確率）と各成分のガウス楕円（2σ）</div>
+      <div class="canvas-host"><canvas id="board" width="600" height="520"></canvas></div>
+      <div class="legend">
+        <span><i class="dotmark" style="background:var(--accent)"></i>各点は最も確率の高い成分の色（薄いほど曖昧）</span>
+        <span>楕円＝成分の平均と共分散</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">反復</div><div class="v" id="itOut">0</div></div>
+          <div><div class="k">対数尤度</div><div class="v ll" id="llOut">—</div></div>
+        </div>
+        <div class="note" style="padding:0 14px 12px;">EM は対数尤度を単調に増やし、必ず収束します（局所最適）。</div>
+      </div>
+      <div class="card">
+        <div class="cap">対数尤度の推移（増加＝改善）</div>
+        <div class="canvas-host"><canvas id="llC" width="300" height="150"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>真のまとまりの数</label>
+      <select id="trueSel"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select>
+    </div>
+    <div class="field">
+      <label>成分数 K（当てはめる数）</label>
+      <select id="kSel"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select>
+    </div>
+    <div class="field">
+      <label>速度（反復/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="5" step="1" value="1">
+    </div>
+    <div class="field" style="justify-content:flex-end;">
+      <span class="note" style="grid-column:auto;">K を真の数とずらすと過不足も観察できます</span>
+    </div>
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ EM 反復</button>
+      <button id="stepBtn">⏭ 1 反復（E→M）</button>
+      <button id="resetBtn">↺ 成分リセット</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">E ステップ: 各点 i が成分 k に属す確率（責任）γ(i,k)=πₖN(xᵢ|μₖ,Σₖ)/Σⱼ… を計算。M ステップ: γ で重み付けして各成分の重み πₖ・平均 μₖ・共分散 Σₖ を更新。k-means が「最寄り 1 個に割当（ハード）」なのに対し、GMM は「確率的に複数へ分配（ソフト）」し、楕円形のクラスタも表せます。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let seed=33;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const PALETTE=['#39e0c4','#d4a36a','#f06f7e','#b07ef0','#f0b03a'];
+
+/* ===== データ ===== */
+let pts=[];
+function genData(){
+  const nt=+trueSel.value;pts=[];
+  for(let c=0;c<nt;c++){
+    const cx=(rng()*1.4-0.7),cy=(rng()*1.4-0.7);
+    const ang=rng()*Math.PI,e=1+rng()*2.5,sx=0.16*e,sy=0.16/Math.sqrt(e),ca=Math.cos(ang),sa=Math.sin(ang);
+    for(let i=0;i<60;i++){const a=randn()*sx,b=randn()*sy;pts.push([cx+ca*a-sa*b,cy+sa*a+ca*b]);}
+  }
+}
+
+/* ===== GMM パラメータ ===== */
+let K,pi,mu,Sig,gamma,it,llHist,lastLL;
+function reset(){
+  K=+kSel.value;pi=[];mu=[];Sig=[];
+  const idx=[...Array(pts.length).keys()];
+  for(let k=0;k<K;k++){pi.push(1/K);const j=Math.floor(rng()*idx.length);mu.push([pts[idx[j]][0],pts[idx[j]][1]]);idx.splice(j,1);Sig.push([0.08,0,0,0.08]);}
+  gamma=pts.map(()=>new Float64Array(K));it=0;llHist=[];lastLL=null;
+  eStep();draw();drawLL();updateReadout();
+}
+function gauss(x,m,S){const dx=x[0]-m[0],dy=x[1]-m[1];let det=S[0]*S[3]-S[1]*S[2];if(det<1e-9)det=1e-9;
+  const iv=[S[3]/det,-S[1]/det,-S[2]/det,S[0]/det];const q=dx*(iv[0]*dx+iv[1]*dy)+dy*(iv[2]*dx+iv[3]*dy);
+  return Math.exp(-0.5*q)/(2*Math.PI*Math.sqrt(det));}
+function eStep(){
+  let ll=0;
+  for(let i=0;i<pts.length;i++){let s=0;const w=new Float64Array(K);for(let k=0;k<K;k++){w[k]=pi[k]*gauss(pts[i],mu[k],Sig[k]);s+=w[k];}
+    if(s<1e-300)s=1e-300;for(let k=0;k<K;k++)gamma[i][k]=w[k]/s;ll+=Math.log(s);}
+  lastLL=ll/pts.length;return lastLL;
+}
+function mStep(){
+  for(let k=0;k<K;k++){let Nk=0,mx=0,my=0;for(let i=0;i<pts.length;i++){const g=gamma[i][k];Nk+=g;mx+=g*pts[i][0];my+=g*pts[i][1];}
+    if(Nk<1e-9)Nk=1e-9;pi[k]=Nk/pts.length;mu[k]=[mx/Nk,my/Nk];
+    let a=0,b=0,d=0;for(let i=0;i<pts.length;i++){const g=gamma[i][k],dx=pts[i][0]-mu[k][0],dy=pts[i][1]-mu[k][1];a+=g*dx*dx;b+=g*dx*dy;d+=g*dy*dy;}
+    Sig[k]=[a/Nk+1e-4,b/Nk,b/Nk,d/Nk+1e-4];}
+}
+function emStep(){mStep();const ll=eStep();it++;llHist.push(ll);if(llHist.length>2000)llHist.shift();}
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height,R=1.25;
+const llC=document.getElementById('llC'),lx=llC.getContext('2d');
+function getCSS(x){return getComputedStyle(document.documentElement).getPropertyValue(x).trim();}
+const toPx=x=>(x+R)/(2*R)*BW, toPy=y=>(R-y)/(2*R)*BH;
+function mix(hex,al){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${al})`;}
+function draw(){
+  bx.clearRect(0,0,BW,BH);
+  bx.strokeStyle=getCSS('--grid');bx.lineWidth=1;bx.beginPath();bx.moveTo(toPx(0),0);bx.lineTo(toPx(0),BH);bx.moveTo(0,toPy(0));bx.lineTo(BW,toPy(0));bx.stroke();
+  // 点（最大責任の色, 濃さ=確信）
+  for(let i=0;i<pts.length;i++){let bk=0,bv=0;for(let k=0;k<K;k++)if(gamma[i][k]>bv){bv=gamma[i][k];bk=k;}
+    bx.beginPath();bx.arc(toPx(pts[i][0]),toPy(pts[i][1]),3.3,0,7);bx.fillStyle=mix(PALETTE[bk%PALETTE.length],0.35+0.6*bv);bx.fill();}
+  // 成分楕円（2σ）
+  for(let k=0;k<K;k++){drawEllipse(mu[k],Sig[k],PALETTE[k%PALETTE.length]);
+    bx.beginPath();bx.arc(toPx(mu[k][0]),toPy(mu[k][1]),4,0,7);bx.fillStyle=PALETTE[k%PALETTE.length];bx.fill();bx.strokeStyle='#0c1016';bx.lineWidth=1.5;bx.stroke();}
+}
+function drawEllipse(m,S,col){
+  const a=S[0],b=S[1],d=S[3];const tr=(a+d)/2,disc=Math.sqrt(Math.max(0,((a-d)/2)**2+b*b));
+  const l1=tr+disc,l2=Math.max(1e-6,tr-disc);
+  let e1;if(Math.abs(b)>1e-9)e1=[l1-d,b];else e1=a>=d?[1,0]:[0,1];const n1=Math.hypot(e1[0],e1[1]);e1=[e1[0]/n1,e1[1]/n1];const e2=[-e1[1],e1[0]];
+  const r1=2*Math.sqrt(l1),r2=2*Math.sqrt(l2);
+  bx.strokeStyle=col;bx.lineWidth=2;bx.globalAlpha=0.9;bx.beginPath();
+  for(let t=0;t<=40;t++){const th=t/40*2*Math.PI;const wx=m[0]+Math.cos(th)*r1*e1[0]+Math.sin(th)*r2*e2[0],wy=m[1]+Math.cos(th)*r1*e1[1]+Math.sin(th)*r2*e2[1];const px=toPx(wx),py=toPy(wy);t?bx.lineTo(px,py):bx.moveTo(px,py);}
+  bx.stroke();bx.globalAlpha=1;bx.fillStyle=mix(col,0.06);bx.fill();
+}
+function drawLL(){const W2=llC.width,H2=llC.height;lx.clearRect(0,0,W2,H2);const pad=8;
+  if(llHist.length<2){lx.fillStyle=getCSS('--faint');lx.font='12px '+getCSS('--gothic');lx.textAlign='center';lx.fillText('反復で表示',W2/2,H2/2);return;}
+  let hi=Math.max(...llHist),lo=Math.min(...llHist);if(hi-lo<0.1)lo=hi-0.1;
+  lx.strokeStyle=getCSS('--loss');lx.lineWidth=1.8;lx.beginPath();const st=Math.max(1,Math.floor(llHist.length/(W2-2*pad)));
+  for(let i=0;i<llHist.length;i+=st){const px=pad+(W2-2*pad)*i/(llHist.length-1),py=pad+(H2-2*pad)*(hi-llHist[i])/(hi-lo);i?lx.lineTo(px,py):lx.moveTo(px,py);}lx.stroke();}
+function updateReadout(){itOut.textContent=it;llOut.textContent=lastLL==null?'—':lastLL.toFixed(3);}
+
+/* ===== ループ ===== */
+let running=false;
+function frame(){if(!running)return;for(let i=0;i<(+spdSlider.value);i++)emStep();draw();drawLL();updateReadout();
+  if(llHist.length>3&&Math.abs(llHist[llHist.length-1]-llHist[llHist.length-2])<1e-5){running=false;playBtn.textContent='▶ EM 反復';playBtn.classList.add('primary');}requestAnimationFrame(frame);}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ EM 反復';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const trueSel=document.getElementById('trueSel'),kSel=document.getElementById('kSel'),spdSlider=document.getElementById('spdSlider'),
+  playBtn=document.getElementById('playBtn'),itOut=document.getElementById('itOut'),llOut=document.getElementById('llOut');
+const spdVal=document.getElementById('spdVal');
+function lbls(){spdVal.textContent=spdSlider.value;}
+trueSel.onchange=()=>{genData();reset();};
+kSel.onchange=reset;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);emStep();draw();drawLL();updateReadout();};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('dataBtn').onclick=()=>{seed=(Math.floor(rng()*1e9))>>>0;genData();reset();};
+
+lbls();genData();reset();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

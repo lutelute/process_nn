@@ -10,6 +10,7 @@
     { href: 'transformer.html', label: 'Transformer' },
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'kmeans.html',      label: 'k-means' },
+    { href: 'gmm.html',         label: 'GMM' },
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
     { href: 'pca.html',         label: 'PCA' },
     { href: 'qlearning.html',   label: 'Q学習' },
