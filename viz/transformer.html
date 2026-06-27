@@ -91,6 +91,7 @@
         <div><div class="k">step</div><div class="v" id="stepOut">0</div></div>
         <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
       </div>
+      <div id="narrX" style="margin-top:8px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ 小型 GPT が「次の文字」を予測するよう学習。loss が下がるほど生成（下）がコーパスらしくなり、attention に構造が現れます。</div>
     </div>
   </div>
 
@@ -195,7 +196,10 @@ function setRun(on){running=on;$('trainBtn').textContent=on?'⏸ 一時停止':'
 
 /* ---- 描画 ---- */
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function updateReadout(){$('stepOut').textContent=step.toLocaleString();$('lossOut').textContent=lastLoss==null?'—':lastLoss.toFixed(3);}
+function updateReadout(){$('stepOut').textContent=step.toLocaleString();$('lossOut').textContent=lastLoss==null?'—':lastLoss.toFixed(3);
+  const el=$('narrX');if(el){
+    if(step===0||lastLoss==null)el.innerHTML='▶ 小型 GPT が「次の文字」を予測するよう学習。開始前は当てずっぽう。';
+    else el.innerHTML='step '+step.toLocaleString()+'・loss <b>'+lastLoss.toFixed(2)+'</b>（交差エントロピー, 低いほど良い）。'+(lastLoss<1.5?'生成が<span style="color:var(--accent)">コーパスらしく</span>なり、attention が直前の文字に注目するパターンに。':'生成はまだ崩れ気味、学習で次第に整います。')+'各文字が前の文字へ注意(attention)を向け、残差で情報を積み上げます。';}}
 function renderGen(){
   const seed=genText.slice(0,seedLen), rest=genText.slice(seedLen);
   $('genOut').innerHTML='<span class="seed">'+esc(seed)+'</span><span class="new">'+esc(rest)+'</span>';
