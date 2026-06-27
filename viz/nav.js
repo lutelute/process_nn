@@ -21,6 +21,7 @@
     { href: 'tsne.html',        label: 't-SNE' },
     { href: 'som.html',         label: 'SOM' },
     { href: 'dtree.html',       label: '決定木' },
+    { href: 'knn.html',         label: 'kNN' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: 'gpt3d.html',       label: 'GPT(3D)' },
     { href: '../gpt2/',         label: 'GPT-2' },
