@@ -113,12 +113,12 @@
       <input type="range" id="lrSlider" min="-2.5" max="-0.3" step="0.01">
     </div>
     <div class="field">
-      <label>アニメ速度 <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="0.01" max="0.12" step="0.005" value="0.045">
+      <label>学習速度（サンプル/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="80" step="1" value="24">
     </div>
     <div class="buttons">
-      <button class="primary" id="playBtn">▶ 自動学習</button>
-      <button id="stepBtn">⏭ 1 サンプル</button>
+      <button class="primary" id="playBtn">▶ 自動学習（高速）</button>
+      <button id="stepBtn">🔍 1サンプル詳細</button>
       <button id="resetBtn">↺ リセット</button>
     </div>
     <div class="note">小さな MLP（1→5→5→1）が関数の各点を学習します。<span style="color:var(--fwd)">順伝播</span>＝活性値が右へ点灯、<span style="color:var(--bwd)">逆伝播</span>＝各ノードの誤差信号 δ が左へ逆流、<b>更新</b>＝結線が勾配 ∂L/∂w の大きさで光って重みが変わる。出力層は線形、損失は二乗誤差、最適化は SGD。</div>
@@ -187,8 +187,8 @@ function nextPhase(){
 }
 
 function tick(){
-  const sp=+spdSlider.value;
-  if(phase==='idle'){startSample();return;}
+  const sp=0.05; // 詳細アニメ専用の固定速度
+  if(phase==='idle')return;
   if(phase==='loss'){prog+=sp*1.5;if(prog>=1)nextPhase();return;}
   if(phase==='upd'){prog+=sp*1.2;if(prog>=1)nextPhase();return;}
   // fwd / bwd はレイヤーを1つずつ
@@ -271,8 +271,12 @@ function updateUI(){
 }
 
 /* ===== ループ ===== */
-function frame(){if(!running)return;tick();draw();drawLoss();updateUI();drawFit();requestAnimationFrame(frame);}
-function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 自動学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+function frame(){if(!running)return;const n=+spdSlider.value,lr=Math.pow(10,+lrSlider.value);
+  for(let i=0;i<n;i++){const c=computeSample(data[si]);applyUpdate(c,lr);lastLoss=c.loss;lossHist.push(c.loss);if(lossHist.length>3000)lossHist.shift();si++;if(si>=data.length){si=0;epoch++;}}
+  cmp=computeSample(data[si]);phase='idle';draw();drawLoss();updateUI();drawFit();requestAnimationFrame(frame);}
+let detail=false;
+function setRun(on){running=on;if(on)detail=false;playBtn.textContent=on?'⏸ 一時停止':'▶ 自動学習（高速）';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+function detailFrame(){if(!detail)return;tick();draw();drawLoss();updateUI();drawFit();if(phase==='idle'){detail=false;const sb=document.getElementById('stepBtn');if(sb)sb.textContent='🔍 1サンプル詳細';return;}requestAnimationFrame(detailFrame);}
 // 1サンプル: idle→fwd→loss→bwd→upd→idle を一気に進める
 function stepSample(){if(phase==='idle')startSample();let guard=0;
   // フェーズを最後(idle)まで一気に（アニメ無しで1サンプル完了）
@@ -287,7 +291,7 @@ function stepSample(){if(phase==='idle')startSample();let guard=0;
 const fnSel=document.getElementById('fnSel'),actSel=document.getElementById('actSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),
   playBtn=document.getElementById('playBtn'),phaseLine=document.getElementById('phaseLine'),epOut=document.getElementById('epOut'),smOut=document.getElementById('smOut'),poOut=document.getElementById('poOut'),lossOut=document.getElementById('lossOut');
 const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
-function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=(+spdSlider.value).toFixed(3);}
+function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=(+spdSlider.value).toFixed(0);}
 lrSlider.value=Math.log10(0.05);
 function reset(){setRun(false);seed=99;build();genData();epoch=0;si=0;cmp=null;phase='idle';lossHist=[];lastLoss=null;startSample();phase='idle';cmp=computeSample(data[0]);draw();drawLoss();updateUI();drawFit();}
 
@@ -295,7 +299,7 @@ fnSel.onchange=()=>{genData();reset();};
 actSel.onchange=reset;
 lrSlider.oninput=lbls;spdSlider.oninput=lbls;
 playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);stepSample();};
+document.getElementById('stepBtn').onclick=()=>{const sb=document.getElementById('stepBtn');if(detail){detail=false;sb.textContent='🔍 1サンプル詳細';return;}setRun(false);if(phase==='idle')startSample();detail=true;sb.textContent='⏸ 詳細停止';requestAnimationFrame(detailFrame);};
 document.getElementById('resetBtn').onclick=reset;
 
 lbls();layout();build();genData();reset();
