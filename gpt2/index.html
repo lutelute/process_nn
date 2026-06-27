@@ -143,6 +143,7 @@
       <button id="resetBtn" class="ghost">↺ リセット</button>
     </div>
     <div id="genStatus" class="status"></div>
+    <div id="narrGPT" style="margin-top:10px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#2a3340);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">重みを読み込み「▶ 生成」すると、各ステップで「次の単語」の予測と内部（注意・各層の寄与・MLP 発火）を実況します。</div>
     <h3 style="margin-top:16px;">出力</h3>
     <div id="genOut" class="gen-out"><span class="muted">プロンプトから生成が始まります</span></div>
 
@@ -320,6 +321,9 @@ async function step(){
   drawHeads(); drawContrib(); drawMlp();
   $('attnLayer').max=CONFIG.n_layer-1; $('attnHead').max=CONFIG.n_head-1;
   buildAttnTokenList();
+  // 実況解説
+  {const el=document.getElementById('narrGPT');if(el){const top=topkSoftmax(res.logits,5);const chosen=showTok(nextId);const cands=top.map(t=>'「'+showTok(t.id)+'」'+Math.round(t.prob*100)+'%').join(' / ');
+    el.innerHTML='直前までの文脈から<b>次の単語</b>を予測。候補上位: '+cands+'。'+($('mode').value==='greedy'?'greedy なので最有力の ':'サンプリングで ')+'<b>「'+chosen+'」</b>を採用。下段の注意マップ＝各語がどこを見たか、寄与バー＝どのブロックが効いたか、MLP＝発火ニューロン。';}}
   // 追加
   genTokens.push(nextId);
   renderGenText(false);
