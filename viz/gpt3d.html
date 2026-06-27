@@ -79,6 +79,7 @@
       <button id="resetBtn">↺ 視点リセット</button>
       <span class="note" style="grid-column:auto;border:none;padding:0;">各ブロック: x = x + Attn(LN₁(x)) → x = x + MLP(LN₂(x))</span>
     </div>
+    <div id="narrG3" style="grid-column:1/-1;margin:0 0 8px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#222a37);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">Block 0 を展開中。</div>
     <div class="note">残差ストリーム（中央の柱）にブロックごとに「注意の出力」と「MLP の出力」が足し込まれていく Pre-LN 構造。注意は 12 ヘッドに分かれて系列内の関係を見る。最上部で最終 LayerNorm → lm_head（語彙 50257 への射影）。実データでの attention や予測は「GPT-2 推論」ページで観察できます。</div>
   </div>
 </div>
@@ -142,7 +143,8 @@ function draw(){
 /* ===== UI ===== */
 const blkSlider=document.getElementById('blkSlider'),tSlider=document.getElementById('tSlider'),spinBtn=document.getElementById('spinBtn');
 const blkVal=document.getElementById('blkVal'),tVal=document.getElementById('tVal');
-function lbls(){blkVal.textContent='Block '+blkSlider.value;tVal.textContent=tSlider.value;}
+function lbls(){blkVal.textContent='Block '+blkSlider.value;tVal.textContent=tSlider.value;
+  const el=document.getElementById('narrG3');if(el){const b=+blkSlider.value;el.innerHTML='<b>Block '+b+'/11</b> を展開中：①LN₁→<b>12 ヘッドの注意</b>（各ヘッドが系列内の別々の関係を見る）の出力を残差に加算 → ②LN₂→<b>MLP</b>（各位置を 768→3072→768 で変換）の出力を残差に加算。'+(b===0?'最下層は単語の意味・位置が中心。':b>=8?'上層ほど抽象的・文脈的な表現に。':'中層では語のまとまりや構文的な関係を捉える傾向。')+' 同じ構造が全 12 ブロックで繰り返されます。';}}
 blkSlider.oninput=()=>{selBlk=+blkSlider.value;lbls();draw();};
 tSlider.oninput=()=>{Tk=+tSlider.value;lbls();draw();};
 Lib3D.attachDrag(cv,cam,draw);
