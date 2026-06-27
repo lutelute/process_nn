@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>決定境界の学習 — 2分類ビューア</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
+  .nav{font-size:13px;color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 330px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:8px 10px 12px;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:24px;font-family:var(--mono);padding:4px 14px 12px;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.loss{color:var(--loss);} .readout .v.acc{color:var(--accent);}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  select:focus{border-color:var(--accent);outline:none;}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--faint);}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dotmark{width:10px;height:10px;border-radius:50%;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>決定境界の学習 — 2分類ビューア</h1>
+      <div class="sub">点群を 2 クラスに分けるニューラルネットの「決定境界（背景の色分け）」が、学習でリアルタイムに形成されていく様子を観察する</div>
+    </div>
+    <div class="nav">
+      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="cnn.html">CNN</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="transformer.html">Transformer</a><span style="color:var(--faint);margin:0 6px;">·</span>
+      <a href="../">トップ</a>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">決定境界とデータ点</div>
+      <div class="canvas-host"><canvas id="board" width="600" height="600"></canvas></div>
+      <div class="legend">
+        <span><i class="dotmark" style="background:var(--accent)"></i>クラス A</span>
+        <span><i class="dotmark" style="background:var(--warm)"></i>クラス B</span>
+        <span>背景＝モデルが思う各点のクラス（濃いほど確信）</span>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
+          <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
+          <div><div class="k">accuracy</div><div class="v acc" id="accOut">—</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cap">loss の推移（対数）</div>
+        <div class="canvas-host"><canvas id="lossC" width="330" height="170"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>データセット</label>
+      <select id="dataSel">
+        <option value="circle">同心円（内 vs 外）</option>
+        <option value="moons">二日月（moons）</option>
+        <option value="spiral">渦巻き（2 本）</option>
+        <option value="xor">XOR（市松）</option>
+        <option value="blobs">2 つの塊（線形分離可）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>活性化関数</label>
+      <select id="actSel"><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sigmoid">sigmoid</option></select>
+    </div>
+    <div class="field">
+      <label>隠れ層の数</label>
+      <select id="depthSel"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select>
+    </div>
+    <div class="field">
+      <label>各層のユニット数</label>
+      <select id="widthSel"><option value="6">6</option><option value="10">10</option><option value="16" selected>16</option><option value="24">24</option></select>
+    </div>
+    <div class="field">
+      <label>学習率 <span class="val" id="lrVal"></span></label>
+      <input type="range" id="lrSlider" min="-3" max="-0.5" step="0.01">
+    </div>
+    <div class="field">
+      <label>ノイズ <span class="val" id="noiseVal"></span></label>
+      <input type="range" id="noiseSlider" min="0" max="0.35" step="0.01" value="0.12">
+    </div>
+    <div class="field">
+      <label>速度（epoch/フレーム） <span class="val" id="spdVal"></span></label>
+      <input type="range" id="spdSlider" min="1" max="15" step="1" value="3">
+    </div>
+    <div class="field" style="justify-content:flex-end;">
+      <span class="note" style="grid-column:auto;">背景は数 epoch ごとに更新</span>
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="playBtn">▶ 学習</button>
+      <button id="stepBtn">⏭ 1 epoch</button>
+      <button id="resetBtn">↺ 重みリセット</button>
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">2 入力 → 隠れ層 → 2 クラス（softmax）。損失は交差エントロピー、最適化は Adam。順伝播・誤差逆伝播は素の JavaScript 実装。決定境界は平面の各点をモデルに通して描いています。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rng=mulberry32(42);
+function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function actFn(n,z){if(n==='tanh')return Math.tanh(z);if(n==='relu')return z>0?z:0;return 1/(1+Math.exp(-z));}
+function actDeriv(n,z,a){if(n==='tanh')return 1-a*a;if(n==='relu')return z>0?1:0;return a*(1-a);}
+
+/* ===== MLP（2入力→…→2クラス softmax, CE, Adam） ===== */
+class MLP{
+  constructor(sizes,act){this.sizes=sizes;this.L=sizes.length-1;this.act=act;this.W=[null];this.b=[null];
+    for(let l=1;l<=this.L;l++){const nIn=sizes[l-1],nOut=sizes[l];const s=act==='relu'?Math.sqrt(2/nIn):Math.sqrt(1/nIn);
+      const Wl=[];for(let j=0;j<nOut;j++){const r=new Float64Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s;Wl.push(r);}this.W[l]=Wl;this.b[l]=new Float64Array(nOut);}
+    this.initOpt();}
+  initOpt(){this.mW=[null];this.vW=[null];this.mB=[null];this.vB=[null];this.t=0;
+    for(let l=1;l<=this.L;l++){const nIn=this.sizes[l-1],nOut=this.sizes[l];const mW=[],vW=[];
+      for(let j=0;j<nOut;j++){mW.push(new Float64Array(nIn));vW.push(new Float64Array(nIn));}
+      this.mW[l]=mW;this.vW[l]=vW;this.mB[l]=new Float64Array(nOut);this.vB[l]=new Float64Array(nOut);}}
+  forward(x){const a=[x],z=[null];
+    for(let l=1;l<=this.L;l++){const nOut=this.sizes[l],nIn=this.sizes[l-1],zl=new Float64Array(nOut),al=new Float64Array(nOut),Wl=this.W[l],bl=this.b[l],ap=a[l-1];
+      for(let j=0;j<nOut;j++){let s=bl[j],Wj=Wl[j];for(let k=0;k<nIn;k++)s+=Wj[k]*ap[k];zl[j]=s;al[j]=(l===this.L)?s:actFn(this.act,s);}
+      z[l]=zl;a[l]=al;}return{a,z};}
+  proba(x){const{a}=this.forward(x);return softmax(a[this.L]);}
+  trainStep(X,Y,lr){const L=this.L,N=X.length;const dW=[null],db=[null];
+    for(let l=1;l<=L;l++){const g=[];for(let j=0;j<this.sizes[l];j++)g.push(new Float64Array(this.sizes[l-1]));dW[l]=g;db[l]=new Float64Array(this.sizes[l]);}
+    let loss=0;
+    for(let n=0;n<N;n++){const{a,z}=this.forward(X[n]);const p=softmax(a[L]);const y=Y[n];
+      loss+=-Math.log(Math.max(p[y],1e-12));
+      let delta=new Float64Array(this.sizes[L]);for(let j=0;j<this.sizes[L];j++)delta[j]=p[j]-(j===y?1:0);
+      for(let l=L;l>=1;l--){const nOut=this.sizes[l],nIn=this.sizes[l-1],ap=a[l-1];
+        for(let j=0;j<nOut;j++){const dj=delta[j];db[l][j]+=dj;const row=dW[l][j];for(let k=0;k<nIn;k++)row[k]+=dj*ap[k];}
+        if(l>1){const dp=new Float64Array(nIn);for(let k=0;k<nIn;k++){let s=0;for(let j=0;j<nOut;j++)s+=this.W[l][j][k]*delta[j];dp[k]=s*actDeriv(this.act,z[l-1][k],a[l-1][k]);}delta=dp;}}}
+    loss/=N;const invN=1/N;this.t++;const b1=0.9,b2=0.999,eps=1e-8,bc1=1-Math.pow(b1,this.t),bc2=1-Math.pow(b2,this.t);
+    for(let l=1;l<=L;l++){const nOut=this.sizes[l],nIn=this.sizes[l-1];
+      for(let j=0;j<nOut;j++){let gb=db[l][j]*invN;this.mB[l][j]=b1*this.mB[l][j]+(1-b1)*gb;this.vB[l][j]=b2*this.vB[l][j]+(1-b2)*gb*gb;this.b[l][j]-=lr*(this.mB[l][j]/bc1)/(Math.sqrt(this.vB[l][j]/bc2)+eps);
+        const Wj=this.W[l][j],dWj=dW[l][j],mWj=this.mW[l][j],vWj=this.vW[l][j];
+        for(let k=0;k<nIn;k++){let gw=dWj[k]*invN;mWj[k]=b1*mWj[k]+(1-b1)*gw;vWj[k]=b2*vWj[k]+(1-b2)*gw*gw;Wj[k]-=lr*(mWj[k]/bc1)/(Math.sqrt(vWj[k]/bc2)+eps);}}}
+    return loss;}
+}
+function softmax(v){let m=-Infinity;for(const x of v)if(x>m)m=x;let s=0;const o=new Float64Array(v.length);for(let i=0;i<v.length;i++){o[i]=Math.exp(v[i]-m);s+=o[i];}for(let i=0;i<v.length;i++)o[i]/=s;return o;}
+
+/* ===== データ生成（[-1,1]²） ===== */
+function genData(kind,noise){
+  const X=[],Y=[],N=220;const nz=()=>randn()*noise;
+  for(let i=0;i<N;i++){
+    const c=i%2;let x,y;
+    if(kind==='circle'){const r=c===0?0.25+0.2*rng():0.7+0.18*rng();const th=2*Math.PI*rng();x=r*Math.cos(th);y=r*Math.sin(th);}
+    else if(kind==='moons'){const th=Math.PI*rng();if(c===0){x=Math.cos(th)-0.5;y=Math.sin(th)-0.2;}else{x=Math.cos(th+Math.PI)+0.5;y=Math.sin(th+Math.PI)+0.2;}x*=0.8;y*=0.8;}
+    else if(kind==='spiral'){const t=rng();const r=0.15+0.8*t;const th=t*3.2*Math.PI+(c===0?0:Math.PI);x=r*Math.cos(th);y=r*Math.sin(th);}
+    else if(kind==='xor'){x=2*rng()-1;y=2*rng()-1;const q=(x>0?1:0)^(y>0?1:0);return_push(X,Y,x+nz(),y+nz(),q);continue;}
+    else{const cx=c===0?-0.45:0.45,cy=c===0?-0.35:0.35;x=cx+0.32*randn();y=cy+0.32*randn();}
+    X.push([x+nz(),y+nz()]);Y.push(c);
+  }
+  return{X,Y};
+}
+function return_push(X,Y,x,y,c){X.push([x,y]);Y.push(c);}
+
+/* ===== 状態 ===== */
+let net=null,data=null,epoch=0,lossHist=[],lastLoss=null,lastAcc=null,running=false,boardCtr=0;
+
+function currentSizes(){const d=+depthSel.value,w=+widthSel.value;const s=[2];for(let i=0;i<d;i++)s.push(w);s.push(2);return s;}
+function rebuildNet(){net=new MLP(currentSizes(),actSel.value);epoch=0;lossHist=[];lastLoss=null;lastAcc=null;updateReadout();drawBoard();drawLoss();}
+function regenData(){rng=mulberry32((Math.floor(rng()*1e9))>>>0);data=genData(dataSel.value,+noiseSlider.value);}
+
+/* ===== Canvas ===== */
+const board=document.getElementById('board'),bctx=board.getContext('2d');
+const lossC=document.getElementById('lossC'),lctx=lossC.getContext('2d');
+const BW=board.width,BH=board.height;
+const toPx=(x)=>(x+1)/2*BW, toPy=(y)=>(1-(y+1)/2)*BH;
+
+function drawBoard(){
+  bctx.clearRect(0,0,BW,BH);
+  // 決定境界（背景）
+  const res=46,cw=BW/res,ch=BH/res;
+  for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){
+    const x=(gx+0.5)/res*2-1, y=1-(gy+0.5)/res*2;
+    const p=net.proba([x,y]);const pa=p[0];
+    const r=Math.round(212+(57-212)*pa), g=Math.round(163+(224-163)*pa), b=Math.round(106+(196-106)*pa);
+    const conf=Math.abs(pa-0.5)*2;bctx.fillStyle=`rgba(${r},${g},${b},${0.15+0.45*conf})`;
+    bctx.fillRect(gx*cw,gy*ch,cw+1,ch+1);
+  }
+  // 境界線（p=0.5付近）薄く
+  // データ点
+  for(let i=0;i<data.X.length;i++){const[x,y]=data.X[i];const px=toPx(x),py=toPy(y);
+    bctx.beginPath();bctx.arc(px,py,4.5,0,7);bctx.fillStyle=data.Y[i]===0?getCSS('--accent'):getCSS('--warm');
+    bctx.fill();bctx.lineWidth=1.2;bctx.strokeStyle='rgba(12,16,22,0.9)';bctx.stroke();}
+}
+function drawLoss(){
+  const W=lossC.width,H=lossC.height;lctx.clearRect(0,0,W,H);const pad=30;
+  if(lossHist.length<2){lctx.fillStyle=getCSS('--faint');lctx.font='12px '+getCSS('--gothic');lctx.textAlign='center';lctx.fillText('学習すると表示されます',W/2,H/2);return;}
+  const logs=lossHist.map(v=>Math.log10(Math.max(v,1e-6)));let hi=Math.ceil(Math.max(...logs)),lo=Math.floor(Math.min(...logs));if(hi-lo<1)lo=hi-1;
+  const xToP=i=>pad+(W-pad-8)*i/(lossHist.length-1),yToP=v=>8+(H-pad-8)*(hi-v)/(hi-lo);
+  lctx.strokeStyle=getCSS('--grid');lctx.lineWidth=1;lctx.fillStyle=getCSS('--faint');lctx.font='9px '+getCSS('--mono');lctx.textAlign='right';
+  for(let e=lo;e<=hi;e++){const py=yToP(e);lctx.beginPath();lctx.moveTo(pad,py);lctx.lineTo(W-8,py);lctx.stroke();lctx.fillText('1e'+e,pad-4,py+3);}
+  lctx.strokeStyle=getCSS('--loss');lctx.lineWidth=2;lctx.beginPath();const st=Math.max(1,Math.floor(lossHist.length/(W-pad)));
+  for(let i=0;i<lossHist.length;i+=st){const px=xToP(i),py=yToP(logs[i]);i?lctx.lineTo(px,py):lctx.moveTo(px,py);}
+  lctx.lineTo(xToP(lossHist.length-1),yToP(logs[logs.length-1]));lctx.stroke();
+}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+function accuracy(){let ok=0;for(let i=0;i<data.X.length;i++){const p=net.proba(data.X[i]);const pred=p[0]>=p[1]?0:1;if(pred===data.Y[i])ok++;}return ok/data.X.length;}
+function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toFixed(3);accOut.textContent=lastAcc==null?'—':(lastAcc*100).toFixed(1)+'%';}
+
+/* ===== 学習ループ ===== */
+function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=net.trainStep(data.X,data.Y,lr);epoch++;lossHist.push(lastLoss);}}
+function frame(){if(!running)return;doSteps(+spdSlider.value);lastAcc=accuracy();updateReadout();drawLoss();if((boardCtr++%2)===0)drawBoard();requestAnimationFrame(frame);}
+function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+
+/* ===== UI ===== */
+const dataSel=document.getElementById('dataSel'),actSel=document.getElementById('actSel'),depthSel=document.getElementById('depthSel'),widthSel=document.getElementById('widthSel'),
+  lrSlider=document.getElementById('lrSlider'),noiseSlider=document.getElementById('noiseSlider'),spdSlider=document.getElementById('spdSlider'),
+  epOut=document.getElementById('epOut'),lossOut=document.getElementById('lossOut'),accOut=document.getElementById('accOut'),playBtn=document.getElementById('playBtn');
+function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);noiseVal.textContent=(+noiseSlider.value).toFixed(2);spdVal.textContent=spdSlider.value;}
+const lrVal=document.getElementById('lrVal'),noiseVal=document.getElementById('noiseVal'),spdVal=document.getElementById('spdVal');
+lrSlider.value=Math.log10(0.03);
+
+dataSel.onchange=()=>{setRun(false);regenData();rebuildNet();};
+noiseSlider.onchange=()=>{setRun(false);regenData();rebuildNet();};
+noiseSlider.oninput=lbls;
+actSel.onchange=()=>{setRun(false);rebuildNet();};
+depthSel.onchange=()=>{setRun(false);rebuildNet();};
+widthSel.onchange=()=>{setRun(false);rebuildNet();};
+lrSlider.oninput=lbls;spdSlider.oninput=lbls;
+playBtn.onclick=()=>setRun(!running);
+document.getElementById('stepBtn').onclick=()=>{setRun(false);doSteps(1);lastAcc=accuracy();updateReadout();drawBoard();drawLoss();};
+document.getElementById('resetBtn').onclick=()=>{setRun(false);rebuildNet();};
+document.getElementById('dataBtn').onclick=()=>{setRun(false);regenData();rebuildNet();};
+
+/* ===== 起動 ===== */
+function start(){lbls();regenData();rebuildNet();}
+start();
+</script>
+</body>
+</html>
