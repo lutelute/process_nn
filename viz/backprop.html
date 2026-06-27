@@ -83,7 +83,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="cap">loss の推移</div>
+        <div class="cap">loss の推移（エポック平均・下がるほど良い）</div>
         <div class="canvas-host"><canvas id="lossC" width="300" height="150"></canvas></div>
       </div>
       <div class="card">
@@ -171,7 +171,7 @@ let epoch=0,si=0,cmp=null,running=false;
 let phase='idle';        // 'fwd','loss','bwd','upd','idle'
 let pl=0;                // フェーズ内の進行レイヤー（fwd:0..L, bwd:L..0）
 let prog=0;
-let lossHist=[],lastLoss=null;
+let lossHist=[],lastLoss=null,epLossSum=0,epLossCnt=0;
 
 function startSample(){cmp=computeSample(data[si]);phase='fwd';pl=0;prog=0;}
 function nextPhase(){
@@ -180,8 +180,8 @@ function nextPhase(){
   else if(phase==='bwd'){phase='upd';prog=0;}
   else if(phase==='upd'){
     applyUpdate(cmp,Math.pow(10,+lrSlider.value));
-    lastLoss=cmp.loss;lossHist.push(cmp.loss);if(lossHist.length>3000)lossHist.shift();
-    si++;if(si>=data.length){si=0;epoch++;}
+    lastLoss=cmp.loss;epLossSum+=cmp.loss;epLossCnt++;
+    si++;if(si>=data.length){si=0;epoch++;lossHist.push(epLossSum/epLossCnt);if(lossHist.length>2000)lossHist.shift();epLossSum=0;epLossCnt=0;}
     phase='idle';
   }
 }
@@ -272,7 +272,7 @@ function updateUI(){
 
 /* ===== ループ ===== */
 function frame(){if(!running)return;const n=+spdSlider.value,lr=Math.pow(10,+lrSlider.value);
-  for(let i=0;i<n;i++){const c=computeSample(data[si]);applyUpdate(c,lr);lastLoss=c.loss;lossHist.push(c.loss);if(lossHist.length>3000)lossHist.shift();si++;if(si>=data.length){si=0;epoch++;}}
+  for(let i=0;i<n;i++){const c=computeSample(data[si]);applyUpdate(c,lr);lastLoss=c.loss;epLossSum+=c.loss;epLossCnt++;si++;if(si>=data.length){si=0;epoch++;lossHist.push(epLossSum/epLossCnt);if(lossHist.length>2000)lossHist.shift();epLossSum=0;epLossCnt=0;}}
   cmp=computeSample(data[si]);phase='idle';draw();drawLoss();updateUI();drawFit();requestAnimationFrame(frame);}
 let detail=false;
 function setRun(on){running=on;if(on)detail=false;playBtn.textContent=on?'⏸ 一時停止':'▶ 自動学習（高速）';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
@@ -293,7 +293,7 @@ const fnSel=document.getElementById('fnSel'),actSel=document.getElementById('act
 const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
 function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=(+spdSlider.value).toFixed(0);}
 lrSlider.value=Math.log10(0.05);
-function reset(){setRun(false);seed=99;build();genData();epoch=0;si=0;cmp=null;phase='idle';lossHist=[];lastLoss=null;startSample();phase='idle';cmp=computeSample(data[0]);draw();drawLoss();updateUI();drawFit();}
+function reset(){setRun(false);seed=99;build();genData();epoch=0;si=0;cmp=null;phase='idle';lossHist=[];lastLoss=null;epLossSum=0;epLossCnt=0;startSample();phase='idle';cmp=computeSample(data[0]);draw();drawLoss();updateUI();drawFit();}
 
 fnSel.onchange=()=>{genData();reset();};
 actSel.onchange=reset;
