@@ -83,6 +83,7 @@
           <div><div class="k">反復</div><div class="v" id="itOut">0</div></div>
           <div><div class="k">PC1 と探索の一致</div><div class="v" id="alignOut">—</div></div>
         </div>
+        <div id="narrP" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ べき乗反復で、ランダムな探索ベクトルが最大分散方向（第1主成分）へ回転していきます。</div>
       </div>
       <div class="card">
         <div class="cap">寄与率（各主成分の分散の割合）</div>
@@ -193,6 +194,9 @@ function updateReadout(){
   const tot=lam1+lam2||1;const p1=Math.round(100*lam1/tot),p2=100-p1;
   pc1pct.textContent=p1+'%';pc2pct.textContent=p2+'%';
   pc1bar.style.width=Math.max(2,p1*1.6)+'px';pc2bar.style.width=Math.max(2,p2*1.6)+'px';
+  const el=document.getElementById('narrP');if(el){const a=align();
+    if(it===0)el.innerHTML='ランダムな探索ベクトル（破線）を、べき乗反復 v←Cv/|Cv| で回転させ第1主成分を探します。';
+    else el.innerHTML='反復 '+it+'：探索ベクトルが PC1 に '+(a>0.999?'<span style="color:var(--accent)">ほぼ一致（収束）</span>':'近づき中（一致 '+a.toFixed(3)+'）')+'。PC1 はデータが最も広がる向き＝寄与率 '+p1+'%。各点を PC1 に射影すれば 2→1 次元に圧縮。';}
 }
 
 /* ===== ループ ===== */
