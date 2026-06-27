@@ -74,6 +74,7 @@
         <div class="opt"><span class="dot" style="background:var(--mom)"></span><span class="nm">Momentum</span><span class="ls" id="lsMOM">—</span></div>
         <div class="opt"><span class="dot" style="background:var(--adam)"></span><span class="nm">Adam</span><span class="ls" id="lsADAM">—</span></div>
         <div class="note" style="padding:0 14px 12px;">明るい谷ほど損失が小さい。星 ★ が真の最小点。</div>
+        <div id="narrG" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">3 つの最適化法が同じ開始点から最小（★）へ。▶降下で「どれが速く谷に着くか」を観察。</div>
       </div>
       <div class="card">
         <div class="cap">step</div>
@@ -189,6 +190,12 @@ function updateReadout(){
   const f=cur.f;const m={SGD:'lsSGD',MOM:'lsMOM',ADAM:'lsADAM'};
   for(const o of opts){const el=document.getElementById(m[o.key]);el.textContent=o.dead?'発散':f(o.pos[0],o.pos[1]).toFixed(4);}
   document.getElementById('stepOut').textContent=steps.toLocaleString();
+  const el=document.getElementById('narrG');if(el){const nm={SGD:'SGD',MOM:'Momentum',ADAM:'Adam'};
+    let best=null,bv=Infinity,dead=[];for(const o of opts){if(o.dead){dead.push(nm[o.key]);continue;}const v=f(o.pos[0],o.pos[1]);if(v<bv){bv=v;best=o;}}
+    if(steps===0)el.innerHTML='3 つの最適化法が同じ開始点から最小（★）へ。▶降下で「どれが速く谷に着くか」を観察。';
+    else{let msg='step '+steps+'：今は <b>'+(best?nm[best.key]:'—')+'</b> が最小に最も近い（損失 '+bv.toFixed(3)+'）。各ボールは勾配 ∂L を下っています。';
+      if(dead.length)msg+=' <span style="color:var(--neg)">'+dead.join('・')+' は発散</span>（学習率が大きすぎ）。';
+      el.innerHTML=msg;}}
 }
 
 /* ===== ループ ===== */
