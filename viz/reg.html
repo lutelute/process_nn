@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>正則化（過学習と汎化）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .tr b{color:var(--accent);} .mini .te b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:120px;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>正則化（過学習と汎化）を理解する</h1>
+  <div class="lead">表現力の高いモデル（高次多項式）は訓練データを<b>丸暗記</b>して暴れ、新しいデータに弱くなる＝<b>過学習</b>。損失に<b>「重みを大きくしすぎない」罰（正則化項 λΣw²）</b>を足すと、なめらかで汎化する解に導ける。機械学習で最も重要な概念の一つ。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>λ <input type="range" id="lam" min="0" max="100" step="1" value="55"></label>
+      <select id="fnSel"><option value="sin">正弦</option><option value="cubic">3次曲線</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：L2(Ridge) と L1(Lasso)・バイアスとバリアンス</summary>
+    <div class="det"><b>L2 正則化（Ridge）</b>：罰 λΣwⱼ²。重みを<b>全体的に小さく</b>し、なめらかにする。閉じた式 w=(XᵀX+λI)⁻¹Xᵀy で解け、ここではこれを使用。<b>L1 正則化（Lasso）</b>：罰 λΣ|wⱼ|。一部の重みを<b>ちょうど 0</b> にする（特徴選択・スパース化）。<br><b>バイアス–バリアンス</b>：λ 小＝低バイアス高バリアンス（過学習・データに敏感）、λ 大＝高バイアス低バリアンス（過小学習・鈍い）。テスト誤差はその間で<b>U 字</b>になり、最小点が最適。正則化のほか、データを増やす・モデルを小さく・<a href="#">ドロップアウト</a>等も過学習対策です。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=4242;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const D=9; // 多項式次数
+let trueFn=x=>Math.sin(Math.PI*x)*0.8;
+let trX=[],trY=[],teX=[],teY=[],w=[],lambda=1e-3;
+function genData(){const kind=document.getElementById('fnSel').value;trueFn=kind==='sin'?(x=>Math.sin(Math.PI*x)*0.8):(x=>(2*x*x*x-0.8*x));
+  trX=[];trY=[];for(let i=0;i<12;i++){const x=-0.95+1.9*(i/11)+randn()*0.02;trX.push(x);trY.push(trueFn(x)+randn()*0.13);}
+  teX=[];teY=[];for(let i=0;i<40;i++){const x=-1+2*rng();teX.push(x);teY.push(trueFn(x)+randn()*0.13);}}
+function feat(x){const r=[1];let p=1;for(let j=1;j<=D;j++){p*=x;r.push(p);}return r;}
+function solveSym(A,b){const n=b.length;const M=A.map((r,i)=>r.concat([b[i]]));
+  for(let c=0;c<n;c++){let mx=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[mx][c]))mx=r;[M[c],M[mx]]=[M[mx],M[c]];const piv=M[c][c]||1e-12;for(let r=0;r<n;r++){if(r===c)continue;const f=M[r][c]/piv;for(let k=c;k<=n;k++)M[r][k]-=f*M[c][k];}}
+  const x=new Array(n);for(let i=0;i<n;i++)x[i]=M[i][n]/(M[i][i]||1e-12);return x;}
+function ridge(lam){const n=trX.length,m=D+1;const A=Array.from({length:m},()=>new Array(m).fill(0));const bb=new Array(m).fill(0);
+  for(let i=0;i<n;i++){const f=feat(trX[i]);for(let a=0;a<m;a++){bb[a]+=f[a]*trY[i];for(let c=0;c<m;c++)A[a][c]+=f[a]*f[c];}}
+  for(let a=0;a<m;a++)A[a][a]+=lam*n; // λΣw²（バイアス含む簡易版）
+  return solveSym(A,bb);}
+function polyEval(W,x){const f=feat(x);let s=0;for(let j=0;j<=D;j++)s+=W[j]*f[j];return s;}
+function mse(W,Xs,Ys){let s=0;for(let i=0;i<Xs.length;i++){const e=polyEval(W,Xs[i])-Ys[i];s+=e*e;}return s/Xs.length;}
+function lamFromSlider(s){return Math.pow(10,-7+ (7.3)*(s/100));} // 1e-7 .. ~2
+function bestLambda(){let best=1e9,bl=1e-3;for(let s=0;s<=100;s++){const l=lamFromSlider(s);const W=ridge(l);const te=mse(W,teX,teY);if(te<best){best=te;bl=l;}}return bl;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LOx=-1.15,HIx=1.15,LOy=-1.5,HIy=1.5;
+const px=x=>26+(CW-38)*(x-LOx)/(HIx-LOx),py=y=>14+(CH-30)*(HIy-y)/(HIy-LOy);
+function axes(){ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px(LOx),py(0));ctx.lineTo(px(HIx),py(0));ctx.stroke();}
+function curve(fn,style,wd,dash){ctx.strokeStyle=style;ctx.lineWidth=wd||2;if(dash)ctx.setLineDash(dash);ctx.beginPath();for(let i=0;i<=160;i++){const x=LOx+(HIx-LOx)*i/160,y=fn(x);const yy=Math.max(LOy-1,Math.min(HIy+1,y));i?ctx.lineTo(px(x),py(yy)):ctx.moveTo(px(x),py(yy));}ctx.stroke();ctx.setLineDash([]);}
+function pts(Xs,Ys,col,r){for(let i=0;i<Xs.length;i++){ctx.beginPath();ctx.arc(px(Xs[i]),py(Ys[i]),r,0,7);ctx.fillStyle=col;ctx.fill();}}
+function ucurve(){const w2=120,h=70,x0=CW-w2-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.8)';ctx.fillRect(x0,y0,w2,h);
+  const tr=[],te=[];for(let s=0;s<=100;s+=4){const W=ridge(lamFromSlider(s));tr.push(mse(W,trX,trY));te.push(mse(W,teX,teY));}
+  const all=tr.concat(te),hi=Math.max(...all),lo=0;const X=s=>x0+6+(w2-12)*(s/100),Y=v=>y0+h-8-(h-16)*(v-lo)/(hi-lo+1e-9);
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;ctx.beginPath();tr.forEach((v,i)=>{const xx=X(i*4),yy=Y(v);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.stroke();
+  ctx.strokeStyle=getCSS('--neg');ctx.beginPath();te.forEach((v,i)=>{const xx=X(i*4),yy=Y(v);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.stroke();
+  // 現在のλ位置
+  const sNow=+document.getElementById('lam').value;ctx.strokeStyle='rgba(231,237,245,0.5)';ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(X(sNow),y0+4);ctx.lineTo(X(sNow),y0+h-4);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('誤差 vs λ→',x0+5,y0+9);ctx.fillStyle=getCSS('--accent');ctx.fillText('訓練',x0+5,y0+h-3);ctx.fillStyle=getCSS('--neg');ctx.fillText('テスト',x0+34,y0+h-3);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);axes();
+  curve(trueFn,'rgba(133,149,168,0.5)',1.5,[5,4]);
+  if(opt.fit)curve(x=>polyEval(w,x),getCSS('--accent'),2.4);
+  pts(trX,trY,getCSS('--warm'),3.6);
+  if(opt.test)pts(teX,teY,'rgba(240,111,126,0.5)',2);
+  if(opt.ucurve)ucurve();}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'over',t:'過学習',c:'var(--neg)'},{key:'pen',t:'正則化項',c:'var(--upd)'},{key:'lam',t:'λを調整',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0;
+function refit(){lambda=lamFromSlider(+document.getElementById('lam').value);w=ridge(lambda);}
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='lam'||k==='res')draw({fit:true,test:true,ucurve:true});else draw({fit:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>訓練点 <b>'+trX.length+'</b></div><div>次数 <b>'+D+'</b></div>';return;}m.innerHTML='<div>λ <b>'+lambda.toExponential(1)+'</b></div><div class="tr">訓練誤差 <b>'+mse(w,trX,trY).toFixed(3)+'</b></div><div class="te">テスト誤差 <b>'+mse(w,teX,teY).toFixed(3)+'</b></div>';}
+function renderLegend(){document.getElementById('legend').textContent='灰破線=真の関数, 橙●=訓練データ, 青=学習した多項式'+((STEPS[stepIdx].key==='lam'||STEPS[stepIdx].key==='res')?', 赤○=テストデータ':'');}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：滑らかな関数を当てる</h3><div class="desc">灰破線が<b>真の関数</b>、橙●はそこから取った<b>ノイズ入りの訓練データ</b>（'+trX.length+'点）。これを '+D+' 次の多項式で当てはめます。表現力が高いほど何でも描けますが…？ 右下で真の関数を変えられます。</div>';}
+  else if(k==='over'){h+='<h3>② 過学習（暗記）</h3><div class="eq curr">罰なし（λ≈0）で誤差だけを最小化</div><div class="desc">正則化なしだと、多項式は<b>全ての訓練点をぴったり通ろうと暴れます</b>（青線）。訓練誤差はほぼ 0 でも、点と点の間で真の関数から大きく外れ、<b>新しいデータに弱い</b>＝過学習。訓練誤差 '+mse(w,trX,trY).toFixed(3)+' / テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div>';}
+  else if(k==='pen'){h+='<h3>③ 正則化項を足す</h3><div class="eq curr">損失 = Σ(誤差)² + λ·Σ wⱼ²　（L2 / Ridge）</div><div class="desc">損失に「<b>重みの二乗和</b>」の罰を加えます。大きな重み＝急なうねりにペナルティが付くので、解が<b>なめらか</b>になり真の関数に近づく。λ がその強さ（閉じた式 w=(XᵀX+λI)⁻¹Xᵀy で一発）。</div>';}
+  else if(k==='lam'){h+='<h3>④ λ を調整する</h3><div class="desc">右下のスライダーで <b>λ</b> を動かしてみてください。<b>小さすぎ</b>＝過学習（うねうね）、<b>大きすぎ</b>＝過小学習（真っ直ぐ＝鈍い）。右上の <b>誤差カーブ</b>で、テスト誤差（赤）が U 字を描き<b>最適な λ</b>が存在するのが分かります。λ='+lambda.toExponential(1)+'。</div>';}
+  else{const bl=bestLambda();h+='<h3>⑤ 結果：ちょうど良い複雑さ</h3><div class="desc">テスト誤差が最小になる λ（≈'+bl.toExponential(1)+'）あたりで、青線が<b>真の関数（灰破線）にほぼ一致</b>。暗記でも鈍感でもない「ちょうど良い複雑さ」が汎化につながります。現在 λ='+lambda.toExponential(1)+'・テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・高表現力モデルは過学習しやすい<br>・λΣw² で重みを抑え滑らかに<br>・テスト誤差は U 字、最小点が最適 λ</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key,lamEl=document.getElementById('lam');
+  if(k==='over'){lamEl.value=2;}
+  else if(k==='pen'){lamEl.value=42;}
+  else if(k==='lam'){lamEl.value=55;}
+  else if(k==='res'){let bs=55,bv=1e9;for(let s=0;s<=100;s++){const W=ridge(lamFromSlider(s));const te=mse(W,teX,teY);if(te<bv){bv=te;bs=s;}}lamEl.value=bs;}
+  refit();renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>{seed=4242+(Math.floor(rng()*900));genData();goStep(0);};
+document.getElementById('lam').oninput=()=>{refit();renderMini();renderLegend();renderExplain();draw_();};
+document.getElementById('fnSel').onchange=()=>{genData();goStep(0);};
+genData();refit();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

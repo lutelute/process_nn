@@ -8,6 +8,7 @@
     { href: 'index.html',       label: '信号の流れ' },
     { href: 'linreg.html',      label: '線形回帰' },
     { href: 'backprop.html',    label: '逆伝播' },
+    { href: 'reg.html',         label: '正則化' },
     { href: 'logreg.html',      label: 'ロジスティック回帰' },
     { href: 'classify.html',    label: '決定境界' },
     { href: 'digit.html',       label: '数字認識' },
