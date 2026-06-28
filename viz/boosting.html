@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勾配ブースティングを理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ls b{color:var(--loss);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:90px;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>勾配ブースティングを理解する</h1>
+  <div class="lead">弱い学習器（浅い木）を<b>1 本ずつ順番に</b>足していくアンサンブル。各ステップで<b>「まだ外している分（残差）」を狙って</b>新しい木を当て、少しずつ（学習率）足し込む。ランダムフォレストの「並列・平均」に対し、こちらは<b>逐次・誤り修正</b>。XGBoost 等の中核。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>学習率 <input type="range" id="lr" min="5" max="80" step="5" value="30"></label>
+      <select id="dataSel"><option value="wave">波</option><option value="step">階段</option><option value="bump">山</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：残差＝勾配・学習率・ランダムフォレストとの違い</summary>
+    <div class="det">二乗誤差のとき「残差 y−F(x)」は<b>損失の負の勾配</b>そのもの。だから残差に木を当てる＝<b>関数空間での勾配降下</b>＝「勾配ブースティング」。<b>学習率 ν</b>（0〜1）：各木の寄与を縮めて少しずつ進む。小さいほど精度は上がるが本数が必要（ν と本数はトレードオフ）。<b>ランダムフォレストとの違い</b>：RF は独立な木を<b>並列に育てて平均</b>（バリアンス低減）、ブースティングは前の誤りを<b>逐次修正</b>（バイアス低減）。強力だが、やりすぎると過学習するので本数・深さ・ν・正則化で調整。実装の代表が XGBoost / LightGBM。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=314;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const MAXD=3,MTREES=40;
+let X=[],Y=[],trees=[],F0=0,nu=0.3,trueFn=x=>0;
+function gen(){const kind=document.getElementById('dataSel').value;trueFn=kind==='wave'?(x=>Math.sin(3*x)*0.7+0.2*x):kind==='step'?(x=>x<-0.3?-0.6:x<0.3?0.2:0.8):(x=>Math.exp(-((x)*(x))/0.12)*1.1-0.4);
+  X=[];Y=[];for(let i=0;i<44;i++){const x=-1.05+2.1*(i/43);X.push(x);Y.push(trueFn(x)+randn()*0.09);}}
+function buildReg(idx,res,depth){const m=idx.reduce((s,j)=>s+res[j],0)/idx.length;const node={pred:m,depth};if(depth>=MAXD||idx.length<4)return node;
+  let best=null;const xs=idx.map(j=>X[j]).sort((a,b)=>a-b);
+  for(let i=1;i<xs.length;i++){if(xs[i]===xs[i-1])continue;const th=(xs[i-1]+xs[i])/2;let ls=0,ln=0,rs=0,rn=0,lss=0,rss=0;const lv=[],rv=[];for(const j of idx){if(X[j]<=th){lv.push(res[j]);}else{rv.push(res[j]);}}if(!lv.length||!rv.length)continue;const lm=lv.reduce((a,b)=>a+b,0)/lv.length,rm=rv.reduce((a,b)=>a+b,0)/rv.length;let e=0;for(const v of lv)e+=(v-lm)**2;for(const v of rv)e+=(v-rm)**2;if(!best||e<best.e)best={e,th};}
+  if(!best)return node;const li=[],ri=[];for(const j of idx)(X[j]<=best.th?li:ri).push(j);node.th=best.th;node.L=buildReg(li,res,depth+1);node.R=buildReg(ri,res,depth+1);return node;}
+function predTree(node,x){while(node.th!==undefined)node=x<=node.th?node.L:node.R;return node.pred;}
+function fit(){F0=Y.reduce((a,b)=>a+b,0)/Y.length;trees=[];let F=X.map(()=>F0);for(let m=0;m<MTREES;m++){const res=Y.map((y,i)=>y-F[i]);const idxArr=X.map((_,i)=>i);const resByIdx=res.slice();const tr=buildReg(idxArr,resByIdx,0);trees.push(tr);for(let i=0;i<X.length;i++)F[i]+=nu*predTree(tr,X[i]);}}
+function predF(x,upto){let f=F0;const n=Math.min(upto,trees.length);for(let k=0;k<n;k++)f+=nu*predTree(trees[k],x);return f;}
+function mse(upto){let s=0;for(let i=0;i<X.length;i++){const e=Y[i]-predF(X[i],upto);s+=e*e;}return s/X.length;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LOx=-1.2,HIx=1.2,LOy=-1.4,HIy=1.4;
+const px=x=>26+(CW-38)*(x-LOx)/(HIx-LOx),py=y=>14+(CH-30)*(HIy-y)/(HIy-LOy);
+function axes(){ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px(LOx),py(0));ctx.lineTo(px(HIx),py(0));ctx.stroke();}
+function curveF(upto,style,wd){ctx.strokeStyle=style;ctx.lineWidth=wd||2.4;ctx.beginPath();let first=true;for(let i=0;i<=200;i++){const x=LOx+(HIx-LOx)*i/200,y=predF(x,upto);if(first){ctx.moveTo(px(x),py(y));first=false;}else ctx.lineTo(px(x),py(y));}ctx.stroke();}
+function trueCurve(){ctx.strokeStyle='rgba(133,149,168,0.45)';ctx.lineWidth=1.4;ctx.setLineDash([5,4]);ctx.beginPath();for(let i=0;i<=200;i++){const x=LOx+(HIx-LOx)*i/200,y=trueFn(x);i?ctx.lineTo(px(x),py(y)):ctx.moveTo(px(x),py(y));}ctx.stroke();ctx.setLineDash([]);}
+function resid(upto){for(let i=0;i<X.length;i++){const f=predF(X[i],upto);ctx.strokeStyle='rgba(240,111,126,0.6)';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(px(X[i]),py(Y[i]));ctx.lineTo(px(X[i]),py(f));ctx.stroke();}}
+function pts(){for(let i=0;i<X.length;i++){ctx.beginPath();ctx.arc(px(X[i]),py(Y[i]),3,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();}}
+function lossSpark(upto){const w2=104,h=40,x0=CW-w2-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.72)';ctx.fillRect(x0,y0,w2,h);const hist=[];for(let m=0;m<=trees.length;m++)hist.push(mse(m));let hi=Math.max(...hist),lo=Math.min(...hist);if(hi-lo<1e-9)hi=lo+1e-9;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();for(let m=0;m<=upto;m++){const Xp=x0+4+(w2-8)*m/trees.length,Yp=y0+4+(h-8)*(hist[m]-lo)/(hi-lo);m?ctx.lineTo(Xp,Yp):ctx.moveTo(Xp,Yp);}ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('損失↓',x0+4,y0+h-4);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);axes();trueCurve();if(opt.resid!=null)resid(opt.resid);if(opt.fit!=null)curveF(opt.fit,getCSS('--accent'),2.6);pts();if(opt.loss!=null)lossSpark(opt.loss);}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'mean',t:'平均から開始',c:'var(--upd)'},{key:'tree1',t:'残差に木',c:'var(--neg)'},{key:'iter',t:'逐次に足す',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false,curM=0;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='mean')draw({fit:0,resid:0});else if(k==='tree1')draw({fit:1,resid:1});else if(k==='iter')draw({fit:curM,resid:curM,loss:curM});else draw({fit:trees.length,loss:trees.length});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>木の深さ <b>'+MAXD+'(弱)</b></div>';return;}const upto=(k==='mean')?0:(k==='tree1')?1:(k==='iter')?curM:trees.length;m.innerHTML='<div>木 <b>'+upto+'/'+trees.length+'</b></div><div>学習率 <b>'+nu.toFixed(2)+'</b></div><div class="ls">MSE <b>'+mse(upto).toFixed(3)+'</b></div>';}
+function renderLegend(){document.getElementById('legend').textContent='灰破線=真の関数, 橙●=データ, 青=現在の予測(木の合計), 赤=残差(まだ外している分)';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：弱い木を束ねたい</h3><div class="desc">曲線（灰破線）から取ったデータを当てたい。<b>深さ '+MAXD+' の浅い木 1 本では表現力が足りません</b>（弱学習器）。でも、これを賢く<b>足し算</b>すれば強くなれる——それがブースティング。右下でデータ・学習率を変えられます。</div>';}
+  else if(k==='mean'){h+='<h3>② 平均から開始</h3><div class="eq curr">F₀(x) = ȳ（とりあえず全部この高さ）</div><div class="desc">最初の予測は<b>y の平均</b>（青の水平線）。当然ズレだらけで、各点の<b>残差（赤＝y − 予測）</b>が大きい。この「まだ外している分」を次から潰していきます。MSE '+mse(0).toFixed(3)+'。</div>';}
+  else if(k==='tree1'){h+='<h3>③ 残差に木を当てる</h3><div class="eq curr">残差 r = y − F(x) に弱学習器 h を当て、F ← F + ν·h</div><div class="desc">いまの<b>残差（赤）を狙って</b>浅い木を 1 本フィットし、<b>学習率 ν を掛けて少しだけ</b>予測に足します。青線が残差の大きい所へ近づき、赤が縮みました。二乗誤差では「残差＝損失の勾配」なので、これは関数空間の勾配降下です。</div>';}
+  else if(k==='iter'){h+='<h3>④ 逐次に足していく</h3><div class="eq curr">F_m = F_{m−1} + ν·h_m　を繰り返す</div><div class="desc">「残差に木を当てて少し足す」を<b>何本も繰り返す</b>と、予測が曲線に吸い付き、残差と損失が減っていきます（右上）。各木は前の木の<b>間違いを引き継いで修正</b>。木 '+curM+'/'+trees.length+'・MSE '+mse(curM).toFixed(3)+'。</div>';}
+  else{h+='<h3>⑤ 結果：加法モデル</h3><div class="desc">弱い木 '+trees.length+' 本の<b>足し算</b>が、真の関数（灰破線）をよく捉えました（MSE '+mse(trees.length).toFixed(3)+'）。<b>ランダムフォレスト＝並列に育てて平均</b>（バリアンス低減）に対し、<b>ブースティング＝逐次に誤りを修正</b>（バイアス低減）。右下で学習率を下げると、1 本の効きが小さくなり、よりなめらかに。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・残差(=勾配)に弱学習器を当てて足す<br>・学習率νで少しずつ＝関数空間の勾配降下<br>・RF=並列平均 / GB=逐次修正</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='iter'){curM=1;iterAnim();}
+  renderAll();draw_();}
+function iterAnim(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='iter')return;curM=Math.min(trees.length,curM+1);draw_();renderMini();renderExplain();if(curM<trees.length){setTimeout(()=>requestAnimationFrame(go),130);}else anim=false;}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='iter'?500:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=314+(Math.floor(rng()*900));gen();nu=(+document.getElementById('lr').value)/100;fit();stepIdx=0;curM=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('lr').oninput=()=>{nu=(+document.getElementById('lr').value)/100;fit();renderMini();renderExplain();draw_();};
+document.getElementById('dataSel').onchange=()=>{gen();fit();stepIdx=0;curM=0;renderAll();draw_();};
+gen();nu=0.3;fit();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
