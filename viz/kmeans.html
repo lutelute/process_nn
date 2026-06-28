@@ -3,232 +3,152 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>k-means クラスタリング — 教師なし学習</title>
+<title>k-means クラスタリングを理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:22px;font-family:var(--mono);padding:6px 14px 12px;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:19px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.in{color:var(--loss);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .sse b{color:var(--loss);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
-  .phase{padding:0 14px 12px;font-size:12px;color:var(--muted);font-family:var(--mono);}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>k-means クラスタリング — 教師なし学習</h1>
-      <div class="sub">正解ラベル無しで、点群を k 個のまとまりに分ける。各点を最寄りの重心へ割当 → 重心を平均位置へ移動、を繰り返して収束する様子を観察する</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="classify.html">決定境界</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="gradient.html">勾配降下</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>k-means クラスタリングを理解する</h1>
+  <div class="lead"><b>ラベルなし</b>のデータを、似たもの同士の K 個のグループに分ける（教師なし学習）。<b>「最寄りの重心へ割り当て → 重心を平均へ移動」</b>を繰り返すだけ。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">クラスタと重心</div>
-      <div class="canvas-host"><canvas id="board" width="600" height="560"></canvas></div>
-      <div class="phase" id="phaseLine">＋ が重心。背景の色分け＝各点が属する領域（最寄りの重心）。</div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">iteration</div><div class="v" id="itOut">0</div></div>
-          <div><div class="k">慣性 (SSE)</div><div class="v in" id="sseOut">—</div></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="cap">慣性の推移</div>
-        <div class="canvas-host"><canvas id="sseC" width="300" height="150"></canvas></div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="kSel"><option value="2">K = 2</option><option value="3">K = 3</option><option value="4" selected>K = 4</option><option value="5">K = 5</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>真のまとまりの数</label>
-      <select id="blobSel"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select>
-    </div>
-    <div class="field">
-      <label>k（重心の数）</label>
-      <select id="kSel"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="8">8</option></select>
-    </div>
-    <div class="field">
-      <label>ばらつき <span class="val" id="spreadVal"></span></label>
-      <input type="range" id="spreadSlider" min="0.04" max="0.22" step="0.01" value="0.1">
-    </div>
-    <div class="field">
-      <label>速度（iter/秒） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="8" step="1" value="2">
-    </div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ 実行</button>
-      <button id="stepBtn">⏭ 1 反復</button>
-      <button id="resetBtn">↺ 重心リセット</button>
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">手順（Lloyd 法）: ①各点を最寄り重心に割当 → ②各重心をその担当点の平均へ移動。慣性（重心からの距離²の総和）が下がり、変化しなくなれば収束。重心の初期位置で結果が変わります（局所最適）。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：初期値依存と「正しい K」</summary>
+    <div class="det">k-means は最初の重心位置によって、別の<b>局所最適</b>に収束することがあります（「最初から」で初期値が変わり、結果が変わるのを確認）。また K は人が決める必要があり、K を変えると慣性(SSE)は単調に下がるので、<b>下がり方が緩むひじ（エルボー）</b>を目安に選びます。距離だけで分けるため、細長い・入れ子のクラスタは苦手（その場合は GMM などが有効）。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-let seed=7; const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+let seed=10;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
-const PALETTE=['#39e0c4','#d4a36a','#f06f7e','#f0b03a','#7e9cf0','#b07ef0','#7ef0a3','#e8e8e8'];
-
-/* ===== データ ===== */
-let pts=[];           // [{x,y}]
-let assign=[];        // 各点の重心index
-let cents=[];         // [{x,y}]
-let it=0, sseHist=[], running=false, phase='assign';
-
-function genData(){
-  const nb=+blobSel.value, spread=+spreadSlider.value, perBlob=55;
-  pts=[];
-  for(let b=0;b<nb;b++){
-    const cx=(rng()*1.5-0.75), cy=(rng()*1.5-0.75);
-    for(let i=0;i<perBlob;i++)pts.push({x:cx+randn()*spread,y:cy+randn()*spread});
-  }
-  assign=new Array(pts.length).fill(-1);
-}
-function initCents(){
-  const k=+kSel.value;cents=[];
-  // データ点からランダムに k 個選ぶ
-  const idx=[...Array(pts.length).keys()];
-  for(let i=0;i<k;i++){const j=Math.floor(rng()*idx.length);cents.push({x:pts[idx[j]].x,y:pts[idx[j]].y});idx.splice(j,1);}
-  it=0;sseHist=[];phase='assign';assign=new Array(pts.length).fill(-1);
-}
-
-/* ===== Lloyd ステップ ===== */
-function assignStep(){
-  let sse=0;
-  for(let i=0;i<pts.length;i++){
-    let best=0,bd=Infinity;
-    for(let c=0;c<cents.length;c++){const dx=pts[i].x-cents[c].x,dy=pts[i].y-cents[c].y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=c;}}
-    assign[i]=best;sse+=bd;
-  }
-  return sse;
-}
-function updateStep(){
-  const k=cents.length, sx=new Array(k).fill(0), sy=new Array(k).fill(0), cnt=new Array(k).fill(0);
-  for(let i=0;i<pts.length;i++){const a=assign[i];sx[a]+=pts[i].x;sy[a]+=pts[i].y;cnt[a]++;}
-  for(let c=0;c<k;c++){if(cnt[c]>0){cents[c].x=sx[c]/cnt[c];cents[c].y=sy[c]/cnt[c];}}
-}
-function oneIteration(){
-  const sse=assignStep();        // 割当
-  sseHist.push(sse);
-  updateStep();                  // 移動
-  it++;
-  return sse;
-}
-
-/* ===== Canvas ===== */
-const board=document.getElementById('board'),ctx=board.getContext('2d');
-const sseC=document.getElementById('sseC'),sx=sseC.getContext('2d');
-const W=board.width,H=board.height,R=1.1;
-const toPx=x=>(x+R)/(2*R)*W, toPy=y=>(R-y)/(2*R)*H;
-
-function draw(){
-  ctx.clearRect(0,0,W,H);
-  // 背景 Voronoi（最寄り重心で色分け）
-  if(cents.length){
-    const res=60,cw=W/res,ch=H/res;
-    for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){
-      const x=(gx+0.5)/res*2*R-R,y=R-(gy+0.5)/res*2*R;
-      let best=0,bd=Infinity;for(let c=0;c<cents.length;c++){const dx=x-cents[c].x,dy=y-cents[c].y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=c;}}
-      const col=PALETTE[best%PALETTE.length];ctx.fillStyle=hexA(col,0.10);ctx.fillRect(gx*cw,gy*ch,cw+1,ch+1);
-    }
-  }
-  // 点
-  for(let i=0;i<pts.length;i++){const a=assign[i];const col=a>=0?PALETTE[a%PALETTE.length]:'#8595a8';
-    ctx.beginPath();ctx.arc(toPx(pts[i].x),toPy(pts[i].y),3.6,0,7);ctx.fillStyle=col;ctx.globalAlpha=0.9;ctx.fill();ctx.globalAlpha=1;}
-  // 重心
-  for(let c=0;c<cents.length;c++){const col=PALETTE[c%PALETTE.length];const px=toPx(cents[c].x),py=toPy(cents[c].y);
-    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.shadowColor=col;ctx.shadowBlur=8;
-    ctx.beginPath();ctx.moveTo(px-9,py);ctx.lineTo(px+9,py);ctx.moveTo(px,py-9);ctx.lineTo(px,py+9);ctx.stroke();ctx.shadowBlur=0;
-    ctx.fillStyle='#0c1016';ctx.beginPath();ctx.arc(px,py,3,0,7);ctx.fill();ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,py,2,0,7);ctx.fill();}
-}
-function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
-function drawSSE(){
-  const W2=sseC.width,H2=sseC.height;sx.clearRect(0,0,W2,H2);const pad=8;
-  if(sseHist.length<2){sx.fillStyle=getCSS('--faint');sx.font='12px '+getCSS('--gothic');sx.textAlign='center';sx.fillText('実行すると表示',W2/2,H2/2);return;}
-  const hi=Math.max(...sseHist),lo=Math.min(...sseHist,0);
-  const xToP=i=>pad+(W2-2*pad)*i/(sseHist.length-1),yToP=v=>pad+(H2-2*pad)*(hi-v)/(hi-lo+1e-9);
-  sx.strokeStyle=getCSS('--loss');sx.lineWidth=2;sx.beginPath();
-  sseHist.forEach((v,i)=>{const px=xToP(i),py=yToP(v);i?sx.lineTo(px,py):sx.moveTo(px,py);});sx.stroke();
-  sseHist.forEach((v,i)=>{const px=xToP(i),py=yToP(v);sx.fillStyle=getCSS('--loss');sx.beginPath();sx.arc(px,py,2.5,0,7);sx.fill();});
-}
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function updateReadout(){itOut.textContent=it;const sse=sseHist.length?sseHist[sseHist.length-1]:null;sseOut.textContent=sse==null?'—':sse.toFixed(3);
-  const pl=document.getElementById('phaseLine');if(pl&&it>0){const trend=(sseHist.length>1&&sseHist[sseHist.length-1]<sseHist[sseHist.length-2]-1e-6)?'<span style="color:var(--accent)">↓ 改善中</span>':'ほぼ収束';pl.innerHTML='反復 '+it+'：①各点を最寄り重心へ割当 → ②重心を担当点の平均へ移動。慣性(SSE) <b>'+(sse!=null?sse.toFixed(2):'')+'</b>（'+trend+'・小さいほどまとまり良）。＋＝重心、背景＝各点の所属領域。';}}
+const COL=['#39e0c4','#d4a36a','#f06f7e','#c9a6ff','#7c8cff'];
+let pts=[],K=4,cents=[],oldCents=[],assign=[],sseHist=[];
+function genData(){pts=[];const nb=4;for(let b=0;b<nb;b++){const cx=rng()*2-1,cy=rng()*2-1;const n=30+(rng()*20|0);for(let i=0;i<n;i++)pts.push([cx+randn()*0.16,cy+randn()*0.16]);}}
+function initCents(){cents=[];const idx=[...Array(pts.length).keys()];for(let k=0;k<K;k++){const j=(rng()*idx.length)|0;cents.push([pts[idx[j]][0],pts[idx[j]][1]]);idx.splice(j,1);}assign=pts.map(()=>-1);sseHist=[];}
+function assignStep(){let sse=0;for(let i=0;i<pts.length;i++){let b=0,bd=1e9;for(let c=0;c<K;c++){const dx=pts[i][0]-cents[c][0],dy=pts[i][1]-cents[c][1],d=dx*dx+dy*dy;if(d<bd){bd=d;b=c;}}assign[i]=b;sse+=bd;}return sse;}
+function updateStep(){oldCents=cents.map(c=>[...c]);const sx=Array(K).fill(0),sy=Array(K).fill(0),cn=Array(K).fill(0);for(let i=0;i<pts.length;i++){sx[assign[i]]+=pts[i][0];sy[assign[i]]+=pts[i][1];cn[assign[i]]++;}for(let c=0;c<K;c++)if(cn[c]){cents[c]=[sx[c]/cn[c],sy[c]/cn[c]];}}
 
-/* ===== ループ（速度=iter/秒） ===== */
-let acc=0,last=0;
-function loop(ts){
-  if(!running)return;
-  if(!last)last=ts;const dt=(ts-last)/1000;last=ts;acc+=dt*(+spdSlider.value);
-  if(acc>=1){acc=0;const prev=sseHist.length?sseHist[sseHist.length-1]:Infinity;const sse=oneIteration();draw();drawSSE();updateReadout();
-    if(Math.abs(prev-sse)<1e-6){setRun(false);phaseLine.textContent='収束しました（割当が変化しなくなった）。';return;}}
-  requestAnimationFrame(loop);
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const R=1.45,toX=x=>10+(CW-20)*(x+R)/(2*R),toY=y=>10+(CH-20)*(R-y)/(2*R);
+function nearest(x,y){let b=0,bd=1e9;for(let c=0;c<K;c++){const dx=x-cents[c][0],dy=y-cents[c][1],d=dx*dx+dy*dy;if(d<bd){bd=d;b=c;}}return b;}
+function drawVoronoi(){const G=46,cw=(CW-20)/G,ch=(CH-20)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const x=(c+0.5)/G*2*R-R,y=R-(r+0.5)/G*2*R;const k=nearest(x,y);ctx.fillStyle=COL[k];ctx.globalAlpha=0.07;ctx.fillRect(10+c*cw,10+r*ch,cw+1,ch+1);}ctx.globalAlpha=1;}
+function drawCent(c,xy,big){const x=toX(xy[0]),y=toY(xy[1]),s=big?9:7;ctx.strokeStyle=COL[c];ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);ctx.moveTo(x,y-s);ctx.lineTo(x,y+s);ctx.stroke();ctx.fillStyle='#0c1016';ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fill();ctx.strokeStyle=COL[c];ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.stroke();}
+function draw(showVor,colored,lerp){ctx.clearRect(0,0,CW,CH);
+  if(showVor)drawVoronoi();
+  for(let i=0;i<pts.length;i++){ctx.beginPath();ctx.arc(toX(pts[i][0]),toY(pts[i][1]),3,0,7);ctx.fillStyle=colored&&assign[i]>=0?COL[assign[i]]:'#5d6b7e';ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.6)';ctx.stroke();}
+  for(let c=0;c<K;c++){let xy=cents[c];if(lerp!=null&&oldCents[c]){xy=[oldCents[c][0]+(cents[c][0]-oldCents[c][0])*lerp,oldCents[c][1]+(cents[c][1]-oldCents[c][1])*lerp];if(lerp<1){ctx.globalAlpha=.35;drawCent(c,oldCents[c],false);ctx.globalAlpha=1;}}drawCent(c,xy,true);}
+  // SSE sparkline (iter step)
+  if(STEPS[stepIdx].key==='iter'&&sseHist.length>1){const w=110,h=42,x0=CW-w-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.7)';ctx.fillRect(x0,y0,w,h);let hi=Math.max(...sseHist),lo=Math.min(...sseHist);if(hi-lo<1e-6)hi=lo+1e-6;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<sseHist.length;i++){const X=x0+4+(w-8)*i/(sseHist.length-1),Y=y0+4+(h-8)*(sseHist[i]-lo)/(hi-lo);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('SSE↓',x0+4,y0+h-4);}
 }
-function setRun(on){running=on;last=0;acc=0;playBtn.textContent=on?'⏸ 一時停止':'▶ 実行';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(loop);}
 
-/* ===== UI ===== */
-const blobSel=document.getElementById('blobSel'),kSel=document.getElementById('kSel'),spreadSlider=document.getElementById('spreadSlider'),spdSlider=document.getElementById('spdSlider'),
-  itOut=document.getElementById('itOut'),sseOut=document.getElementById('sseOut'),playBtn=document.getElementById('playBtn'),phaseLine=document.getElementById('phaseLine');
-const spreadVal=document.getElementById('spreadVal'),spdVal=document.getElementById('spdVal');
-function lbls(){spreadVal.textContent=(+spreadSlider.value).toFixed(2);spdVal.textContent=spdSlider.value;}
-function fullReset(){setRun(false);genData();initCents();assignStep();draw();drawSSE();updateReadout();phaseLine.textContent='＋ が重心。背景＝各点が属する領域（最寄りの重心）。';}
-function centReset(){setRun(false);initCents();assignStep();draw();drawSSE();updateReadout();}
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'init',t:'初期化',c:'var(--upd)'},{key:'assign',t:'割り当て',c:'var(--accent)'},{key:'move',t:'移動',c:'var(--loss)'},{key:'iter',t:'反復→収束',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false,iterN=0;
+function curSSE(){let sse=0;for(let i=0;i<pts.length;i++){if(assign[i]<0)continue;const dx=pts[i][0]-cents[assign[i]][0],dy=pts[i][1]-cents[assign[i]][1];sse+=dx*dx+dy*dy;}return sse;}
+function drawCur(){const k=STEPS[stepIdx].key;if(k==='data')draw(false,false);else if(k==='init')draw(false,false);else draw(true,true);}
 
-blobSel.onchange=fullReset;kSel.onchange=centReset;spreadSlider.onchange=fullReset;spreadSlider.oninput=lbls;spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);const prev=sseHist.length?sseHist[sseHist.length-1]:Infinity;const sse=oneIteration();draw();drawSSE();updateReadout();if(Math.abs(prev-sse)<1e-6)phaseLine.textContent='収束しました。';};
-document.getElementById('resetBtn').onclick=centReset;
-document.getElementById('dataBtn').onclick=fullReset;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='data')m.innerHTML='<div>点 <b>'+pts.length+'</b></div><div>ラベル <b>なし</b></div>';else m.innerHTML='<div>K <b>'+K+'</b></div>'+(k!=='init'?'<div class="sse">慣性 SSE <b>'+curSSE().toFixed(2)+'</b></div>':'')+(k==='iter'?'<div>反復 <b>'+iterN+'</b></div>':'');}
+function renderLegend(){document.getElementById('legend').textContent=STEPS[stepIdx].key==='data'?'灰色＝ラベルのない点':'＋＝重心、色＝所属クラスタ、背景＝各重心の領域';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：ラベルなしで分ける</h3><div class="desc">正解ラベルのない点の集まり。これを「似たもの同士」の <b>K 個</b>のグループに分けたい（教師なし）。今は K='+K+'（右下で変更可）。</div>';}
+  else if(k==='init'){h+='<h3>② 初期化：重心を K 個置く</h3><div class="eq curr">重心 μ₁ … μ'+K+' をランダムに配置</div><div class="desc">各クラスタの中心（<b>重心</b>＝＋印）を、とりあえずランダムに K 個置きます。ここから「割り当て」と「移動」を繰り返して正しい位置へ。</div>';}
+  else if(k==='assign'){h+='<h3>③ 割り当て：最寄りの重心へ</h3><div class="eq curr">各点 → 最も近い重心のクラスタ</div><div class="desc">すべての点を、<b>最も近い重心</b>の色に塗ります。背景の領域（ボロノイ図）が「どの重心の縄張りか」。今の慣性 SSE = <b style="color:var(--loss)">'+curSSE().toFixed(2)+'</b>（点と重心の距離²の合計）。</div>';}
+  else if(k==='move'){h+='<h3>④ 移動：重心を平均へ</h3><div class="eq curr">μ_c ← (担当する点の平均位置)</div><div class="desc">各重心を、自分に割り当てられた点たちの<b>平均位置</b>へ動かします（薄い＋＝移動前）。重心がデータの「真ん中」に寄り、SSE が下がります。</div>';}
+  else{h+='<h3>⑤ 反復 → 収束</h3><div class="eq curr">割り当て ⇄ 移動 を、変化しなくなるまで繰り返す</div><div class="desc">2 つのステップを交互に繰り返すと、慣性 SSE（右上）が下がり、<b>割り当てが変化しなくなったら収束</b>。反復 '+iterN+'・SSE '+curSSE().toFixed(2)+'。'+(iterN>0&&sseHist.length>1&&Math.abs(sseHist[sseHist.length-1]-sseHist[sseHist.length-2])<1e-4?'<b style="color:var(--accent)">収束しました</b>。':'')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・割り当て(最寄り)→移動(平均)の繰り返し<br>・SSE は単調に減り必ず収束<br>・初期値で結果が変わる／K は人が選ぶ</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-lbls();fullReset();
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;const prevK=STEPS[stepIdx].key;stepIdx=i;const k=STEPS[i].key;
+  if(k==='data'){initCents();assign=pts.map(()=>-1);}
+  else if(k==='init'){seed=(seed*7+13)>>>0;initCents();}
+  else if(k==='assign'){if(cents.length!==K)initCents();assignStep();}
+  else if(k==='move'){assignStep();updateStep();animMove();renderAll();return;}
+  else if(k==='iter'){assignStep();sseHist=[curSSE()];iterN=0;runIter();}
+  renderAll();drawCur();}
+function animMove(){anim=true;let f=0;function go(){if(!anim)return;f++;const e=Math.min(1,f/22);draw(true,true,e);renderMini();if(e<1)requestAnimationFrame(go);else{anim=false;}}requestAnimationFrame(go);}
+function runIter(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='iter')return;const before=curSSE();updateStep();const sse=assignStep();sseHist.push(sse);if(sseHist.length>200)sseHist.shift();iterN++;draw(true,true);renderMini();renderExplain();if(Math.abs(before-sse)<1e-5||iterN>60){anim=false;return;}setTimeout(()=>requestAnimationFrame(go),300);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,1150);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=(Math.floor(rng()*1e9))>>>0;genData();initCents();iterN=0;stepIdx=0;renderAll();drawCur();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('kSel').onchange=e=>{K=+e.target.value;stopAuto();initCents();iterN=0;goStep(0);};
+
+genData();initCents();renderAll();drawCur();
 </script>
 <script src="nav.js"></script>
 </body>
