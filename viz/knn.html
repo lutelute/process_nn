@@ -3,181 +3,155 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>k近傍法 — kNN（事例ベース学習）</title>
+<title>k近傍法（kNN）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --c0:#39e0c4; --c1:#d4a36a; --c2:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --c0:#39e0c4; --c1:#d4a36a; --c2:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:23px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6;}
-  .nav{font-size:12.5px;margin:12px 0 16px;line-height:1.9;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
   .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:10px 14px 14px;}
-  canvas{display:block;width:100%;border-radius:6px;}
-  #space{cursor:crosshair;}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:22px;font-family:var(--mono);padding:8px 14px 12px;flex-wrap:wrap;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.acc{color:var(--accent);}
-  .votebox{padding:0 14px 14px;font-size:12.5px;color:var(--muted);line-height:1.7;}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;cursor:pointer;}
-  select:focus{border-color:var(--accent);}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s;}
-  button:hover{border-color:var(--faint);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;line-height:1.6;}
-  .narr{margin:0 14px 14px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text);}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}.controls{grid-template-columns:repeat(2,1fr);}}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);touch-action:none;}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .votes{margin:10px 0 2px;}
+  .vrow{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;font-family:var(--mono);}
+  .vbar{height:11px;border-radius:3px;transition:width .25s;}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>k近傍法 — kNN（事例ベース学習）</h1>
-    <div class="sub"><b>学習しない</b>「怠惰学習」。新しい点を、最も近い <b>k 個</b>の既知データの多数決で分類する。モデル＝データそのもの。<b>盤面をドラッグ</b>すると、その点の近傍と投票がリアルタイムに見えます。</div>
-  </header>
   <div class="nav"></div>
+  <h1>k近傍法（kNN）を理解する</h1>
+  <div class="lead">「<b>近くにあるものは似ている</b>」だけを使う、最もシンプルな分類。<b>学習（訓練）をしない</b>＝事例をそのまま覚え、新しい点が来たら<b>最も近い k 個</b>の多数決でクラスを決める。下の流れを「次へ」で追い、★を<b>ドラッグ</b>して試してください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">特徴空間：背景＝kNN の予測クラス、★＝あなたの問い合わせ点</div>
-      <div class="canvas-host"><canvas id="space" width="520" height="520"></canvas></div>
-      <div class="narr" id="narrK">盤面をドラッグして★を動かすと、最も近い k 個（線で接続）の多数決で★のクラスが決まります。</div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">k（近傍数）</div><div class="v" id="kOut">5</div></div>
-          <div><div class="k">★の判定</div><div class="v" id="predOut">—</div></div>
-          <div><div class="k">正答率(LOO)</div><div class="v acc" id="accOut">—</div></div>
-        </div>
-        <div class="votebox" id="voteBox">★の近傍 k 個の投票内訳がここに出ます。</div>
-      </div>
-      <div class="card">
-        <div class="cap">k と境界の関係</div>
-        <div class="votebox" style="padding-top:12px;">k が<b>小さい</b>と境界はデータに敏感（複雑・過学習気味）、<b>大きい</b>と滑らか（単純・過小気味）。スライダーで境界の変化を観察。</div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="kSel"><option value="1">k=1</option><option value="3" selected>k=3</option><option value="7">k=7</option><option value="15">k=15</option></select>
+      <select id="dataSel"><option value="blobs">3クラスの塊</option><option value="moons">三日月</option><option value="spiral">渦巻き</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>データの形</label>
-      <select id="dataSel">
-        <option value="circle">円の内外</option>
-        <option value="two">2 つの塊</option>
-        <option value="xor">市松 XOR</option>
-        <option value="moons">三日月</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>k（近傍の数） <span class="val" id="kv"></span></label>
-      <input type="range" id="kSlider" min="1" max="25" step="2" value="5">
-    </div>
-    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">点＝学習データ（色＝クラス）、白丸＝★の近傍</span></div>
-    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">LOO＝各点を残りで予測した正答率</span></div>
-    <div class="buttons">
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">kNN: 問い合わせ点と全データの距離を測り、近い順 k 個のクラスを多数決。学習（パラメータ更新）は無く、データを丸ごと記憶＝事例ベース。境界はデータと k だけで決まる。素の JavaScript 実装。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：k の選び方・「学習しない」とは・弱点</summary>
+    <div class="det">kNN は<b>訓練フェーズが無い</b>（怠惰学習）。コストは予測時に全点との距離を測ること。<b>k 小</b>（=1）は近所 1 個に従うので境界がギザギザで<b>ノイズに弱い（過学習）</b>、<b>k 大</b>は平均化され滑らかだが細部を潰す（過度に単純）。適切な k は交差検証で選ぶ。距離尺度（ユークリッド等）とスケーリングが効くので、特徴量の正規化が重要。次元が高いと「どの点も同じくらい遠い」次元の呪いで性能が落ちます。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-let rng=mulberry32(9);
-const sp=document.getElementById('space'),sx=sp.getContext('2d'),SW=sp.width,SH=sp.height;
-const off=document.createElement('canvas');off.width=SW;off.height=SH;const ox=off.getContext('2d');
-const CLS=['#39e0c4','#d4a36a','#f06f7e'];
-const dataSel=document.getElementById('dataSel'),kSlider=document.getElementById('kSlider'),kv=document.getElementById('kv');
-let X=[],Y=[],K=2,query=[0,0];
-const toX=x=>10+(x+1)/2*(SW-20), toY=y=>10+(1-y)/2*(SH-20);
-const fromX=px=>(px-10)/(SW-20)*2-1, fromY=py=>1-(py-10)/(SH-20)*2;
+let seed=11;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const CLS=['#39e0c4','#d4a36a','#c9a6ff'],CNAME=['A','B','C'];
+let X=[],Y=[],K=3,nClass=3,Q=[0.1,0.1];
+function genData(){X=[];Y=[];const kind=document.getElementById('dataSel').value;
+  if(kind==='blobs'){nClass=3;const ctr=[[-0.6,0.5],[0.6,0.55],[0.0,-0.6]];for(let c=0;c<3;c++)for(let i=0;i<40;i++){X.push([ctr[c][0]+randn()*0.27,ctr[c][1]+randn()*0.27]);Y.push(c);}}
+  else if(kind==='moons'){nClass=2;for(let i=0;i<120;i++){const t=Math.PI*rng();if(i%2===0){X.push([(Math.cos(t)-0.45)*0.95+randn()*0.08,(Math.sin(t)-0.2)*0.95+randn()*0.08]);Y.push(0);}else{X.push([(Math.cos(t+Math.PI)+0.45)*0.95+randn()*0.08,(Math.sin(t+Math.PI)+0.2)*0.95+randn()*0.08]);Y.push(1);}}}
+  else{nClass=2;for(let i=0;i<120;i++){const c=i%2,t=1.6*Math.PI*(i/120)+c*Math.PI,r=0.15+0.85*(i/120);X.push([r*Math.cos(t)+randn()*0.05,r*Math.sin(t)+randn()*0.05]);Y.push(c);}}}
+function neighbors(q,k){const d=X.map((p,i)=>({i,d:Math.hypot(p[0]-q[0],p[1]-q[1])}));d.sort((a,b)=>a.d-b.d);return d.slice(0,k);}
+function vote(nb){const cnt=Array(nClass).fill(0);for(const o of nb)cnt[Y[o.i]]++;let mj=0;for(let c=1;c<nClass;c++)if(cnt[c]>cnt[mj])mj=c;return{cnt,mj};}
+function predict(q,k){return vote(neighbors(q,k)).mj;}
 
-function gen(){X=[];Y=[];const kind=dataSel.value,n=240;
-  for(let i=0;i<n;i++){let x,y,c;
-    if(kind==='moons'){const t=Math.PI*rng();if(i%2===0){x=(Math.cos(t)-0.45)*0.9+(rng()-0.5)*0.13;y=(Math.sin(t)-0.2)*0.9+(rng()-0.5)*0.13;c=0;}else{x=(Math.cos(t+Math.PI)+0.45)*0.9+(rng()-0.5)*0.13;y=(Math.sin(t+Math.PI)+0.2)*0.9+(rng()-0.5)*0.13;c=1;}X.push([x,y]);Y.push(c);continue;}
-    x=rng()*2-1;y=rng()*2-1;
-    if(kind==='circle')c=(x*x+y*y<0.5)?1:0;
-    else if(kind==='xor')c=((x>0)!==(y>0))?1:0;
-    else c=(x<0)?0:1;
-    X.push([x,y]);Y.push(c);}
-  K=Math.max(...Y)+1;}
-
-function voteAt(p,k,excludeIdx){
-  // 距離付きで近い順 k 個 → 多数決
-  const d=[];for(let i=0;i<X.length;i++){if(i===excludeIdx)continue;d.push([(X[i][0]-p[0])**2+(X[i][1]-p[1])**2,Y[i],i]);}
-  d.sort((a,b)=>a[0]-b[0]);const cnt=Array(K).fill(0),nb=[];for(let i=0;i<k&&i<d.length;i++){cnt[d[i][1]]++;nb.push(d[i][2]);}
-  let best=0;for(let c=1;c<K;c++)if(cnt[c]>cnt[best])best=c;return {pred:best,cnt,nb};}
-
-function computeRegions(){const G=96,k=+kSlider.value,cw=(SW-20)/G,ch=(SH-20)/G;
-  ox.clearRect(0,0,SW,SH);
-  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=(c+0.5)/G*2-1,yy=1-(r+0.5)/G*2;const p=voteAt([xx,yy],k,-1).pred;
-    ox.fillStyle=CLS[p];ox.globalAlpha=0.15;ox.fillRect(10+c*cw,10+r*ch,cw+1,ch+1);}
-  ox.globalAlpha=1;
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LO=-1.35,HI=1.35,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
+const fromX=sx=>(sx-14)/(CW-28)*(HI-LO)+LO,fromY=sy=>HI-(sy-14)/(CH-28)*(HI-LO);
+function drawRegions(){const G=56,cw=(CW-28)/G,ch=(CH-28)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=fromX(14+(c+0.5)*cw),yy=fromY(14+(r+0.5)*ch);const p=predict([xx,yy],K);ctx.fillStyle=CLS[p];ctx.globalAlpha=0.14;ctx.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}ctx.globalAlpha=1;}
+function drawPts(){for(let i=0;i<X.length;i++){ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),3,0,7);ctx.fillStyle=CLS[Y[i]];ctx.fill();ctx.lineWidth=.4;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+function drawQ(pred){const x=px(Q[0]),y=py(Q[1]);ctx.save();ctx.translate(x,y);ctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?4:9;ctx[i?'lineTo':'moveTo'](Math.cos(a)*r,-Math.sin(a)*r);}ctx.closePath();ctx.fillStyle=pred>=0?CLS[pred]:'#fff';ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle='#0c1016';ctx.stroke();ctx.restore();}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);if(opt.regions)drawRegions();
+  const k=STEPS[stepIdx].key,nb=neighbors(Q,K),nset=new Set(nb.map(o=>o.i));
+  if(opt.lines){for(let i=0;i<X.length;i++){ctx.strokeStyle='rgba(133,149,168,0.13)';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(px(Q[0]),py(Q[1]));ctx.lineTo(px(X[i][0]),py(X[i][1]));ctx.stroke();}}
+  if(opt.circle){const rk=nb[nb.length-1].d;ctx.strokeStyle='rgba(240,176,58,0.8)';ctx.lineWidth=1.4;ctx.setLineDash([4,3]);ctx.beginPath();ctx.arc(px(Q[0]),py(Q[1]),(px(Q[0]+rk)-px(Q[0])),0,7);ctx.stroke();ctx.setLineDash([]);}
+  drawPts();
+  if(opt.nb){for(const o of nb){ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(px(Q[0]),py(Q[1]));ctx.lineTo(px(X[o.i][0]),py(X[o.i][1]));ctx.stroke();ctx.beginPath();ctx.arc(px(X[o.i][0]),py(X[o.i][1]),5.5,0,7);ctx.lineWidth=2;ctx.strokeStyle=CLS[Y[o.i]];ctx.stroke();}}
+  const pred=(k==='predict'||k==='border')?vote(nb).mj:-1;drawQ(pred);
 }
-function draw(){
-  sx.clearRect(0,0,SW,SH);sx.drawImage(off,0,0);
-  // データ点
-  for(let i=0;i<X.length;i++){sx.beginPath();sx.arc(toX(X[i][0]),toY(X[i][1]),3,0,7);sx.fillStyle=CLS[Y[i]];sx.fill();sx.lineWidth=0.6;sx.strokeStyle='rgba(12,16,22,0.8)';sx.stroke();}
-  // ★の近傍と接続
-  const k=+kSlider.value,res=voteAt(query,k,-1);
-  sx.strokeStyle='rgba(231,237,245,0.45)';sx.lineWidth=1;
-  for(const j of res.nb){sx.beginPath();sx.moveTo(toX(query[0]),toY(query[1]));sx.lineTo(toX(X[j][0]),toY(X[j][1]));sx.stroke();
-    sx.beginPath();sx.arc(toX(X[j][0]),toY(X[j][1]),5.5,0,7);sx.strokeStyle='rgba(231,237,245,0.7)';sx.lineWidth=1.4;sx.stroke();sx.strokeStyle='rgba(231,237,245,0.45)';sx.lineWidth=1;}
-  // ★本体（判定色の縁）
-  const qx=toX(query[0]),qy=toY(query[1]);
-  sx.beginPath();sx.arc(qx,qy,8,0,7);sx.fillStyle='#0c1016';sx.fill();sx.lineWidth=3;sx.strokeStyle=CLS[res.pred];sx.stroke();
-  sx.fillStyle='#fff';sx.font='bold 12px '+'sans-serif';sx.textAlign='center';sx.textBaseline='middle';sx.fillText('★',qx,qy+0.5);
-  updateReadout(res);
-}
-function looAcc(){const k=+kSlider.value;let ok=0;for(let i=0;i<X.length;i++)if(voteAt(X[i],k,i).pred===Y[i])ok++;return ok/X.length;}
-let cachedAcc=null;
-function updateReadout(res){
-  document.getElementById('kOut').textContent=kSlider.value;
-  document.getElementById('predOut').textContent='クラス '+res.pred;document.getElementById('predOut').style.color=CLS[res.pred];
-  document.getElementById('accOut').textContent=cachedAcc==null?'—':(cachedAcc*100).toFixed(1)+'%';
-  const parts=res.cnt.map((c,i)=>'<span style="color:'+CLS[i]+'">クラス'+i+': '+c+'</span>').join(' ／ ');
-  document.getElementById('voteBox').innerHTML='★の近傍 '+kSlider.value+' 個の投票： '+parts+' → 多数決で <b style="color:'+CLS[res.pred]+'">クラス '+res.pred+'</b>';
-  const el=document.getElementById('narrK');if(el){const kk=+kSlider.value;
-    el.innerHTML='★（あなたの点）の最も近い <b>'+kk+'</b> 個を線で結び、その多数決で★を<b style="color:'+CLS[res.pred]+'">クラス '+res.pred+'</b>と判定。'+(kk<=3?'k が小さいので近傍に敏感（境界が複雑）。':kk>=15?'k が大きいので投票が安定（境界が滑らか・大まかに）。':'')+' パラメータ学習は無く、判定はデータと k だけで決まります。';}
-}
-function recompute(){computeRegions();cachedAcc=looAcc();draw();}
 
-// ドラッグで★を移動
-function setQuery(ev){const r=sp.getBoundingClientRect();const px=(ev.clientX-r.left)*(SW/r.width),py=(ev.clientY-r.top)*(SH/r.height);query=[Math.max(-1,Math.min(1,fromX(px))),Math.max(-1,Math.min(1,fromY(py)))];draw();}
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'dist',t:'距離',c:'var(--warm)'},{key:'knn',t:'k近傍',c:'var(--loss)'},{key:'predict',t:'多数決',c:'var(--accent)'},{key:'border',t:'境界とk',c:'var(--upd)'}];
+let stepIdx=0;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='data')draw({});else if(k==='dist')draw({lines:true});else if(k==='knn')draw({nb:true,circle:true});else if(k==='predict')draw({nb:true,circle:true});else draw({regions:true,nb:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function acc(){let ok=0;for(let i=0;i<X.length;i++){const nb=neighbors(X[i],K+1).filter(o=>o.i!==i).slice(0,K);if(vote(nb).mj===Y[i])ok++;}return ok/X.length;}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='border')m.innerHTML='<div>k <b>'+K+'</b></div><div>LOO正答率 <b>'+(acc()*100).toFixed(0)+'%</b></div>';else m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>クラス <b>'+nClass+'</b></div><div>k <b>'+K+'</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='border')?'背景=kNNの決定領域 / ★=クエリ(ドラッグ可)':'★=分類したい新しい点（ドラッグで移動）, 色=クラス';}
+function voteBars(){const nb=neighbors(Q,K),{cnt,mj}=vote(nb);let h='<div class="votes">';for(let c=0;c<nClass;c++)h+='<div class="vrow"><span style="color:'+CLS[c]+'">クラス'+CNAME[c]+'</span><div class="vbar" style="width:'+(cnt[c]/K*120)+'px;background:'+CLS[c]+'"></div><span>'+cnt[c]+'票</span>'+(c===mj?' ←勝ち':'')+'</div>';h+='</div>';return h;}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：新しい点を分類</h3><div class="desc">色つきの点が訓練データ（'+nClass+'クラス）。白い<b>★が分類したい新しい点</b>。kNN は<b>モデルを学習しません</b>——データを覚えておくだけ。★を<b>ドラッグ</b>して動かせます。</div>';}
+  else if(k==='dist'){h+='<h3>② 距離を測る</h3><div class="eq curr">d(★, 各点) = √(Δx² + Δy²)</div><div class="desc">予測のとき、★から<b>すべての訓練点までの距離</b>を計算します（細い線）。kNN の計算は基本これだけ。あとは近い順に並べます。</div>';}
+  else if(k==='knn'){h+='<h3>③ 最も近い k 個</h3><div class="eq curr">k = '+K+'（右下で変更可）</div><div class="desc">距離が近い順に <b>k='+K+' 個</b>だけ選びます（橙線＋丸）。点線の円は「k 番目に近い点までの距離」。この k 個の<b>クラスだけ</b>を見て決めます。</div>';}
+  else if(k==='predict'){const {mj}=vote(neighbors(Q,K));h+='<h3>④ 多数決</h3><div class="desc">選んだ k 個の近傍で<b>クラスの多数決</b>。最も票が多いクラスが ★ の予測になります。</div>'+voteBars()+'<div class="desc" style="margin-top:6px;">→ ★ の予測は <b style="color:'+CLS[mj]+'">クラス'+CNAME[mj]+'</b>。★をドラッグすると即座に変わります。</div>';}
+  else{h+='<h3>⑤ 決定境界と k の効果</h3><div class="desc">全ての位置で同じ判定をすると<b>決定領域</b>（背景色）ができます。<b>k 小</b>＝境界がギザギザでノイズに敏感（過学習）、<b>k 大</b>＝滑らかだが大ざっぱ。右下の k を変えて見比べてください。LOO 正答率 '+(acc()*100).toFixed(0)+'%。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・訓練なし＝事例をそのまま使う<br>・近い k 個の多数決で分類<br>・k が小→複雑/過学習、大→滑らか</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw_();}
+
+// drag
 let dragging=false;
-sp.addEventListener('mousedown',e=>{dragging=true;setQuery(e);});
-sp.addEventListener('mousemove',e=>{if(dragging)setQuery(e);});
-window.addEventListener('mouseup',()=>dragging=false);
-sp.addEventListener('touchstart',e=>{dragging=true;setQuery(e.touches[0]);e.preventDefault();},{passive:false});
-sp.addEventListener('touchmove',e=>{if(dragging)setQuery(e.touches[0]);e.preventDefault();},{passive:false});
-window.addEventListener('touchend',()=>dragging=false);
-
-kSlider.oninput=()=>{kv.textContent=kSlider.value;recompute();};
-dataSel.onchange=()=>{gen();query=[0,0];recompute();};
-document.getElementById('dataBtn').onclick=()=>{rng=mulberry32((rng()*1e9)>>>0);gen();query=[0,0];recompute();};
-
-kv.textContent=kSlider.value;gen();recompute();
+function evPos(e){const r=cv.getBoundingClientRect(),sx=(e.touches?e.touches[0].clientX:e.clientX)-r.left,sy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;const sc=CW/r.width;return[sx*sc,sy*sc];}
+function setQ(e){const[sx,sy]=evPos(e);Q=[Math.max(LO,Math.min(HI,fromX(sx))),Math.max(LO,Math.min(HI,fromY(sy)))];renderMini();renderExplain();draw_();}
+cv.addEventListener('pointerdown',e=>{dragging=true;cv.setPointerCapture(e.pointerId);setQ(e);});
+cv.addEventListener('pointermove',e=>{if(dragging){e.preventDefault();setQ(e);}});
+cv.addEventListener('pointerup',()=>dragging=false);
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>{seed=11;genData();Q=[0.1,0.1];goStep(0);};
+document.getElementById('kSel').onchange=e=>{K=+e.target.value;renderAll();draw_();};
+document.getElementById('dataSel').onchange=()=>{genData();Q=[0.1,0.1];renderAll();draw_();};
+genData();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
 </body>
