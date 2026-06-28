@@ -14,6 +14,7 @@
     { href: 'classify.html',    label: '決定境界' },
     { href: 'digit.html',       label: '数字認識' },
     { href: 'dtree.html',       label: '決定木' },
+    { href: 'forest.html',      label: 'ランダムフォレスト' },
     { href: 'knn.html',         label: 'kNN' },
     { href: 'svm.html',         label: 'SVM' },
     { href: 'naivebayes.html',  label: 'ナイーブベイズ' },
