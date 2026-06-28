@@ -76,6 +76,7 @@
     <div class="bar">
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ ★を動かす</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
       <select id="dataSel"><option value="blobs">3クラスの塊</option><option value="corr">相関データ(限界の例)</option></select>
@@ -132,18 +133,24 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
   else{const isC=document.getElementById('dataSel').value==='corr';h+='<h3>⑤ 決定境界と「ナイーブ」の限界</h3><div class="desc">全位置で予測すると決定領域（背景色）に。境界は分布が交わる<b>曲線</b>になります。正答率 '+(acc()*100).toFixed(0)+'%。'+(isC?'<b style="color:var(--loss)">今は相関データ</b>：本当は斜めに伸びているのに楕円は軸平行のまま＝独立仮定が崩れ、当てはまりが悪い。':'右下で「相関データ」を選ぶと、軸平行の楕円が斜めの分布に合わず精度が落ちる様子＝独立仮定の限界が見えます。')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・各クラスを分布でモデル化（生成モデル）<br>・P(c|x)∝P(x|c)P(c) の最大を選ぶ<br>・特徴を独立と仮定＝単純高速だが相関に弱い</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
-function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw_();}
+let auto=false,ang=0;
+const MOVE={post:1,border:1};
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ ★を動かす';}
+function autoTick(){if(!auto)return;ang+=0.022;Q=[0.98*Math.cos(ang),0.86*Math.sin(1.4*ang)];renderExplain();draw_();requestAnimationFrame(autoTick);}
+function startAuto(){if(auto)return;auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(autoTick);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;if(!MOVE[k])stopAuto();renderAll();draw_();if(MOVE[k])startAuto();}
 
 let dragging=false;
 function evPos(e){const r=cv.getBoundingClientRect(),sx=(e.touches?e.touches[0].clientX:e.clientX)-r.left,sy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;const sc=CW/r.width;return[sx*sc,sy*sc];}
 function setQ(e){const[sx,sy]=evPos(e);Q=[Math.max(LO,Math.min(HI,fromX(sx))),Math.max(LO,Math.min(HI,fromY(sy)))];renderExplain();draw_();}
-cv.addEventListener('pointerdown',e=>{dragging=true;cv.setPointerCapture(e.pointerId);setQ(e);});
+cv.addEventListener('pointerdown',e=>{stopAuto();dragging=true;cv.setPointerCapture(e.pointerId);setQ(e);});
 cv.addEventListener('pointermove',e=>{if(dragging){e.preventDefault();setQ(e);}});
 cv.addEventListener('pointerup',()=>dragging=false);
 document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
-document.getElementById('resetBtn').onclick=()=>{seed=31;genData();fit();Q=[0,0];goStep(0);};
-document.getElementById('dataSel').onchange=()=>{genData();fit();Q=[0,0];renderAll();draw_();};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(!MOVE[STEPS[stepIdx].key])goStep(3);else startAuto();}};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();seed=31;genData();fit();Q=[0,0];goStep(0);};
+document.getElementById('dataSel').onchange=()=>{stopAuto();genData();fit();Q=[0,0];renderAll();draw_();};
 genData();fit();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
