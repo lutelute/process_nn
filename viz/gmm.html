@@ -3,214 +3,151 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GMM — 混合ガウスモデルを EM 法で学習</title>
+<title>GMM（混合ガウス）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:20px;font-family:var(--mono);padding:6px 14px 12px;flex-wrap:wrap;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
-  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.ll{color:var(--loss);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ll b{color:var(--loss);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
-  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
-  .legend span{display:inline-flex;align-items:center;gap:7px;}
-  .dotmark{width:10px;height:10px;border-radius:50%;}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>GMM — 混合ガウスを EM 法で学習</h1>
-      <div class="sub">データを複数のガウス分布の重ね合わせで説明する。E ステップ（各点がどの成分に属すかの確率）と M ステップ（成分の更新）を繰り返し、楕円がクラスタに吸い付く。k-means の「ソフト版」</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="kmeans.html">k-means</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>GMM（混合ガウス）を理解する</h1>
+  <div class="lead">データを<b>複数のガウス分布の重ね合わせ</b>で表すモデル。k-means の「丸くハッキリ分ける」と違い、<b>楕円</b>の形と<b>所属確率（ソフト割当）</b>で柔らかく分ける。<b>EM 法</b>で学習します。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">データ（色＝所属確率）と各成分のガウス楕円（2σ）</div>
-      <div class="canvas-host"><canvas id="board" width="600" height="520"></canvas></div>
-      <div class="legend">
-        <span><i class="dotmark" style="background:var(--accent)"></i>各点は最も確率の高い成分の色（薄いほど曖昧）</span>
-        <span>楕円＝成分の平均と共分散</span>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
       </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">反復</div><div class="v" id="itOut">0</div></div>
-          <div><div class="k">対数尤度</div><div class="v ll" id="llOut">—</div></div>
-        </div>
-        <div class="note" style="padding:0 14px 12px;">EM は対数尤度を単調に増やし、必ず収束します（局所最適）。</div>
-        <div id="narrM" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ EM 反復で、各点の所属確率（E ステップ）と各成分の平均・共分散（M ステップ）を交互に更新します。</div>
-      </div>
-      <div class="card">
-        <div class="cap">対数尤度の推移（増加＝改善）</div>
-        <div class="canvas-host"><canvas id="llC" width="300" height="150"></canvas></div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="kSel"><option value="2">K = 2</option><option value="3" selected>K = 3</option><option value="4">K = 4</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>真のまとまりの数</label>
-      <select id="trueSel"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select>
-    </div>
-    <div class="field">
-      <label>成分数 K（当てはめる数）</label>
-      <select id="kSel"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select>
-    </div>
-    <div class="field">
-      <label>速度（反復/フレーム） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="5" step="1" value="1">
-    </div>
-    <div class="field" style="justify-content:flex-end;">
-      <span class="note" style="grid-column:auto;">K を真の数とずらすと過不足も観察できます</span>
-    </div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ EM 反復</button>
-      <button id="stepBtn">⏭ 1 反復（E→M）</button>
-      <button id="resetBtn">↺ 成分リセット</button>
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">E ステップ: 各点 i が成分 k に属す確率（責任）γ(i,k)=πₖN(xᵢ|μₖ,Σₖ)/Σⱼ… を計算。M ステップ: γ で重み付けして各成分の重み πₖ・平均 μₖ・共分散 Σₖ を更新。k-means が「最寄り 1 個に割当（ハード）」なのに対し、GMM は「確率的に複数へ分配（ソフト）」し、楕円形のクラスタも表せます。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：k-means との違い／対数尤度が必ず上がる理由</summary>
+    <div class="det">k-means は「最も近い 1 つ」に割り当てる（ハード）＆等方的（丸）。GMM は各点が「各ガウスに何 % 属すか」（ソフト）＆<b>共分散</b>で楕円の向き・伸びを表せるので、傾いた/重なったクラスタに強い。EM は E ステップ（責任を計算）と M ステップ（その責任で分布を更新）を繰り返し、<b>対数尤度が単調に増加</b>して収束します（局所最適）。実は k-means は GMM の特殊な極限（分散→0・ハード割当）。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
 let seed=33;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
-const PALETTE=['#39e0c4','#d4a36a','#f06f7e','#b07ef0','#f0b03a'];
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const COL=['#39e0c4','#d4a36a','#f06f7e','#c9a6ff'];
+const RGB=COL.map(h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]);
+let pts=[],K=3,pi=[],mu=[],Sig=[],gamma=[],llHist=[];
+function genData(){pts=[];const specs=[[-0.6,0.35,0.5,1.1,0.7],[0.7,0.45,0.9,0.45,-0.4],[0.05,-0.75,1.0,0.4,0.0]];
+  for(let c=0;c<3;c++){const[cx,cy,e,sc,ang]=specs[c];const ca=Math.cos(ang),sa=Math.sin(ang),sx=0.22*e,sy=0.22/Math.sqrt(e);for(let i=0;i<70;i++){const a=randn()*sx*sc,b=randn()*sy*sc;pts.push([cx+ca*a-sa*b,cy+sa*a+ca*b]);}}}
+function initModel(){pi=[];mu=[];Sig=[];gamma=pts.map(()=>new Float64Array(K));const idx=[...Array(pts.length).keys()];for(let k=0;k<K;k++){pi.push(1/K);const j=(rng()*idx.length)|0;mu.push([pts[idx[j]][0],pts[idx[j]][1]]);idx.splice(j,1);Sig.push([0.1,0,0,0.1]);}llHist=[];}
+function gauss(x,m,S){const dx=x[0]-m[0],dy=x[1]-m[1];let det=S[0]*S[3]-S[1]*S[2];if(det<1e-9)det=1e-9;const iv=[S[3]/det,-S[1]/det,-S[2]/det,S[0]/det];const q=dx*(iv[0]*dx+iv[1]*dy)+dy*(iv[2]*dx+iv[3]*dy);return Math.exp(-0.5*q)/(2*Math.PI*Math.sqrt(det));}
+function eStep(){let ll=0;for(let i=0;i<pts.length;i++){let s=0;const w=new Float64Array(K);for(let k=0;k<K;k++){w[k]=pi[k]*gauss(pts[i],mu[k],Sig[k]);s+=w[k];}if(s<1e-300)s=1e-300;for(let k=0;k<K;k++)gamma[i][k]=w[k]/s;ll+=Math.log(s);}return ll/pts.length;}
+function mStep(){for(let k=0;k<K;k++){let Nk=0,mx=0,my=0;for(let i=0;i<pts.length;i++){const g=gamma[i][k];Nk+=g;mx+=g*pts[i][0];my+=g*pts[i][1];}if(Nk<1e-9)Nk=1e-9;pi[k]=Nk/pts.length;mu[k]=[mx/Nk,my/Nk];let a=0,b=0,d=0;for(let i=0;i<pts.length;i++){const g=gamma[i][k],dx=pts[i][0]-mu[k][0],dy=pts[i][1]-mu[k][1];a+=g*dx*dx;b+=g*dx*dy;d+=g*dy*dy;}Sig[k]=[a/Nk+2e-3,b/Nk,b/Nk,d/Nk+2e-3];}}
 
-/* ===== データ ===== */
-let pts=[];
-function genData(){
-  const nt=+trueSel.value;pts=[];
-  for(let c=0;c<nt;c++){
-    const cx=(rng()*1.4-0.7),cy=(rng()*1.4-0.7);
-    const ang=rng()*Math.PI,e=1+rng()*2.5,sx=0.16*e,sy=0.16/Math.sqrt(e),ca=Math.cos(ang),sa=Math.sin(ang);
-    for(let i=0;i<60;i++){const a=randn()*sx,b=randn()*sy;pts.push([cx+ca*a-sa*b,cy+sa*a+ca*b]);}
-  }
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const R=1.5,toX=x=>10+(CW-20)*(x+R)/(2*R),toY=y=>10+(CH-20)*(R-y)/(2*R);
+function drawEllipse(m,S,kk,col,al){const a=S[0],b=S[1],d=S[3];const tr=a+d,det=a*d-b*b;const dis=Math.sqrt(Math.max(0,tr*tr/4-det));const l1=tr/2+dis,l2=Math.max(1e-6,tr/2-dis);const th=0.5*Math.atan2(2*b,a-d);
+  ctx.save();ctx.translate(toX(m[0]),toY(m[1]));ctx.rotate(-th);ctx.strokeStyle=col;ctx.globalAlpha=al;ctx.lineWidth=1.8;ctx.beginPath();ctx.ellipse(0,0,kk*Math.sqrt(l1)*(CW-20)/(2*R),kk*Math.sqrt(l2)*(CH-20)/(2*R),0,0,7);ctx.stroke();ctx.restore();ctx.globalAlpha=1;}
+function ptColor(i,soft){if(!soft){let b=0;for(let k=1;k<K;k++)if(gamma[i][k]>gamma[i][b])b=k;return COL[b];}let r=0,g=0,bl=0;for(let k=0;k<K;k++){r+=gamma[i][k]*RGB[k][0];g+=gamma[i][k]*RGB[k][1];bl+=gamma[i][k]*RGB[k][2];}return`rgb(${r|0},${g|0},${bl|0})`;}
+function draw(showModel,colored,soft){ctx.clearRect(0,0,CW,CH);
+  for(let i=0;i<pts.length;i++){ctx.beginPath();ctx.arc(toX(pts[i][0]),toY(pts[i][1]),3,0,7);ctx.fillStyle=colored?ptColor(i,soft):'#5d6b7e';ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.6)';ctx.stroke();}
+  if(showModel)for(let k=0;k<K;k++){drawEllipse(mu[k],Sig[k],1,COL[k],0.9);drawEllipse(mu[k],Sig[k],2,COL[k],0.4);ctx.fillStyle=COL[k];ctx.beginPath();ctx.arc(toX(mu[k][0]),toY(mu[k][1]),3.5,0,7);ctx.fill();}
+  if(STEPS[stepIdx].key==='iter'&&llHist.length>1){const w=110,h=42,x0=CW-w-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.7)';ctx.fillRect(x0,y0,w,h);let hi=Math.max(...llHist),lo=Math.min(...llHist);if(hi-lo<1e-6)hi=lo+1e-6;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<llHist.length;i++){const X=x0+4+(w-8)*i/(llHist.length-1),Y=y0+4+(h-8)*(hi-llHist[i])/(hi-lo);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('対数尤度↑',x0+4,y0+h-4);}
 }
 
-/* ===== GMM パラメータ ===== */
-let K,pi,mu,Sig,gamma,it,llHist,lastLL;
-function reset(){
-  K=+kSel.value;pi=[];mu=[];Sig=[];
-  const idx=[...Array(pts.length).keys()];
-  for(let k=0;k<K;k++){pi.push(1/K);const j=Math.floor(rng()*idx.length);mu.push([pts[idx[j]][0],pts[idx[j]][1]]);idx.splice(j,1);Sig.push([0.08,0,0,0.08]);}
-  gamma=pts.map(()=>new Float64Array(K));it=0;llHist=[];lastLL=null;
-  eStep();draw();drawLL();updateReadout();
-}
-function gauss(x,m,S){const dx=x[0]-m[0],dy=x[1]-m[1];let det=S[0]*S[3]-S[1]*S[2];if(det<1e-9)det=1e-9;
-  const iv=[S[3]/det,-S[1]/det,-S[2]/det,S[0]/det];const q=dx*(iv[0]*dx+iv[1]*dy)+dy*(iv[2]*dx+iv[3]*dy);
-  return Math.exp(-0.5*q)/(2*Math.PI*Math.sqrt(det));}
-function eStep(){
-  let ll=0;
-  for(let i=0;i<pts.length;i++){let s=0;const w=new Float64Array(K);for(let k=0;k<K;k++){w[k]=pi[k]*gauss(pts[i],mu[k],Sig[k]);s+=w[k];}
-    if(s<1e-300)s=1e-300;for(let k=0;k<K;k++)gamma[i][k]=w[k]/s;ll+=Math.log(s);}
-  lastLL=ll/pts.length;return lastLL;
-}
-function mStep(){
-  for(let k=0;k<K;k++){let Nk=0,mx=0,my=0;for(let i=0;i<pts.length;i++){const g=gamma[i][k];Nk+=g;mx+=g*pts[i][0];my+=g*pts[i][1];}
-    if(Nk<1e-9)Nk=1e-9;pi[k]=Nk/pts.length;mu[k]=[mx/Nk,my/Nk];
-    let a=0,b=0,d=0;for(let i=0;i<pts.length;i++){const g=gamma[i][k],dx=pts[i][0]-mu[k][0],dy=pts[i][1]-mu[k][1];a+=g*dx*dx;b+=g*dx*dy;d+=g*dy*dy;}
-    Sig[k]=[a/Nk+1e-4,b/Nk,b/Nk,d/Nk+1e-4];}
-}
-function emStep(){mStep();const ll=eStep();it++;llHist.push(ll);if(llHist.length>2000)llHist.shift();}
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'model',t:'モデル',c:'var(--upd)'},{key:'e',t:'E：責任',c:'var(--accent)'},{key:'m',t:'M：更新',c:'var(--loss)'},{key:'iter',t:'反復→収束',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false,iterN=0,lastLL=null;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='data')draw(false,false);else if(k==='model')draw(true,false);else draw(true,true,true);}
 
-/* ===== Canvas ===== */
-const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height,R=1.25;
-const llC=document.getElementById('llC'),lx=llC.getContext('2d');
-function getCSS(x){return getComputedStyle(document.documentElement).getPropertyValue(x).trim();}
-const toPx=x=>(x+R)/(2*R)*BW, toPy=y=>(R-y)/(2*R)*BH;
-function mix(hex,al){const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${al})`;}
-function draw(){
-  bx.clearRect(0,0,BW,BH);
-  bx.strokeStyle=getCSS('--grid');bx.lineWidth=1;bx.beginPath();bx.moveTo(toPx(0),0);bx.lineTo(toPx(0),BH);bx.moveTo(0,toPy(0));bx.lineTo(BW,toPy(0));bx.stroke();
-  // 点（最大責任の色, 濃さ=確信）
-  for(let i=0;i<pts.length;i++){let bk=0,bv=0;for(let k=0;k<K;k++)if(gamma[i][k]>bv){bv=gamma[i][k];bk=k;}
-    bx.beginPath();bx.arc(toPx(pts[i][0]),toPy(pts[i][1]),3.3,0,7);bx.fillStyle=mix(PALETTE[bk%PALETTE.length],0.35+0.6*bv);bx.fill();}
-  // 成分楕円（2σ）
-  for(let k=0;k<K;k++){drawEllipse(mu[k],Sig[k],PALETTE[k%PALETTE.length]);
-    bx.beginPath();bx.arc(toPx(mu[k][0]),toPy(mu[k][1]),4,0,7);bx.fillStyle=PALETTE[k%PALETTE.length];bx.fill();bx.strokeStyle='#0c1016';bx.lineWidth=1.5;bx.stroke();}
-}
-function drawEllipse(m,S,col){
-  const a=S[0],b=S[1],d=S[3];const tr=(a+d)/2,disc=Math.sqrt(Math.max(0,((a-d)/2)**2+b*b));
-  const l1=tr+disc,l2=Math.max(1e-6,tr-disc);
-  let e1;if(Math.abs(b)>1e-9)e1=[l1-d,b];else e1=a>=d?[1,0]:[0,1];const n1=Math.hypot(e1[0],e1[1]);e1=[e1[0]/n1,e1[1]/n1];const e2=[-e1[1],e1[0]];
-  const r1=2*Math.sqrt(l1),r2=2*Math.sqrt(l2);
-  bx.strokeStyle=col;bx.lineWidth=2;bx.globalAlpha=0.9;bx.beginPath();
-  for(let t=0;t<=40;t++){const th=t/40*2*Math.PI;const wx=m[0]+Math.cos(th)*r1*e1[0]+Math.sin(th)*r2*e2[0],wy=m[1]+Math.cos(th)*r1*e1[1]+Math.sin(th)*r2*e2[1];const px=toPx(wx),py=toPy(wy);t?bx.lineTo(px,py):bx.moveTo(px,py);}
-  bx.stroke();bx.globalAlpha=1;bx.fillStyle=mix(col,0.06);bx.fill();
-}
-function drawLL(){const W2=llC.width,H2=llC.height;lx.clearRect(0,0,W2,H2);const pad=8;
-  if(llHist.length<2){lx.fillStyle=getCSS('--faint');lx.font='12px '+getCSS('--gothic');lx.textAlign='center';lx.fillText('反復で表示',W2/2,H2/2);return;}
-  let hi=Math.max(...llHist),lo=Math.min(...llHist);if(hi-lo<0.1)lo=hi-0.1;
-  lx.strokeStyle=getCSS('--loss');lx.lineWidth=1.8;lx.beginPath();const st=Math.max(1,Math.floor(llHist.length/(W2-2*pad)));
-  for(let i=0;i<llHist.length;i+=st){const px=pad+(W2-2*pad)*i/(llHist.length-1),py=pad+(H2-2*pad)*(hi-llHist[i])/(hi-lo);i?lx.lineTo(px,py):lx.moveTo(px,py);}lx.stroke();}
-function updateReadout(){itOut.textContent=it;llOut.textContent=lastLL==null?'—':lastLL.toFixed(3);
-  const el=document.getElementById('narrM');if(el&&it>0){const up=(llHist.length>1&&llHist[llHist.length-1]>llHist[llHist.length-2]+1e-6)?'<span style="color:var(--accent)">↑ 改善中</span>':'ほぼ収束';el.innerHTML='反復 '+it+'：E＝各点が各成分に属す確率を計算 → M＝その重みで成分の平均・共分散・重みを更新。対数尤度 <b>'+lastLL.toFixed(3)+'</b>（'+up+'）。楕円がクラスタに吸い付きます。';}}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='data')m.innerHTML='<div>点 <b>'+pts.length+'</b></div>';else m.innerHTML='<div>K <b>'+K+'</b></div>'+(lastLL!=null&&k!=='model'?'<div class="ll">対数尤度 <b>'+lastLL.toFixed(3)+'</b></div>':'')+(k==='iter'?'<div>反復 <b>'+iterN+'</b></div>':'');}
+function renderLegend(){document.getElementById('legend').textContent=STEPS[stepIdx].key==='data'?'灰色＝ラベルのない点':'楕円＝各ガウス(1σ/2σ)、点の色＝所属確率の混ぜ合わせ';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：重なった・傾いた塊</h3><div class="desc">クラスタが<b>楕円形で傾き、重なり</b>もある。k-means の「丸く等距離」では上手く分けられません。GMM は形（共分散）と確率で柔らかく分けます。K='+K+'（右下で変更）。</div>';}
+  else if(k==='model'){h+='<h3>② モデル：K 個のガウス</h3><div class="eq curr">p(x) = Σ π_k · 𝒩(x | μ_k, Σ_k)</div><div class="desc">データを K 個のガウス分布（<b>楕円</b>）の重ね合わせで表す。各ガウスは平均 μ（中心）・共分散 Σ（楕円の形）・重み π（大きさ）を持つ。最初は適当に配置。</div>';}
+  else if(k==='e'){h+='<h3>③ E ステップ：責任を計算</h3><div class="eq curr">γ(点 → k) = π_k 𝒩_k / Σ_j π_j 𝒩_j</div><div class="desc">各点が「どのガウスに何 % 属すか」（<b>責任 γ</b>＝ソフト割当）を計算。点の色は所属確率を<b>混ぜた色</b>で表示（境界の点は中間色）。k-means の 0/1 と違い連続的。</div>';}
+  else if(k==='m'){h+='<h3>④ M ステップ：分布を更新</h3><div class="eq curr">μ_k, Σ_k, π_k ← 責任 γ で重み付けした統計量</div><div class="desc">いま計算した責任を使って、各ガウスの<b>平均・共分散（楕円の向き/伸び）・重み</b>を更新。楕円がデータの塊の形にフィットしていきます。</div>';}
+  else{h+='<h3>⑤ 反復 → 収束</h3><div class="eq curr">E ⇄ M を、対数尤度が増えなくなるまで繰り返す</div><div class="desc">E と M を交互に繰り返すと、<b>対数尤度（右上）が単調に増加</b>し収束。楕円が各クラスタの形にぴったり吸い付きます。反復 '+iterN+'・対数尤度 '+(lastLL!=null?lastLL.toFixed(3):'—')+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・データ＝ガウスの重ね合わせ<br>・E=責任(ソフト割当)、M=分布の更新<br>・共分散で楕円＝傾き/重なりに強い</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-/* ===== ループ ===== */
-let running=false;
-function frame(){if(!running)return;for(let i=0;i<(+spdSlider.value);i++)emStep();draw();drawLL();updateReadout();
-  if(llHist.length>3&&Math.abs(llHist[llHist.length-1]-llHist[llHist.length-2])<1e-5){running=false;playBtn.textContent='▶ EM 反復';playBtn.classList.add('primary');}requestAnimationFrame(frame);}
-function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ EM 反復';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
-
-/* ===== UI ===== */
-const trueSel=document.getElementById('trueSel'),kSel=document.getElementById('kSel'),spdSlider=document.getElementById('spdSlider'),
-  playBtn=document.getElementById('playBtn'),itOut=document.getElementById('itOut'),llOut=document.getElementById('llOut');
-const spdVal=document.getElementById('spdVal');
-function lbls(){spdVal.textContent=spdSlider.value;}
-trueSel.onchange=()=>{genData();reset();};
-kSel.onchange=reset;spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);emStep();draw();drawLL();updateReadout();};
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='data'){initModel();}
+  else if(k==='model'){seed=(seed*7+5)>>>0;initModel();}
+  else if(k==='e'){if(!mu.length)initModel();lastLL=eStep();}
+  else if(k==='m'){lastLL=eStep();mStep();lastLL=eStep();}
+  else if(k==='iter'){lastLL=eStep();llHist=[lastLL];iterN=0;runIter();}
+  renderAll();draw_();}
+function runIter(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='iter')return;const before=lastLL;mStep();lastLL=eStep();llHist.push(lastLL);if(llHist.length>200)llHist.shift();iterN++;draw_();renderMini();renderExplain();if((before!=null&&Math.abs(lastLL-before)<1e-4)||iterN>60){anim=false;return;}setTimeout(()=>requestAnimationFrame(go),320);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=(Math.floor(rng()*1e9))>>>0;genData();initModel();iterN=0;lastLL=null;stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
-document.getElementById('dataBtn').onclick=()=>{seed=(Math.floor(rng()*1e9))>>>0;genData();reset();};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('kSel').onchange=e=>{K=+e.target.value;stopAuto();initModel();iterN=0;lastLL=null;goStep(0);};
 
-lbls();genData();reset();
+genData();initModel();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
 </body>
