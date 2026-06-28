@@ -24,6 +24,7 @@
     { href: '../gpt2/',         label: 'GPT-2' },
     { href: 'kmeans.html',      label: 'k-means' },
     { href: 'gmm.html',         label: 'GMM' },
+    { href: 'dbscan.html',      label: 'DBSCAN' },
     { href: 'som.html',         label: 'SOM' },
     { href: 'hopfield.html',    label: 'Hopfield' },
     { href: 'pca.html',         label: 'PCA' },

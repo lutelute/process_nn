@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DBSCAN（密度クラスタリング）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --cl0:#39e0c4; --cl1:#d4a36a; --cl2:#c9a6ff; --cl3:#7c8cff; --cl4:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .cl b{color:var(--accent);} .mini .nz b{color:var(--faint);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:96px;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>DBSCAN（密度クラスタリング）を理解する</h1>
+  <div class="lead">クラスタ数を指定せず、<b>点が密集している領域</b>をクラスタとみなす教師なし学習。<b>任意の形（三日月・渦巻き）</b>を分けられ、どのクラスタにも属さない点は<b>ノイズ（外れ値）</b>として除外できる。k-means が苦手な所で輝く。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>ε <input type="range" id="eps" min="4" max="14" step="1" value="5"></label>
+      <select id="mp"><option value="3">minPts 3</option><option value="4" selected>minPts 4</option><option value="6">minPts 6</option></select>
+      <select id="dataSel"><option value="moons">三日月</option><option value="rings">同心円</option><option value="blobs">塊+ノイズ</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：コア/境界/ノイズ・k-means との違い・ε の選び方</summary>
+    <div class="det">点は 3 種類に分類されます。<b>コア点</b>＝半径 ε 内に minPts 個以上の仲間がいる（密集の中心）。<b>境界点</b>＝コアではないが、あるコア点の ε 内にある（クラスタの縁）。<b>ノイズ点</b>＝どちらでもない（外れ値）。クラスタは「コア点から密度的につながった点の集まり」。<b>k-means との違い</b>：k-means はクラスタ数 k を指定し球状を仮定するので三日月や同心円で破綻、外れ値にも弱い。DBSCAN は<b>数を自動決定・任意形状・ノイズ除去</b>ができる代わりに、密度が一様でないと苦手で、ε と minPts の調整が要ります。ε は「k 距離グラフの肘」で選ぶのが定石。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=77;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const CLS=['--cl0','--cl1','--cl2','--cl3','--cl4'];
+let P=[],labels=[],coreSet=new Set(),order=[],nClus=0; // coords in [0,1]
+const EPS_DEFAULT={moons:5,rings:8,blobs:7};
+function genData(){P=[];const kind=document.getElementById('dataSel').value;
+  if(kind==='moons'){const N=88;for(let i=0;i<N;i++){const x=0.15+0.70*(i/(N-1));P.push([x+randn()*0.012,0.70-1.22*(x-0.5)*(x-0.5)+randn()*0.014]);}for(let i=0;i<N;i++){const x=0.15+0.70*(i/(N-1));P.push([x+randn()*0.012,0.30+1.22*(x-0.5)*(x-0.5)+randn()*0.014]);}}
+  else if(kind==='rings'){const N1=110,N2=64;for(let i=0;i<N1;i++){const t=2*Math.PI*(i/N1);P.push([0.5+0.42*Math.cos(t)+randn()*0.012,0.5+0.42*Math.sin(t)+randn()*0.012]);}for(let i=0;i<N2;i++){const t=2*Math.PI*(i/N2);P.push([0.5+0.17*Math.cos(t)+randn()*0.012,0.5+0.17*Math.sin(t)+randn()*0.012]);}}
+  else{const ctr=[[0.27,0.32],[0.72,0.38],[0.5,0.74]];for(const c of ctr)for(let i=0;i<40;i++)P.push([c[0]+randn()*0.05,c[1]+randn()*0.05]);}
+  for(let i=0;i<14;i++)P.push([rng(),rng()]); // ノイズ
+}
+function neigh(i,eps){const r=[];for(let j=0;j<P.length;j++){const dx=P[i][0]-P[j][0],dy=P[i][1]-P[j][1];if(dx*dx+dy*dy<=eps*eps)r.push(j);}return r;}
+function run(){const eps=(+document.getElementById('eps').value)/100,minPts=+document.getElementById('mp').value;const n=P.length;labels=new Array(n).fill(-2);coreSet=new Set();order=[];let c=-1;
+  const NB=[];for(let i=0;i<n;i++){NB.push(neigh(i,eps));if(NB[i].length>=minPts)coreSet.add(i);}
+  for(let i=0;i<n;i++){if(labels[i]!==-2)continue;if(!coreSet.has(i)){if(labels[i]===-2)labels[i]=-1;continue;}c++;labels[i]=c;order.push({i,c});const seeds=NB[i].slice();for(let s=0;s<seeds.length;s++){const q=seeds[s];if(labels[q]===-1){labels[q]=c;order.push({i:q,c});}if(labels[q]!==-2)continue;labels[q]=c;order.push({i:q,c});if(coreSet.has(q))for(const t of NB[q])if(labels[t]===-2||labels[t]===-1)seeds.push(t);}}
+  nClus=c+1;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const px=x=>14+(CW-28)*x,py=y=>14+(CH-28)*(1-y);
+function col(c){return c<0?'rgba(120,135,155,0.55)':getCSS(CLS[c%CLS.length]);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);const eps=(+document.getElementById('eps').value)/100;
+  // ε circle on sample core (step core)
+  if(opt.epsCircle!=null){const i=opt.epsCircle;ctx.strokeStyle='rgba(240,176,58,0.8)';ctx.lineWidth=1.4;ctx.setLineDash([4,3]);ctx.beginPath();ctx.arc(px(P[i][0]),py(P[i][1]),(CW-28)*eps,0,7);ctx.stroke();ctx.setLineDash([]);}
+  const reveal=opt.reveal;const shown=new Set();if(reveal!=null)for(let k=0;k<reveal&&k<order.length;k++)shown.add(order[k].i);
+  for(let i=0;i<P.length;i++){const x=px(P[i][0]),y=py(P[i][1]);let c;
+    if(opt.cores){c=coreSet.has(i)?0:-9;}
+    else if(reveal!=null){c=shown.has(i)?labels[i]:-2;}
+    else c=opt.labeled?labels[i]:-2;
+    if(c===-2){ctx.beginPath();ctx.arc(x,y,2.6,0,7);ctx.fillStyle='rgba(120,135,155,0.4)';ctx.fill();continue;}
+    if(c===-9){ // core highlight mode: core filled, non-core hollow
+      const isCore=coreSet.has(i);ctx.beginPath();ctx.arc(x,y,isCore?3.6:2.6,0,7);if(isCore){ctx.fillStyle=getCSS('--accent');ctx.fill();}else{ctx.strokeStyle='rgba(120,135,155,0.6)';ctx.lineWidth=1;ctx.stroke();}continue;}
+    if(c<0){ // noise
+      ctx.strokeStyle='rgba(120,135,155,0.6)';ctx.lineWidth=1.2;const r=3;ctx.beginPath();ctx.moveTo(x-r,y-r);ctx.lineTo(x+r,y+r);ctx.moveTo(x+r,y-r);ctx.lineTo(x-r,y+r);ctx.stroke();continue;}
+    ctx.beginPath();ctx.arc(x,y,3.4,0,7);ctx.fillStyle=col(c);ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.6)';ctx.stroke();}
+}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'core',t:'ε近傍とコア点',c:'var(--loss)'},{key:'grow',t:'クラスタ拡張',c:'var(--upd)'},{key:'all',t:'全点処理',c:'var(--accent)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false,sampleCore=0;
+function firstCoreEnd(){let k=0;for(;k<order.length;k++)if(order[k].c!==0)break;return k;}
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='core')draw({cores:true,epsCircle:sampleCore});else if(k==='grow')draw({reveal:growK});else if(k==='all')draw({reveal:allK});else draw({labeled:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function noiseCount(){let c=0;for(const l of labels)if(l<0)c++;return c;}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>点 <b>'+P.length+'</b></div><div>クラスタ数 <b>自動決定</b></div>';return;}m.innerHTML='<div>ε <b>'+((+document.getElementById('eps').value)/100).toFixed(2)+'</b></div><div>minPts <b>'+document.getElementById('mp').value+'</b></div><div class="cl">クラスタ <b>'+nClus+'</b></div>'+((k==='all'||k==='res')?'<div class="nz">ノイズ <b>'+noiseCount()+'</b></div>':'<div>コア点 <b>'+coreSet.size+'</b></div>');}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='core')?'●=コア点(ε内にminPts以上), ○=非コア, 橙円=ある点のε近傍':(k==='all'||k==='res')?'色=クラスタ(自動), ✕=ノイズ点':'点を密度でまとめる';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：密度でまとめる</h3><div class="desc">点が集まっている所をクラスタにしたい。三日月や同心円のような<b>曲がった形</b>や、ポツンと離れた<b>外れ値</b>がある場合、k-means（丸いクラスタ前提・数を指定）はうまくいきません。DBSCAN は<b>密度</b>で攻めます。右下で形・ε・minPts を変えられます。</div>';}
+  else if(k==='core'){h+='<h3>② ε近傍とコア点</h3><div class="eq curr">コア点 = 半径 ε 内に minPts 個以上の点がある</div><div class="desc">各点について<b>半径 ε の円</b>（橙）の中の仲間を数えます。<b>minPts 個以上</b>なら「<b>コア点</b>」（●＝密集の中心）、足りなければ非コア（○）。今コア点は '+coreSet.size+' 個。コア点がクラスタの骨格になります。</div>';}
+  else if(k==='grow'){h+='<h3>③ クラスタを広げる</h3><div class="eq curr">コア点から「密度的につながる」点へ伝播</div><div class="desc">1 つのコア点から出発し、その ε 近傍の点を同じクラスタに入れ、<b>その中のコア点からさらに隣へ</b>…と数珠つなぎに広げます（密度到達）。こうして<b>形に沿って</b>クラスタが成長——丸さを仮定しないのがポイント。</div>';}
+  else if(k==='all'){h+='<h3>④ 全点を処理</h3><div class="desc">未処理のコア点から新しいクラスタを次々に広げ、全点を分類。どのコア点からも届かない点は<b>ノイズ（✕）</b>として残ります。クラスタ数は<b>結果として自動的に決まる</b>（指定不要）。クラスタ '+nClus+' 個・ノイズ '+noiseCount()+' 点。</div>';}
+  else{h+='<h3>⑤ 結果：任意形状＋ノイズ</h3><div class="desc"><b>曲がった形のクラスタ</b>がきれいに分かれ、外れ値は<b>ノイズ</b>として除外（クラスタ '+nClus+'・ノイズ '+noiseCount()+'）。右下で <b>ε</b> を変えると、小さすぎ＝バラバラ（ノイズ増）、大きすぎ＝全部つながる、が体感できます。k-means では出せない結果です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・コア点(ε内minPts以上)を骨格に密度で連結<br>・任意形状OK・クラスタ数は自動・ノイズ除去<br>・ε/minPtsの調整が肝</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+let growK=0,allK=0;
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function pickSampleCore(){for(const i of coreSet){sampleCore=i;break;}}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;run();
+  if(k==='core'){pickSampleCore();}
+  else if(k==='grow'){growK=0;growAnim();}
+  else if(k==='all'){allK=0;allAnim();}
+  renderAll();draw_();}
+function growAnim(){anim=true;const end=firstCoreEnd();function go(){if(!anim||STEPS[stepIdx].key!=='grow')return;growK=Math.min(end,growK+2);draw_();if(growK<end){setTimeout(()=>requestAnimationFrame(go),60);}else anim=false;}requestAnimationFrame(go);}
+function allAnim(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='all')return;allK=Math.min(order.length,allK+4);draw_();renderMini();if(allK<order.length){setTimeout(()=>requestAnimationFrame(go),30);}else anim=false;}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,(STEPS[stepIdx].key==='grow'||STEPS[stepIdx].key==='all')?500:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=77+(Math.floor(rng()*900));genData();stepIdx=0;run();renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+function reparam(){run();renderMini();renderLegend();renderExplain();draw_();}
+document.getElementById('eps').oninput=reparam;
+document.getElementById('mp').onchange=reparam;
+document.getElementById('dataSel').onchange=()=>{const k=document.getElementById('dataSel').value;document.getElementById('eps').value=EPS_DEFAULT[k];genData();stepIdx=0;run();renderAll();draw_();};
+genData();run();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
