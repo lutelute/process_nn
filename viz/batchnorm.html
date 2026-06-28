@@ -74,6 +74,7 @@
     <div class="bar">
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 層を巡回</button>
       <button id="resetBtn">↻ 別の初期値</button>
       <span class="spacer"></span>
       <select id="layerSel"></select>
@@ -93,18 +94,17 @@ const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 const L=8,WD=12,N=300,SCALE=0.62,GAMMA=1.4,BETA=-0.6;
 const tanh=z=>Math.tanh(z);
-let stdNo=[],stdBN=[],layerRaw=[],layerNorm=[],selLayer=5;
+let stdNo=[],stdBN=[],layerRaw=[],layerNorm=[],rawAll=[],normAll=[],selLayer=5;
 function compute(){const W=[null];for(let l=1;l<=L;l++)W[l]=Array.from({length:WD},()=>Array.from({length:WD},()=>randn()*SCALE/Math.sqrt(WD)));
   const X=Array.from({length:N},()=>Array.from({length:WD},()=>randn()));
-  function pass(bn){let A=X.map(r=>r.slice());const stds=[];let rawSel=null,normSel=null;
+  function pass(bn){let A=X.map(r=>r.slice());const stds=[],caps=[null];
     for(let l=1;l<=L;l++){let Z=A.map(a=>{const z=[];for(let j=0;j<WD;j++){let s=0;for(let k=0;k<WD;k++)s+=W[l][j][k]*a[k];z.push(s);}return z;});
-      if(l===selLayer)rawSel=Z.map(z=>z.slice());
-      if(bn){for(let j=0;j<WD;j++){let m=0;for(let i=0;i<N;i++)m+=Z[i][j];m/=N;let v=0;for(let i=0;i<N;i++)v+=(Z[i][j]-m)**2;v/=N;const sd=Math.sqrt(v+1e-5);for(let i=0;i<N;i++)Z[i][j]=(Z[i][j]-m)/sd;}if(l===selLayer)normSel=Z.map(z=>z.slice());}
+      if(bn){for(let j=0;j<WD;j++){let m=0;for(let i=0;i<N;i++)m+=Z[i][j];m/=N;let v=0;for(let i=0;i<N;i++)v+=(Z[i][j]-m)**2;v/=N;const sd=Math.sqrt(v+1e-5);for(let i=0;i<N;i++)Z[i][j]=(Z[i][j]-m)/sd;}}
+      const flat=[];for(const z of Z)for(const v of z)flat.push(v);caps[l]=flat;
       A=Z.map(z=>z.map(tanh));let all=[];for(const a of A)for(const v of a)all.push(v);const m=all.reduce((s,x)=>s+x,0)/all.length;let vv=0;for(const x of all)vv+=(x-m)**2;stds.push(Math.sqrt(vv/all.length));}
-    return{stds,rawSel,normSel};}
-  const a=pass(false),b=pass(true);stdNo=a.stds;stdBN=b.stds;
-  layerRaw=[];for(const z of a.rawSel)for(const v of z)layerRaw.push(v);
-  layerNorm=[];for(const z of b.normSel)for(const v of z)layerNorm.push(v);}
+    return{stds,caps};}
+  const a=pass(false),b=pass(true);stdNo=a.stds;stdBN=b.stds;rawAll=a.caps;normAll=b.caps;setLayer(selLayer);}
+function setLayer(l){selLayer=l;layerRaw=rawAll[l]||[];layerNorm=normAll[l]||[];}
 function hist(vals,lo,hi,bins){const h=new Array(bins).fill(0);for(const v of vals){let b=Math.floor((v-lo)/(hi-lo)*bins);b=Math.max(0,Math.min(bins-1,b));h[b]++;}return h;}
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
@@ -138,12 +138,18 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
   else{h+='<h3>⑤ 結果：速く安定した学習</h3><div class="desc">バッチ正規化で<b>学習が速く・安定</b>し、深いネットも訓練しやすくなります。<b>推論時</b>はバッチがないので、訓練中に貯めた<b>移動平均の μ,σ</b> を使用。弱い正則化効果もあります。Transformer では似た発想の <b>Layer Norm</b> が標準。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・各バッチで平均0分散1に正規化<br>・γ,βで分布を戻せる(表現力を保つ)<br>・高い学習率・安定・勾配が流れやすい</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
-function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw();}
+let auto=false,layerPos=2,ldir=1;
+const CYCLE={norm:1,gamma:1};
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 層を巡回';}
+function autoTick(){if(!auto)return;layerPos+=ldir*0.05;if(layerPos>=L){layerPos=L;ldir=-1;}else if(layerPos<=2){layerPos=2;ldir=1;}const nl=Math.round(layerPos);if(nl!==selLayer){setLayer(nl);const sel=document.getElementById('layerSel');if(sel)sel.value=nl;}renderMini();renderExplain();draw();requestAnimationFrame(autoTick);}
+function startAuto(){if(auto)return;auto=true;layerPos=selLayer;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(autoTick);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;if(!CYCLE[k])stopAuto();renderAll();draw();if(CYCLE[k])startAuto();}
 function fillLayers(){const sel=document.getElementById('layerSel');sel.innerHTML='';for(let l=2;l<=L;l++)sel.innerHTML+='<option value="'+l+'"'+(l===selLayer?' selected':'')+'>第'+l+'層を見る</option>';}
 document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
-document.getElementById('resetBtn').onclick=()=>{seed=33+(Math.floor(rng()*900));compute();renderAll();draw();};
-document.getElementById('layerSel').onchange=e=>{selLayer=+e.target.value;compute();renderAll();draw();};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(!CYCLE[STEPS[stepIdx].key])goStep(1);else startAuto();}};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();seed=33+(Math.floor(rng()*900));compute();renderAll();draw();};
+document.getElementById('layerSel').onchange=e=>{stopAuto();setLayer(+e.target.value);renderAll();draw();};
 compute();fillLayers();renderAll();draw();
 </script>
 <script src="nav.js"></script>
