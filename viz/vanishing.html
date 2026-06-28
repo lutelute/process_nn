@@ -74,6 +74,7 @@
     <div class="bar">
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 逆伝播</button>
       <button id="resetBtn">↻ 別の初期値</button>
       <span class="spacer"></span>
       <select id="actSel"><option value="sigmoid">sigmoid</option><option value="tanh">tanh</option><option value="relu">ReLU</option></select>
@@ -95,7 +96,7 @@ function getCSS(v){return getComputedStyle(document.documentElement).getProperty
 const WD=6;
 const FN={sigmoid:z=>1/(1+Math.exp(-z)),tanh:z=>Math.tanh(z),relu:z=>z>0?z:0};
 const DER={sigmoid:a=>a*(1-a),tanh:a=>1-a*a,relu:a=>a>0?1:0};
-let Ln=10,act='sigmoid',gnorm=[];
+let Ln=10,act='sigmoid',gnorm=[],auto=false,flowPos=10,holdT=0;
 function compute(){const fn=FN[act],der=DER[act],sc=act==='relu'?Math.sqrt(2/WD):Math.sqrt(1/WD);
   const W=[null],B=[null];for(let l=1;l<=Ln;l++){W[l]=Array.from({length:WD},()=>Array.from({length:WD},()=>randn()*sc));B[l]=new Array(WD).fill(0);}
   let a=[Array.from({length:WD},()=>randn()*0.5)];for(let l=1;l<=Ln;l++){const al=[];for(let j=0;j<WD;j++){let s=B[l][j];for(let k=0;k<WD;k++)s+=W[l][j][k]*a[l-1][k];al.push(fn(s));}a.push(al);}
@@ -117,15 +118,25 @@ function drawActDeriv(){ctx.clearRect(0,0,CW,CH);const fn=FN[act],der=DER[act];c
   ctx.fillStyle=getCSS('--loss');ctx.textAlign='right';ctx.fillText('微分の最大 = '+maxD.toFixed(2),x1,y1+24);}
 function drawBars(){ctx.clearRect(0,0,CW,CH);const x0=42,x1=CW-14,y0=24,y1=CH-46,bw=(x1-x0)/Ln;
   const logMin=-9,logMax=1;const sy=g=>{const lg=Math.max(logMin,Math.min(logMax,Math.log10(g)));return y1-(lg-logMin)/(logMax-logMin)*(y1-y0);};
-  // gridlines (powers of 10)
+  const frac=g=>(Math.max(logMin,Math.min(logMax,Math.log10(g)))-logMin)/(logMax-logMin);
   ctx.strokeStyle=getCSS('--grid');ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.lineWidth=1;
   for(let e=logMax;e>=logMin;e-=2){const y=sy(Math.pow(10,e));ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.fillText('1e'+e,x0-3,y+3);}
   for(let l=1;l<=Ln;l++){const g=gnorm[l],x=x0+(l-1)*bw,h=y1-sy(g);const tiny=g<1e-3;
-    ctx.fillStyle=tiny?'rgba(240,111,126,0.85)':(g<0.05?'rgba(240,176,58,0.85)':'rgba(57,224,196,0.85)');
+    // 逆伝播アニメ中は、粒が通過した層(右側=出力側)だけ点灯、未到達は淡く
+    const reached=!auto||l>=flowPos-0.5;
+    if(reached){ctx.fillStyle=tiny?'rgba(240,111,126,0.85)':(g<0.05?'rgba(240,176,58,0.85)':'rgba(57,224,196,0.85)');}
+    else{ctx.fillStyle='rgba(120,135,155,0.16)';}
     ctx.fillRect(x+bw*0.16,sy(g),bw*0.68,Math.max(1,h));}
+  // 逆伝播の粒（出力側→入力側へ移動し、勾配が縮むほど小さく下がる）
+  if(auto){const fp=Math.max(1,Math.min(Ln,flowPos));const lp=Math.max(1,Math.min(Ln,Math.round(fp)));const g=gnorm[lp];
+    const xp=x0+(fp-1)*bw+bw*0.5,yp=sy(g)-7,rad=3+10*frac(g);
+    ctx.shadowColor=g<1e-3?'rgba(240,111,126,0.9)':(g<0.05?'rgba(240,176,58,0.9)':'rgba(57,224,196,0.9)');ctx.shadowBlur=14;
+    ctx.fillStyle=g<1e-3?'rgba(240,111,126,0.95)':(g<0.05?'rgba(240,176,58,0.95)':'rgba(57,224,196,0.95)');
+    ctx.beginPath();ctx.arc(xp,yp,rad,0,7);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=getCSS('--text');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('×f′(z)',xp,yp-rad-5);}
   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';
   ctx.fillText('← 入力側の層',x0+bw*1.4,CH-26);ctx.fillText('出力側 →',x1-bw*1.2,CH-26);
-  ctx.fillText('各層の勾配の大きさ（対数目盛）',CW/2,CH-8);}
+  ctx.fillText(auto?'逆伝播：勾配が出力側→入力側へ伝播し各層で ×f′(z) で縮む':'各層の勾配の大きさ（対数目盛）',CW/2,CH-8);}
 function draw(){const k=STEPS[stepIdx].key;if(k==='deriv')drawActDeriv();else drawBars();}
 
 const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'deriv',t:'活性化の微分',c:'var(--upd)'},{key:'chain',t:'連鎖律で掛け算',c:'var(--neg)'},{key:'bars',t:'層ごとの勾配',c:'var(--loss)'},{key:'relu',t:'ReLUで解決',c:'var(--accent)'}];
@@ -136,17 +147,30 @@ function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('lege
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const r=ratio();let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：深いと学習できない</h3><div class="desc">層を深くすると表現力は上がるはずなのに、2010 年代前半まで<b>深いネットはうまく学習できません</b>でした。とくに<b>入力に近い層の重みがほとんど更新されない</b>。原因は逆伝播で勾配が消えてしまうこと。右下で活性化関数と深さを変えられます。</div>';}
   else if(k==='deriv'){const der=DER[act];let mx=0;for(let i=0;i<=200;i++){const z=-5+10*i/200,d=der(FN[act](z));if(d>mx)mx=d;}h+='<h3>② 活性化関数の微分</h3><div class="eq curr">勾配には各層で <b>f′(z)</b> が掛かる</div><div class="desc"><b>'+act+'</b> の関数（灰）とその微分（緑）。微分の<b>最大が '+mx.toFixed(2)+'</b>'+(act==='sigmoid'?'（sigmoid は最大 0.25！）':act==='tanh'?'（tanh は中央で 1、両端で 0）':'（ReLU は 0 か 1）')+'。'+(act!=='relu'?'入力が大きいと<b>飽和</b>して微分がほぼ 0 になります。':'飽和せず、活性な所は微分 1 のまま。')+' 右下で活性化を切り替えて比べて。</div>';}
-  else if(k==='chain'){h+='<h3>③ 連鎖律で掛け算される</h3><div class="eq curr">勾配(第l層) ∝ f′(z_L)·…·f′(z_{l+1}) × 重み</div><div class="desc">逆伝播は出力側から入力側へ、各層の微分を<b>次々に掛け算</b>します。1 つ 1 つが 1 未満なら、'+Ln+' 回も掛けるうちに<b>指数的に小さく</b>なる——これが入力側の層で勾配が消える理由。次のステップで各層の勾配を見ます。</div>';}
+  else if(k==='chain'){h+='<h3>③ 連鎖律で掛け算される</h3><div class="eq curr">勾配(第<i>l</i>層) ∝ f′(z<sub>L</sub>)·…·f′(z<sub>l+1</sub>) × 重み</div><div class="desc">逆伝播は出力側から入力側へ、各層の微分を<b>次々に掛け算</b>します。1 つ 1 つが 1 未満なら、'+Ln+' 回も掛けるうちに<b>指数的に小さく</b>なる——これが入力側の層で勾配が消える理由。次のステップで各層の勾配を見ます。</div>';}
   else if(k==='bars'){h+='<h3>④ 層ごとの勾配を見る</h3><div class="desc">各層に届いた勾配の大きさ（対数目盛）。<b>'+act+'</b>・'+Ln+' 層では、出力側（右）は健全でも<b>入力側（左）へ行くほど'+(act==='relu'?'ほぼ一定で保たれます':'急激に小さく')+'</b>。入力側/出力側の比は <b>'+r.toExponential(1)+'</b>'+(r<0.01?'＝ほぼ消失（赤いバー）':'')+'。右下で sigmoid と ReLU を切り替えて違いを。</div>';}
   else{compute();const rs=ratio();h+='<h3>⑤ ReLU で解決</h3><div class="desc"><b>ReLU の微分は 0 か 1</b>。活性なニューロンは勾配を<b>そのまま素通し</b>するので、深くても消えにくい（入力側/出力側の比 '+rs.toExponential(1)+' ≒ 1）。これが深層学習をブレイクさせた一因です。さらに<b>適切な初期化・バッチ正規化・残差接続</b>で超深層も学習可能に（折りたたみ参照）。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・勾配は各層の微分の掛け算<br>・微分&lt;1 を多層で掛ける→指数的に消失<br>・ReLU(微分0/1)で素通し→深層が学習可能</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
-function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;if(STEPS[i].key==='relu'){act='relu';document.getElementById('actSel').value='relu';compute();}renderAll();draw();}
+const FLOWABLE={chain:1,bars:1,relu:1};
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 逆伝播';}
+function autoTick(){if(!auto)return;
+  if(holdT>0){holdT--;if(holdT===0)flowPos=Ln+0.0001;draw();requestAnimationFrame(autoTick);return;}
+  flowPos-=Math.max(0.05,Ln*0.008);
+  if(flowPos<=1){flowPos=1;holdT=48;}
+  draw();requestAnimationFrame(autoTick);}
+function startAuto(){if(auto)return;auto=true;flowPos=Ln+0.0001;holdT=0;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(autoTick);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;
+  if(!FLOWABLE[k])stopAuto();
+  if(k==='relu'){act='relu';document.getElementById('actSel').value='relu';compute();}
+  renderAll();draw();
+  if(FLOWABLE[k])startAuto();}
 document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();draw();}else{if(!FLOWABLE[STEPS[stepIdx].key])goStep(3);else startAuto();}};
 document.getElementById('resetBtn').onclick=()=>{seed=42+(Math.floor(rng()*900));compute();renderAll();draw();};
 document.getElementById('actSel').onchange=e=>{act=e.target.value;compute();renderAll();draw();};
-document.getElementById('depthSel').onchange=e=>{Ln=+e.target.value;compute();renderAll();draw();};
+document.getElementById('depthSel').onchange=e=>{Ln=+e.target.value;compute();if(auto)flowPos=Ln+0.0001;renderAll();draw();};
 compute();renderAll();draw();
 </script>
 <script src="nav.js"></script>
