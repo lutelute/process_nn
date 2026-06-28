@@ -3,270 +3,170 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Transformer の学習過程 — MiniGPT ビューア</title>
+<title>Transformer の学習を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --accent-soft:rgba(57,224,196,0.16);
-    --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff; --seed:#d4a36a;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
-  .wrap{max-width:1120px;margin:0 auto;padding:22px 20px 60px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:8px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  h2{font-family:var(--mincho);font-weight:600;font-size:17px;margin:26px 0 8px;padding-left:10px;border-left:3px solid var(--accent);}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0;}
-  .readout{display:flex;gap:26px;font-family:var(--mono);}
-  .readout .k{font-size:10.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;}
-  .readout .v{font-size:22px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.loss{color:var(--loss);}
-  label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;}
-  select,input[type=text]{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:13px;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  input[type=number]{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:var(--mono);font-size:13px;}
-  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;}
-  .row>div{flex:1;min-width:120px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 16px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  .wrap{max-width:1040px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:760px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:400px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ls b{color:var(--loss);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .gen{font-family:var(--mono);font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.8;word-break:break-all;}
+  .gen .seed{color:var(--seed);font-weight:700;} .gen .new{color:var(--accent);}
+  table{border-collapse:collapse;font-size:12px;width:100%;margin-top:6px;} td,th{border:1px solid var(--line);padding:3px 8px;text-align:left;} th{color:var(--faint);font-weight:500;} td:nth-child(2){font-family:var(--mono);color:var(--accent);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  button:disabled{opacity:.4;cursor:not-allowed;}
-  .btnrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px;}
-  canvas{display:block;max-width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;}
-  .flex2{display:flex;gap:18px;flex-wrap:wrap;} .flex2>div{flex:1;min-width:300px;}
-  .gen{font-family:var(--mono);font-size:13.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-word;min-height:46px;}
-  .gen .seed{color:var(--warm);} .gen .new{color:var(--accent);}
-  table{border-collapse:collapse;width:100%;font-size:12.5px;font-family:var(--mono);}
-  th,td{border:1px solid var(--line);padding:4px 8px;text-align:left;} th{color:var(--muted);font-weight:500;background:var(--panel-2);}
-  .note{color:var(--faint);font-size:11px;margin-top:8px;}
-  .muted{color:var(--muted);}
-  .arch{font-family:var(--mono);font-size:11.5px;color:var(--muted);}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:12.5px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>Transformer の学習過程 — MiniGPT ビューア</h1>
-      <div class="sub">小型 decoder-only Transformer を<b>ブラウザで学習</b>し、loss が下がるにつれ attention・logit lens・生成テキストが変化していく様子を観察する</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="cnn.html">CNN</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
-  <p class="arch" id="archLine">構造: Pre-LN decoder-only / 2層 × 2ヘッド / 埋め込み32 / 文脈16 — GPT-2 と同じ仕組みの最小版（<a href="../gpt2/">本物の GPT-2 はこちら</a>）</p>
+  <div class="nav"></div>
+  <h1>Transformer の学習を理解する</h1>
+  <div class="lead">GPT と同じ仕組みの<b>最小の decoder-only Transformer</b>（2層×2ヘッド・埋め込み32）を、文字列コーパスで<b>ブラウザで実際に学習</b>させる。「次の文字」を当てるよう訓練すると、<b>loss が下がり</b>・<b>自己注意</b>に構造が現れ・<b>生成</b>がコーパスらしくなる。下の流れを「次へ」で追ってください。<a href="../gpt2/">本物の GPT-2 はこちら</a>。</div>
 
-  <div class="panel">
-    <div class="row">
-      <div style="flex:2;">
-        <label>学習コーパス（規則的な短文ほど学習が見えやすい）</label>
-        <select id="corpus">
-          <option value="hello world. ">hello world.</option>
-          <option value="the cat sat on the mat. ">the cat sat on the mat.</option>
-          <option value="to be or not to be, that is the question. ">to be or not to be...</option>
-          <option value="abcdefghijklmnopqrstuvwxyz ">アルファベット順</option>
-          <option value="0123456789 ">数字 0-9</option>
-        </select>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="400" height="340"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
       </div>
-      <div><label>学習率</label><input type="number" id="lr" value="0.01" step="0.005" min="0.001" max="0.1"></div>
-      <div><label>速度（step/フレーム）<span id="spdv" class="muted"></span></label><input type="range" id="spd" min="1" max="20" step="1" value="6"></div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="btnrow" style="justify-content:space-between;align-items:center;">
-      <div style="display:flex;gap:9px;flex-wrap:wrap;">
-        <button class="primary" id="trainBtn">▶ 学習開始</button>
-        <button id="stepBtn">⏭ 10 ステップ</button>
-        <button id="resetBtn">↺ リセット</button>
-      </div>
-      <div class="readout">
-        <div><div class="k">step</div><div class="v" id="stepOut">0</div></div>
-        <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
-      </div>
-      <div id="narrX" style="margin-top:8px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ 小型 GPT が「次の文字」を予測するよう学習。loss が下がるほど生成（下）がコーパスらしくなり、attention に構造が現れます。</div>
-    </div>
-  </div>
-
-  <div class="flex2">
-    <div>
-      <h2>loss の推移</h2>
-      <div class="panel" style="padding:8px;"><canvas id="lossC" width="520" height="200"></canvas></div>
-    </div>
-    <div>
-      <h2>いまの生成（greedy）</h2>
-      <div class="panel"><div id="genOut" class="gen"><span class="muted">学習を進めると、コーパスを再現していきます</span></div>
-      <div class="note">先頭の数文字（<span class="seed" style="color:var(--warm)">種</span>）から、モデルが次の文字を予測して伸ばしています。</div></div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 学習</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="corpus">
+        <option value="hello world. ">hello world.</option>
+        <option value="the cat sat on the mat. ">the cat sat on the mat.</option>
+        <option value="to be or not to be, that is the question. ">to be or not to be…</option>
+        <option value="abcdefghijklmnopqrstuvwxyz ">アルファベット順</option>
+        <option value="0123456789 ">数字 0-9</option>
+      </select>
+      <select id="aSel" title="表示する層・ヘッド"><option value="0,0">層0・頭0</option><option value="0,1">層0・頭1</option><option value="1,0" selected>層1・頭0</option><option value="1,1">層1・頭1</option></select>
     </div>
   </div>
 
-  <h2>Attention 行列 <span class="muted" style="font-size:12px;">softmax(QKᵀ/√d)・下三角（因果）</span></h2>
-  <div class="panel">
-    <div class="row" style="margin-bottom:8px;">
-      <div><label>層</label><input type="number" id="aL" value="0" min="0" max="1"></div>
-      <div><label>ヘッド</label><input type="number" id="aH" value="0" min="0" max="1"></div>
-      <div style="flex:3;display:flex;align-items:flex-end;"><span class="muted" style="font-size:12px;">行=クエリ位置（どの文字が）／列=キー位置（どこを見るか）。明るいほど強い注目。学習が進むと構造が現れます。</span></div>
-    </div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
-      <canvas id="attnC" width="320" height="320"></canvas>
-      <div id="attnTok" class="muted" style="flex:1;min-width:200px;font-size:12px;"></div>
-    </div>
-  </div>
-
-  <div class="flex2">
-    <div>
-      <h2>logit lens <span class="muted" style="font-size:12px;">各層の途中予測</span></h2>
-      <div class="panel"><div id="lensView" class="muted">—</div>
-      <div class="note">各層の残差を最終 LayerNorm+出力に通した「その層なりの次文字予測」。層が深いほど確信が増すのが見えます。</div></div>
-    </div>
-    <div>
-      <h2>残差ストリームのノルム</h2>
-      <div class="panel" style="padding:8px;"><canvas id="residC" width="520" height="160"></canvas></div>
-    </div>
-  </div>
+  <details>
+    <summary>もっと詳しく：自己注意の式・残差ストリーム・logit lens・本物のGPT</summary>
+    <div class="det">各位置のトークンは <b>Q（問い）K（鍵）V（値）</b> に変換され、<b>注目度 = softmax(QKᵀ/√d)</b> を下三角（因果マスク＝未来は見ない）で計算し、V を重み付き平均します。これを <b>残差ストリーム</b>に足し込み、さらに MLP を足して次の層へ。層を重ねるほど情報が積み上がります（残差ノルムが増える）。<b>logit lens</b>＝各層の途中の残差をそのまま出力に通した「その層なりの次文字予測」で、深い層ほど確信が増すのが見えます。これは <a href="positional.html">位置エンコーディング</a>＋<a href="attention.html">自己注意</a>を積んだもので、規模を上げ実データで学習したのが <a href="../gpt2/">GPT-2</a>。立体構造は <a href="gpt3d.html">GPT(3D)</a> へ。</div>
+  </details>
 </div>
 
 <script type="module">
 import { MiniGPT } from '../gpt2/tools/minigpt.mjs';
-const $=id=>document.getElementById(id);
-const T=16, CFG={nLayer:2,nHead:2,nEmbd:32,blockSize:T};
-
-let chars=[], stoi={}, itos=[], data=[], model=null;
-let step=0, losses=[], lastLoss=null, running=false, lastX=null, lastViz=null, lensRes=null, genText='', seedLen=3;
-
-function buildCorpus(){
-  const base=$('corpus').value;
-  const text=base.repeat(Math.ceil(420/base.length));
-  chars=[...new Set(text)].sort();
-  stoi=Object.fromEntries(chars.map((c,i)=>[c,i]));
-  itos=chars.slice();
-  data=[...text].map(c=>stoi[c]);
-}
-function reset(){
-  running=false;$('trainBtn').textContent='▶ 学習開始';$('trainBtn').classList.add('primary');
-  buildCorpus();
-  model=new MiniGPT({...CFG,vocabSize:chars.length});
-  step=0;losses=[];lastLoss=null;lastViz=null;lensRes=null;lastX=data.slice(0,T);
-  $('aL').max=CFG.nLayer-1;$('aH').max=CFG.nHead-1;
-  capture();generate();drawAll();updateReadout();renderGen();
-}
-function trainStep(){
-  const p=Math.floor(Math.random()*(data.length-T-1));
-  const x=data.slice(p,p+T), y=data.slice(p+1,p+T+1);
-  model.forward(x);
-  const loss=model.backward(y);
-  model.step(+$('lr').value);
-  step++;lastLoss=loss;losses.push(loss);if(losses.length>4000)losses.shift();
-  lastX=x;
-}
-function capture(){
-  const x=lastX&&lastX.length===T?lastX:data.slice(0,T);
-  const {viz}=model.forward(x,{capture:true});
-  lastViz=viz;lensRes=model.logitLens(viz);lastX=x;
-}
-function generate(){
-  let seq=data.slice(0,seedLen);
-  for(let i=0;i<70;i++){
-    const ctx=seq.slice(-T);
-    const {logits}=model.forward(ctx);
-    const id=model.sample(logits,{greedy:true});
-    seq.push(id);
-  }
-  genText=seq.map(i=>itos[i]).join('');
-}
-
-/* ---- ループ ---- */
-function frame(){
-  if(!running)return;
-  const n=+$('spd').value;
-  for(let i=0;i<n;i++)trainStep();
-  capture();
-  if(step%30<n)generate();
-  drawAll();updateReadout();renderGen();
-  requestAnimationFrame(frame);
-}
-function setRun(on){running=on;$('trainBtn').textContent=on?'⏸ 一時停止':'▶ 学習開始';$('trainBtn').classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
-
-/* ---- 描画 ---- */
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function updateReadout(){$('stepOut').textContent=step.toLocaleString();$('lossOut').textContent=lastLoss==null?'—':lastLoss.toFixed(3);
-  const el=$('narrX');if(el){
-    if(step===0||lastLoss==null)el.innerHTML='▶ 小型 GPT が「次の文字」を予測するよう学習。開始前は当てずっぽう。';
-    else el.innerHTML='step '+step.toLocaleString()+'・loss <b>'+lastLoss.toFixed(2)+'</b>（交差エントロピー, 低いほど良い）。'+(lastLoss<1.5?'生成が<span style="color:var(--accent)">コーパスらしく</span>なり、attention が直前の文字に注目するパターンに。':'生成はまだ崩れ気味、学習で次第に整います。')+'各文字が前の文字へ注意(attention)を向け、残差で情報を積み上げます。';}}
-function renderGen(){
-  const seed=genText.slice(0,seedLen), rest=genText.slice(seedLen);
-  $('genOut').innerHTML='<span class="seed">'+esc(seed)+'</span><span class="new">'+esc(rest)+'</span>';
-}
+const T=16, CFG={nLayer:2,nHead:2,nEmbd:32,blockSize:T}, LR=0.01, SPD=6;
+let chars=[],stoi={},itos=[],data=[],model=null;
+let step=0,losses=[],lastLoss=null,running=false,lastX=null,lastViz=null,lensRes=null,genText='',seedLen=3;
+const corpusEl=document.getElementById('corpus'),aSel=document.getElementById('aSel');
+
+function buildCorpus(){const base=corpusEl.value,text=base.repeat(Math.ceil(420/base.length));chars=[...new Set(text)].sort();stoi=Object.fromEntries(chars.map((c,i)=>[c,i]));itos=chars.slice();data=[...text].map(c=>stoi[c]);}
+function reset(){running=false;buildCorpus();model=new MiniGPT({...CFG,vocabSize:chars.length});step=0;losses=[];lastLoss=null;lastViz=null;lensRes=null;lastX=data.slice(0,T);capture();generate();}
+function trainStep(){const p=Math.floor(Math.random()*(data.length-T-1)),x=data.slice(p,p+T),y=data.slice(p+1,p+T+1);model.forward(x);const loss=model.backward(y);model.step(LR);step++;lastLoss=loss;losses.push(loss);if(losses.length>4000)losses.shift();lastX=x;}
+function capture(){const x=lastX&&lastX.length===T?lastX:data.slice(0,T);const{viz}=model.forward(x,{capture:true});lastViz=viz;lensRes=model.logitLens(viz);lastX=x;}
+function generate(){let seq=data.slice(0,seedLen);for(let i=0;i<64;i++){const ctx=seq.slice(-T);const{logits}=model.forward(ctx);const id=model.sample(logits,{greedy:true});seq.push(id);}genText=seq.map(i=>itos[i]).join('');}
 function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/ /g,'·');}
 
-function drawAll(){drawLoss();drawAttn();drawResid();drawLens();}
-function drawLoss(){
-  const c=$('lossC'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
-  const pad=30;
-  if(losses.length<2){x.fillStyle=getCSS('--faint');x.font='12px '+getCSS('--gothic');x.textAlign='center';x.fillText('学習を開始すると loss が表示されます',W/2,H/2);return;}
-  let hi=Math.max(...losses),lo=Math.min(...losses);if(hi-lo<0.1)hi=lo+0.1;
-  const xToP=i=>pad+(W-pad-10)*i/(losses.length-1), yToP=v=>10+(H-pad-10)*(hi-v)/(hi-lo);
-  x.strokeStyle=getCSS('--grid');x.lineWidth=1;x.fillStyle=getCSS('--faint');x.font='9.5px '+getCSS('--mono');x.textAlign='right';
-  for(let g=0;g<=4;g++){const v=lo+(hi-lo)*g/4,py=yToP(v);x.beginPath();x.moveTo(pad,py);x.lineTo(W-10,py);x.stroke();x.fillText(v.toFixed(2),pad-4,py+3);}
-  x.strokeStyle=getCSS('--loss');x.lineWidth=2;x.beginPath();
-  const stepn=Math.max(1,Math.floor(losses.length/(W-pad)));
-  for(let i=0;i<losses.length;i+=stepn){const px=xToP(i),py=yToP(losses[i]);i?x.lineTo(px,py):x.moveTo(px,py);}
-  x.lineTo(xToP(losses.length-1),yToP(losses[losses.length-1]));x.stroke();
-}
-function drawAttn(){
-  const c=$('attnC'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
-  if(!lastViz){return;}
-  const L=Math.min(+$('aL').value|0,CFG.nLayer-1),Hh=Math.min(+$('aH').value|0,CFG.nHead-1);
-  const mat=lastViz.att[L][Hh];const n=mat.length;const cell=Math.floor(Math.min(W,H)/n);
-  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
-    const a=j<=i?mat[i][j]:0;const v=Math.round(255*Math.pow(a,0.7));
-    x.fillStyle=j<=i?`rgb(${Math.round(v*0.22)},${Math.round(v*0.88)},${Math.round(v*0.78)})`:'#0e131b';
-    x.fillRect(j*cell,i*cell,cell-0.5,cell-0.5);
-  }
-  // トークン列
-  let s='系列（位置: 文字）<br>';lastX.forEach((id,i)=>{s+='<span class="muted">'+i+':</span>'+esc(itos[id])+'  ';});
-  $('attnTok').innerHTML=s;
-}
-function drawResid(){
-  const c=$('residC'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
-  if(!lastViz){return;}
-  const norms=lastViz.resid.map(r=>{const v=r[r.length-1];let s=0;for(let i=0;i<v.length;i++)s+=v[i]*v[i];return Math.sqrt(s);});
-  const n=norms.length,pad=30,max=Math.max(...norms),min=Math.min(...norms);
-  x.strokeStyle=getCSS('--accent');x.lineWidth=2;x.beginPath();
-  norms.forEach((v,i)=>{const px=pad+(W-2*pad)*i/(n-1),py=H-24-(H-44)*(v-min)/(max-min+1e-9);i?x.lineTo(px,py):x.moveTo(px,py);});
-  x.stroke();
-  x.fillStyle=getCSS('--accent');norms.forEach((v,i)=>{const px=pad+(W-2*pad)*i/(n-1),py=H-24-(H-44)*(v-min)/(max-min+1e-9);x.beginPath();x.arc(px,py,3,0,7);x.fill();});
-  x.fillStyle=getCSS('--muted');x.font='10px '+getCSS('--mono');x.textAlign='center';
-  const labels=['埋込',...Array(n-1).fill(0).map((_,i)=>'層'+(i+1))];
-  norms.forEach((v,i)=>{const px=pad+(W-2*pad)*i/(n-1);x.fillText(labels[i],px,H-8);});
-  x.textAlign='left';x.fillText('‖h‖ '+min.toFixed(1)+'→'+max.toFixed(1),4,12);
-}
-function drawLens(){
-  if(!lensRes){$('lensView').textContent='—';return;}
-  let html='<table><tr><th>層</th><th>その層の予測（次の文字）</th></tr>';
-  const names=['埋込直後',...Array(lensRes.length-1).fill(0).map((_,i)=>'層'+(i+1)+'後')];
-  lensRes.forEach((id,i)=>{html+='<tr><td>'+names[i]+'</td><td>'+esc(itos[id]||'?')+'</td></tr>';});
-  html+='</table>';$('lensView').innerHTML=html;
-}
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function drawTask(){ctx.clearRect(0,0,CW,CH);ctx.textAlign='center';const sample=itos.length?data.slice(0,6).map(i=>itos[i]):[...'hello'];
+  const y=CH/2-10,n=sample.length,bw=44,x0=CW/2-(n*bw)/2;
+  for(let i=0;i<n;i++){const x=x0+i*bw;ctx.fillStyle=getCSS('--panel');ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1.2;ctx.beginPath();ctx.roundRect(x+4,y-22,bw-8,44,8);ctx.fill();ctx.stroke();ctx.fillStyle=getCSS('--text');ctx.font='18px '+getCSS('--mono');ctx.fillText(esc(sample[i]),x+bw/2,y+6);}
+  const xq=x0+n*bw;ctx.fillStyle=getCSS('--accent');ctx.font='20px '+getCSS('--mono');ctx.fillText('→',xq+4,y+6);
+  ctx.strokeStyle=getCSS('--accent');ctx.setLineDash([4,3]);ctx.lineWidth=1.4;ctx.beginPath();ctx.roundRect(xq+22,y-22,bw-8,44,8);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=getCSS('--accent');ctx.font='20px '+getCSS('--mono');ctx.fillText('?',xq+22+bw/2-2,y+6);
+  ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.fillText('これまでの文字から「次の 1 文字」を予測する',CW/2,y+58);
+  ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--mono');ctx.fillText('語彙 '+chars.length+' 文字 / 文脈 '+T,CW/2,y+80);}
+function drawAttn(){ctx.clearRect(0,0,CW,CH);if(!lastViz){return;}const[L,Hh]=aSel.value.split(',').map(Number);const mat=lastViz.att[Math.min(L,CFG.nLayer-1)][Math.min(Hh,CFG.nHead-1)],n=mat.length;
+  const sz=Math.min(CW,CH)-56,cell=Math.floor(sz/n),ox=(CW-cell*n)/2,oy=18;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){const a=j<=i?mat[i][j]:0,v=Math.round(255*Math.pow(a,0.7));ctx.fillStyle=j<=i?`rgb(${Math.round(v*0.22)},${Math.round(v*0.88)},${Math.round(v*0.78)})`:'#0e131b';ctx.fillRect(ox+j*cell,oy+i*cell,cell-0.5,cell-0.5);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('キー位置（どこを見るか）→',CW/2,oy+cell*n+16);ctx.save();ctx.translate(ox-8,oy+cell*n/2);ctx.rotate(-Math.PI/2);ctx.fillText('クエリ位置→',0,0);ctx.restore();
+  ctx.textAlign='left';ctx.fillStyle=getCSS('--muted');ctx.fillText('softmax(QKᵀ/√d)・下三角=因果',ox,oy+cell*n+30);}
+function drawCurve(arr,col,labels,title){ctx.clearRect(0,0,CW,CH);const pad=34,W=CW,H=CH;
+  if(arr.length<2){ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('「⏵ 学習」または「次へ」で学習が始まります',W/2,H/2);return;}
+  let hi=Math.max(...arr),lo=Math.min(...arr);if(hi-lo<0.05)hi=lo+0.05;
+  const xP=i=>pad+(W-pad-12)*i/(arr.length-1),yP=v=>14+(H-pad-14)*(hi-v)/(hi-lo);
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='right';
+  for(let g=0;g<=4;g++){const v=lo+(hi-lo)*g/4,py=yP(v);ctx.beginPath();ctx.moveTo(pad,py);ctx.lineTo(W-12,py);ctx.stroke();ctx.fillText(v.toFixed(2),pad-4,py+3);}
+  ctx.strokeStyle=getCSS(col);ctx.lineWidth=2;ctx.beginPath();const stepn=Math.max(1,Math.floor(arr.length/(W-pad)));for(let i=0;i<arr.length;i+=stepn){const px=xP(i),py=yP(arr[i]);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.lineTo(xP(arr.length-1),yP(arr[arr.length-1]));ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.textAlign='left';ctx.fillText(title,pad,11);}
+function drawResid(){ctx.clearRect(0,0,CW,CH);if(!lastViz){return;}const norms=lastViz.resid.map(r=>{const v=r[r.length-1];let s=0;for(let i=0;i<v.length;i++)s+=v[i]*v[i];return Math.sqrt(s);});
+  const n=norms.length,pad=40,W=CW,H=CH,max=Math.max(...norms),min=Math.min(...norms);
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();norms.forEach((v,i)=>{const px=pad+(W-2*pad)*i/(n-1),py=H-34-(H-70)*(v-min)/(max-min+1e-9);i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();
+  ctx.fillStyle=getCSS('--accent');norms.forEach((v,i)=>{const px=pad+(W-2*pad)*i/(n-1),py=H-34-(H-70)*(v-min)/(max-min+1e-9);ctx.beginPath();ctx.arc(px,py,3.5,0,7);ctx.fill();});
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';const labels=['埋込',...Array(n-1).fill(0).map((_,i)=>'層'+(i+1))];norms.forEach((v,i)=>{const px=pad+(W-2*pad)*i/(n-1);ctx.fillText(labels[i],px,H-14);});
+  ctx.textAlign='left';ctx.fillStyle=getCSS('--faint');ctx.fillText('残差ノルム ‖h‖ '+min.toFixed(1)+'→'+max.toFixed(1)+'（層で情報が積み上がる）',pad,14);}
+function draw(){const k=STEPS[stepIdx].key;if(k==='task')drawTask();else if(k==='attn')drawAttn();else if(k==='internal')drawResid();else drawCurve(losses,'--loss',null,'loss（交差エントロピー, 低いほど良い）');}
 
-/* ---- UI ---- */
-$('spd').addEventListener('input',()=>$('spdv').textContent=$('spd').value);
-$('trainBtn').addEventListener('click',()=>setRun(!running));
-$('stepBtn').addEventListener('click',()=>{if(running)return;for(let i=0;i<10;i++)trainStep();capture();generate();drawAll();updateReadout();renderGen();});
-$('resetBtn').addEventListener('click',reset);
-$('corpus').addEventListener('change',reset);
-$('aL').addEventListener('input',drawAttn);$('aH').addEventListener('input',drawAttn);
-$('lr').addEventListener('change',()=>{});
+function frame(){if(!running)return;for(let i=0;i<SPD;i++)trainStep();capture();if(step%24<SPD)generate();draw();renderMini();renderExplain();requestAnimationFrame(frame);}
+function setRun(on){running=on;document.getElementById('autoBtn').textContent=on?'⏸ 停止':'⏵ 学習';if(on)requestAnimationFrame(frame);}
 
-$('spdv').textContent=$('spd').value;
-reset();
+const STEPS=[{key:'task',t:'問題',c:'var(--accent)'},{key:'attn',t:'自己注意',c:'var(--upd)'},{key:'train',t:'学習',c:'var(--loss)'},{key:'gen',t:'生成',c:'var(--accent)'},{key:'internal',t:'内部',c:'var(--warm)'}];
+let stepIdx=0;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){document.getElementById('mini').innerHTML='<div>step <b>'+step.toLocaleString()+'</b></div><div class="ls">loss <b>'+(lastLoss==null?'—':lastLoss.toFixed(3))+'</b></div><div>語彙 <b>'+chars.length+'</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='attn')?'明るいマス=強い注目（行=どの文字が, 列=どこを見るか）':(k==='internal')?'各層の残差ノルム（情報の積み上がり）':(k==='task')?'文字単位の次トークン予測':'loss が下がるほど良い予測';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='task'){h+='<h3>① 問題：次の文字を予測</h3><div class="desc">Transformer は「これまでの文字列から<b>次の 1 文字</b>を予測する」よう学習します。コーパス（右下で選択）を題材に、文脈 '+T+' 文字を見て次を当てる。正解との差＝<b>交差エントロピー loss</b> を小さくするのが目標。これを大規模・実データでやったのが GPT です。</div>';}
+  else if(k==='attn'){h+='<h3>② 自己注意（Self-Attention）</h3><div class="eq curr">注目度 = softmax(QKᵀ / √d)　… V を重み付き平均</div><div class="desc">各文字は他の文字へ<b>注目（attention）</b>を向け、関係の深い文字の情報を集めます。行列の<b>明るいマス＝強い注目</b>。<b>下三角だけ</b>なのは「未来の文字は見ない」因果マスク。学習前はぼんやり一様ですが、学習が進むと「直前の文字に強く注目」などの<b>構造</b>が現れます（右下で層・頭を切替）。</div>';}
+  else if(k==='train'){h+='<h3>③ 学習：loss が下がる</h3><div class="eq curr">予測を正解へ近づけるよう全パラメータを更新（誤差逆伝播）</div><div class="desc">「⏵ 学習」で訓練が走り、<b>loss 曲線</b>が下がっていきます（今 step '+step.toLocaleString()+'・loss <b>'+(lastLoss==null?'—':lastLoss.toFixed(2))+'</b>）。'+(lastLoss!=null&&lastLoss<1.5?'もう<b style="color:var(--accent)">コーパスを覚え始めて</b>います。':'下がるほど次の文字を正しく当てられるように。')+'この間に attention と生成（次のステップ）も変化します。</div>';}
+  else if(k==='gen'){const seed=genText.slice(0,seedLen),rest=genText.slice(seedLen);h+='<h3>④ 生成</h3><div class="desc">学習したモデルに種（<span style="color:var(--seed)">先頭の数文字</span>）を与え、<b>予測した文字を継ぎ足し</b>ていくと文章になります：</div><div class="gen"><span class="seed">'+esc(seed)+'</span><span class="new">'+esc(rest)+'</span></div><div class="desc">loss が下がるほど（step '+step.toLocaleString()+'・loss '+(lastLoss==null?'—':lastLoss.toFixed(2))+'）、生成は<b>コーパスらしく</b>なります。学習を続けると上のテキストが整っていきます。</div>';}
+  else{let tbl='';if(lensRes){tbl='<table><tr><th>層</th><th>その層の予測</th></tr>';const names=['埋込直後',...Array(lensRes.length-1).fill(0).map((_,i)=>'層'+(i+1)+'後')];lensRes.forEach((id,i)=>{tbl+='<tr><td>'+names[i]+'</td><td>'+esc(itos[id]||'?')+'</td></tr>';});tbl+='</table>';}h+='<h3>⑤ 内部：残差と logit lens</h3><div class="desc">左は<b>残差ストリームのノルム</b>＝層を進むほど情報が積み上がる様子。下の <b>logit lens</b> は各層の途中での「次文字予測」で、深い層ほど確信が増します。</div>'+tbl+'<div class="eq" style="margin-top:8px;"><b>要点</b><br>・次の文字を予測するよう学習<br>・自己注意で文脈を集める(因果マスク)<br>・loss低下→attention構造化→生成が整う</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;
+  if(k==='task'||k==='attn'){setRun(false);} else {if(!running)setRun(true);}
+  capture();renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('autoBtn').onclick=()=>setRun(!running);
+document.getElementById('resetBtn').onclick=()=>{setRun(false);reset();goStep(0);};
+corpusEl.onchange=()=>{setRun(false);reset();renderAll();draw();};
+aSel.onchange=()=>{if(!running){draw();}};
+reset();renderAll();draw();
 </script>
 <script src="nav.js"></script>
 </body>
