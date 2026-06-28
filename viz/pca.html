@@ -3,224 +3,164 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCA — 主成分分析（最大分散方向を見つける）</title>
+<title>PCA（主成分分析）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --pc2:#b07ef0;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff; --pc1:#39e0c4; --pc2:#f0b03a;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:20px;font-family:var(--mono);padding:6px 14px 12px;flex-wrap:wrap;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
-  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.pc1{color:var(--accent);} .readout .v.pc2{color:var(--pc2);}
-  .bar{height:14px;border-radius:3px;background:var(--accent);display:inline-block;vertical-align:middle;}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .vbar{height:16px;border-radius:3px;margin:4px 0;}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
-  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
-  .legend span{display:inline-flex;align-items:center;gap:7px;}
-  .sw{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>PCA — 主成分分析（最大分散方向を見つける）</h1>
-      <div class="sub">データが最も広がる向き＝第1主成分を、ランダムな矢印から「べき乗反復」で回転させて見つける。2 次元を 1 次元に圧縮する線形版（オートエンコーダの線形対応）</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="autoencoder.html">オートエンコーダ</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>PCA（主成分分析）を理解する</h1>
+  <div class="lead">データが<b>最も広がる方向</b>を見つけ、その軸で表すことで<b>次元を減らす</b>（圧縮する）。第1主成分に射影すれば 2 次元→1 次元に。情報の大半を保ったまま軽くできます。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">データと主成分軸（PC1・PC2）／反復中の探索ベクトル</div>
-      <div class="canvas-host"><canvas id="board" width="600" height="520"></canvas></div>
-      <div class="legend">
-        <span><i class="sw" style="border-top-color:var(--accent)"></i>PC1（最大分散）</span>
-        <span><i class="sw" style="border-top-color:var(--pc2)"></i>PC2</span>
-        <span><i class="sw" style="border-top-color:var(--warm);border-top-style:dashed"></i>反復中の探索ベクトル</span>
-        <span>細線＝PC1 への射影（1 次元化）</span>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
       </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">反復</div><div class="v" id="itOut">0</div></div>
-          <div><div class="k">PC1 と探索の一致</div><div class="v" id="alignOut">—</div></div>
-        </div>
-        <div id="narrP" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶ べき乗反復で、ランダムな探索ベクトルが最大分散方向（第1主成分）へ回転していきます。</div>
-      </div>
-      <div class="card">
-        <div class="cap">寄与率（各主成分の分散の割合）</div>
-        <div style="padding:12px 14px;font-family:var(--mono);font-size:12px;">
-          <div style="margin-bottom:8px;">PC1 <span id="pc1pct" class="v pc1" style="font-size:14px;">—</span><br><span class="bar" id="pc1bar" style="width:0;"></span></div>
-          <div>PC2 <span id="pc2pct" class="v pc2" style="font-size:14px;">—</span><br><span class="bar" id="pc2bar" style="width:0;background:var(--pc2);"></span></div>
-        </div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="0">傾き 30°</option><option value="1">傾き 60°</option><option value="2">傾き 120°</option><option value="3">細長い</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>データの傾き <span class="val" id="angVal"></span></label>
-      <input type="range" id="angSlider" min="0" max="180" step="1" value="35">
-    </div>
-    <div class="field">
-      <label>細長さ（分散比） <span class="val" id="elVal"></span></label>
-      <input type="range" id="elSlider" min="1.2" max="6" step="0.1" value="3.2">
-    </div>
-    <div class="field">
-      <label>速度（反復/フレーム） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="10" step="1" value="2">
-    </div>
-    <div class="field" style="justify-content:flex-end;">
-      <span class="note" style="grid-column:auto;">探索ベクトルが PC1 に揃うと一致＝1.000</span>
-    </div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ べき乗反復</button>
-      <button id="stepBtn">⏭ 1 反復</button>
-      <button id="resetBtn">↺ ランダム向きから</button>
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">べき乗反復: 共分散行列 C にベクトル v を掛けて正規化（v ← C·v / |C·v|）を繰り返すと、v は最大固有値の固有ベクトル＝第1主成分へ収束する。PC1 はデータが最も広がる向き、PC2 はそれに直交。各点を PC1 に射影すれば 2 次元→1 次元の圧縮になる。寄与率＝その軸が説明する分散の割合。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：主成分＝共分散行列の固有ベクトル</summary>
+    <div class="det">第1主成分は、データの<b>共分散行列 C の最大固有値に対応する固有ベクトル</b>＝分散が最大になる方向。ここでは <b>べき乗反復</b>（v ← Cv/‖Cv‖ を繰り返す）で求めています（最大固有ベクトルへ収束）。第2主成分はそれに直交する方向。各主成分の固有値＝その方向の分散で、<b>寄与率</b>はその割合。高次元では上位数本の主成分だけ残せば大幅に圧縮できます。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
 let seed=11;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+let pts=[],mean=[0,0],C=[1,0,0,1],pc1=[1,0],pc2=[0,1],lam1=1,lam2=1,searchV=[1,0],it=0;
+const DATASPEC=[[30,3.4],[60,3.4],[120,3.4],[40,6]];
+function genData(idx){const[deg, e]=DATASPEC[idx];const ang=deg, th=ang*Math.PI/180,ca=Math.cos(th),sa=Math.sin(th);const sx=0.62*Math.sqrt(e),sy=0.62/Math.sqrt(e);pts=[];const ox=0.45,oy=0.35;
+  for(let i=0;i<160;i++){const a=randn()*sx,b=randn()*sy;pts.push([ox+ca*a-sa*b,oy+sa*a+ca*b]);}}
+function compMean(){mean=[0,0];for(const p of pts){mean[0]+=p[0];mean[1]+=p[1];}mean[0]/=pts.length;mean[1]/=pts.length;}
+function centered(p){return [p[0]-mean[0],p[1]-mean[1]];}
+function compCov(){let a=0,b=0,d=0;for(const p of pts){const x=p[0]-mean[0],y=p[1]-mean[1];a+=x*x;b+=x*y;d+=y*y;}const n=pts.length;C=[a/n,b/n,b/n,d/n];
+  const tr=C[0]+C[3],det=C[0]*C[3]-C[1]*C[2],dis=Math.sqrt(Math.max(0,tr*tr/4-det));lam1=tr/2+dis;lam2=Math.max(1e-9,tr/2-dis);}
+function powerStep(){const cx=C[0]*searchV[0]+C[1]*searchV[1],cy=C[2]*searchV[0]+C[3]*searchV[1];const n=Math.hypot(cx,cy)||1;searchV=[cx/n,cy/n];it++;}
+function setPC(){pc1=[...searchV];pc2=[-pc1[1],pc1[0]];}
+function truePC1(){let ex,ey;if(Math.abs(C[1])>1e-9){ex=lam1-C[3];ey=C[1];}else{ex=C[0]>=C[3]?1:0;ey=C[0]>=C[3]?0:1;}const n=Math.hypot(ex,ey)||1;return[ex/n,ey/n];}
 
-/* ===== データ＆共分散 ===== */
-let pts=[],C=[1,0,0,1],mean=[0,0];
-let v=[1,0];          // 反復中の探索ベクトル
-let trueV=[1,0];      // 解析的 PC1
-let lam1=1,lam2=1,it=0;
-function genData(){
-  const ang=(+angSlider.value)*Math.PI/180, el=+elSlider.value;
-  const sx=0.62*el/Math.sqrt(el), sy=0.62/Math.sqrt(el); // 長軸/短軸
-  const ca=Math.cos(ang),sa=Math.sin(ang);
-  pts=[];for(let i=0;i<160;i++){const a=randn()*sx,b=randn()*sy;pts.push([ca*a-sa*b,sa*a+ca*b]);}
-  // 中心化
-  let mx=0,my=0;for(const p of pts){mx+=p[0];my+=p[1];}mx/=pts.length;my/=pts.length;mean=[mx,my];
-  for(const p of pts){p[0]-=mx;p[1]-=my;}
-  // 共分散
-  let a=0,bb=0,d=0;for(const p of pts){a+=p[0]*p[0];bb+=p[0]*p[1];d+=p[1]*p[1];}const n=pts.length;C=[a/n,bb/n,bb/n,d/n];
-  // 解析的固有値・PC1
-  const tr=C[0]+C[3],det=C[0]*C[3]-C[1]*C[2];const disc=Math.sqrt(Math.max(0,tr*tr/4-det));
-  lam1=tr/2+disc;lam2=tr/2-disc;
-  // PC1 固有ベクトル
-  let ex,ey;if(Math.abs(C[1])>1e-9){ex=lam1-C[3];ey=C[1];}else{ex=C[0]>=C[3]?1:0;ey=C[0]>=C[3]?0:1;}
-  const nrm=Math.hypot(ex,ey)||1;trueV=[ex/nrm,ey/nrm];
-}
-function resetVec(){const a=2*Math.PI*rng();v=[Math.cos(a),Math.sin(a)];it=0;}
-function powerStep(){
-  const cx=C[0]*v[0]+C[1]*v[1], cy=C[2]*v[0]+C[3]*v[1];
-  const n=Math.hypot(cx,cy)||1;v=[cx/n,cy/n];it++;
-}
-function align(){return Math.abs(v[0]*trueV[0]+v[1]*trueV[1]);}
-
-/* ===== Canvas ===== */
-const board=document.getElementById('board'),bx=board.getContext('2d');const BW=board.width,BH=board.height;
-let R=2.2;
-function getCSS(x){return getComputedStyle(document.documentElement).getPropertyValue(x).trim();}
-const toPx=x=>BW/2+x/R*BW/2, toPy=y=>BH/2-y/R*BH/2;
-function draw(){
-  bx.clearRect(0,0,BW,BH);
-  // 軸グリッド
-  bx.strokeStyle=getCSS('--grid');bx.lineWidth=1;bx.beginPath();bx.moveTo(0,BH/2);bx.lineTo(BW,BH/2);bx.moveTo(BW/2,0);bx.lineTo(BW/2,BH);bx.stroke();
-  // PC1 への射影（細線＋射影点）
-  const pc1=trueV;
-  bx.strokeStyle='rgba(57,224,196,0.18)';bx.lineWidth=1;
-  for(const p of pts){const t=p[0]*pc1[0]+p[1]*pc1[1];const px=pc1[0]*t,py=pc1[1]*t;
-    bx.beginPath();bx.moveTo(toPx(p[0]),toPy(p[1]));bx.lineTo(toPx(px),toPy(py));bx.stroke();}
-  // データ点
-  for(const p of pts){bx.beginPath();bx.arc(toPx(p[0]),toPy(p[1]),3,0,7);bx.fillStyle=getCSS('--muted');bx.globalAlpha=.85;bx.fill();bx.globalAlpha=1;}
-  // 射影点（PC1上, 1次元化）
-  for(const p of pts){const t=p[0]*pc1[0]+p[1]*pc1[1];bx.beginPath();bx.arc(toPx(pc1[0]*t),toPy(pc1[1]*t),2.4,0,7);bx.fillStyle=getCSS('--accent');bx.fill();}
-  // PC2 軸
-  const s2=Math.sqrt(Math.max(lam2,1e-6))*2.3,pc2=[-pc1[1],pc1[0]];
-  drawAxis(pc2,s2,getCSS('--pc2'),false);
-  // PC1 軸
-  const s1=Math.sqrt(Math.max(lam1,1e-6))*2.3;
-  drawAxis(pc1,s1,getCSS('--accent'),false);
-  // 探索ベクトル（破線, 反復中）
-  drawAxis(v,Math.sqrt(Math.max(lam1,1e-6))*2.3,getCSS('--warm'),true);
-}
-function drawAxis(dir,len,col,dash){
-  bx.strokeStyle=col;bx.lineWidth=2.4;if(dash)bx.setLineDash([6,5]);else bx.setLineDash([]);
-  bx.beginPath();bx.moveTo(toPx(-dir[0]*len),toPy(-dir[1]*len));bx.lineTo(toPx(dir[0]*len),toPy(dir[1]*len));bx.stroke();bx.setLineDash([]);
-  // 矢印先
-  if(!dash){const ex=toPx(dir[0]*len),ey=toPy(dir[1]*len),ang=Math.atan2(-dir[1],dir[0]);
-    bx.beginPath();bx.moveTo(ex,ey);bx.lineTo(ex-Math.cos(ang-0.4)*9,ey+Math.sin(ang-0.4)*9);bx.lineTo(ex-Math.cos(ang+0.4)*9,ey+Math.sin(ang+0.4)*9);bx.closePath();bx.fillStyle=col;bx.fill();}
-}
-function updateReadout(){
-  itOut.textContent=it;alignOut.textContent=align().toFixed(3);
-  const tot=lam1+lam2||1;const p1=Math.round(100*lam1/tot),p2=100-p1;
-  pc1pct.textContent=p1+'%';pc2pct.textContent=p2+'%';
-  pc1bar.style.width=Math.max(2,p1*1.6)+'px';pc2bar.style.width=Math.max(2,p2*1.6)+'px';
-  const el=document.getElementById('narrP');if(el){const a=align();
-    if(it===0)el.innerHTML='ランダムな探索ベクトル（破線）を、べき乗反復 v←Cv/|Cv| で回転させ第1主成分を探します。';
-    else el.innerHTML='反復 '+it+'：探索ベクトルが PC1 に '+(a>0.999?'<span style="color:var(--accent)">ほぼ一致（収束）</span>':'近づき中（一致 '+a.toFixed(3)+'）')+'。PC1 はデータが最も広がる向き＝寄与率 '+p1+'%。各点を PC1 に射影すれば 2→1 次元に圧縮。';}
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const R=1.7,toX=x=>CW/2+x/R*(CW/2-14),toY=y=>CH/2-y/R*(CH/2-14);
+function drawAxes(){ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,CH/2);ctx.lineTo(CW,CH/2);ctx.moveTo(CW/2,0);ctx.lineTo(CW/2,CH);ctx.stroke();}
+function drawAxis(v,col,len,dash){ctx.strokeStyle=col;ctx.lineWidth=2.4;if(dash)ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(toX(-v[0]*len),toY(-v[1]*len));ctx.lineTo(toX(v[0]*len),toY(v[1]*len));ctx.stroke();ctx.setLineDash([]);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);drawAxes();
+  const cen=opt.centered, lerp=opt.lerp!=null?opt.lerp:(cen?1:0);
+  // projections / reconstruction
+  if(opt.proj){for(const p of pts){const c=centered(p);const t=c[0]*pc1[0]+c[1]*pc1[1];const pr=[pc1[0]*t,pc1[1]*t];ctx.strokeStyle='rgba(240,176,58,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(toX(c[0]),toY(c[1]));ctx.lineTo(toX(pr[0]),toY(pr[1]));ctx.stroke();}}
+  // points
+  for(const p of pts){const raw=p,c=centered(p);const x=raw[0]+(c[0]-raw[0])*lerp,y=raw[1]+(c[1]-raw[1])*lerp;ctx.beginPath();ctx.arc(toX(x),toY(y),2.8,0,7);ctx.fillStyle='rgba(57,224,196,0.45)';ctx.fill();}
+  if(opt.proj){for(const p of pts){const c=centered(p);const t=c[0]*pc1[0]+c[1]*pc1[1];const pr=[pc1[0]*t,pc1[1]*t];ctx.beginPath();ctx.arc(toX(pr[0]),toY(pr[1]),2.6,0,7);ctx.fillStyle=getCSS('--pc1');ctx.fill();}}
+  // axes vectors
+  if(opt.search){drawAxis(searchV,getCSS('--loss'),1.4,true);}
+  if(opt.pc){drawAxis(pc1,getCSS('--pc1'),1.5,false);drawAxis(pc2,getCSS('--pc2'),1.0,false);
+    ctx.fillStyle=getCSS('--pc1');ctx.font='12px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('PC1',toX(pc1[0]*1.5)+4,toY(pc1[1]*1.5));ctx.fillStyle=getCSS('--pc2');ctx.fillText('PC2',toX(pc2[0]*1.0)+4,toY(pc2[1]*1.0));}
+  if(opt.mean&&lerp<1){ctx.fillStyle=getCSS('--warm');ctx.beginPath();ctx.arc(toX(mean[0]*(1-lerp)),toY(mean[1]*(1-lerp)),4,0,7);ctx.fill();}
 }
 
-/* ===== ループ ===== */
-let running=false;
-function frame(){if(!running)return;for(let i=0;i<(+spdSlider.value);i++)powerStep();draw();updateReadout();
-  if(align()>0.99999){running=false;playBtn.textContent='▶ べき乗反復';playBtn.classList.add('primary');}requestAnimationFrame(frame);}
-function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ べき乗反復';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'center',t:'中心化',c:'var(--warm)'},{key:'pc',t:'主成分',c:'var(--accent)'},{key:'proj',t:'射影',c:'var(--pc1)'},{key:'var',t:'寄与率',c:'var(--upd)'}];
+let stepIdx=0,anim=false,auto=false;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function align(){return Math.abs(searchV[0]*pc1f[0]+searchV[1]*pc1f[1]);}
+let pc1f=[1,0];
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
+  if(k==='pc')m.innerHTML='<div>反復 <b>'+it+'</b></div><div>PC1と一致 <b>'+align().toFixed(3)+'</b></div>';
+  else if(k==='var'||k==='proj')m.innerHTML='<div>PC1寄与率 <b style="color:var(--pc1)">'+(100*lam1/(lam1+lam2)).toFixed(0)+'%</b></div><div>PC2 <b style="color:var(--pc2)">'+(100*lam2/(lam1+lam2)).toFixed(0)+'%</b></div>';
+  else m.innerHTML='';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=k==='pc'?'破線＝探索ベクトル(べき乗反復), 実線＝PC1/PC2':(k==='proj'||k==='var'?'teal点＝PC1へ射影した1次元表現':'');}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：広がる方向を探す</h3><div class="desc">2 次元データが、ある向きに長く広がっています。この<b>最も広がる方向</b>が分かれば、その軸 1 本でデータの大部分を表せる＝次元を減らせます。右下で形を変えられます。</div>';}
+  else if(k==='center'){h+='<h3>② 中心化：平均を原点へ</h3><div class="eq curr">x ← x − 平均</div><div class="desc">まずデータの<b>平均（重心）を原点に</b>合わせます（橙の点が中心）。これで「広がり（分散）」を原点まわりで測れるようになります。</div>';}
+  else if(k==='pc'){h+='<h3>③ 主成分：最大分散方向</h3><div class="eq curr">v ← C·v / ‖C·v‖　（べき乗反復）</div><div class="desc">分散が最大の方向＝<b>第1主成分(PC1)</b>。共分散行列 C を探索ベクトル（破線）に繰り返し掛けると、PC1 に<b>回転して収束</b>します。反復 '+it+'・一致 '+align().toFixed(3)+'。PC2 は直交方向。</div>';}
+  else if(k==='proj'){h+='<h3>④ 射影：2次元→1次元</h3><div class="eq curr">座標 = (中心化した点) · PC1</div><div class="desc">各点を <b>PC1 に垂直に落とす</b>（射影）と、PC1 上の 1 つの数値になります（teal 点）。これで 2 次元データを<b>1 次元</b>に圧縮。落とした距離（橙線）＝失う情報。</div>';}
+  else{const p1=100*lam1/(lam1+lam2);h+='<h3>⑤ 寄与率：どれだけ保てた？</h3><div style="margin:8px 0;">PC1 '+p1.toFixed(0)+'%<div class="vbar" style="width:'+p1+'%;background:var(--pc1);"></div>PC2 '+(100-p1).toFixed(0)+'%<div class="vbar" style="width:'+(100-p1)+'%;background:var(--pc2);"></div></div><div class="desc">PC1 だけで全体の分散の <b>'+p1.toFixed(0)+'%</b> を説明できる＝1 次元に落としても情報の '+p1.toFixed(0)+'% が残る。寄与率が高いほど圧縮で失う情報が少ない。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・最大分散方向＝共分散の最大固有ベクトル<br>・PC1へ射影で次元圧縮<br>・寄与率＝保てる情報の割合</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-/* ===== UI ===== */
-const angSlider=document.getElementById('angSlider'),elSlider=document.getElementById('elSlider'),spdSlider=document.getElementById('spdSlider'),
-  playBtn=document.getElementById('playBtn'),itOut=document.getElementById('itOut'),alignOut=document.getElementById('alignOut'),
-  pc1pct=document.getElementById('pc1pct'),pc2pct=document.getElementById('pc2pct'),pc1bar=document.getElementById('pc1bar'),pc2bar=document.getElementById('pc2bar');
-const angVal=document.getElementById('angVal'),elVal=document.getElementById('elVal'),spdVal=document.getElementById('spdVal');
-function lbls(){angVal.textContent=angSlider.value+'°';elVal.textContent=(+elSlider.value).toFixed(1);spdVal.textContent=spdSlider.value;}
-function regen(){setRun(false);genData();resetVec();draw();updateReadout();}
-angSlider.oninput=()=>{lbls();genData();resetVec();draw();updateReadout();};
-elSlider.oninput=()=>{lbls();genData();resetVec();draw();updateReadout();};
-spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);powerStep();draw();updateReadout();};
-document.getElementById('resetBtn').onclick=()=>{setRun(false);resetVec();draw();updateReadout();};
-document.getElementById('dataBtn').onclick=()=>{seed=(Math.floor(rng()*1e9))>>>0;regen();};
-
-lbls();genData();resetVec();draw();updateReadout();
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='data'){draw({centered:false});}
+  else if(k==='center'){compMean();animCenter();}
+  else if(k==='pc'){compMean();compCov();pc1f=truePC1();let s=2*Math.PI*rng();searchV=[Math.cos(s),Math.sin(s)];it=0;runPower();}
+  else if(k==='proj'){compMean();compCov();setPC();draw({centered:true,pc:true,proj:true});}
+  else{compMean();compCov();setPC();draw({centered:true,pc:true,proj:true});}
+  renderAll();}
+function animCenter(){anim=true;let f=0;function go(){if(!anim||STEPS[stepIdx].key!=='center')return;f++;const e=Math.min(1,f/26);draw({centered:true,lerp:e,mean:true});if(e<1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+function runPower(){anim=true;setPC();draw({centered:true,search:true,pc:false});function go(){if(!anim||STEPS[stepIdx].key!=='pc')return;powerStep();setPC();draw({centered:true,search:true,pc:true});renderMini();renderExplain();if(align()>0.9999||it>40){anim=false;return;}setTimeout(()=>requestAnimationFrame(go),200);}setTimeout(()=>requestAnimationFrame(go),300);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;genData(+document.getElementById('dataSel').value);compMean();compCov();stepIdx=0;renderAll();draw({centered:false});}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=reset;
+genData(0);compMean();compCov();renderAll();draw({centered:false});
 </script>
 <script src="nav.js"></script>
 </body>
