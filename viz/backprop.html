@@ -3,306 +3,386 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>誤差逆伝播の流れ — backprop ビューア</title>
+<title>誤差逆伝播法を完全に理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
     --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784;
-    --fwd:#39e0c4; --bwd:#f0b03a;
+    --fwd:#39e0c4; --bwd:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .phase{padding:8px 14px 12px;font-family:var(--mono);font-size:13px;}
-  .phase .badge{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;margin-right:8px;}
-  .readout{display:flex;gap:22px;font-family:var(--mono);padding:4px 14px 12px;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:19px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.loss{color:var(--loss);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1120px;margin:0 auto;padding:24px 20px 60px;}
+  .nav{font-size:12.5px;margin-bottom:18px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:30px;margin:0 0 6px;letter-spacing:.02em;}
+  h2{font-family:var(--mincho);font-weight:600;font-size:19px;margin:0 0 4px;letter-spacing:.03em;}
+  .lead{color:var(--muted);font-size:14px;max-width:760px;}
+  section{margin-top:34px;}
+  .secnum{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--accent);border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;letter-spacing:.1em;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;}
+  .pad{padding:16px 18px;}
+  .muted{color:var(--muted);font-size:13px;}
+  b.kw{color:var(--text);}
+  .fwdc{color:var(--fwd);} .bwdc{color:var(--bwd);} .updc{color:var(--upd);} .lossc{color:var(--loss);}
+
+  /* パイプライン */
+  .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 14px;position:relative;transition:.2s;}
+  .step.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 6px 22px -10px var(--c);}
+  .step .t{font-weight:600;font-size:14px;margin-bottom:3px;}
+  .step .m{font-family:var(--mono);font-size:12px;color:var(--muted);min-height:32px;}
+  .step .d{font-size:11.5px;color:var(--faint);margin-top:4px;}
+  .step .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;}
+
+  /* 解剖レイアウト */
+  .lab{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mathbox{font-family:var(--mono);font-size:13px;line-height:1.95;}
+  .mathbox .row{padding:2px 0;}
+  .mathbox .hl{background:rgba(57,224,196,0.10);border-radius:5px;padding:1px 4px;}
+  .mathbox .num{color:var(--accent);}
+  .mathbox .lbl{color:var(--muted);}
+  .mathbox table{border-collapse:collapse;width:100%;font-size:12px;margin:5px 0;}
+  .mathbox td,.mathbox th{border:1px solid var(--line);padding:3px 7px;text-align:right;}
+  .mathbox th{color:var(--muted);font-weight:400;}
+  .narr{margin-top:12px;padding:11px 13px;background:var(--panel-2);border-left:3px solid var(--c,var(--accent));border-radius:0 8px 8px 0;font-size:13px;}
+  .controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:12px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 16px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
   button:hover{border-color:var(--faint);}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  select{background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  .readout{display:flex;gap:20px;font-family:var(--mono);margin-top:6px;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:17px;font-variant-numeric:tabular-nums;}
+  .readout .v.loss{color:var(--loss);}
+
+  /* 連鎖律 */
+  .chain{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .chain .f{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;}
+  .chain .f .eq{font-family:var(--mono);font-size:15px;color:var(--text);}
+  .chain .f .nm{font-size:11.5px;color:var(--muted);margin-top:6px;}
+  .chaineq{font-family:var(--mono);font-size:16px;text-align:center;margin:6px 0 14px;color:var(--text);}
+
+  .result{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;}
+  ul.take{margin:0;padding-left:0;list-style:none;}
+  ul.take li{padding:9px 0 9px 30px;position:relative;border-top:1px solid var(--line);font-size:13.5px;}
+  ul.take li:first-child{border-top:none;}
+  ul.take li:before{content:"→";position:absolute;left:6px;color:var(--accent);}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sw{width:11px;height:11px;border-radius:50%;}
+  @media(max-width:820px){.lab,.result{grid-template-columns:1fr;}.pipe{grid-template-columns:repeat(2,1fr);}.chain{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>誤差逆伝播の流れ — backprop ビューア</h1>
-      <div class="sub">順伝播で信号が右へ流れて予測 → 誤差を計算 → 勾配が左へ逆流 → 重みを更新。学習の1サイクルを構造の上で1サンプルずつ観察する</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="gradient.html">勾配降下</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">ネットワーク（順伝播 → 逆伝播 → 更新）</div>
-      <div class="canvas-host"><canvas id="net" width="760" height="420"></canvas></div>
-      <div class="phase" id="phaseLine"><span class="badge" style="background:var(--fwd);color:#06231f;">順伝播</span>入力を右へ流して予測を作る</div>
+  <h1>誤差逆伝播法を<span class="fwdc">完全に</span>理解する</h1>
+  <div class="lead">ニューラルネットが「学ぶ」中心の仕組み。<b class="kw">予測の誤差</b>を出力から入力へ<b class="bwdc">逆向きに</b>配り、各重みが誤差にどれだけ責任があるか（＝<b class="lossc">勾配</b>）を求めて直す。小さなネットで、<b>数式に実際の数値を代入しながら</b>1 サイクルを最後まで追います。</div>
+
+  <!-- ① 全体の流れ -->
+  <section>
+    <span class="secnum">STEP 01 / 全体像</span>
+    <h2>学習の 1 サイクル ＝ 4 つのステップ</h2>
+    <div class="muted" style="margin-bottom:12px;">この 4 つを 1 サンプルごとに繰り返すだけ。今どのステップかは下の解剖と連動します。</div>
+    <div class="pipe" id="pipe">
+      <div class="step" data-ph="fwd" style="--c:var(--fwd);"><div class="t"><span class="dot" style="background:var(--fwd);"></span>① 順伝播</div><div class="m">ŷ = f(x; W)</div><div class="d">入力を右へ流し予測 ŷ を作る</div></div>
+      <div class="step" data-ph="loss" style="--c:var(--loss);"><div class="t"><span class="dot" style="background:var(--loss);"></span>② 損失</div><div class="m">L = ½(ŷ − y)²</div><div class="d">予測と正解の外れ具合を測る</div></div>
+      <div class="step" data-ph="bwd" style="--c:var(--bwd);"><div class="t"><span class="dot" style="background:var(--bwd);"></span>③ 逆伝播</div><div class="m">δ を右→左へ</div><div class="d">連鎖律で各重みの勾配を求める</div></div>
+      <div class="step" data-ph="upd" style="--c:var(--upd);"><div class="t"><span class="dot" style="background:var(--upd);"></span>④ 更新</div><div class="m">W ← W − η·∂L/∂W</div><div class="d">勾配の逆向きに重みを少し動かす</div></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
+  </section>
+
+  <!-- ② 解剖 -->
+  <section>
+    <span class="secnum">STEP 02 / 解剖</span>
+    <h2>小さなネットで、数値を追う</h2>
+    <div class="muted" style="margin-bottom:12px;">入力 1 → 隠れ 5（tanh）→ 出力 1。<b>「▶ 1 ステップ進む」</b>を押すたびに、上の 4 ステップを 1 つずつ実行し、右の数式に<b class="fwdc">実際の数値</b>が入ります。</div>
+    <div class="lab">
+      <div class="card pad">
+        <canvas id="net" width="560" height="380"></canvas>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--fwd);"></i>順伝播の信号 / 正の活性</span>
+          <span><i class="sw" style="background:var(--neg);"></i>負の活性</span>
+          <span><i class="sw" style="background:var(--bwd);"></i>逆伝播の δ</span>
+          <span><i class="sw" style="background:var(--upd);"></i>更新される重み</span>
+        </div>
         <div class="readout">
-          <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
-          <div><div class="k">sample</div><div class="v" id="smOut">—</div></div>
+          <div><div class="k">サンプル</div><div class="v" id="smOut">—</div></div>
+          <div><div class="k">予測 ŷ / 正解 y</div><div class="v" id="poOut">—</div></div>
+          <div><div class="k">損失 L</div><div class="v loss" id="lossOut">—</div></div>
         </div>
-        <div class="readout" style="padding-top:0;">
-          <div><div class="k">予測 / 目標</div><div class="v" id="poOut" style="font-size:14px;">—</div></div>
-          <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
+        <div class="controls">
+          <button class="primary" id="stepBtn">▶ 1 ステップ進む</button>
+          <button id="autoBtn">⏩ 1 サンプル通す</button>
+          <button id="resetBtn">↺ 重みリセット</button>
+          <select id="fnSel">
+            <option value="sin">目標: y = sin(πx)</option>
+            <option value="quad">目標: y = 2x²−1</option>
+            <option value="abs">目標: y = 2|x|−1</option>
+            <option value="cubic">目標: y = x³</option>
+          </select>
         </div>
       </div>
-      <div class="card">
-        <div class="cap">loss の推移（エポック平均・下がるほど良い）</div>
-        <div class="canvas-host"><canvas id="lossC" width="300" height="150"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="cap">結果：関数の当てはまり（学習で更新）</div>
-        <div class="canvas-host"><canvas id="fitC" width="300" height="180"></canvas></div>
-        <div style="color:var(--faint);font-size:11px;padding:0 14px 12px;">薄線＝目標の関数 ／ 点＝学習データ ／ <span style="color:var(--fwd)">teal＝ネットの予測</span>。逆伝播の更新で予測曲線がデータへ近づく＝<b>プロセスと結果</b>がつながって見える。</div>
+      <div class="card pad">
+        <div class="mathbox" id="mathBox"></div>
+        <div class="narr" id="narr" style="--c:var(--accent);">「▶ 1 ステップ進む」で順伝播から始めます。</div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="controls">
-    <div class="field">
-      <label>目標の関数</label>
-      <select id="fnSel">
-        <option value="sin">y = sin(πx)</option>
-        <option value="quad">y = x²</option>
-        <option value="abs">y = |x|</option>
-        <option value="cubic">y = x³</option>
-      </select>
+  <!-- ③ 連鎖律 -->
+  <section>
+    <span class="secnum">STEP 03 / 核心</span>
+    <h2>なぜ「逆向き」なのか — 連鎖律</h2>
+    <div class="muted" style="margin-bottom:10px;">重み w を少し変えると損失 L がどれだけ変わるか（＝勾配 ∂L/∂w）。これは「鎖」を逆にたどった掛け算で求まります。</div>
+    <div class="card pad">
+      <div class="chaineq">∂L/∂w &nbsp;=&nbsp; <span class="lossc">∂L/∂ŷ</span> &nbsp;×&nbsp; <span class="fwdc">∂ŷ/∂z</span> &nbsp;×&nbsp; <span style="color:var(--warm)">∂z/∂w</span></div>
+      <div class="chain">
+        <div class="f"><div class="eq lossc">∂L/∂ŷ = ŷ − y</div><div class="nm">損失は予測のズレにどれだけ反応するか。出力での誤差そのもの。</div></div>
+        <div class="f"><div class="eq fwdc">∂ŷ/∂z = σ′(z)</div><div class="nm">活性化関数の傾き。信号が通ったときの「効きやすさ」。tanh なら 1−a²。</div></div>
+        <div class="f"><div class="eq" style="color:var(--warm)">∂z/∂w = 入力 a</div><div class="nm">その重みに入ってきた値。大きい入力ほど、重みの変化が効く。</div></div>
+      </div>
+      <div class="muted" style="margin-top:12px;">前半の <span class="lossc">∂L/∂ŷ</span>×<span class="fwdc">∂ŷ/∂z</span> をまとめたものが<b class="bwdc"> 誤差信号 δ</b>。δ は層をまたいで<b>使い回せる</b>ので、出力側で 1 回求めた δ を左へ運べば、全部の重みの勾配が ∂L/∂w = δ × 入力 で一気に出る。これが逆伝播が<b>速い</b>理由（同じ計算を二度しない＝動的計画法）。</div>
     </div>
-    <div class="field">
-      <label>活性化関数</label>
-      <select id="actSel"><option value="tanh">tanh</option><option value="relu">ReLU</option></select>
+  </section>
+
+  <!-- ④ 繰り返すと学習 -->
+  <section>
+    <span class="secnum">STEP 04 / 結果</span>
+    <h2>このサイクルを何百回 ＝ 学習</h2>
+    <div class="muted" style="margin-bottom:12px;">1 サイクルでは重みがほんの少し動くだけ。全サンプルに対して何百回繰り返すと、予測曲線が目標に重なり、損失が下がります。</div>
+    <div class="result">
+      <div class="card pad">
+        <canvas id="fitC" width="560" height="300"></canvas>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--true);"></i>目標の関数</span>
+          <span><i class="sw" style="background:var(--warm);"></i>学習データ</span>
+          <span><i class="sw" style="background:var(--fwd);"></i>ネットの予測</span>
+        </div>
+        <div class="controls">
+          <button class="primary" id="trainBtn">▶ 自動学習（高速）</button>
+          <button id="train1Btn">＋100 サイクル</button>
+        </div>
+      </div>
+      <div class="card pad">
+        <div class="muted" style="font-size:12px;margin-bottom:4px;">損失の推移（エポック平均・対数）</div>
+        <canvas id="lossC" width="320" height="150"></canvas>
+        <div class="readout" style="margin-top:10px;">
+          <div><div class="k">エポック</div><div class="v" id="epOut">0</div></div>
+          <div><div class="k">損失</div><div class="v loss" id="eLossOut">—</div></div>
+        </div>
+        <div class="muted" id="resNarr" style="margin-top:10px;font-size:12.5px;">▶ 自動学習を押すと、上の解剖と同じ計算を高速で繰り返し、予測がデータに合っていきます。</div>
+      </div>
     </div>
-    <div class="field">
-      <label>学習率 <span class="val" id="lrVal"></span></label>
-      <input type="range" id="lrSlider" min="-2.5" max="-0.3" step="0.01">
+  </section>
+
+  <!-- ⑤ 要点 -->
+  <section>
+    <span class="secnum">STEP 05 / 要点</span>
+    <h2>持ち帰る 4 つ</h2>
+    <div class="card pad">
+      <ul class="take">
+        <li><b>勾配 ∂L/∂w</b> は「その重みを増やすと損失がどれだけ増えるか」。逆向き（−η·∂L/∂w）に動かせば損失が減る。</li>
+        <li><b class="bwdc">誤差信号 δ</b> ＝「このノードは誤差にどれだけ責任があるか」。出力で δ=ŷ−y を作り、連鎖律で左へ配る。</li>
+        <li><b>連鎖律</b>で勾配は掛け算に分解できる。δ を層間で使い回すから、1 回の逆向き計算で全勾配が出る（効率的）。</li>
+        <li><b>順伝播→損失→逆伝播→更新</b>の 1 サイクルを繰り返すだけで、ネットは自動的に関数を学ぶ。</li>
+      </ul>
     </div>
-    <div class="field">
-      <label>学習速度（サンプル/フレーム） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="80" step="1" value="24">
-    </div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ 自動学習（高速）</button>
-      <button id="stepBtn">🔍 1サンプル詳細</button>
-      <button id="resetBtn">↺ リセット</button>
-    </div>
-    <div class="note">小さな MLP（1→5→5→1）が関数の各点を学習します。<span style="color:var(--fwd)">順伝播</span>＝活性値が右へ点灯、<span style="color:var(--bwd)">逆伝播</span>＝各ノードの誤差信号 δ が左へ逆流、<b>更新</b>＝結線が勾配 ∂L/∂w の大きさで光って重みが変わる。出力層は線形、損失は二乗誤差、最適化は SGD。</div>
-  </div>
+  </section>
 </div>
 
 <script>
 "use strict";
 let seed=99;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
-const actFn=(n,z)=>n==='relu'?(z>0?z:0):Math.tanh(z);
-const actDer=(n,z,a)=>n==='relu'?(z>0?1:0):(1-a*a);
+const f2=v=>(v>=0?' ':'')+v.toFixed(2);
+const tanh=z=>Math.tanh(z);
 
-/* ===== net 1→5→5→1 ===== */
-const sizes=[1,5,5,1],L=3;
+/* ===== net 1 → 5 → 1（単一隠れ層 = 連鎖律が最も素直） ===== */
+const sizes=[1,5,1],L=2,H=5;
 let W,B;
-function build(){W=[null];B=[null];for(let l=1;l<=L;l++){const nIn=sizes[l-1],nOut=sizes[l],s=actSel.value==='relu'?Math.sqrt(2/nIn):Math.sqrt(1/nIn);const Wl=[];for(let j=0;j<nOut;j++){const r=new Float64Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s;Wl.push(r);}W[l]=Wl;B[l]=new Float64Array(nOut);}}
+function build(){W=[null];B=[null];for(let l=1;l<=L;l++){const nIn=sizes[l-1],nOut=sizes[l],s=Math.sqrt(1/nIn);const Wl=[];for(let j=0;j<nOut;j++){const r=new Float64Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s;Wl.push(r);}W[l]=Wl;B[l]=new Float64Array(nOut);}}
 
-/* ===== data ===== */
 let data=[];
-function genData(){data=[];const N=11;const f=fnSel.value;
-  for(let i=0;i<N;i++){const x=-1+2*i/(N-1);let y;if(f==='sin')y=Math.sin(Math.PI*x);else if(f==='quad')y=x*x*2-1;else if(f==='abs')y=Math.abs(x)*2-1;else y=x*x*x;data.push({x,y});}}
+function targetF(x){const f=fnSel.value;return f==='sin'?Math.sin(Math.PI*x):f==='quad'?2*x*x-1:f==='abs'?2*Math.abs(x)-1:x*x*x;}
+function genData(){data=[];const N=11;for(let i=0;i<N;i++){const x=-1+2*i/(N-1);data.push({x,y:targetF(x)});}}
 
-/* ===== 1サンプルの forward/backward/grad（即時計算, 可視化はこれを再生） ===== */
 function computeSample(s){
-  const a=[new Float64Array([s.x])],z=[null];
-  for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],zl=new Float64Array(nOut),al=new Float64Array(nOut);
-    for(let j=0;j<nOut;j++){let v=B[l][j];for(let k=0;k<nIn;k++)v+=W[l][j][k]*a[l-1][k];zl[j]=v;al[j]=(l===L)?v:actFn(actSel.value,v);}z[l]=zl;a[l]=al;}
-  const out=a[L][0],err=out-s.y,loss=0.5*err*err;
-  // backward: delta per layer (delta[l] は層 l のノードの誤差信号)
-  const delta=new Array(L+1).fill(null);
-  delta[L]=new Float64Array([err]);
-  for(let l=L;l>=2;l--){const nIn=sizes[l-1],nOut=sizes[l],dp=new Float64Array(nIn);
-    for(let k=0;k<nIn;k++){let v=0;for(let j=0;j<nOut;j++)v+=W[l][j][k]*delta[l][j];dp[k]=v*actDer(actSel.value,z[l-1][k],a[l-1][k]);}delta[l-1]=dp;}
-  // grads per edge
-  const dW=[null];let maxG=1e-9;
-  for(let l=1;l<=L;l++){const g=[];for(let j=0;j<sizes[l];j++){const r=new Float64Array(sizes[l-1]);for(let k=0;k<sizes[l-1];k++){r[k]=delta[l][j]*a[l-1][k];maxG=Math.max(maxG,Math.abs(r[k]));}g.push(r);}dW[l]=g;}
-  return{a,z,out,err,loss,delta,dW,maxG};
+  const x=s.x;
+  const z1=new Float64Array(H),a1=new Float64Array(H);
+  for(let j=0;j<H;j++){z1[j]=W[1][j][0]*x+B[1][j];a1[j]=tanh(z1[j]);}
+  let out=B[2][0];for(let j=0;j<H;j++)out+=W[2][0][j]*a1[j];
+  const err=out-s.y,loss=0.5*err*err;
+  const dOut=err;                         // δ_out = ∂L/∂ŷ (出力は線形)
+  const d1=new Float64Array(H);for(let j=0;j<H;j++)d1[j]=dOut*W[2][0][j]*(1-a1[j]*a1[j]); // δ_hidden
+  const dW2=new Float64Array(H);for(let j=0;j<H;j++)dW2[j]=dOut*a1[j];
+  const dW1=new Float64Array(H);for(let j=0;j<H;j++)dW1[j]=d1[j]*x;
+  return{x,y:s.y,z1,a1,out,err,loss,dOut,d1,dW2,dW1};
 }
-function applyUpdate(cmp,lr){for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){B[l][j]-=lr*cmp.delta[l][j];for(let k=0;k<sizes[l-1];k++)W[l][j][k]-=lr*cmp.dW[l][j][k];}}
+function applyUpdate(c,lr){for(let j=0;j<H;j++){W[1][j][0]-=lr*c.dW1[j];B[1][j]-=lr*c.d1[j];W[2][0][j]-=lr*c.dW2[j];}B[2][0]-=lr*c.dOut;}
 
-/* ===== レイアウト ===== */
+/* ===== レイアウト & 描画 ===== */
 const cv=document.getElementById('net'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
 let POS=[];
-function layout(){POS=[];const padX=70,padY=40;for(let l=0;l<sizes.length;l++){const x=padX+(CW-2*padX)*l/(sizes.length-1);const cnt=sizes[l],col=[];for(let n=0;n<cnt;n++){const y=padY+(CH-2*padY)*(cnt===1?0.5:n/(cnt-1));col.push({x,y});}POS.push(col);}}
+function layout(){POS=[];const padX=64,padY=34;for(let l=0;l<sizes.length;l++){const x=padX+(CW-2*padX)*l/(sizes.length-1);const cnt=sizes[l],col=[];for(let n=0;n<cnt;n++){const y=padY+(CH-2*padY)*(cnt===1?0.5:n/(cnt-1));col.push({x,y});}POS.push(col);}}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.5));if(t>=0)return`rgba(57,224,196,${(0.18+0.82*t)*al})`;return`rgba(240,111,126,${(0.18+0.82*(-t))*al})`;}
 
-/* ===== アニメ状態 ===== */
-let epoch=0,si=0,cmp=null,running=false;
-let phase='idle';        // 'fwd','loss','bwd','upd','idle'
-let pl=0;                // フェーズ内の進行レイヤー（fwd:0..L, bwd:L..0）
-let prog=0;
-let lossHist=[],lastLoss=null,epLossSum=0,epLossCnt=0;
+let cmp=null,phase='idle',prog=0,anim=false,si=0,epoch=0;
+let lossHist=[],lastEpLoss=null;
 
-function startSample(){cmp=computeSample(data[si]);phase='fwd';pl=0;prog=0;}
-function nextPhase(){
-  if(phase==='fwd'){phase='loss';prog=0;}
-  else if(phase==='loss'){phase='bwd';pl=L;prog=0;}
-  else if(phase==='bwd'){phase='upd';prog=0;}
-  else if(phase==='upd'){
-    applyUpdate(cmp,Math.pow(10,+lrSlider.value));
-    lastLoss=cmp.loss;epLossSum+=cmp.loss;epLossCnt++;
-    si++;if(si>=data.length){si=0;epoch++;lossHist.push(epLossSum/epLossCnt);if(lossHist.length>2000)lossHist.shift();epLossSum=0;epLossCnt=0;}
-    phase='idle';
-  }
-}
-
-function tick(){
-  const sp=0.05; // 詳細アニメ専用の固定速度
-  if(phase==='idle')return;
-  if(phase==='loss'){prog+=sp*1.5;if(prog>=1)nextPhase();return;}
-  if(phase==='upd'){prog+=sp*1.2;if(prog>=1)nextPhase();return;}
-  // fwd / bwd はレイヤーを1つずつ
-  prog+=sp;
-  if(prog>=1){prog=0;if(phase==='fwd'){pl++;if(pl>L)nextPhase();}else{pl--;if(pl<0)nextPhase();}}
-}
-
-/* ===== 描画 ===== */
-function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function draw(){
-  ctx.clearRect(0,0,CW,CH);
-  // edges 下地
-  for(let l=1;l<sizes.length;l++){let mx=1e-9;for(const r of W[l])for(const v of r)mx=Math.max(mx,Math.abs(v));
+function draw(){ctx.clearRect(0,0,CW,CH);
+  const a1=cmp?cmp.a1:null;
+  // 結線下地（太さ＝|w|）
+  for(let l=1;l<=L;l++){let mx=1e-9;for(const r of W[l])for(const v of r)mx=Math.max(mx,Math.abs(v));
     for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const wv=W[l][j][k],m=Math.abs(wv)/mx;
-      ctx.strokeStyle=wv>=0?`rgba(57,224,196,${0.04+0.12*m})`:`rgba(240,111,126,${0.04+0.12*m})`;ctx.lineWidth=0.5+1.2*m;
+      ctx.strokeStyle=wv>=0?`rgba(57,224,196,${0.05+0.14*m})`:`rgba(240,111,126,${0.05+0.14*m})`;ctx.lineWidth=0.6+1.4*m;
       ctx.beginPath();ctx.moveTo(POS[l-1][k].x,POS[l-1][k].y);ctx.lineTo(POS[l][j].x,POS[l][j].y);ctx.stroke();}}
-  // 更新フェーズ: 勾配で結線を光らせる
-  if(cmp&&phase==='upd'){for(let l=1;l<sizes.length;l++)for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const m=Math.abs(cmp.dW[l][j][k])/cmp.maxG;if(m<0.05)continue;
-    ctx.strokeStyle=`rgba(240,176,58,${(0.2+0.7*m)*(1-Math.abs(prog-0.5)*1.2)})`;ctx.lineWidth=1+3*m;
-    ctx.beginPath();ctx.moveTo(POS[l-1][k].x,POS[l-1][k].y);ctx.lineTo(POS[l][j].x,POS[l][j].y);ctx.stroke();}}
+  // 更新フェーズ：勾配で結線を光らせる（紫）
+  if(cmp&&phase==='upd'){let mg=1e-9;for(let j=0;j<H;j++){mg=Math.max(mg,Math.abs(cmp.dW1[j]),Math.abs(cmp.dW2[j]));}
+    const puls=1-Math.abs(prog-0.5)*1.4;
+    for(let j=0;j<H;j++){const m1=Math.abs(cmp.dW1[j])/mg,m2=Math.abs(cmp.dW2[j])/mg;
+      ctx.strokeStyle=`rgba(201,166,255,${(0.2+0.7*m1)*puls})`;ctx.lineWidth=1+3*m1;ctx.beginPath();ctx.moveTo(POS[0][0].x,POS[0][0].y);ctx.lineTo(POS[1][j].x,POS[1][j].y);ctx.stroke();
+      ctx.strokeStyle=`rgba(201,166,255,${(0.2+0.7*m2)*puls})`;ctx.lineWidth=1+3*m2;ctx.beginPath();ctx.moveTo(POS[1][j].x,POS[1][j].y);ctx.lineTo(POS[2][0].x,POS[2][0].y);ctx.stroke();}}
   // forward パルス
-  if(cmp&&phase==='fwd'&&pl>=1&&pl<=L){const ease=prog<.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
-    for(let j=0;j<sizes[pl];j++)for(let k=0;k<sizes[pl-1];k++){const p0=POS[pl-1][k],p1=POS[pl][j];const x=p0.x+(p1.x-p0.x)*ease,y=p0.y+(p1.y-p0.y)*ease;
-      ctx.beginPath();ctx.arc(x,y,2.6,0,7);ctx.fillStyle=getCSS('--fwd');ctx.shadowColor=getCSS('--fwd');ctx.shadowBlur=7;ctx.fill();ctx.shadowBlur=0;}}
-  // backward パルス（右→左, δ を運ぶ）
-  if(cmp&&phase==='bwd'&&pl>=1&&pl<=L){const ease=prog<.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
-    for(let j=0;j<sizes[pl];j++)for(let k=0;k<sizes[pl-1];k++){const p1=POS[pl][j],p0=POS[pl-1][k];const x=p1.x+(p0.x-p1.x)*ease,y=p1.y+(p0.y-p1.y)*ease;
-      ctx.beginPath();ctx.arc(x,y,2.6,0,7);ctx.fillStyle=getCSS('--bwd');ctx.shadowColor=getCSS('--bwd');ctx.shadowBlur=7;ctx.fill();ctx.shadowBlur=0;}}
+  if(cmp&&phase==='fwd'){const ease=prog<.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
+    for(let j=0;j<H;j++){const p0=POS[0][0],p1=POS[1][j];const x=p0.x+(p1.x-p0.x)*ease,y=p0.y+(p1.y-p0.y)*ease;
+      ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fillStyle=getCSS('--fwd');ctx.shadowColor=getCSS('--fwd');ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;}
+    for(let j=0;j<H;j++){const p0=POS[1][j],p1=POS[2][0];const x=p0.x+(p1.x-p0.x)*ease,y=p0.y+(p1.y-p0.y)*ease;
+      ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fillStyle=getCSS('--fwd');ctx.globalAlpha=ease;ctx.fill();ctx.globalAlpha=1;}}
+  // backward パルス（右→左, δ）
+  if(cmp&&phase==='bwd'){const ease=prog<.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
+    for(let j=0;j<H;j++){const p1=POS[2][0],p0=POS[1][j];const x=p1.x+(p0.x-p1.x)*ease,y=p1.y+(p0.y-p1.y)*ease;
+      ctx.beginPath();ctx.arc(x,y,3.2,0,7);ctx.fillStyle=getCSS('--bwd');ctx.shadowColor=getCSS('--bwd');ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;}}
   // nodes
-  const fwdLit=(phase==='fwd')?pl:((phase==='idle')?-1:L+1);
-  for(let l=0;l<sizes.length;l++){const r=l===0||l===L?13:11;
+  const showAct=cmp&&phase!=='idle';
+  for(let l=0;l<sizes.length;l++){const r=l===0||l===L?14:12;
     for(let n=0;n<sizes[l];n++){const p=POS[l][n];ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
-      const litF=cmp&&(phase!=='idle')&&(l<=fwdLit||phase==='loss'||phase==='bwd'||phase==='upd');
-      if(litF){const v=cmp.a[l][n];ctx.fillStyle=actColor(v,1);ctx.shadowColor=actColor(v,.9);ctx.shadowBlur=10*Math.min(1,Math.abs(v));ctx.fill();ctx.shadowBlur=0;}
+      let v=0;if(l===0)v=cmp?cmp.x:0;else if(l===1)v=cmp?cmp.a1[n]:0;else v=cmp?cmp.out:0;
+      const lit=showAct&&(phase==='fwd'?(prog>0.5||l===0):true);
+      if(lit){ctx.fillStyle=actColor(v,1);ctx.shadowColor=actColor(v,.9);ctx.shadowBlur=11*Math.min(1,Math.abs(v));ctx.fill();ctx.shadowBlur=0;}
       else{ctx.fillStyle='#2b3a4d';ctx.fill();}
-      // backward: δ リング
-      if(cmp&&(phase==='bwd'||phase==='upd')&&l<=( phase==='bwd'?L:L )){const d=cmp.delta[l]?cmp.delta[l][n]:0;const dm=Math.min(1,Math.abs(d)/(cmp.maxG*2+1e-9));
-        if(phase==='bwd'&&l>=pl){ctx.lineWidth=2.5;ctx.strokeStyle=`rgba(240,176,58,${0.3+0.7*dm})`;ctx.stroke();}}
+      // δ リング（逆伝播/更新時）
+      if(cmp&&(phase==='bwd'||phase==='upd')){let d=l===2?cmp.dOut:(l===1?cmp.d1[n]:0);if(l>0){const dm=Math.min(1,Math.abs(d)/(Math.max(Math.abs(cmp.dOut),0.01)*1.5));ctx.lineWidth=2.6;ctx.strokeStyle=`rgba(240,176,58,${0.25+0.7*dm})`;ctx.stroke();}}
       ctx.lineWidth=1;ctx.strokeStyle='rgba(231,237,245,0.25)';ctx.stroke();
     }}
   // ラベル
-  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';
-  ctx.fillText('x',POS[0][0].x,CH-14);ctx.fillText('ŷ',POS[L][0].x,CH-14);
-  // 出力ノードに予測/目標
-  if(cmp){ctx.fillStyle=getCSS('--text');ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';
-    ctx.fillText('ŷ='+cmp.out.toFixed(2),POS[L][0].x+18,POS[L][0].y-4);
-    ctx.fillStyle=getCSS('--true');ctx.fillText('y='+data[si].y.toFixed(2),POS[L][0].x+18,POS[L][0].y+12);
-    ctx.fillStyle=getCSS('--warm');ctx.textAlign='right';ctx.fillText('x='+data[si].x.toFixed(2),POS[0][0].x-18,POS[0][0].y+4);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('入力 x',POS[0][0].x,CH-12);ctx.fillText('隠れ層 (tanh)',POS[1][2].x,CH-12);ctx.fillText('出力 ŷ',POS[2][0].x,CH-12);
+  if(cmp){ctx.fillStyle=getCSS('--warm');ctx.textAlign='right';ctx.font='12px '+getCSS('--mono');ctx.fillText('x='+f2(cmp.x),POS[0][0].x-20,POS[0][0].y+4);
+    ctx.fillStyle=getCSS('--text');ctx.textAlign='left';ctx.fillText('ŷ='+f2(cmp.out),POS[2][0].x+20,POS[2][0].y-5);
+    ctx.fillStyle=getCSS('--true');ctx.fillText('y='+f2(cmp.y),POS[2][0].x+20,POS[2][0].y+13);}
+}
+
+/* ===== 数式パネル ===== */
+function rowsTable(head,cells){let h='<table><tr>'+head.map(x=>'<th>'+x+'</th>').join('')+'</tr>';for(const r of cells)h+='<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>';return h+'</table>';}
+function renderMath(){const mb=document.getElementById('mathBox');if(!cmp){mb.innerHTML='';return;}
+  const c=cmp,η='η';
+  if(phase==='idle'||phase==='fwd'){
+    const rows=[];for(let j=0;j<H;j++)rows.push(['h'+(j+1),f2(W[1][j][0]),f2(c.z1[j]),f2(c.a1[j])]);
+    mb.innerHTML='<div class="row"><b class="fwdc">① 順伝播</b> <span class="lbl">入力を右へ流す</span></div>'
+      +'<div class="row">z<sub>j</sub> = w<sub>j</sub>·x + b<sub>j</sub> 　a<sub>j</sub> = tanh(z<sub>j</sub>)</div>'
+      +rowsTable(['隠れ','w','z = w·x+b','a = tanh(z)'],rows)
+      +'<div class="row hl">ŷ = Σ<sub>j</sub> w′<sub>j</sub>·a<sub>j</sub> + b′ = <span class="num">'+f2(c.out)+'</span></div>';
+  } else if(phase==='loss'){
+    mb.innerHTML='<div class="row"><b class="lossc">② 損失</b> <span class="lbl">予測と正解のズレ</span></div>'
+      +'<div class="row">L = ½(ŷ − y)²</div>'
+      +'<div class="row hl">L = ½('+f2(c.out)+' − '+f2(c.y)+')² = <span class="num lossc">'+c.loss.toFixed(3)+'</span></div>'
+      +'<div class="row" style="margin-top:6px;">出力の誤差 <b class="bwdc">δ<sub>out</sub></b> = ∂L/∂ŷ = ŷ − y = <span class="num">'+f2(c.dOut)+'</span></div>';
+  } else if(phase==='bwd'){
+    const rows=[];for(let j=0;j<H;j++)rows.push(['h'+(j+1),f2(W[2][0][j]),f2(1-c.a1[j]*c.a1[j]),f2(c.d1[j])]);
+    mb.innerHTML='<div class="row"><b class="bwdc">③ 逆伝播</b> <span class="lbl">δ を右→左へ配る（連鎖律）</span></div>'
+      +'<div class="row">δ<sub>j</sub> = δ<sub>out</sub> · w′<sub>j</sub> · (1 − a<sub>j</sub>²)</div>'
+      +'<div class="row">δ<sub>out</sub> = <span class="num">'+f2(c.dOut)+'</span></div>'
+      +rowsTable(['隠れ',"w′",'1−a²','δ<sub>j</sub>'],rows)
+      +'<div class="row" style="margin-top:5px;">各重みの勾配 ＝ δ × 入ってきた値：</div>'
+      +'<div class="row hl">∂L/∂w′<sub>j</sub> = δ<sub>out</sub>·a<sub>j</sub> 　∂L/∂w<sub>j</sub> = δ<sub>j</sub>·x</div>';
+  } else if(phase==='upd'){
+    let ex='';for(let j=0;j<2;j++)ex+='<div class="row">w<sub>'+(j+1)+'</sub>: '+f2(W[1][j][0])+' − '+η+'·('+f2(c.dW1[j])+')</div>';
+    mb.innerHTML='<div class="row"><b class="updc">④ 更新</b> <span class="lbl">勾配の逆向きに少し動かす</span></div>'
+      +'<div class="row">w ← w − '+η+' · ∂L/∂w　（'+η+'＝学習率）</div>'
+      +ex
+      +'<div class="row updc" style="margin-top:6px;">勾配が大きい結線ほど大きく動く（紫の光）。これで次は損失が少し下がる。</div>';
+  }
+}
+const NARR={
+  fwd:['var(--fwd)','入力 x が隠れ層へ。各ニューロンは w·x+b を計算し、tanh で曲げて活性 a に。さらに出力へ集まり予測 ŷ ができます。'],
+  loss:['var(--loss)','予測 ŷ と正解 y のズレを二乗で測ったのが損失 L。出力での誤差 δ_out = ŷ − y が、逆伝播の出発点になります。'],
+  bwd:['var(--bwd)','δ を出力から隠れ層へ逆流。各 δ に「次の重み w′」と「活性化の傾き 1−a²」を掛けて配分＝連鎖律。これで各重みの勾配が決まります。'],
+  upd:['var(--upd)','各重みを勾配の逆向きに学習率 η の分だけ更新。これで 1 サイクル完了。次のサンプルへ進みます。'],
+  idle:['var(--accent)','1 サンプル分の学習が完了。「▶ 1 ステップ進む」で次のサンプルを順伝播から。']
+};
+function setPipe(){document.querySelectorAll('#pipe .step').forEach(s=>s.classList.toggle('active',s.dataset.ph===phase));}
+function updateUI(){
+  document.getElementById('smOut').textContent=(si+1)+' / '+data.length;
+  document.getElementById('poOut').textContent=cmp?(f2(cmp.out)+' / '+f2(cmp.y)):'—';
+  document.getElementById('lossOut').textContent=cmp?cmp.loss.toFixed(3):'—';
+  renderMath();setPipe();
+  const n=NARR[phase]||NARR.idle;const nd=document.getElementById('narr');nd.style.setProperty('--c',n[0]);nd.innerHTML=n[1];
+}
+
+/* ===== ステップ進行（解剖） ===== */
+const ORDER=['fwd','loss','bwd','upd'];
+function freshSample(){cmp=computeSample(data[si]);}
+function stepPhase(){
+  if(phase==='idle'){freshSample();phase='fwd';prog=0;animateTo();return;}
+  const i=ORDER.indexOf(phase);
+  if(i<ORDER.length-1){phase=ORDER[i+1];prog=0;animateTo();}
+  else{ // upd 完了 → 実際に更新してサンプルを進める
+    applyUpdate(cmp,0.08);recordLoss(cmp.loss);si=(si+1)%data.length;if(si===0)epoch++;
+    phase='idle';freshSample();draw();updateUI();drawFit();
+  }
+}
+function animateTo(){anim=true;prog=0;const dur=(phase==='fwd'||phase==='bwd')?38:26;let f=0;
+  function go(){if(!anim)return;f++;prog=Math.min(1,f/dur);draw();updateUI();if(prog<1)requestAnimationFrame(go);else anim=false;}
+  requestAnimationFrame(go);}
+/* ===== 結果：fit & loss ===== */
+function recordLoss(l){lossHist.push(l);if(lossHist.length>4000)lossHist.shift();}
+let epAcc=[];
+function predict(x){let a=new Float64Array([x]);const h=new Float64Array(H);for(let j=0;j<H;j++)h[j]=tanh(W[1][j][0]*x+B[1][j]);let o=B[2][0];for(let j=0;j<H;j++)o+=W[2][0][j]*h[j];return o;}
+function drawFit(){const c=document.getElementById('fitC'),x=c.getContext('2d'),W2=c.width,H2=c.height;x.clearRect(0,0,W2,H2);const pad=24,ylo=-1.6,yhi=1.6;
+  const xToP=xx=>pad+(W2-2*pad)*(xx+1)/2,yToP=yy=>pad+(H2-2*pad)*(yhi-yy)/(yhi-ylo);
+  x.strokeStyle=getCSS('--grid');x.lineWidth=1;x.beginPath();x.moveTo(pad,yToP(0));x.lineTo(W2-pad,yToP(0));x.stroke();x.beginPath();x.moveTo(xToP(0),pad);x.lineTo(xToP(0),H2-pad);x.stroke();
+  x.strokeStyle=getCSS('--true');x.lineWidth=1.8;x.globalAlpha=.65;x.beginPath();for(let i=0;i<=80;i++){const xx=-1+2*i/80,px=xToP(xx),py=yToP(targetF(xx));i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();x.globalAlpha=1;
+  x.fillStyle=getCSS('--warm');for(const d of data){x.beginPath();x.arc(xToP(d.x),yToP(d.y),3,0,7);x.fill();}
+  x.strokeStyle=getCSS('--fwd');x.lineWidth=2.6;x.shadowColor=getCSS('--fwd');x.shadowBlur=6;x.beginPath();for(let i=0;i<=80;i++){const xx=-1+2*i/80,px=xToP(xx),py=yToP(predict(xx));i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();x.shadowBlur=0;
+  if(cmp){const d=data[si];x.fillStyle=getCSS('--loss');x.beginPath();x.arc(xToP(d.x),yToP(d.y),5,0,7);x.fill();x.strokeStyle='#0c1016';x.lineWidth=1.5;x.stroke();}
 }
 function drawLoss(){const c=document.getElementById('lossC'),x=c.getContext('2d'),W2=c.width,H2=c.height;x.clearRect(0,0,W2,H2);const pad=8;
-  if(lossHist.length<2){x.fillStyle=getCSS('--faint');x.font='12px '+getCSS('--gothic');x.textAlign='center';x.fillText('学習で表示',W2/2,H2/2);return;}
+  if(lossHist.length<2){x.fillStyle=getCSS('--faint');x.font='12px '+getCSS('--gothic');x.textAlign='center';x.fillText('学習すると表示',W2/2,H2/2);return;}
   const logs=lossHist.map(v=>Math.log10(Math.max(v,1e-6)));let hi=Math.max(...logs),lo=Math.min(...logs);if(hi-lo<0.5)lo=hi-0.5;
   x.strokeStyle=getCSS('--loss');x.lineWidth=1.8;x.beginPath();const st=Math.max(1,Math.floor(logs.length/(W2-2*pad)));
   for(let i=0;i<logs.length;i+=st){const px=pad+(W2-2*pad)*i/(logs.length-1),py=pad+(H2-2*pad)*(hi-logs[i])/(hi-lo);i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();}
 
-/* ===== 結果：関数の当てはまり（プロセス→結果の転写） ===== */
-function targetF(x){const f=fnSel.value;return f==='sin'?Math.sin(Math.PI*x):f==='quad'?x*x*2-1:f==='abs'?Math.abs(x)*2-1:x*x*x;}
-function predict(x){let a=new Float64Array([x]);for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],al=new Float64Array(nOut);for(let j=0;j<nOut;j++){let v=B[l][j];for(let k=0;k<nIn;k++)v+=W[l][j][k]*a[k];al[j]=(l===L)?v:actFn(actSel.value,v);}a=al;}return a[0];}
-function drawFit(){const c=document.getElementById('fitC');if(!c)return;const x=c.getContext('2d'),W2=c.width,H2=c.height;x.clearRect(0,0,W2,H2);const pad=16,ylo=-1.5,yhi=1.5;
-  const xToP=xx=>pad+(W2-2*pad)*(xx+1)/2, yToP=yy=>pad+(H2-2*pad)*(yhi-yy)/(yhi-ylo);
-  x.strokeStyle=getCSS('--grid');x.lineWidth=1;x.beginPath();x.moveTo(pad,yToP(0));x.lineTo(W2-pad,yToP(0));x.stroke();
-  x.strokeStyle=getCSS('--true');x.lineWidth=1.6;x.globalAlpha=.6;x.beginPath();
-  for(let i=0;i<=60;i++){const xx=-1+2*i/60,px=xToP(xx),py=yToP(targetF(xx));i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();x.globalAlpha=1;
-  x.fillStyle=getCSS('--warm');for(const d of data){x.beginPath();x.arc(xToP(d.x),yToP(d.y),2.6,0,7);x.fill();}
-  x.strokeStyle=getCSS('--fwd');x.lineWidth=2.4;x.beginPath();
-  for(let i=0;i<=60;i++){const xx=-1+2*i/60,px=xToP(xx),py=yToP(predict(xx));i?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();
-  if(cmp&&data[si]){const d=data[si];x.fillStyle=getCSS('--loss');x.beginPath();x.arc(xToP(d.x),yToP(d.y),4.5,0,7);x.fill();x.strokeStyle='#0c1016';x.lineWidth=1.5;x.stroke();}
-}
-
-const PH={fwd:['順伝播','var(--fwd)','#06231f','入力を右へ流して活性値を作り、予測 ŷ を出す'],
-  loss:['誤差','var(--loss)','#3a2c06','予測 ŷ と目標 y の差から損失と出力の誤差を求める'],
-  bwd:['逆伝播','var(--bwd)','#3a2c06','誤差信号 δ を右から左へ逆流させ、各ノードの責任を配分'],
-  upd:['重み更新','#e7edf5','#0c1016','各結線を勾配 ∂L/∂w の大きさで更新（光るほど大きく変化）'],
-  idle:['—','var(--line)','#e7edf5','次のサンプルへ']};
-function updateUI(){
-  const p=PH[phase]||PH.idle;phaseLine.innerHTML='<span class="badge" style="background:'+p[1]+';color:'+p[2]+';">'+p[0]+'</span>'+p[3];
-  epOut.textContent=epoch;smOut.textContent=(si+1)+' / '+data.length;
-  if(cmp){poOut.textContent=cmp.out.toFixed(2)+' / '+data[si].y.toFixed(2);}
-  lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);
-}
-
-/* ===== ループ ===== */
-function frame(){if(!running)return;const n=+spdSlider.value,lr=Math.pow(10,+lrSlider.value);
-  for(let i=0;i<n;i++){const c=computeSample(data[si]);applyUpdate(c,lr);lastLoss=c.loss;epLossSum+=c.loss;epLossCnt++;si++;if(si>=data.length){si=0;epoch++;lossHist.push(epLossSum/epLossCnt);if(lossHist.length>2000)lossHist.shift();epLossSum=0;epLossCnt=0;}}
-  cmp=computeSample(data[si]);phase='idle';draw();drawLoss();updateUI();drawFit();requestAnimationFrame(frame);}
-let detail=false;
-function setRun(on){running=on;if(on)detail=false;playBtn.textContent=on?'⏸ 一時停止':'▶ 自動学習（高速）';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
-function detailFrame(){if(!detail)return;tick();draw();drawLoss();updateUI();drawFit();if(phase==='idle'){detail=false;const sb=document.getElementById('stepBtn');if(sb)sb.textContent='🔍 1サンプル詳細';return;}requestAnimationFrame(detailFrame);}
-// 1サンプル: idle→fwd→loss→bwd→upd→idle を一気に進める
-function stepSample(){if(phase==='idle')startSample();let guard=0;
-  // フェーズを最後(idle)まで一気に（アニメ無しで1サンプル完了）
-  while(phase!=='idle'&&guard++<50){
-    if(phase==='fwd'){pl=L+1;nextPhase();}
-    else if(phase==='bwd'){pl=-1;nextPhase();}
-    else nextPhase();
-  }
-  draw();drawLoss();updateUI();drawFit();}
+/* ===== 自動学習（結果セクション） ===== */
+let training=false;
+function trainStepFast(n){const lr=0.08;for(let i=0;i<n;i++){let es=0;for(const d of data){const c=computeSample(d);applyUpdate(c,lr);es+=c.loss;}recordLoss(es/data.length);epoch++;}}
+function trainFrame(){if(!training)return;trainStepFast(2);cmp=computeSample(data[si]);draw();drawFit();drawLoss();updateUI();
+  document.getElementById('epOut').textContent=epoch;document.getElementById('eLossOut').textContent=lossHist.length?lossHist[lossHist.length-1].toExponential(2):'—';
+  const rn=document.getElementById('resNarr');if(rn)rn.innerHTML='学習中… エポック '+epoch+'・損失 '+(lossHist[lossHist.length-1]||0).toExponential(1)+'。予測（teal）が目標へ近づいています。';
+  requestAnimationFrame(trainFrame);}
+function setTrain(on){training=on;const b=document.getElementById('trainBtn');b.textContent=on?'⏸ 停止':'▶ 自動学習（高速）';b.classList.toggle('primary',!on);if(on)requestAnimationFrame(trainFrame);}
 
 /* ===== UI ===== */
-const fnSel=document.getElementById('fnSel'),actSel=document.getElementById('actSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),
-  playBtn=document.getElementById('playBtn'),phaseLine=document.getElementById('phaseLine'),epOut=document.getElementById('epOut'),smOut=document.getElementById('smOut'),poOut=document.getElementById('poOut'),lossOut=document.getElementById('lossOut');
-const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
-function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=(+spdSlider.value).toFixed(0);}
-lrSlider.value=Math.log10(0.05);
-function reset(){setRun(false);seed=99;build();genData();epoch=0;si=0;cmp=null;phase='idle';lossHist=[];lastLoss=null;epLossSum=0;epLossCnt=0;startSample();phase='idle';cmp=computeSample(data[0]);draw();drawLoss();updateUI();drawFit();}
-
-fnSel.onchange=()=>{genData();reset();};
-actSel.onchange=reset;
-lrSlider.oninput=lbls;spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{const sb=document.getElementById('stepBtn');if(detail){detail=false;sb.textContent='🔍 1サンプル詳細';return;}setRun(false);if(phase==='idle')startSample();detail=true;sb.textContent='⏸ 詳細停止';requestAnimationFrame(detailFrame);};
+const fnSel=document.getElementById('fnSel');
+function reset(){setTrain(false);anim=false;seed=99;build();genData();si=0;epoch=0;lossHist=[];phase='idle';cmp=computeSample(data[0]);layout();draw();updateUI();drawFit();drawLoss();document.getElementById('epOut').textContent=0;document.getElementById('eLossOut').textContent='—';}
+document.getElementById('stepBtn').onclick=()=>{if(anim)return;setTrain(false);stepPhase();};
+document.getElementById('autoBtn').onclick=()=>{if(anim||training)return;setTrain(false);
+  const chain=()=>{stepPhase();const wait=()=>{if(anim)requestAnimationFrame(wait);else if(phase!=='idle')chain();};requestAnimationFrame(wait);};
+  if(phase==='idle')chain();else chain();};
 document.getElementById('resetBtn').onclick=reset;
+fnSel.onchange=reset;
+document.getElementById('trainBtn').onclick=()=>setTrain(!training);
+document.getElementById('train1Btn').onclick=()=>{setTrain(false);trainStepFast(100);cmp=computeSample(data[si]);draw();drawFit();drawLoss();updateUI();document.getElementById('epOut').textContent=epoch;document.getElementById('eLossOut').textContent=lossHist[lossHist.length-1].toExponential(2);};
 
-lbls();layout();build();genData();reset();
+layout();reset();
 </script>
 <script src="nav.js"></script>
 </body>
