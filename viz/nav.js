@@ -21,6 +21,7 @@
     { href: 'naivebayes.html',  label: 'ナイーブベイズ' },
     { href: 'cnn.html',         label: 'CNN' },
     { href: 'rnn.html',         label: 'RNN' },
+    { href: 'word2vec.html',    label: '単語埋め込み' },
     { href: 'attention.html',   label: '自己注意' },
     { href: 'transformer.html', label: 'Transformer' },
     { href: '../gpt2/',         label: 'GPT-2' },

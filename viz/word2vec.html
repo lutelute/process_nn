@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>単語埋め込み（word2vec）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --g0:#39e0c4; --g1:#d4a36a; --g2:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .sp b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>単語埋め込み（word2vec）を理解する</h1>
+  <div class="lead">単語を<b>意味を持つベクトル</b>に変える学習。「<b>同じ文脈に現れる語は似ている</b>」という考えで、周辺語を予測するよう訓練すると、<b>意味の近い語が空間上で近く</b>に集まる。GPT など現代の言語モデルが文字でなくベクトルで考える、その出発点。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="qSel"></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：skip-gram と CBOW・次元・GPT との関係</summary>
+    <div class="det"><b>skip-gram</b>：中心語から周辺語を予測（ここで使用）。<b>CBOW</b>：周辺語から中心語を予測。どちらも「分布仮説（語の意味は周りの語で決まる）」に基づきます。実際の word2vec は埋め込み次元が 50〜300 で、ここでは<b>見やすさのため 2 次元</b>に学習（普通は高次元を t-SNE 等で 2D に落として可視化）。学習後はベクトルの<b>足し算で類推</b>ができることがあり（king − man + woman ≈ queen）、意味が幾何に宿ります。<b>GPT / Transformer</b> もまず各トークンを埋め込みベクトルにしてから注意・MLP で処理します（<a href="../gpt2/">GPT-2</a>・<a href="attention.html">自己注意</a>）。文脈で変化する「文脈埋め込み」はその発展形。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=20;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const animals=['cat','dog','bird'],fruits=['apple','banana','grape'],royals=['king','queen','prince'];
+const GROUP={};animals.forEach(w=>GROUP[w]=0);fruits.forEach(w=>GROUP[w]=1);royals.forEach(w=>GROUP[w]=2);
+let vocab=[],stoi={},pairs=[],E=[],C=[],epoch=0,V=0;
+function genCorpus(){const sents=[];const pick=a=>a[(rng()*a.length)|0];
+  for(let i=0;i<60;i++){sents.push(['the',pick(animals),'runs','fast']);sents.push(['a',pick(animals),'sleeps','now']);sents.push(['i','see','the',pick(animals)]);
+    sents.push(['i','eat','the',pick(fruits)]);sents.push(['the',pick(fruits),'is','sweet']);sents.push(['buy','fresh',pick(fruits),'today']);
+    sents.push(['the',pick(royals),'rules','well']);sents.push(['a',pick(royals),'wears','gold']);sents.push(['the',pick(royals),'sat','here']);}
+  vocab=[...new Set(sents.flat())];stoi=Object.fromEntries(vocab.map((w,i)=>[w,i]));V=vocab.length;
+  pairs=[];const Wd=2;for(const s of sents){const ids=s.map(w=>stoi[w]);for(let i=0;i<ids.length;i++)for(let j=Math.max(0,i-Wd);j<=Math.min(ids.length-1,i+Wd);j++)if(i!==j)pairs.push([ids[i],ids[j]]);}
+  for(let p=pairs.length-1;p>0;p--){const q=(rng()*(p+1))|0;[pairs[p],pairs[q]]=[pairs[q],pairs[p]];}}
+function initEmb(){E=Array.from({length:V},()=>[randn()*0.3,randn()*0.3]);C=Array.from({length:V},()=>[randn()*0.3,randn()*0.3]);epoch=0;}
+function trainEpoch(){const lr=0.05;for(const[c,o]of pairs){const e=E[c];let mx=-1e9;const sc=new Array(V);for(let k=0;k<V;k++){sc[k]=e[0]*C[k][0]+e[1]*C[k][1];if(sc[k]>mx)mx=sc[k];}let Z=0;for(let k=0;k<V;k++){sc[k]=Math.exp(sc[k]-mx);Z+=sc[k];}let g0=0,g1=0;for(let k=0;k<V;k++){const pk=sc[k]/Z,d=pk-(k===o?1:0);g0+=d*C[k][0];g1+=d*C[k][1];C[k][0]-=lr*d*e[0];C[k][1]-=lr*d*e[1];}e[0]-=lr*g0;e[1]-=lr*g1;}epoch++;}
+function sepRatio(){const groups=[animals,fruits,royals].map(g=>g.map(w=>stoi[w]));let intra=0,ni=0,inter=0,no=0;const dist=(a,b)=>Math.hypot(E[a][0]-E[b][0],E[a][1]-E[b][1]);for(let gi=0;gi<3;gi++)for(let gj=0;gj<3;gj++)for(const a of groups[gi])for(const b of groups[gj]){if(a===b)continue;if(gi===gj){intra+=dist(a,b);ni++;}else{inter+=dist(a,b);no++;}}return ni&&no?(inter/no)/(intra/ni):0;}
+function cosine(a,b){const d=E[a][0]*E[b][0]+E[a][1]*E[b][1],na=Math.hypot(E[a][0],E[a][1]),nb=Math.hypot(E[b][0],E[b][1]);return d/((na*nb)||1e-9);}
+function nearest(w,k){const i=stoi[w];const arr=vocab.map((_,j)=>({j,s:cosine(i,j)})).filter(o=>o.j!==i&&GROUP[vocab[o.j]]!==undefined);arr.sort((a,b)=>b.s-a.s);return arr.slice(0,k);}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function bounds(){let mn=1e9,mx=-1e9;for(const e of E){mn=Math.min(mn,e[0],e[1]);mx=Math.max(mx,e[0],e[1]);}const c=(mn+mx)/2,r=Math.max(0.4,(mx-mn)/2)*1.18;return[c,r];}
+function gcol(w){const g=GROUP[w];return g===undefined?'rgba(120,135,155,0.55)':getCSS(['--g0','--g1','--g2'][g]);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);const[c,r]=bounds();const px=x=>CW/2+(x-c)/r*(CW/2-30),py=y=>CH/2-(y-c)/r*(CH/2-30);
+  if(opt.simWord){const i=stoi[opt.simWord];const nn=nearest(opt.simWord,3).map(o=>o.j);for(const j of nn){ctx.strokeStyle='rgba(240,176,58,0.5)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px(E[i][0]),py(E[i][1]));ctx.lineTo(px(E[j][0]),py(E[j][1]));ctx.stroke();}}
+  for(let i=0;i<V;i++){const w=vocab[i],isCtx=GROUP[w]===undefined;ctx.beginPath();ctx.arc(px(E[i][0]),py(E[i][1]),isCtx?2.4:4,0,7);ctx.fillStyle=gcol(w);ctx.globalAlpha=isCtx?0.5:1;ctx.fill();ctx.globalAlpha=1;
+    if(!isCtx||opt.allLabels){ctx.fillStyle=isCtx?'rgba(150,165,185,0.7)':gcol(w);ctx.font=(isCtx?'9px ':'11px ')+getCSS('--mono');ctx.textAlign='left';ctx.fillText(w,px(E[i][0])+5,py(E[i][1])+3);}}
+}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'sg',t:'skip-gram',c:'var(--upd)'},{key:'learn',t:'学習',c:'var(--loss)'},{key:'sim',t:'類似度',c:'var(--accent)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false,qWord='cat';
+function draw_(){const k=STEPS[stepIdx].key;if(k==='sim')draw({simWord:qWord,allLabels:true});else if(k==='res')draw({allLabels:true});else draw({});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>語彙 <b>'+V+'</b></div><div>次元 <b>2</b></div>';return;}m.innerHTML='<div>epoch <b>'+epoch+'</b></div><div class="sp">分離度 <b>'+sepRatio().toFixed(1)+'×</b></div>';}
+function renderLegend(){document.getElementById('legend').textContent='色=意味グループ(動物/果物/王族), 灰=文脈語(the,eat...)';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：単語をベクトルに</h3><div class="desc">コンピュータに単語の<b>意味</b>を扱わせたい。one-hot（各語に番号）では「cat と dog が似ている」が表せません。そこで各語を<b>2 次元ベクトル</b>（点）にし、<b>意味が近い語は近くに</b>来るよう学習したい。今はランダム配置でバラバラです。</div>';}
+  else if(k==='sg'){h+='<h3>② skip-gram の発想</h3><div class="eq curr">中心語 → 周辺語 を予測（分布仮説）</div><div class="desc">「<b>同じ文脈に出る語は似た意味</b>」。例: 「the <b style="color:var(--g0)">cat</b> runs」「the <b style="color:var(--g0)">dog</b> runs」——cat と dog は似た周りの語を持つ。そこで<b>中心語からその周辺語を当てる</b>課題を解かせると、似た文脈の語のベクトルが自然に近づきます。</div>';}
+  else if(k==='learn'){h+='<h3>③ 学習：意味が集まる</h3><div class="eq curr">予測の誤差を勾配降下でベクトルに反映</div><div class="desc">skip-gram の予測誤差を小さくするよう各語のベクトルを更新。すると<b>動物・果物・王族</b>がそれぞれ<b>かたまり</b>に分かれていきます（文脈を共有するから）。epoch '+epoch+'・グループ分離度 '+sepRatio().toFixed(1)+'×。</div>';}
+  else if(k==='sim'){const nn=nearest(qWord,3).map(o=>vocab[o.j]+'('+o.s.toFixed(2)+')');h+='<h3>④ 類似度（近い語）</h3><div class="eq curr">cos類似度 = (a·b)/(|a||b|)</div><div class="desc"><b>'+qWord+'</b> に最も近い語（橙線）: <b>'+nn.join(', ')+'</b>。ベクトルの近さ＝意味の近さになっています。右下で語を変えて確かめてください。これが「意味で検索・推薦」の基礎です。</div>';}
+  else{h+='<h3>⑤ 結果：意味の地図</h3><div class="desc">学習後の空間は<b>意味の地図</b>：動物・果物・王族がそれぞれ集まり（分離度 '+sepRatio().toFixed(1)+'×）、文脈語は中央付近に。語の意味が<b>幾何（位置・距離）</b>として表現されました。<b>GPT/Transformer もまずトークンをこの埋め込みに変換</b>してから処理します。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・分布仮説: 同じ文脈の語は似る<br>・周辺語予測でベクトルを学習<br>・意味が距離になる＝NLPの土台</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'||k==='sg'){if(epoch>0)initEmb();}
+  else if(k==='learn'){initEmb();runLearn();}
+  else if(k==='sim'||k==='res'){if(epoch<40){if(epoch===0)initEmb();while(epoch<40)trainEpoch();}}
+  renderAll();draw_();}
+function runLearn(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='learn')return;trainEpoch();draw_();renderMini();renderExplain();if(epoch>=40){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='learn'?400:1300);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=20+(Math.floor(rng()*900));genCorpus();initEmb();fillQ();stepIdx=0;renderAll();draw_();}
+function fillQ(){const sel=document.getElementById('qSel');sel.innerHTML=[...animals,...fruits,...royals].map(w=>'<option value="'+w+'">'+w+'</option>').join('');sel.value=qWord;}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('qSel').onchange=e=>{qWord=e.target.value;if(STEPS[stepIdx].key!=='sim')goStep(3);else{renderExplain();draw_();}};
+genCorpus();initEmb();fillQ();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
