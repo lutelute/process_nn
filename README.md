@@ -1,89 +1,111 @@
-# process_nn — ニューラルネットの「過程」と「内部構造」を観る
+# process_nn — 機械学習の「学習過程」と「内部構造」を観る
 
-ニューラルネットが動く様子を、フレームワークに頼らず**素の JavaScript で実装して可視化**する教育用プロジェクト。学習の過程も、推論（生成）の内部構造も、ブラウザで 1 ステップずつ覗けます。
+機械学習が学ぶ様子を、フレームワークに頼らず**素の JavaScript で実装して可視化**する教育用プロジェクト。
+**学習の過程＝構造の可視化**と**リアルタイムのビジュアライゼーション**を主眼に、いろいろな学習パラダイムをブラウザで 1 ステップずつ覗けます。
 
-## 🔗 Live Demo
+入口は **https://lutelute.github.io/process_nn/** （「学習の地図」ハブ）。ビルド・インストール不要、ブラウザで開くだけ。
 
-入口は **https://lutelute.github.io/process_nn/** （「学習の地図」ハブ）。各ビューア:
+## 設計の 3 本柱（全ビューア共通）
 
-| ページ | 内容 | 種類 |
-|---|---|---|
-| `/` | 学習の地図ハブ＋ MLP 関数近似の学習過程 | 回帰 |
-| `/viz/` | 信号の流れ（入力が層を流れ活性値で光り変換される） | 順伝播 |
-| `/viz/classify.html` | 決定境界が学習で形成される | 教師あり・分類 |
-| `/viz/cnn.html` | フィルタが画像を走査し特徴マップへ変換 | 畳み込み |
-| `/viz/rnn.html` | 時系列を 1 ステップ先予測、隠れ状態の発展 | 系列・記憶 |
-| `/viz/transformer.html` | 小型 GPT を学習、attention・生成が変化 | 言語モデル |
-| `/viz/gradient.html` | 損失地形を SGD/Momentum/Adam が降下 | 最適化 |
-| `/viz/kmeans.html` | ラベル無しで重心が収束しクラスタ形成 | 教師なし |
-| `/gpt2/` | 本物の GPT-2 (124M) の生成過程と内部構造 | 言語モデル |
+1. **実学習** — ランダムな重みではなく、その場で本当に学習する（中身が意味を持つ）
+2. **実況解説** — 「今この瞬間に何が起きているか」を日本語で常時表示
+3. **過程と結果の連動** — 学習で値・境界・構造が更新される様子、loss / 適応度などの推移を同時に見せる
 
-ビルド・インストール不要、ブラウザで開くだけ。
+各ビューアの数値ロジックは Node で検証（精度・収束）し、全ページの実描画を Playwright で確認（console エラー 0）しています。
 
 ---
 
-## 構成
+## 🔗 ビューア一覧
 
-### ① `index.html` — MLP 関数近似の学習可視化（Pages トップ）
+### ① ニューラルネットの基礎
+| ページ | 内容 |
+|---|---|
+| `index.html` | 学習の地図ハブ＋ **MLP 関数近似**（真の関数へ近づく学習過程） |
+| `viz/index.html` | **信号の流れ** — 入力が層を流れ活性値で光る（合計の符号を実学習＋実況） |
+| `viz/backprop.html` | **誤差逆伝播** — 順伝播→誤差→勾配の逆流→重み更新を 1 サイクル。結果の関数フィットも同時表示 |
 
-1 次元の関数近似を題材に、多層パーセプトロンが教師データへ近づく様子をリアルタイム描画する単体 HTML（外部依存ゼロ）。
+### ② 教師あり学習 — 分類・認識
+| ページ | 内容 |
+|---|---|
+| `viz/classify.html` | **決定境界** — 2 クラスを分ける境界が学習で形成（softmax+CE+Adam、データ 5 種） |
+| `viz/digit.html` | **数字認識** — 描いた数字を認識し、判断の根拠（saliency）を実況 |
+| `viz/cnn.html` | **CNN** — フィルタが画像を走査。🎓 で**フィルタを実学習**し特徴検出器を自力獲得 |
+| `viz/rnn.html` | **RNN** — Elman+BPTT で時系列を 1 ステップ先予測、自由走行で波形再生 |
+| `viz/dtree.html` | **決定木 (CART)** — 不純度が下がる軸で領域を再帰分割、木の成長＝特徴空間の分割（非NN） |
+| `viz/knn.html` | **k近傍法 (kNN)** — 学習しない事例ベース。★をドラッグし近傍の多数決を観察 |
+| `viz/svm.html` | **SVM** — 最大マージンの境界を学習、サポートベクトルを可視化 |
+| `viz/naivebayes.html` | **ナイーブベイズ** — 各クラスをガウスで表しベイズ則で分類（生成モデル）。事後確率を観察 |
 
-- 3 パネル同時表示: 関数近似（真の関数・教師データ・予測）／ネットワーク図（重みを正負で色分け）／損失の対数推移
-- 順伝播・誤差逆伝播・Adam / SGD を JavaScript で実装。入力 x を [-1,1]、教師 y を標準化、全バッチ勾配降下、出力層は線形
-- 活性化（tanh・ReLU・sigmoid）／最適化（Adam・SGD）／学習率・層数・ユニット数・ノイズ・速度を対話的に変更
-- ▶再生 / ⏭1 ステップ / ⏩50 ステップ / ↺リセット
+### ③ 言語モデル — Transformer から GPT へ
+| ページ | 内容 |
+|---|---|
+| `viz/transformer.html` | **Transformer 学習** — 小型 GPT をブラウザで学習、loss 低下で attention・生成が変化 |
+| `gpt2/` | **GPT-2 推論** — 本物の GPT-2 (124M) を forward 実行し、次トークン予測と内部を可視化 |
 
-### ② `gpt2/` — GPT-2 の生成過程と内部構造ビューア
+### ④ 教師なし学習 — 構造を見つける
+| ページ | 内容 |
+|---|---|
+| `viz/kmeans.html` | **k-means** — 重心が収束しクラスタが現れる（Voronoi 背景・SSE 推移） |
+| `viz/gmm.html` | **GMM（混合ガウス）** — EM 法でソフト割当、共分散楕円が収束、対数尤度が単調増加 |
+| `viz/autoencoder.html` | **オートエンコーダ** — 入力をボトルネックに圧縮して復元、圧縮の限界も見える |
+| `viz/pca.html` | **PCA** — 最大分散方向をべき乗反復で見つけ 1 次元へ圧縮 |
+| `viz/tsne.html` | **t-SNE** — 高次元データを 2 次元へ、早期誇張でクラスタが浮かぶ |
+| `viz/som.html` | **SOM（自己組織化マップ）** — 競合学習で格子がデータの形に広がり組織化 |
+| `viz/hopfield.html` | **Hopfield ネットワーク** — パターンを記憶し、ノイズからエネルギー降下で想起（連想記憶） |
 
-本物の **GPT-2 small（124M）をブラウザで forward 実行**し、生成（自己回帰）を 1 トークンずつ進めながら内部を可視化する。`transformers.js` は logits しか返さず内部を取り出せないため、トークナイザと forward を自前実装している。
+### ⑤ 強化学習・最適化
+| ページ | 内容 |
+|---|---|
+| `viz/qlearning.html` | **Q学習** — 報酬から最短経路を学習、価値が伝播し方策が定まる |
+| `viz/gradient.html` | **勾配降下** — 損失地形を SGD/Momentum/Adam が降下し比較 |
+| `viz/ga.html` | **遺伝的アルゴリズム** — 勾配なしで最適化、集団が選択・交叉・突然変異で大域最適へ進化 |
 
-- `gpt2/index.html` — 可視化ビューア本体
-  - **トークナイザ実演**（重み不要・即動作）: byte-level BPE でトークン分割・ID 化
-  - **生成過程＋内部構造**（要・重み読み込み）: 次トークン確率（top-k）・**attention 行列**（層×ヘッド）・**logit lens**（層ごとの途中予測）・残差ストリームのノルム推移
-- `gpt2/tools/tokenizer.mjs` — GPT-2 byte-level BPE（Node/ブラウザ共通、I/O なし）
-- `gpt2/tools/gpt2.mjs` — safetensors パーサ＋ forward エンジン（中間表現キャプチャ対応、Node/ブラウザ共通）
-- `gpt2/tools/safetensors.mjs` — Node 用 safetensors ローダー
-- `gpt2/GPT_NOTES.md` — 実装リファレンス（構造・トークナイザ・forward・サンプリング）
-- `gpt2/assets/` — `config.json` / `vocab.json` / `merges.txt`
+### ⑥ 立体で見る — 3D 構造
+| ページ | 内容 |
+|---|---|
+| `viz/mlp3d.html` | MLP を層シートの積層として立体表示（実学習対応） |
+| `viz/cnn3d.html` | CNN の特徴マップを H×W×チャンネルのボリュームで立体表示 |
+| `viz/rnn3d.html` | RNN を時間方向に展開、BPTT で系列予測を実学習 |
+| `viz/attention3d.html` | 本物の attention を 3D 弧で、ヘッドを奥行きに分離（minigpt 実学習） |
+| `viz/gpt3d.html` | GPT-2 の 12 層 × 12 ヘッド構造を 3D で俯瞰、ブロック内部を展開 |
 
-> **重み本体 `model.safetensors`（約 523MB）はリポジトリに含めていません**（`.gitignore` で除外）。ビューアでは「ローカルファイルを選択」か「HuggingFace から取得」で読み込みます。CLI で取得する場合:
+> 3D はライブラリ不使用。`viz/lib3d.js` が回転・弱透視投影・ドラッグ操作を担う自前 3D エンジン。
+
+---
+
+## `gpt2/` — GPT-2 の生成過程と内部構造ビューア
+
+本物の **GPT-2 small（124M）をブラウザで forward 実行**し、生成を 1 トークンずつ進めながら内部を可視化する。`transformers.js` は logits しか返さないため、トークナイザと forward を自前実装している。
+
+- `gpt2/index.html` — 次トークン確率（top-k）・**attention 行列**（層×ヘッド）・**logit lens**（層ごとの途中予測）・残差ストリームのノルム推移・各ブロックの寄与・MLP 発火、そして次トークン予測の実況
+- `gpt2/tools/tokenizer.mjs` — GPT-2 byte-level BPE（Node/ブラウザ共通）
+- `gpt2/tools/gpt2.mjs` — safetensors パーサ＋ forward エンジン（中間表現キャプチャ対応）
+- `gpt2/tools/minigpt.mjs` — 学習可能な小型 Transformer（`viz/transformer.html`・`viz/attention3d.html` が使用）
+- `gpt2/GPT_NOTES.md` — 実装リファレンス
+
+> **重み本体 `model.safetensors`（約 523MB）はリポジトリに含めていません**。ビューアで「ローカルファイルを選択」か「HuggingFace から取得」で読み込みます。CLI で取得する場合:
 > ```bash
 > curl -L -o gpt2/assets/model.safetensors \
 >   https://huggingface.co/gpt2/resolve/main/model.safetensors
 > ```
 
 #### 正しさの検証
-
-- **トークナイザ**: Node で `encode("Hello world") = [15496, 995]`（GPT-2 既知値）と、英語・日本語・絵文字・コード・特殊トークンの往復一致を確認済み
-- **forward**: コンポーネント単体テスト＋本物の重みでの生成健全性で確認（PyTorch との厳密な数値照合は今後）
-
-### ③ `viz/` — 学習・推論ビューア集（素の JS、外部依存ゼロ）
-
-機械学習の代表的な手法を、それぞれ 1 ステップずつ動かして観察できる単体 HTML 群。トップの「学習の地図」から辿れる。
-
-- `viz/index.html` — **信号の流れ**: 入力が層を流れ、各ニューロンが活性値で点灯、結線を信号パルス（色＝寄与 w·a の符号、太さ＝大きさ）が伝播（順伝播・MLP）
-- `viz/classify.html` — **決定境界**: 2D 点群を 2 クラスに分ける MLP の境界が学習で形成（softmax + 交差エントロピー + Adam、データ 5 種）
-- `viz/cnn.html` — **CNN**: 入力画像をフィルタが走査して特徴マップへ（conv→ReLU→maxpool、入力は描画可、フィルタ 7 種）
-- `viz/rnn.html` — **RNN**: Elman RNN + BPTT で時系列を学習、1 ステップ予測・自由走行・隠れ状態の時間発展
-- `viz/transformer.html` — **Transformer 学習**: 小型 decoder-only を学習し、loss 低下に伴い attention・logit lens・生成が変化（学習エンジン `gpt2/tools/minigpt.mjs` を接続）
-- `viz/gradient.html` — **勾配降下**: 損失地形（ボウル/Rosenbrock/鞍点/Himmelblau）を SGD/Momentum/Adam が降下し比較
-- `viz/kmeans.html` — **k-means**: 教師なしクラスタリング、割当→重心移動で収束（Voronoi 背景・慣性推移）
-
-各ビューアの数値ロジックは Node で検証（loss/精度/収束）し、全ページの実描画を Playwright（ヘッドレス）で確認している。
+- **トークナイザ**: `encode("Hello world") = [15496, 995]`（GPT-2 既知値）と往復一致を確認
+- **forward**: 本物の重みで意味的に正しい予測を確認（例: "Water is made of hydrogen and" → " oxygen"、"The opposite of hot is" → " cold"）
 
 ---
 
 ## ローカルで開く
 
-`index.html` / `gpt2/index.html` は静的ファイルですが、ES Modules と fetch を使うため、ファイル直開きではなくローカルサーバ経由で開いてください。
+ES Modules と fetch を使うため、ファイル直開きではなくローカルサーバ経由で開いてください。
 
 ```bash
 git clone https://github.com/lutelute/process_nn.git
 cd process_nn
 python3 -m http.server 8000
-# → http://localhost:8000/         (学習の地図ハブ + 関数近似)
-# → http://localhost:8000/viz/     (各種ビューア: 信号フロー/分類/CNN/RNN/Transformer/勾配降下/k-means)
-# → http://localhost:8000/gpt2/    (GPT-2 ビューア)
+# → http://localhost:8000/        学習の地図ハブ + 関数近似デモ
+# → http://localhost:8000/viz/    各種ビューア（信号フロー/分類/CNN/RNN/Transformer/教師なし/強化/3D ほか）
+# → http://localhost:8000/gpt2/   GPT-2 推論ビューア
 ```
 
 トップの `index.html` のみ外部依存ゼロの単体 HTML なので、直接ブラウザで開いても動きます。
