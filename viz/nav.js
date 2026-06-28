@@ -75,13 +75,15 @@
     if (!el) return;
     const faint = getComputedStyle(document.documentElement).getPropertyValue('--faint').trim() || '#46566b';
     const text = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#e7edf5';
-    const sep = '<span style="color:' + faint + ';margin:0 6px;">·</span>';
+    // 区切りの前後に半角空白を入れて改行機会を作る（狭い画面で ASCII ラベル連結が
+    // 折り返せず横はみ出すのを防ぐ）。各ラベルは nowrap で内部分割しない。
+    const sep = ' <span style="color:' + faint + ';margin:0 3px;">·</span> ';
     const items = pages.map(function (p) {
-      if (p.href === cur) return '<span style="color:' + text + ';font-weight:600;">' + p.label + '</span>';
-      return '<a href="' + p.href + '">' + p.label + '</a>';
+      if (p.href === cur) return '<span style="color:' + text + ';font-weight:600;white-space:nowrap;">' + p.label + '</span>';
+      return '<a href="' + p.href + '" style="white-space:nowrap;">' + p.label + '</a>';
     });
     // 末尾に「← 地図（トップ）」
-    items.push('<a href="../">← 地図</a>');
+    items.push('<a href="../" style="white-space:nowrap;">← 地図</a>');
     el.innerHTML = items.join(sep);
   }
 
