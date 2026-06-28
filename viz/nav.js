@@ -23,6 +23,7 @@
     { href: 'dtree.html',       label: '決定木' },
     { href: 'knn.html',         label: 'kNN' },
     { href: 'svm.html',         label: 'SVM' },
+    { href: 'naivebayes.html',  label: 'ナイーブベイズ' },
     { href: 'hopfield.html',    label: 'Hopfield' },
     { href: 'ga.html',          label: '遺伝的AL' },
     { href: 'qlearning.html',   label: 'Q学習' },

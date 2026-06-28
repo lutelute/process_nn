@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ナイーブベイズ — 確率で分類する</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --c0:#39e0c4; --c1:#d4a36a; --c2:#f06f7e; --loss:#f0b03a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:23px;margin:0;letter-spacing:.04em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6;}
+  .nav{font-size:12.5px;margin:12px 0 16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
+  .canvas-host{width:100%;padding:10px 14px 14px;}
+  canvas{display:block;width:100%;border-radius:6px;}
+  #space{cursor:crosshair;}
+  .side{display:flex;flex-direction:column;gap:14px;}
+  .readout{display:flex;gap:22px;font-family:var(--mono);padding:8px 14px 12px;flex-wrap:wrap;}
+  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
+  .readout .v.acc{color:var(--accent);}
+  .post{padding:0 14px 14px;font-size:12px;color:var(--muted);}
+  .bar{height:14px;border-radius:3px;margin:3px 0;}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .field label{font-size:11.5px;color:var(--muted);}
+  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;cursor:pointer;}
+  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s;}
+  button:hover{border-color:var(--faint);}
+  .note{grid-column:1/-1;color:var(--faint);font-size:11px;line-height:1.6;}
+  .narr{margin:0 14px 14px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text);}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}.controls{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ナイーブベイズ — 確率で分類する</h1>
+    <div class="sub"><b>生成モデル</b>の分類器。各クラスのデータの散らばりを<b>ガウス分布（楕円）</b>で表し、新しい点は <b>p(クラス)×p(点|クラス)</b> が最大のクラスに割り当てる（ベイズの定理）。決定木や SVM（識別モデル）と対照的なアプローチ。</div>
+  </header>
+  <div class="nav"></div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cap">特徴空間：背景＝予測クラス、楕円＝各クラスのガウス（1σ/2σ）、★＝問い合わせ点</div>
+      <div class="canvas-host"><canvas id="space" width="520" height="520"></canvas></div>
+      <div class="narr" id="narrB">盤面をドラッグして★を動かすと、各クラスの確率（事後確率）が右に表示されます。</div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <div class="cap">指標</div>
+        <div class="readout">
+          <div><div class="k">正答率</div><div class="v acc" id="accOut">—</div></div>
+          <div><div class="k">★の判定</div><div class="v" id="predOut">—</div></div>
+        </div>
+        <div class="post" id="postBox">★の各クラス事後確率がここに出ます。</div>
+      </div>
+      <div class="card">
+        <div class="cap">考え方</div>
+        <div class="post" style="padding-top:12px;line-height:1.7;">「もしこの点がクラス c なら、どれくらい自然か（尤度）」をクラスごとに計算し、事前確率を掛けて比べる。<b>各特徴は独立</b>と仮定（＝楕円が軸並行）するのが“ナイーブ”の由来。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>データ</label>
+      <select id="dataSel">
+        <option value="blobs">3 クラスの塊</option>
+        <option value="aniso">異方性 2 クラス</option>
+        <option value="corr">相関あり 2 クラス（苦手例）</option>
+      </select>
+    </div>
+    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">楕円＝学習した各クラスのガウス分布</span></div>
+    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">★ドラッグで事後確率を観察</span></div>
+    <div class="buttons">
+      <button id="dataBtn">🎲 データ再生成</button>
+    </div>
+    <div class="note">学習＝各クラスの平均と分散（軸ごと）を数えるだけ（1 パス）。予測＝log p(c)+Σ log p(xᵢ|c) が最大のクラス。各特徴を独立と仮定するため楕円は軸並行になり、相関のあるデータは取りこぼす＝モデルの限界も見える。素の JavaScript 実装。</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rng=mulberry32(31);
+function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const sp=document.getElementById('space'),sx=sp.getContext('2d'),SW=sp.width,SH=sp.height;
+const off=document.createElement('canvas');off.width=SW;off.height=SH;const ox=off.getContext('2d');
+const CLS=['#39e0c4','#d4a36a','#f06f7e'];
+const dataSel=document.getElementById('dataSel');
+const R=2.4;
+const toX=x=>12+(x+R)/(2*R)*(SW-24), toY=y=>12+(R-y)/(2*R)*(SH-24);
+const fromX=px=>(px-12)/(SW-24)*2*R-R, fromY=py=>R-(py-12)/(SH-24)*2*R;
+let X=[],Y=[],M=null,query=[0,0];
+
+function gen(){X=[];Y=[];const kind=dataSel.value,n=270;
+  for(let i=0;i<n;i++){let c,x,y;
+    if(kind==='blobs'){c=i%3;const ctr=[[-1.1,-0.7],[1.2,-0.4],[0,1.3]][c];x=ctr[0]+randn()*0.45;y=ctr[1]+randn()*0.45;}
+    else if(kind==='aniso'){c=i%2;x=(c?0.8:-0.8)+randn()*(c?0.32:0.72);y=randn()*(c?0.72:0.32);}
+    else{c=i%2;const a=randn()*0.7,b=randn()*0.28;const th=(c?1:-1)*Math.PI/4;x=(c?0.5:-0.5)+a*Math.cos(th)-b*Math.sin(th);y=a*Math.sin(th)+b*Math.cos(th);}
+    X.push([x,y]);Y.push(c);}}
+function train(){const K=Math.max(...Y)+1;const mu=[],va=[],pri=[];
+  for(let c=0;c<K;c++){const xs=X.filter((_,i)=>Y[i]===c),n=xs.length;const m=[0,0];for(const x of xs){m[0]+=x[0];m[1]+=x[1];}m[0]/=n;m[1]/=n;
+    const v=[1e-2,1e-2];for(const x of xs){v[0]+=(x[0]-m[0])**2;v[1]+=(x[1]-m[1])**2;}v[0]/=n;v[1]/=n;mu.push(m);va.push(v);pri.push(n/X.length);}
+  M={K,mu,va,pri};}
+function logp(x,c){let lp=Math.log(M.pri[c]);for(let d=0;d<2;d++){const v=M.va[c][d];lp+=-0.5*Math.log(2*Math.PI*v)-(x[d]-M.mu[c][d])**2/(2*v);}return lp;}
+function post(x){const lps=[];for(let c=0;c<M.K;c++)lps.push(logp(x,c));const mx=Math.max(...lps);let s=0;const e=lps.map(l=>{const v=Math.exp(l-mx);s+=v;return v;});return e.map(v=>v/s);}
+function predict(x){const p=post(x);let bc=0;for(let c=1;c<M.K;c++)if(p[c]>p[bc])bc=c;return bc;}
+
+function computeRegions(){const G=104,cw=(SW-24)/G,ch=(SH-24)/G;ox.clearRect(0,0,SW,SH);
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=fromX(12+(c+0.5)*cw),yy=fromY(12+(r+0.5)*ch);const pr=predict([xx,yy]);
+    ox.fillStyle=CLS[pr];ox.globalAlpha=0.15;ox.fillRect(12+c*cw,12+r*ch,cw+1,ch+1);}ox.globalAlpha=1;}
+function ellipse(cx,cy,rx,ry,col,a){sx.save();sx.strokeStyle=col;sx.globalAlpha=a;sx.lineWidth=1.6;sx.beginPath();
+  for(let t=0;t<=64;t++){const th=t/64*2*Math.PI;const X2=toX(cx+rx*Math.cos(th)),Y2=toY(cy+ry*Math.sin(th));t?sx.lineTo(X2,Y2):sx.moveTo(X2,Y2);}sx.stroke();sx.restore();}
+function draw(){sx.clearRect(0,0,SW,SH);sx.drawImage(off,0,0);
+  // 点
+  for(let i=0;i<X.length;i++){sx.beginPath();sx.arc(toX(X[i][0]),toY(X[i][1]),3,0,7);sx.fillStyle=CLS[Y[i]];sx.fill();sx.lineWidth=0.5;sx.strokeStyle='rgba(12,16,22,0.7)';sx.stroke();}
+  // ガウス楕円(1σ,2σ)
+  for(let c=0;c<M.K;c++){const sX=Math.sqrt(M.va[c][0]),sY=Math.sqrt(M.va[c][1]);ellipse(M.mu[c][0],M.mu[c][1],sX,sY,CLS[c],0.9);ellipse(M.mu[c][0],M.mu[c][1],2*sX,2*sY,CLS[c],0.4);
+    sx.fillStyle=CLS[c];sx.beginPath();sx.arc(toX(M.mu[c][0]),toY(M.mu[c][1]),3,0,7);sx.fill();}
+  // ★
+  const pr=predict(query),qx=toX(query[0]),qy=toY(query[1]);
+  sx.beginPath();sx.arc(qx,qy,8,0,7);sx.fillStyle='#0c1016';sx.fill();sx.lineWidth=3;sx.strokeStyle=CLS[pr];sx.stroke();
+  sx.fillStyle='#fff';sx.font='bold 12px sans-serif';sx.textAlign='center';sx.textBaseline='middle';sx.fillText('★',qx,qy+0.5);
+  updateReadout();
+}
+function accuracy(){let ok=0;for(let i=0;i<X.length;i++)if(predict(X[i])===Y[i])ok++;return ok/X.length;}
+let cachedAcc=0;
+function updateReadout(){const p=post(query),pr=predict(query);
+  document.getElementById('accOut').textContent=(cachedAcc*100).toFixed(1)+'%';
+  document.getElementById('predOut').textContent='クラス '+pr;document.getElementById('predOut').style.color=CLS[pr];
+  let html='';for(let c=0;c<M.K;c++)html+='<div>クラス '+c+'：'+(p[c]*100).toFixed(1)+'%<div class="bar" style="width:'+Math.max(2,p[c]*100)+'%;background:'+CLS[c]+';opacity:.8;"></div></div>';
+  document.getElementById('postBox').innerHTML=html;
+  const el=document.getElementById('narrB');if(el){el.innerHTML='★の事後確率を比べ、最も高い<b style="color:'+CLS[pr]+'">クラス '+pr+'</b>（'+(p[pr]*100).toFixed(0)+'%）に分類。各クラスの楕円（学習したガウス）に★が近い・尤もらしいほど、その確率が上がります。'+(dataSel.value==='corr'?'<span style="color:var(--loss)">このデータは特徴に相関があり、軸並行の楕円では表しきれません＝ナイーブ仮定の限界。</span>':'');}
+}
+function recompute(){train();computeRegions();cachedAcc=accuracy();draw();}
+
+function setQuery(ev){const r=sp.getBoundingClientRect();const px=(ev.clientX-r.left)*(SW/r.width),py=(ev.clientY-r.top)*(SH/r.height);query=[Math.max(-R,Math.min(R,fromX(px))),Math.max(-R,Math.min(R,fromY(py)))];draw();}
+let drag=false;
+sp.addEventListener('mousedown',e=>{drag=true;setQuery(e);});
+sp.addEventListener('mousemove',e=>{if(drag)setQuery(e);});
+window.addEventListener('mouseup',()=>drag=false);
+sp.addEventListener('touchstart',e=>{drag=true;setQuery(e.touches[0]);e.preventDefault();},{passive:false});
+sp.addEventListener('touchmove',e=>{if(drag)setQuery(e.touches[0]);e.preventDefault();},{passive:false});
+window.addEventListener('touchend',()=>drag=false);
+dataSel.onchange=()=>{gen();query=[0,0];recompute();};
+document.getElementById('dataBtn').onclick=()=>{rng=mulberry32((rng()*1e9)>>>0);gen();query=[0,0];recompute();};
+
+gen();recompute();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
