@@ -6,6 +6,7 @@
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'ga.html',          label: '遺伝的AL' },
     { href: 'index.html',       label: '信号の流れ' },
+    { href: 'linreg.html',      label: '線形回帰' },
     { href: 'backprop.html',    label: '逆伝播' },
     { href: 'classify.html',    label: '決定境界' },
     { href: 'digit.html',       label: '数字認識' },

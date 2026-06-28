@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>線形回帰（最小二乗法）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ls b{color:var(--loss);} .mini .r2 b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>線形回帰（最小二乗法）を理解する</h1>
+  <div class="lead">データに最もよく当てはまる<b>直線 y = wx + b</b> を引く、最も基本的な教師あり学習。各点と直線の<b>ずれ（残差）の二乗の合計</b>が最小になるよう w, b を決める。これが「学習＝損失最小化」の原型で、NN の出発点。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="strong">強い相関</option><option value="weak">弱い相関(ノイズ大)</option><option value="curve">曲線(線形の限界)</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：正規方程式・なぜ二乗か・決定係数 R²</summary>
+    <div class="det"><b>正規方程式</b>：単回帰なら w = Σ(xᵢ−x̄)(yᵢ−ȳ) / Σ(xᵢ−x̄)²、b = ȳ − w·x̄ で<b>一発で厳密解</b>が出ます（行列なら w = (XᵀX)⁻¹Xᵀy）。勾配降下は同じ最小点へ反復で近づく方法で、特徴が多い・データが巨大なときに有利。<b>なぜ二乗？</b> 微分しやすく解が一意（凸関数）になり、ガウスノイズ仮定での最尤推定と一致するため。外れ値に弱いのが弱点（絶対値誤差や Huber 損失で緩和）。<b>決定係数 R²</b>＝1 − (残差平方和)/(全平方和) で、1 に近いほど当てはまりが良い。曲線データには直線は構造的に当てはまらず R² が下がります（特徴量を増やす＝多項式回帰へ）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=2026;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+let X=[],Y=[],w=0,b=0,wOpt=0,bOpt=0,iter=0,lossHist=[];
+function genData(){X=[];Y=[];const kind=document.getElementById('dataSel').value,n=14;
+  for(let i=0;i<n;i++){const x=-1.05+2.1*(i/(n-1))+randn()*0.04;let y;
+    if(kind==='strong')y=0.85*x+0.1+randn()*0.12;
+    else if(kind==='weak')y=0.5*x+0.05+randn()*0.42;
+    else y=1.1*x*x-0.5+randn()*0.1; // 曲線
+    X.push(x);Y.push(y);}
+  // 正規方程式（厳密解）
+  const n2=X.length,mx=X.reduce((a,c)=>a+c,0)/n2,my=Y.reduce((a,c)=>a+c,0)/n2;let sxy=0,sxx=0;for(let i=0;i<n2;i++){sxy+=(X[i]-mx)*(Y[i]-my);sxx+=(X[i]-mx)**2;}wOpt=sxy/sxx;bOpt=my-wOpt*mx;}
+function pred(x,W,B){return W*x+B;}
+function mse(W,B){let t=0;for(let i=0;i<X.length;i++){const e=Y[i]-(W*X[i]+B);t+=e*e;}return t/X.length;}
+function r2(W,B){const my=Y.reduce((a,c)=>a+c,0)/Y.length;let ssr=0,sst=0;for(let i=0;i<Y.length;i++){ssr+=(Y[i]-(W*X[i]+B))**2;sst+=(Y[i]-my)**2;}return 1-ssr/sst;}
+function gdStep(){const n=X.length,lr=0.35;let gw=0,gb=0;for(let i=0;i<n;i++){const e=(w*X[i]+b)-Y[i];gw+=2*e*X[i]/n;gb+=2*e/n;}w-=lr*gw;b-=lr*gb;iter++;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LOx=-1.35,HIx=1.35,LOy=-1.7,HIy=1.7;
+const px=x=>26+(CW-38)*(x-LOx)/(HIx-LOx),py=y=>14+(CH-40)*(HIy-y)/(HIy-LOy);
+function axes(){ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px(0),py(LOy));ctx.lineTo(px(0),py(HIy));ctx.moveTo(px(LOx),py(0));ctx.lineTo(px(HIx),py(0));ctx.stroke();}
+function drawLine(W,B,style,dash,wd){ctx.strokeStyle=style;ctx.lineWidth=wd||2;if(dash)ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(px(LOx),py(W*LOx+B));ctx.lineTo(px(HIx),py(W*HIx+B));ctx.stroke();ctx.setLineDash([]);}
+function drawPts(){for(let i=0;i<X.length;i++){ctx.beginPath();ctx.arc(px(X[i]),py(Y[i]),3.4,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+function drawResiduals(squares){for(let i=0;i<X.length;i++){const yh=w*X[i]+b,r=Y[i]-yh;
+  ctx.strokeStyle='rgba(240,111,126,0.75)';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(px(X[i]),py(Y[i]));ctx.lineTo(px(X[i]),py(yh));ctx.stroke();
+  if(squares){const side=Math.abs(r);const x0=px(X[i]),x1=px(X[i]+side*(X[i]>=0?1:-1));const ya=py(Math.max(Y[i],yh)),yb=py(Math.min(Y[i],yh));ctx.fillStyle='rgba(240,111,126,0.14)';ctx.fillRect(Math.min(x0,x1),ya,Math.abs(x1-x0),Math.abs(yb-ya));ctx.strokeStyle='rgba(240,111,126,0.4)';ctx.lineWidth=.8;ctx.strokeRect(Math.min(x0,x1),ya,Math.abs(x1-x0),Math.abs(yb-ya));}}}
+function drawLossSpark(){if(lossHist.length<2)return;const w2=104,h=40,x0=CW-w2-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.72)';ctx.fillRect(x0,y0,w2,h);let hi=Math.max(...lossHist),lo=Math.min(...lossHist);if(hi-lo<1e-9)hi=lo+1e-9;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<lossHist.length;i++){const Xp=x0+4+(w2-8)*i/(lossHist.length-1),Yp=y0+4+(h-8)*(lossHist[i]-lo)/(hi-lo);i?ctx.lineTo(Xp,Yp):ctx.moveTo(Xp,Yp);}ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('損失↓',x0+4,y0+h-4);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);axes();
+  if(opt.optLine)drawLine(wOpt,bOpt,'rgba(57,224,196,0.35)',[5,4],1.5);
+  if(opt.resid)drawResiduals(opt.squares);
+  if(opt.line)drawLine(w,b,getCSS('--accent'),null,2.4);
+  drawPts();
+  if(opt.loss)drawLossSpark();}
+
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'line',t:'直線',c:'var(--upd)'},{key:'sq',t:'二乗誤差',c:'var(--neg)'},{key:'fit',t:'最小化',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='data')draw({});else if(k==='line')draw({line:true,resid:true});else if(k==='sq')draw({line:true,resid:true,squares:true});else if(k==='fit')draw({line:true,resid:true,loss:true,optLine:true});else draw({line:true,resid:true,optLine:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='data'){m.innerHTML='<div>点 <b>'+X.length+'</b></div>';return;}m.innerHTML='<div>w <b>'+w.toFixed(2)+'</b></div><div>b <b>'+b.toFixed(2)+'</b></div><div class="ls">MSE <b>'+mse(w,b).toFixed(3)+'</b></div>'+((k==='fit'||k==='res')?'<div class="r2">R² <b>'+r2(w,b).toFixed(2)+'</b></div>':'');}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='data')?'● データ点 (x, y)':(k==='fit'||k==='res')?'青=学習中の直線, 緑破線=厳密解(正規方程式), 赤=残差':'● データ, 青線=直線, 赤=残差(ずれ)';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const curve=document.getElementById('dataSel').value==='curve';let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：直線で関係を捉える</h3><div class="desc">入力 x と出力 y の組（点）があります。x が増えると y はどう動くか——その関係を<b>1 本の直線</b>で表したい。これが回帰（数値の予測）の最も基本形です。右下でデータの素性を変えられます。</div>';}
+  else if(k==='line'){h+='<h3>② 直線とパラメータ</h3><div class="eq curr">ŷ = w·x + b　（w=傾き, b=切片）</div><div class="desc">直線は <b>傾き w</b> と <b>切片 b</b> の 2 つで決まります。各点の実測 y と、直線の予測 ŷ の<b>縦のずれ＝残差</b>（赤線）。この残差を全体で小さくする w, b を見つけるのが目標。今は適当な直線なので残差が大きい。</div>';}
+  else if(k==='sq'){h+='<h3>③ 二乗誤差（コスト）</h3><div class="eq curr">MSE = (1/n) Σ (yᵢ − (w·xᵢ+b))²</div><div class="desc">残差を<b>二乗</b>して平均したものがコスト（赤い四角＝各残差の二乗＝面積）。二乗するのは符号を消し、大きなずれを強く罰し、微分しやすくするため。<b>この面積の合計が最小</b>になる直線が「最小二乗解」。今の MSE = '+mse(w,b).toFixed(3)+'。</div>';}
+  else if(k==='fit'){h+='<h3>④ 最小化（勾配降下）</h3><div class="eq curr">w ← w − η·∂MSE/∂w,　b ← b − η·∂MSE/∂b</div><div class="desc">コストが下がる向き（勾配の逆）へ w, b を少しずつ動かすと、直線がデータに吸い付いていきます。緑の破線は<b>正規方程式の厳密解</b>——勾配降下はそこへ収束します。反復 '+iter+'・MSE '+mse(w,b).toFixed(3)+'。</div>';}
+  else{const R=r2(w,b);h+='<h3>⑤ 結果：最良の直線</h3><div class="desc">最小二乗の直線が完成（傾き w='+w.toFixed(2)+', 切片 b='+b.toFixed(2)+'）。当てはまりの良さは<b>決定係数 R² = '+R.toFixed(2)+'</b>（1 に近いほど良い）。'+(curve?'<b style="color:var(--neg)">曲線データ</b>なので直線では構造を捉えきれず R² が低い＝線形の限界（多項式回帰へ）。':'残差が最小になり、データの傾向をよく説明できています。')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・直線 ŷ=wx+b の w,b を最適化<br>・二乗誤差(MSE)を最小化＝最小二乗<br>・正規方程式で一発、勾配降下でも同じ解</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='data'){w=0;b=0;iter=0;lossHist=[];}
+  else if(k==='line'||k==='sq'){if(iter>0){w=0;b=0;iter=0;}}
+  else if(k==='fit'){w=0;b=0;iter=0;lossHist=[mse(w,b)];runFit();}
+  else if(k==='res'){w=wOpt;b=bOpt;}
+  renderAll();draw_();}
+function runFit(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='fit')return;for(let s=0;s<2;s++)gdStep();lossHist.push(mse(w,b));if(lossHist.length>200)lossHist.shift();draw_();renderMini();renderExplain();if(iter>=120||mse(w,b)<mse(wOpt,bOpt)+1e-5){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='fit'?400:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=2026+(Math.floor(rng()*900));genData();w=0;b=0;iter=0;lossHist=[];stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=()=>{genData();w=0;b=0;iter=0;lossHist=[];stepIdx=0;renderAll();draw_();};
+genData();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
