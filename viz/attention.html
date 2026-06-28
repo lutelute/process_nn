@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自己注意（Self-Attention）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784; --upd:#c9a6ff;
+    --q:#39e0c4; --k:#f0b03a; --v:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1.1fr .9fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;}
+  .mini b{color:var(--text);font-weight:600;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin-top:8px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;} .sw{width:10px;height:10px;border-radius:2px;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:13.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .eq .num{color:var(--accent);} .eq .res{color:var(--c,var(--accent));font-weight:700;}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:11.5px;margin:8px 0;}
+  td,th{border:1px solid var(--line);padding:3px 6px;text-align:right;} th{color:var(--muted);font-weight:400;}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>自己注意（Self-Attention）を理解する</h1>
+  <div class="lead">Transformer・GPT の心臓部。文の中で、各トークンが<b>他のどのトークンに注目すべきか</b>を自分で計算し、関連する情報を集める。<b>Q・K・V</b> と <b>softmax(QKᵀ/√d)·V</b> を、実際の数値で 1 ステップずつ追います。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="520" height="300"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="focusSel"></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：なぜ √d で割る？ マルチヘッドとは？</summary>
+    <div class="det">スコア Q·K は次元 d が大きいほど値が大きくなり、softmax が極端になりがち。<b>√d で割る</b>と分布が安定します。また実際は Q/K/V を複数組に分けて並列に注意を計算し（<b>マルチヘッド</b>）、別々の関係（語順・係り受け・共参照など）を同時に捉えます。さらに Wq・Wk・Wv は<b>学習</b>で獲得され、意味のある注目に育ちます（本物は「Transformer 学習」「Attention(3D)」「GPT-2」ページで）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const f2=v=>(v>=0?' ':'')+v.toFixed(2);
+/* トークン（2次元埋め込み, 内容語と助詞でクラスタ） */
+const TOK=[{w:'猫',e:[0.9,0.4]},{w:'が',e:[-0.2,-0.9]},{w:'魚',e:[0.7,0.5]},{w:'を',e:[-0.3,-0.85]},{w:'食べた',e:[0.2,0.95]}];
+TOK.forEach(t=>{const n=Math.hypot(t.e[0],t.e[1]);t.e=[t.e[0]/n,t.e[1]/n];});
+const T=TOK.length,d=2,sd=Math.sqrt(d);
+let focus=4;
+function scoresFor(i){return TOK.map(t=>(TOK[i].e[0]*t.e[0]+TOK[i].e[1]*t.e[1])/sd);}
+function softmax(a){const mx=Math.max(...a);let s=0;const e=a.map(v=>{const x=Math.exp(v-mx);s+=x;return x;});return e.map(x=>x/s);}
+function outputFor(i){const w=softmax(scoresFor(i));const o=[0,0];for(let j=0;j<T;j++){o[0]+=w[j]*TOK[j].e[0];o[1]+=w[j]*TOK[j].e[1];}return{w,o};}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const ROWY=150,BW=64,BH=40;
+function tokX(i){return 40+(CW-80)*(T===1?0.5:i/(T-1));}
+function drawTokens(showArrow){
+  for(let i=0;i<T;i++){const x=tokX(i),y=ROWY,foc=(i===focus);
+    ctx.fillStyle=foc?'#16302c':'#161d28';ctx.strokeStyle=foc?getCSS('--accent'):getCSS('--line');ctx.lineWidth=foc?2:1;
+    ctx.beginPath();ctx.roundRect(x-BW/2,y-BH/2,BW,BH,8);ctx.fill();ctx.stroke();
+    ctx.fillStyle=foc?getCSS('--accent'):getCSS('--text');ctx.font='14px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(TOK[i].w,x,y);
+    if(showArrow){const cx=x,cy=y+BH/2+22,sc=16;ctx.strokeStyle=getCSS('--q');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+TOK[i].e[0]*sc,cy-TOK[i].e[1]*sc);ctx.stroke();
+      ctx.fillStyle=getCSS('--q');ctx.beginPath();ctx.arc(cx+TOK[i].e[0]*sc,cy-TOK[i].e[1]*sc,2.2,0,7);ctx.fill();}
+  }
+}
+function drawArcs(w,emph){const fx=tokX(focus),fy=ROWY-BH/2;
+  for(let j=0;j<T;j++){if(j===focus)continue;const tx=tokX(j),ty=ROWY-BH/2;const mid=(fx+tx)/2,peak=Math.min(fy,ty)-50-w[j]*40;
+    ctx.strokeStyle=`rgba(57,224,196,${0.12+0.8*w[j]})`;ctx.lineWidth=1+ (emph?9:6)*w[j];
+    ctx.beginPath();ctx.moveTo(fx,fy);ctx.quadraticCurveTo(mid,peak,tx,ty);ctx.stroke();}
+  // 自己ループ（focus自身）
+  const sw=w[focus];ctx.strokeStyle=`rgba(57,224,196,${0.12+0.8*sw})`;ctx.lineWidth=1+(emph?9:6)*sw;ctx.beginPath();ctx.arc(fx,fy-14,12,0.2*Math.PI,2.8*Math.PI);ctx.stroke();
+}
+function drawBars(vals,isW){let mx=0;for(const v of vals)mx=Math.max(mx,Math.abs(v));mx=mx||1;
+  for(let i=0;i<T;i++){const x=tokX(i),base=ROWY+BH/2+30,h=44*(Math.abs(vals[i])/mx);const pos=vals[i]>=0;
+    ctx.fillStyle=isW?getCSS('--accent'):(pos?'rgba(57,224,196,0.7)':'rgba(240,111,126,0.7)');
+    ctx.fillRect(x-16,pos?base-h:base,32,h);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(isW?(vals[i]*100).toFixed(0)+'%':f2(vals[i]),x,base+ (pos? -h-4 : h+10));}
+  ctx.strokeStyle=getCSS('--grid');ctx.beginPath();ctx.moveTo(20,ROWY+BH/2+30);ctx.lineTo(CW-20,ROWY+BH/2+30);ctx.stroke();
+}
+function drawOutVec(o){const cx=CW/2,cy=70,sc=30;ctx.strokeStyle=getCSS('--v');ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+o[0]*sc,cy-o[1]*sc);ctx.stroke();ctx.fillStyle=getCSS('--v');ctx.beginPath();ctx.arc(cx+o[0]*sc,cy-o[1]*sc,3,0,7);ctx.fill();ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('出力ベクトル',cx+8,cy-18);}
+
+const STEPS=[{key:'seq',t:'問題',c:'var(--accent)'},{key:'qkv',t:'Q·K·V',c:'var(--accent)'},{key:'score',t:'スコア',c:'var(--loss)'},{key:'soft',t:'重み',c:'var(--accent)'},{key:'out',t:'出力',c:'var(--upd)'}];
+let stepIdx=0,anim=false,auto=false,arcProg=1;
+
+function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);const sc=scoresFor(focus),w=softmax(sc),{o}=outputFor(focus);
+  if(k==='seq'){drawTokens(false);ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('各トークンは、関連する他トークンから文脈を集めたい',CW/2,ROWY+BH/2+50);}
+  else if(k==='qkv'){drawTokens(true);}
+  else if(k==='score'){drawTokens(false);drawBars(sc,false);}
+  else if(k==='soft'){drawTokens(false);drawArcs(w.map(x=>x*arcProg),false);drawBars(w,true);}
+  else{drawTokens(false);drawArcs(w,true);drawOutVec(o);}
+}
+
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),w=softmax(scoresFor(focus));let am=0;for(let j=1;j<T;j++)if(w[j]>w[am])am=j;
+  m.innerHTML='<div>注目元 <b>'+TOK[focus].w+'</b></div>'+(STEPS[stepIdx].key==='soft'||STEPS[stepIdx].key==='out'?'<div>最も注目 <b>'+TOK[am].w+'</b>（'+(w[am]*100).toFixed(0)+'%）</div>':'');}
+function renderLegend(){const k=STEPS[stepIdx].key;const l=document.getElementById('legend');
+  if(k==='qkv')l.innerHTML='<span><i class="sw" style="background:var(--q)"></i>各トークンの向き＝埋め込み(Q/K/V のもと)</span>';
+  else if(k==='score')l.innerHTML='<span><i class="sw" style="background:var(--accent)"></i>正のスコア</span><span><i class="sw" style="background:var(--neg)"></i>負のスコア</span>';
+  else if(k==='soft'||k==='out')l.innerHTML='<span><i class="sw" style="background:var(--accent)"></i>注目の重み（太い弧＝強い注目）</span><span><i class="sw" style="background:var(--v)"></i>出力</span>';
+  else l.innerHTML='';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const sc=scoresFor(focus),w=softmax(sc),{o}=outputFor(focus);let am=0;for(let j=1;j<T;j++)if(w[j]>w[am])am=j;
+  let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='seq'){h+='<h3>① 問題：文脈を集めたい</h3><div class="desc">文「猫 が 魚 を 食べた」。「<b>'+TOK[focus].w+'</b>」を理解するには、関連する他の語の情報が要る。自己注意は、各トークンが<b>どこを見るべきか</b>を自分で計算します。右下のセレクトで注目元を変えられます。</div>';}
+  else if(k==='qkv'){h+='<h3>② Q・K・V をつくる</h3><div class="eq curr">各トークン → <span style="color:var(--q)">Q</span>(問い) <span style="color:var(--k)">K</span>(鍵) <span style="color:var(--v)">V</span>(値)</div><div class="desc"><b style="color:var(--q)">Q</b>＝「何を探しているか」、<b style="color:var(--k)">K</b>＝「何を持っているか」、<b style="color:var(--v)">V</b>＝「渡す中身」。学習した行列で埋め込みから作ります（ここでは簡単のため Q=K=V＝埋め込み＝矢印の向き）。</div>';}
+  else if(k==='score'){let rows='';for(let j=0;j<T;j++)rows+='<tr><td>'+TOK[j].w+'</td><td>'+f2(sc[j])+'</td></tr>';
+    h+='<h3>③ スコア：Q と K の内積</h3><div class="eq curr">score(<b>'+TOK[focus].w+'</b>→j) = Q·K<sub>j</sub> / √d</div><table><tr><th>相手</th><th>スコア</th></tr>'+rows+'</table><div class="desc">注目元 Q と各トークンの K の<b>内積</b>（向きが似ているほど大）。√d='+sd.toFixed(2)+' で割って安定化。今は内容語ほど高スコア。</div>';}
+  else if(k==='soft'){let rows='';for(let j=0;j<T;j++)rows+='<tr><td>'+TOK[j].w+'</td><td>'+(w[j]*100).toFixed(0)+'%</td></tr>';
+    h+='<h3>④ softmax で重みに</h3><div class="eq curr">weight = softmax(score)　（合計 100%）</div><table><tr><th>相手</th><th>重み</th></tr>'+rows+'</table><div class="desc">スコアを softmax で正規化＝<b>注目の配分</b>（合計 1）。太い弧ほど強い注目。「'+TOK[focus].w+'」は <b>'+TOK[am].w+'</b> に最も注目。</div>';}
+  else{h+='<h3>⑤ 出力：V の重み付き和</h3><div class="eq curr">out = Σ<sub>j</sub> weight<sub>j</sub> · V<sub>j</sub> = ('+f2(o[0])+', '+f2(o[1])+')</div><div class="desc">各 V を注目の重みで混ぜたものが、このトークンの<b>新しい表現</b>（紫の矢印）。注目した相手の情報が混ざり込みます。これを全トークンで行い、層を重ねて文脈理解を深めるのが Transformer。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・Q·K で「どれだけ注目するか」を測る<br>・softmax で重み（合計1）に<br>・出力＝V の重み付き和＝文脈を混ぜた表現</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;renderAll();
+  if(STEPS[i].key==='soft'){arcProg=0;animArc();}else{arcProg=1;draw();}}
+function animArc(){anim=true;let f=0;function go(){if(!anim||STEPS[stepIdx].key!=='soft')return;f++;arcProg=Math.min(1,f/24);draw();if(arcProg<1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,1100);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();stepIdx=0;renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+const fsel=document.getElementById('focusSel');fsel.innerHTML=TOK.map((t,i)=>'<option value="'+i+'"'+(i===focus?' selected':'')+'>注目元: '+t.w+'</option>').join('');
+fsel.onchange=e=>{focus=+e.target.value;renderAll();draw();};
+
+if(!CanvasRenderingContext2D.prototype.roundRect){CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){this.beginPath();this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);this.closePath();return this;};}
+renderAll();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

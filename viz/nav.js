@@ -11,6 +11,7 @@
     { href: 'digit.html',       label: '数字認識' },
     { href: 'rnn.html',         label: 'RNN' },
     { href: 'rnn3d.html',       label: 'RNN(3D)' },
+    { href: 'attention.html',   label: '自己注意' },
     { href: 'transformer.html', label: 'Transformer' },
     { href: 'attention3d.html', label: 'Attention(3D)' },
     { href: 'gradient.html',    label: '勾配降下' },
