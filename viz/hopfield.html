@@ -3,161 +3,158 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hopfield ネットワーク — 連想記憶</title>
+<title>Hopfield ネットワーク（連想記憶）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --on:#39e0c4; --loss:#f0b03a; --neg:#f06f7e;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:23px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6;}
-  .nav{font-size:12.5px;margin:12px 0 16px;line-height:1.9;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
   .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:10px 14px 14px;display:flex;justify-content:center;}
-  canvas{display:block;border-radius:6px;}
-  #stateC{cursor:pointer;width:100%;max-width:380px;}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:20px;font-family:var(--mono);padding:8px 14px 12px;flex-wrap:wrap;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:17px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.e{color:var(--loss);}
-  .mems{display:flex;gap:10px;padding:6px 14px 14px;}
-  .mem{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;}
-  .mem canvas{width:74px;height:74px;border:1px solid var(--line);border-radius:6px;}
-  .mem:hover canvas{border-color:var(--accent);}
-  .mem span{font-size:11px;color:var(--muted);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s;}
-  button:hover{border-color:var(--faint);}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ov b{color:var(--accent);} .mini .en b{color:var(--loss);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  .note{width:100%;color:var(--faint);font-size:11px;line-height:1.6;margin-top:4px;}
-  .narr{margin:0 14px 14px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text);}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>Hopfield ネットワーク — 連想記憶</h1>
-    <div class="sub">パターンを<b>重みに記憶</b>し、破損・ノイズの入った状態から<b>元の記憶を思い出す</b>（連想記憶）。各ニューロンが「つながりの合意」で符号を更新するたびに<b>エネルギーが下がり</b>、最も近い記憶（谷）へ収束する。</div>
-  </header>
   <div class="nav"></div>
+  <h1>Hopfield ネットワーク（連想記憶）を理解する</h1>
+  <div class="lead">いくつかのパターンを<b>重みに焼き込んで記憶</b>し、ノイズや欠けのある入力から<b>最も近い記憶を思い出す</b>（連想記憶）。全ニューロンが互いに結合し、更新するたび<b>エネルギーが下がって</b>記憶（谷）へ転がり落ちる。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">ニューロンの状態（8×8・クリックで反転）</div>
-      <div class="canvas-host"><canvas id="stateC" width="384" height="384"></canvas></div>
-      <div class="narr" id="narrH">下の記憶を選んで「ノイズ」を加え、「▶ 想起」を押すと、ネットワークが元のパターンを思い出します。</div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">記憶したパターン（クリックで読み込み）</div>
-        <div class="mems" id="mems"></div>
-      </div>
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">エネルギー</div><div class="v e" id="eOut">—</div></div>
-          <div><div class="k">更新回数</div><div class="v" id="itOut">0</div></div>
-          <div><div class="k">最も近い記憶</div><div class="v" id="nearOut">—</div></div>
-        </div>
-        <div class="canvas-host" style="padding-top:0;"><canvas id="eC" width="290" height="120"></canvas></div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="setSel"><option value="3">記憶3個(余裕)</option><option value="5">記憶5個</option><option value="8">記憶8個(容量超過)</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <button id="noiseBtn">🌫 ノイズを加える</button>
-    <button class="primary" id="recallBtn">▶ 想起する</button>
-    <button id="stepBtn">⏭ 1 回更新</button>
-    <button id="clearBtn">↺ クリア</button>
-    <span class="note">記憶＝Hebb 則 W=Σ pᵢpⱼ で結合重みに焼き込む（学習）。想起＝各ニューロン sᵢ ← sign(Σⱼ Wᵢⱼ sⱼ) を繰り返す。エネルギー E=−½ Σ Wᵢⱼ sᵢsⱼ は更新のたび単調に下がり、記憶パターンが「谷（アトラクタ）」になる。素の JavaScript 実装。</span>
-  </div>
+  <details>
+    <summary>もっと詳しく：エネルギー・容量限界・スプリアス記憶</summary>
+    <div class="det">ネットワークは<b>エネルギー E = −½ Σ wᵢⱼ sᵢ sⱼ</b> を持ち、非同期更新するたび E は単調減少（or 不変）するので必ず<b>停止点（局所最小）</b>に達します。記憶したパターンはこのエネルギー地形の<b>谷</b>。容量は約 <b>0.14N</b>（N=ニューロン数）で、これを超えると記憶同士が干渉して思い出せなくなったり、記憶でない偽の谷＝<b>スプリアス記憶</b>に落ちます。学習は <b>Hebb 則</b>「同時に発火する素子の結合を強める」。連続版・現代版（Modern Hopfield）は Transformer の注意とも関係します。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-let rng=mulberry32(4);
-const S=8,N=S*S;
-const stateC=document.getElementById('stateC'),sc=stateC.getContext('2d'),CW=stateC.width;
-const eC=document.getElementById('eC'),ec=eC.getContext('2d');
+let seed=41;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function mk(f){const p=new Int8Array(N).fill(-1);for(let r=0;r<S;r++)for(let c=0;c<S;c++)if(f(r,c))p[r*S+c]=1;return p;}
-const PATS=[
-  {name:'十字',p:mk((r,c)=>c===3||c===4||r===3||r===4)},
-  {name:'リング',p:mk((r,c)=>{const d=Math.hypot(r-3.5,c-3.5);return d>1.6&&d<3.4;})},
-  {name:'市松',p:mk((r,c)=>((r>>1)+(c>>1))%2===0)},
-];
-// Hebbian 学習
-const W=Array.from({length:N},()=>new Float64Array(N));
-for(const {p} of PATS)for(let i=0;i<N;i++)for(let j=0;j<N;j++)if(i!==j)W[i][j]+=p[i]*p[j]/N;
-let s=Int8Array.from(PATS[0].p), iter=0, eHist=[], running=false, loadedName=PATS[0].name;
+const GR=10,N=GR*GR;
+function pat(kind){const s=new Int8Array(N);for(let r=0;r<GR;r++)for(let c=0;c<GR;c++){let on=false;const dc=c-4.5,dr=r-4.5,d=Math.hypot(dc,dr);
+  if(kind===0)on=Math.abs(r-c)<=1||Math.abs(r+c-9)<=1; // X
+  else if(kind===1)on=d>=2.7&&d<=4.3;                    // O
+  else if(kind===2)on=Math.abs(dc)<=1||Math.abs(dr)<=1;  // +
+  else if(kind===3)on=r<=1||Math.abs(dc)<=1;             // T
+  else if(kind===4)on=c<=1||c>=8||Math.abs(dr)<=1;       // H
+  else if(kind===5)on=Math.abs(r+c-9)<=1;                // /
+  else if(kind===6)on=r<=1||r>=8||c<=1||c>=8;            // □
+  else on=((r/2|0)+(c/2|0))%2===0;                       // checker
+  s[r*GR+c]=on?1:-1;}return s;}
+let nStore=3,pats=[],W,state,target,energyHist=[];
+function storePatterns(){pats=[];for(let p=0;p<nStore;p++)pats.push(pat(p));W=new Float64Array(N*N);for(const xi of pats)for(let i=0;i<N;i++)for(let j=0;j<N;j++)if(i!==j)W[i*N+j]+=xi[i]*xi[j]/N;}
+function energy(){let e=0;for(let i=0;i<N;i++)for(let j=0;j<N;j++)e-=0.5*W[i*N+j]*state[i]*state[j];return e/N;}
+function overlap(){let s=0;for(let i=0;i<N;i++)if(state[i]===target[i])s++;return s/N;}
+function makeNoisy(noise){target=pats[0].slice();state=target.slice();for(let i=0;i<N;i++)if(rng()<noise)state[i]=-state[i];}
+function updateAsync(steps){const idx=[];for(let i=0;i<N;i++)idx.push(i);for(let k=idx.length-1;k>0;k--){const j=rng()*(k+1)|0;[idx[k],idx[j]]=[idx[j],idx[k]];}let done=0;for(const i of idx){if(done>=steps)break;let h=0;for(let j=0;j<N;j++)h+=W[i*N+j]*state[j];const ns=h>=0?1:-1;if(ns!==state[i])state[i]=ns;done++;}}
 
-function energy(st){let e=0;for(let i=0;i<N;i++){let a=0;for(let j=0;j<N;j++)a+=W[i][j]*st[j];e-=0.5*a*st[i];}return e;}
-function nearest(st){let bi=0,bm=-1;for(let k=0;k<PATS.length;k++){let m=0;for(let i=0;i<N;i++)if(st[i]===PATS[k].p[i])m++;if(m>bm){bm=m;bi=k;}}return {name:PATS[bi].name,frac:bm/N};}
-function sweep(){const o=[...Array(N).keys()];for(let k=o.length-1;k>0;k--){const j=(rng()*(k+1))|0;[o[k],o[j]]=[o[j],o[k]];}
-  let changed=false;for(const i of o){let a=0;for(let j=0;j<N;j++)a+=W[i][j]*s[j];const ns=a>=0?1:-1;if(ns!==s[i]){s[i]=ns;changed=true;}}iter++;eHist.push(energy(s));if(eHist.length>400)eHist.shift();return changed;}
-
-function drawGrid(ctx,st,size){const cell=size/S;ctx.clearRect(0,0,size,size);
-  for(let r=0;r<S;r++)for(let c=0;c<S;c++){const on=st[r*S+c]===1;ctx.fillStyle=on?getCSS('--on'):'#141b25';
-    ctx.fillRect(c*cell+1,r*cell+1,cell-2,cell-2);}
-}
-function draw(){drawGrid(sc,s,CW);drawE();updateReadout();}
-function drawE(){const W2=eC.width,H2=eC.height;ec.clearRect(0,0,W2,H2);
-  if(eHist.length<1){ec.fillStyle=getCSS('--faint');ec.font='11.5px '+getCSS('--gothic');ec.textAlign='center';ec.fillText('想起するとエネルギーが下がります',W2/2,H2/2);return;}
-  const all=eHist.length?eHist:[0];let hi=Math.max(...all,0),lo=Math.min(...all);if(hi-lo<1)hi=lo+1;
-  const xToP=i=>30+(W2-40)*(eHist.length<=1?0:i/(eHist.length-1)),yToP=v=>10+(H2-26)*(hi-v)/(hi-lo);
-  ec.strokeStyle=getCSS('--grid');ec.beginPath();ec.moveTo(30,H2-16);ec.lineTo(W2-10,H2-16);ec.stroke();
-  ec.fillStyle=getCSS('--faint');ec.font='9px '+getCSS('--mono');ec.textAlign='right';ec.textBaseline='middle';ec.fillText('E',24,16);
-  ec.strokeStyle=getCSS('--loss');ec.lineWidth=2;ec.beginPath();
-  for(let i=0;i<eHist.length;i++){const X=xToP(i),Y=yToP(eHist[i]);i?ec.lineTo(X,Y):ec.moveTo(X,Y);}
-  // 単一点でも見えるよう点
-  if(eHist.length===1){ec.lineTo(xToP(0)+1,yToP(eHist[0]));}
-  ec.stroke();
-}
-function updateReadout(){const e=energy(s),nr=nearest(s);
-  document.getElementById('eOut').textContent=e.toFixed(1);
-  document.getElementById('itOut').textContent=iter;
-  document.getElementById('nearOut').textContent=nr.name+'('+(nr.frac*100).toFixed(0)+'%)';
-}
-function updateNarr(extra){const el=document.getElementById('narrH');if(!el)return;const nr=nearest(s),e=energy(s);
-  let msg;
-  if(extra==='loaded')msg='「'+loadedName+'」を読み込みました（きれいな記憶＝エネルギー最小の谷）。「🌫 ノイズ」で崩してから「▶ 想起」を試してください。';
-  else if(extra==='noised')msg='ノイズで状態が崩れました（エネルギー '+e.toFixed(1)+' に上昇）。今は記憶「'+nr.name+'」に '+(nr.frac*100).toFixed(0)+'% 一致。▶ 想起で谷へ転がり落ちます。';
-  else if(extra==='recalled')msg='想起完了：'+iter+' 回の更新でエネルギーが '+e.toFixed(1)+' まで下がり、記憶「<b>'+nr.name+'</b>」に <b>'+(nr.frac*100).toFixed(0)+'%</b> 収束。これが連想記憶（最も近い記憶＝アトラクタへ吸い込まれる）。';
-  else msg='各ニューロンが「つながった相手との合意」で符号を更新。更新のたびエネルギーが下がり、最も近い記憶「'+nr.name+'」へ近づきます。';
-  el.innerHTML=msg;
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function drawGrid(s,x0,y0,cell,diffTarget){for(let r=0;r<GR;r++)for(let c=0;c<GR;c++){const v=s[r*GR+c];ctx.fillStyle=v>0?getCSS('--accent'):'#141b25';ctx.fillRect(x0+c*cell,y0+r*cell,cell-1,cell-1);if(diffTarget&&s[r*GR+c]!==diffTarget[r*GR+c]){ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.5;ctx.strokeRect(x0+c*cell+0.5,y0+r*cell+0.5,cell-2,cell-2);}}}
+function drawThumbs(y0){const tc=10,gap=14,n=pats.length,tw=GR*tc,x0=(CW-(n*tw+(n-1)*gap))/2;ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('記憶したパターン（'+n+'個）',x0,y0-6);for(let p=0;p<n;p++){const xx=x0+p*(tw+gap);drawGrid(pats[p],xx,y0,tc);if(p===0){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.5;ctx.strokeRect(xx-1,y0-1,tw+1,tw+1);}}}
+function drawEnergy(){if(energyHist.length<2)return;const w=104,h=40,x0=CW-w-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.75)';ctx.fillRect(x0,y0,w,h);let hi=Math.max(...energyHist),lo=Math.min(...energyHist);if(hi-lo<1e-6)hi=lo+1e-6;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<energyHist.length;i++){const X=x0+4+(w-8)*i/(energyHist.length-1),Y=y0+4+(h-8)*(energyHist[i]-lo)/(hi-lo);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('E↓',x0+4,y0+h-4);}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);const k=STEPS[stepIdx].key;
+  if(k==='store'){drawThumbs(120);ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('↓ これらを重み W に焼き込む（Hebb則）',CW/2,200);
+    ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('W ('+N+'×'+N+') を形成',CW/2,224);return;}
+  if(k==='prob'){drawThumbs(140);ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('ノイズや欠けからこれらを思い出したい',CW/2,250);return;}
+  // grid-based steps
+  const cell=24,gw=GR*cell,x0=(CW-gw)/2,y0=20;drawGrid(state,x0,y0,cell,opt.diff?target:null);
+  if(opt.energy)drawEnergy();
+  drawThumbs(300);
 }
 
-function loadPat(k){running=false;s=Int8Array.from(PATS[k].p);loadedName=PATS[k].name;iter=0;eHist=[energy(s)];draw();updateNarr('loaded');}
-function addNoise(){running=false;const idx=[...Array(N).keys()];for(let k=0;k<Math.floor(0.28*N);k++){const j=(rng()*idx.length)|0;s[idx[j]]*=-1;idx.splice(j,1);}iter=0;eHist=[energy(s)];draw();updateNarr('noised');}
-function recallLoop(){if(!running)return;const changed=sweep();draw();if(!changed){running=false;updateNarr('recalled');return;}updateNarr();setTimeout(()=>requestAnimationFrame(recallLoop),260);}
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'store',t:'記憶',c:'var(--upd)'},{key:'noise',t:'ノイズ',c:'var(--neg)'},{key:'recall',t:'想起',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='noise')draw({diff:true});else if(k==='recall')draw({diff:true,energy:true});else if(k==='res')draw({energy:true});else draw({});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='noise'||k==='recall'||k==='res')m.innerHTML='<div class="ov">一致 <b>'+(overlap()*100).toFixed(0)+'%</b></div><div class="en">エネルギー <b>'+energy().toFixed(2)+'</b></div>';else m.innerHTML='<div>ニューロン <b>'+N+'</b></div><div>記憶 <b>'+nStore+'個</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='prob'||k==='store')?'各マス=±1のニューロン（緑=+1）':'緑=+1, 暗=−1, 赤枠=記憶(紫枠)と違うマス';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：思い出す装置</h3><div class="desc">'+N+' 個のニューロン（各 ±1）が作る盤面に、いくつかの<b>パターンを記憶</b>させたい。そして後で、ノイズだらけ・欠けた入力を見せたら、<b>最も近い記憶を復元</b>してほしい。これが連想記憶です。</div>';}
+  else if(k==='store'){h+='<h3>② 記憶（Hebb 則）</h3><div class="eq curr">wᵢⱼ = (1/N) Σₚ ξᵢᵖ ξⱼᵖ　（同時に同符号→結合↑）</div><div class="desc">記憶したい各パターン ξ の<b>外積を足し合わせて</b>結合重み W を作ります（Hebb 則）。「一緒に＋になる素子同士を強く結ぶ」だけ。これでパターンがエネルギー地形の<b>谷</b>として刻まれます。紫枠の X を後で復元します。</div>';}
+  else if(k==='noise'){h+='<h3>③ ノイズを与える</h3><div class="desc">記憶したパターン（紫枠の X）の約 30% のマスを<b>反転</b>させた、壊れた入力を盤面に置きました（赤枠＝本来と違うマス）。一致度 '+(overlap()*100).toFixed(0)+'%。ここから元を思い出せるでしょうか。</div>';}
+  else if(k==='recall'){h+='<h3>④ 想起（エネルギー降下）</h3><div class="eq curr">sᵢ ← sign(Σⱼ wᵢⱼ sⱼ)　を1個ずつ更新</div><div class="desc">各ニューロンを順に「周りからの入力の符号」に合わせて更新。1 回ごとに<b>エネルギー E が下がり</b>（右上）、赤枠が消えていきます。盤面が記憶の谷へ転がり落ちる＝想起。一致 '+(overlap()*100).toFixed(0)+'%・E '+energy().toFixed(2)+'。</div>';}
+  else{const ok=overlap()>0.97;h+='<h3>⑤ 結果：記憶を復元</h3><div class="desc">'+(ok?'盤面が記憶パターンに<b>完全収束</b>（一致 '+(overlap()*100).toFixed(0)+'%）。ノイズから元の記憶を思い出せました。':'今回は<b>'+(overlap()*100).toFixed(0)+'%</b> までしか戻らず、別の記憶や偽の谷（スプリアス記憶）に落ちた可能性＝<b>容量超過</b>の症状。')+' 安定したのでエネルギーはこれ以上下がりません。右下で記憶数を増やすと容量限界が見られます。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・Hebb則でパターンを谷として記憶<br>・更新でエネルギー降下→最寄りの記憶へ<br>・容量 ≈ 0.14N、超過でスプリアス記憶</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-document.getElementById('noiseBtn').onclick=addNoise;
-document.getElementById('recallBtn').onclick=()=>{if(running)return;if(eHist.length<1)eHist=[energy(s)];running=true;recallLoop();};
-document.getElementById('stepBtn').onclick=()=>{running=false;sweep();draw();updateNarr();};
-document.getElementById('clearBtn').onclick=()=>{running=false;s=new Int8Array(N).fill(-1);iter=0;eHist=[energy(s)];draw();updateNarr();};
-
-// グリッドクリックで反転
-stateC.addEventListener('click',e=>{const r=stateC.getBoundingClientRect();const cell=CW/S;const cx=Math.floor((e.clientX-r.left)*(CW/r.width)/cell),cy=Math.floor((e.clientY-r.top)*(CW/r.height)/cell);if(cx>=0&&cx<S&&cy>=0&&cy<S){s[cy*S+cx]*=-1;iter=0;eHist=[energy(s)];draw();updateNarr();}});
-
-// 記憶サムネ
-const memsEl=document.getElementById('mems');
-PATS.forEach((P,k)=>{const d=document.createElement('div');d.className='mem';const cvs=document.createElement('canvas');cvs.width=74;cvs.height=74;d.appendChild(cvs);const sp=document.createElement('span');sp.textContent=P.name;d.appendChild(sp);
-  drawGrid(cvs.getContext('2d'),P.p,74);d.onclick=()=>loadPat(k);memsEl.appendChild(d);});
-
-loadPat(0);
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'||k==='store'){/* keep */}
+  else if(k==='noise'){seed=41+(seed%97);makeNoisy(0.3);energyHist=[];}
+  else if(k==='recall'){if(!target){makeNoisy(0.3);}energyHist=[energy()];runRecall();}
+  else if(k==='res'){if(!target)makeNoisy(0.3);for(let s=0;s<12;s++){updateAsync(N);energyHist.push(energy());}}
+  renderAll();draw_();}
+function runRecall(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='recall')return;updateAsync(12);energyHist.push(energy());if(energyHist.length>120)energyHist.shift();draw_();renderMini();renderExplain();const e2=energy();if(energyHist.length>6&&Math.abs(energyHist[energyHist.length-1]-energyHist[energyHist.length-4])<1e-9){anim=false;return;}if(energyHist.length>200){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='recall'?400:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=41;nStore=+document.getElementById('setSel').value;storePatterns();target=null;state=pats[0].slice();energyHist=[];stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('setSel').onchange=reset;
+nStore=3;storePatterns();state=pats[0].slice();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
 </body>
