@@ -3,197 +3,170 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>決定木 — CART を育てる</title>
+<title>決定木（CART）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --c0:#39e0c4; --c1:#d4a36a; --c2:#f06f7e; --c3:#7c8cff; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --c0:#39e0c4; --c1:#d4a36a; --c2:#f06f7e; --c3:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:23px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6;}
-  .nav{font-size:12.5px;margin:12px 0 16px;line-height:1.9;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
   .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:10px 14px 14px;}
-  canvas{display:block;width:100%;border-radius:6px;}
-  .readout{display:flex;gap:22px;font-family:var(--mono);padding:4px 14px 12px;flex-wrap:wrap;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.acc{color:var(--accent);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;cursor:pointer;}
-  select:focus{border-color:var(--accent);}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s;}
-  button:hover{border-color:var(--faint);}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:330px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .acc b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;line-height:1.6;}
-  .narr{margin:0 14px 14px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text);}
-  @media(max-width:860px){.grid2{grid-template-columns:1fr;}.controls{grid-template-columns:repeat(2,1fr);}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>決定木 — CART を育てる</h1>
-    <div class="sub">ニューラルネットとは全く違う学習。各ノードで<b>「最も purity が上がる軸と閾値」</b>を選んで領域を 2 分割し、木を成長させる。木の構造がそのまま、特徴空間の分割（決定領域）になる様子を観察する。</div>
-  </header>
   <div class="nav"></div>
+  <h1>決定木（CART）を理解する</h1>
+  <div class="lead">「<b>この軸がこの値より上か？</b>」という Yes/No の質問を重ねて分類する、NN とは全く違う学習。各分割で<b>最も purity（純度）が上がる質問</b>を選び、木を育てる。木の形がそのまま特徴空間の分割になる。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="cap">決定領域（特徴空間が分割される）</div>
-      <div class="canvas-host"><canvas id="space" width="520" height="520"></canvas></div>
-      <div class="narr" id="narrD">▶ 木を育てると、各分割が縦横の直線として領域を切り、点を同じクラスでまとめていきます。</div>
-    </div>
-    <div class="card">
-      <div class="cap">木の構造（深さごとに成長）</div>
-      <div class="canvas-host"><canvas id="tree" width="520" height="430"></canvas></div>
-      <div class="readout">
-        <div><div class="k">表示中の深さ</div><div class="v" id="depthOut">0</div></div>
-        <div><div class="k">ノード数</div><div class="v" id="nodeOut">1</div></div>
-        <div><div class="k">正答率</div><div class="v acc" id="accOut">—</div></div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="330" height="470"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
       </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="quad">4象限(4クラス)</option><option value="moons">三日月</option><option value="circle">円(段々の例)</option><option value="xor">市松XOR</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>データ</label>
-      <select id="dataSel">
-        <option value="quad">4 象限（4 クラス）</option>
-        <option value="circle">円の内外（2 クラス）</option>
-        <option value="xor">市松 XOR（2 クラス）</option>
-        <option value="moons">三日月（2 クラス）</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>最大の深さ <span class="val" id="mdv"></span></label>
-      <input type="range" id="mdSlider" min="1" max="7" step="1" value="4">
-    </div>
-    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">塗り＝予測クラス、点＝データ、白線＝分割</span></div>
-    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;" id="splitInfo">　</span></div>
-    <div class="buttons">
-      <button class="primary" id="growBtn">▶ 1 段 育てる</button>
-      <button id="fullBtn">⏩ 最後まで</button>
-      <button id="resetBtn">↺ リセット（深さ0）</button>
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">CART: 各ノードで全ての分割候補(軸×閾値)を試し、分割後の<b>不純度(Gini)の重み付き和</b>が最小になる分割を貪欲に選ぶ。純粋になるか最大深さで停止。曲線の境界は軸並行の「段々」で近似される＝木の限界も見える。素の JavaScript 実装。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：Gini 不純度・過学習・ランダムフォレスト</summary>
+    <div class="det"><b>Gini 不純度</b>＝1−Σpₖ²。1 つのクラスだけなら 0（純粋）、混ざるほど大。分割は「分割後の不純度（左右の加重平均）が最も下がる」軸×閾値を貪欲に選ぶ。木を深くすると訓練データに合いすぎる<b>過学習</b>（境界がギザギザに）になりやすく、深さ制限や枝刈りで抑える。曲線の境界は<b>軸並行の階段</b>でしか近似できないのが決定木の弱点で、多数の木を平均する<b>ランダムフォレスト</b>や勾配ブースティングで精度と安定性を上げます。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-let rng=mulberry32(5);
-const sp=document.getElementById('space'),sx=sp.getContext('2d'),SW=sp.width,SH=sp.height;
-const tr=document.getElementById('tree'),tx=tr.getContext('2d'),TW=tr.width,TH=tr.height;
-const dataSel=document.getElementById('dataSel'),mdSlider=document.getElementById('mdSlider'),mdv=document.getElementById('mdv');
-const CLS=['#39e0c4','#d4a36a','#f06f7e','#7c8cff'];
+let seed=5;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-
-let X=[],Y=[],K=2,root=null,curDepth=0,maxNodes=1;
-function gen(){X=[];Y=[];const kind=dataSel.value,n=320;
+const CLS=['#39e0c4','#d4a36a','#f06f7e','#c9a6ff'];
+let X=[],Y=[],K=2,root=null,curDepth=0,maxd=5;
+function gen(){X=[];Y=[];const kind=document.getElementById('dataSel').value,n=300;
   for(let i=0;i<n;i++){const x=rng()*2-1,y=rng()*2-1;let c;
     if(kind==='quad'){c=(x>0?1:0)+(y>0?2:0);}
     else if(kind==='circle'){c=(x*x+y*y<0.5)?1:0;}
     else if(kind==='xor'){c=((x>0)!==(y>0))?1:0;}
-    else{ // moons
-      const t=Math.PI*rng();if(i%2===0){X.push([(Math.cos(t)-0.45)*0.9+(rng()-0.5)*0.12,(Math.sin(t)-0.2)*0.9+(rng()-0.5)*0.12]);Y.push(0);continue;}
-      else{X.push([(Math.cos(t+Math.PI)+0.45)*0.9+(rng()-0.5)*0.12,(Math.sin(t+Math.PI)+0.2)*0.9+(rng()-0.5)*0.12]);Y.push(1);continue;}}
-    X.push([x,y]);Y.push(c);}
-  K=Math.max(...Y)+1;}
+    else{const t=Math.PI*rng();if(i%2===0){X.push([(Math.cos(t)-0.45)*0.9+(rng()-0.5)*0.12,(Math.sin(t)-0.2)*0.9+(rng()-0.5)*0.12]);Y.push(0);continue;}else{X.push([(Math.cos(t+Math.PI)+0.45)*0.9+(rng()-0.5)*0.12,(Math.sin(t+Math.PI)+0.2)*0.9+(rng()-0.5)*0.12]);Y.push(1);continue;}}
+    X.push([x,y]);Y.push(c);}K=Math.max(...Y)+1;}
 function gini(cnt,tot){if(!tot)return 0;let s=1;for(const c of cnt)if(c)s-=(c/tot)**2;return s;}
-function build(idx,depth,maxd){
-  const cnt=Array(K).fill(0);for(const j of idx)cnt[Y[j]]++;const tot=idx.length;
-  let maj=0;for(let k=1;k<K;k++)if(cnt[k]>cnt[maj])maj=k;
-  const node={n:tot,pred:maj,gi:gini(cnt,tot),depth:depth};
-  if(depth>=maxd||node.gi<1e-9||tot<4)return node;
-  let best=null;
-  for(let f=0;f<2;f++){const vals=[...new Set(idx.map(j=>X[j][f]))].sort((a,b)=>a-b);
-    for(let i=0;i<vals.length-1;i++){const th=(vals[i]+vals[i+1])/2;const lc=Array(K).fill(0),rc=Array(K).fill(0);let ln=0,rn=0;
-      for(const j of idx){if(X[j][f]<=th){lc[Y[j]]++;ln++;}else{rc[Y[j]]++;rn++;}}
-      if(!ln||!rn)continue;const g=(ln*gini(lc,ln)+rn*gini(rc,rn))/tot;
-      if(!best||g<best.g)best={g,f,th};}}
-  if(!best||best.g>=node.gi-1e-9)return node;
-  const li=[],ri=[];for(const j of idx){(X[j][best.f]<=best.th?li:ri).push(j);}
-  node.f=best.f;node.th=best.th;node.L=build(li,depth+1,maxd);node.R=build(ri,depth+1,maxd);
-  return node;}
+function build(idx,depth){const cnt=Array(K).fill(0);for(const j of idx)cnt[Y[j]]++;const tot=idx.length;let maj=0;for(let k=1;k<K;k++)if(cnt[k]>cnt[maj])maj=k;const node={n:tot,pred:maj,gi:gini(cnt,tot),depth:depth};
+  if(depth>=maxd||node.gi<1e-9||tot<4)return node;let best=null;
+  for(let f=0;f<2;f++){const vals=[...new Set(idx.map(j=>X[j][f]))].sort((a,b)=>a-b);for(let i=0;i<vals.length-1;i++){const th=(vals[i]+vals[i+1])/2;const lc=Array(K).fill(0),rc=Array(K).fill(0);let ln=0,rn=0;for(const j of idx){if(X[j][f]<=th){lc[Y[j]]++;ln++;}else{rc[Y[j]]++;rn++;}}if(!ln||!rn)continue;const g=(ln*gini(lc,ln)+rn*gini(rc,rn))/tot;if(!best||g<best.g)best={g,f,th};}}
+  if(!best||best.g>=node.gi-1e-9)return node;const li=[],ri=[];for(const j of idx){(X[j][best.f]<=best.th?li:ri).push(j);}node.f=best.f;node.th=best.th;node.gAfter=best.g;node.L=build(li,depth+1);node.R=build(ri,depth+1);return node;}
 function predLim(node,x,lim){while(node.f!==undefined&&node.depth<lim)node=x[node.f]<=node.th?node.L:node.R;return node.pred;}
 function countLim(node,lim){if(node.f===undefined||node.depth>=lim)return 1;return 1+countLim(node.L,lim)+countLim(node.R,lim);}
+function leafLim(node,lim){if(node.f===undefined||node.depth>=lim)return 1;return leafLim(node.L,lim)+leafLim(node.R,lim);}
 function maxRealDepth(node){if(node.f===undefined)return node.depth;return Math.max(maxRealDepth(node.L),maxRealDepth(node.R));}
+function accLim(lim){let ok=0;for(let i=0;i<X.length;i++)if(predLim(root,X[i],lim)===Y[i])ok++;return ok/X.length;}
 
-// 入力[-1,1] → canvas
-const toX=x=>10+(x+1)/2*(SW-20), toY=y=>10+(1-y)/2*(SH-20);
-function drawSpace(){
-  // 決定領域（粗グリッド）
-  const G=104,cw=(SW-20)/G,ch=(SH-20)/G;
-  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=(c+0.5)/G*2-1,yy=1-(r+0.5)/G*2;const p=predLim(root,[xx,yy],curDepth);
-    sx.fillStyle=CLS[p];sx.globalAlpha=0.16;sx.fillRect(10+c*cw,10+r*ch,cw+1,ch+1);}
-  sx.globalAlpha=1;
-  // 分割線（白）: 木を辿り、curDepth まで各内部ノードの境界を矩形内に描く
-  sx.strokeStyle='rgba(231,237,245,0.5)';sx.lineWidth=1.2;
-  (function walk(node,xlo,xhi,ylo,yhi){if(node.f===undefined||node.depth>=curDepth)return;
-    if(node.f===0){const px=toX(node.th);sx.beginPath();sx.moveTo(px,toY(yhi));sx.lineTo(px,toY(ylo));sx.stroke();
-      walk(node.L,xlo,node.th,ylo,yhi);walk(node.R,node.th,xhi,ylo,yhi);}
-    else{const py=toY(node.th);sx.beginPath();sx.moveTo(toX(xlo),py);sx.lineTo(toX(xhi),py);sx.stroke();
-      walk(node.L,xlo,xhi,ylo,node.th);walk(node.R,xlo,xhi,node.th,yhi);}
-  })(root,-1,1,-1,1);
-  // データ点
-  for(let i=0;i<X.length;i++){sx.beginPath();sx.arc(toX(X[i][0]),toY(X[i][1]),3,0,7);sx.fillStyle=CLS[Y[i]];sx.fill();sx.lineWidth=0.6;sx.strokeStyle='rgba(12,16,22,0.8)';sx.stroke();}
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width;
+const FX0=24,FY0=8,FS=282,TY0=300,TH2=160;
+const toX=x=>FX0+(x+1.3)/2.6*FS,toY=y=>FY0+(1.3-y)/2.6*FS;
+function drawSpace(showRegions){const G=58,cw=FS/G;
+  if(showRegions)for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=(c+0.5)/G*2.6-1.3,yy=1.3-(r+0.5)/G*2.6;const p=predLim(root,[xx,yy],curDepth);ctx.fillStyle=CLS[p];ctx.globalAlpha=0.16;ctx.fillRect(FX0+c*cw,FY0+r*cw,cw+1,cw+1);}
+  ctx.globalAlpha=1;
+  // split lines
+  ctx.strokeStyle='rgba(231,237,245,0.55)';ctx.lineWidth=1.2;
+  (function walk(node,xlo,xhi,ylo,yhi){if(node.f===undefined||node.depth>=curDepth)return;if(node.f===0){const px=toX(node.th);ctx.beginPath();ctx.moveTo(px,toY(yhi));ctx.lineTo(px,toY(ylo));ctx.stroke();walk(node.L,xlo,node.th,ylo,yhi);walk(node.R,node.th,xhi,ylo,yhi);}else{const py=toY(node.th);ctx.beginPath();ctx.moveTo(toX(xlo),py);ctx.lineTo(toX(xhi),py);ctx.stroke();walk(node.L,xlo,xhi,ylo,node.th);walk(node.R,xlo,xhi,node.th,yhi);}})(root,-1.3,1.3,-1.3,1.3);
+  for(let i=0;i<X.length;i++){ctx.beginPath();ctx.arc(toX(X[i][0]),toY(X[i][1]),2.8,0,7);ctx.fillStyle=CLS[Y[i]];ctx.fill();ctx.lineWidth=.4;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}
 }
-function layoutTree(){let leaf=0;const tot=countLim(root,curDepth);
-  (function lay(node,depth){if(node.f===undefined||node.depth>=curDepth){node._x=(leaf+0.5)/tot;leaf++;node._d=depth;return node._x;}
-    const a=lay(node.L,depth+1),b=lay(node.R,depth+1);node._x=(a+b)/2;node._d=depth;return node._x;})(root,0);}
-function drawTree(){tx.clearRect(0,0,TW,TH);layoutTree();
-  const padX=24,padY=22,levels=Math.max(1,curDepth);const lh=(TH-2*padY)/(levels);
-  const X2=u=>padX+u*(TW-2*padX), Y2=d=>padY+d*lh;
-  // エッジ
-  tx.strokeStyle='rgba(133,149,168,0.4)';tx.lineWidth=1;
-  (function edges(node){if(node.f===undefined||node.depth>=curDepth)return;
-    for(const ch of [node.L,node.R]){tx.beginPath();tx.moveTo(X2(node._x),Y2(node._d));tx.lineTo(X2(ch._x),Y2(ch._d));tx.stroke();edges(ch);}})(root);
-  // ノード
+function drawTree(){let leaf=0;const tot=countLim(root,curDepth);
+  (function lay(node,depth){if(node.f===undefined||node.depth>=curDepth){node._x=(leaf+0.5)/tot;leaf++;node._d=depth;return node._x;}const a=lay(node.L,depth+1),b=lay(node.R,depth+1);node._x=(a+b)/2;node._d=depth;return node._x;})(root,0);
+  const padX=20,levels=Math.max(1,curDepth),lh=(TH2-30)/levels;const X2=u=>padX+u*(CW-2*padX),Y2=d=>TY0+14+d*lh;
+  ctx.strokeStyle='rgba(133,149,168,0.4)';ctx.lineWidth=1;(function edges(node){if(node.f===undefined||node.depth>=curDepth)return;for(const ch of[node.L,node.R]){ctx.beginPath();ctx.moveTo(X2(node._x),Y2(node._d));ctx.lineTo(X2(ch._x),Y2(ch._d));ctx.stroke();edges(ch);}})(root);
   (function nodes(node){const leafLike=(node.f===undefined||node.depth>=curDepth);const X0=X2(node._x),Y0=Y2(node._d);
-    if(leafLike){tx.fillStyle=CLS[node.pred];tx.globalAlpha=0.9;tx.fillRect(X0-9,Y0-9,18,18);tx.globalAlpha=1;tx.strokeStyle='rgba(231,237,245,0.25)';tx.lineWidth=1;tx.strokeRect(X0-9,Y0-9,18,18);}
-    else{tx.beginPath();tx.arc(X0,Y0,12,0,7);tx.fillStyle='#1b2535';tx.fill();tx.strokeStyle=getCSS('--accent');tx.lineWidth=1.3;tx.stroke();
-      tx.fillStyle=getCSS('--text');tx.font='10px '+getCSS('--mono');tx.textAlign='center';tx.textBaseline='middle';
-      tx.fillText((node.f===0?'x':'y')+'≤'+node.th.toFixed(2),X0,Y0-19);
-      nodes(node.L);nodes(node.R);}})(root);
+    if(leafLike){ctx.fillStyle=CLS[node.pred];ctx.globalAlpha=0.9;ctx.fillRect(X0-8,Y0-8,16,16);ctx.globalAlpha=1;ctx.strokeStyle='rgba(231,237,245,0.25)';ctx.lineWidth=1;ctx.strokeRect(X0-8,Y0-8,16,16);}
+    else{ctx.beginPath();ctx.arc(X0,Y0,11,0,7);ctx.fillStyle='#1b2535';ctx.fill();ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.3;ctx.stroke();ctx.fillStyle=getCSS('--text');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText((node.f===0?'x':'y')+'≤'+node.th.toFixed(2),X0,Y0-17);nodes(node.L);nodes(node.R);}})(root);
 }
-function accuracy(){let ok=0;for(let i=0;i<X.length;i++)if(predLim(root,X[i],curDepth)===Y[i])ok++;return ok/X.length;}
-function updateReadout(){document.getElementById('depthOut').textContent=curDepth;
-  document.getElementById('nodeOut').textContent=countLim(root,curDepth);
-  document.getElementById('accOut').textContent=(accuracy()*100).toFixed(1)+'%';}
-function updateNarr(){const el=document.getElementById('narrD');if(!el)return;const acc=(accuracy()*100).toFixed(0);
-  if(curDepth===0){el.innerHTML='深さ 0：まだ分割なし＝全体を 1 つの多数決クラスで予測（正答率 '+acc+'%）。▶ で最も不純度が下がる分割を 1 つ加えます。';return;}
-  const full=maxRealDepth(root);
-  el.innerHTML='深さ '+curDepth+'：各内部ノードが軸に沿った直線で領域を 2 分割し、'+countLim(root,curDepth)+' 個の領域に。正答率 <b>'+acc+'%</b>。'+(dataSel.value==='circle'?'円の境界は<span style="color:var(--loss)">軸並行の段々</span>で近似される＝決定木の限界。':'深さを増すほど領域が細かくなり、点が同じクラスでまとまります。')+(curDepth>=full?'（これ以上分割しても変わりません＝学習完了）':'');
-}
-function rebuild(){root=build(X.map((_,i)=>i),0,+mdSlider.value);curDepth=0;redraw();}
-function redraw(){drawSpace();drawTree();updateReadout();updateNarr();}
+function draw(showRegions){ctx.clearRect(0,0,CW,cv.height);drawSpace(showRegions);
+  ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(10,TY0-4);ctx.lineTo(CW-10,TY0-4);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('木の構造（深さ '+curDepth+'）',12,TY0+6);
+  drawTree();}
 
-document.getElementById('growBtn').onclick=()=>{const full=maxRealDepth(root);if(curDepth<Math.min(+mdSlider.value,full))curDepth++;redraw();};
-document.getElementById('fullBtn').onclick=()=>{curDepth=Math.min(+mdSlider.value,maxRealDepth(root));redraw();};
-document.getElementById('resetBtn').onclick=()=>{curDepth=0;redraw();};
-document.getElementById('dataBtn').onclick=()=>{rng=mulberry32((rng()*1e9)>>>0);gen();rebuild();};
-dataSel.onchange=()=>{gen();rebuild();};
-mdSlider.oninput=()=>{mdv.textContent=mdSlider.value;rebuild();};
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'split',t:'分割の選択',c:'var(--loss)'},{key:'grow',t:'再帰で育てる',c:'var(--accent)'},{key:'res',t:'結果',c:'var(--upd)'},{key:'lim',t:'限界',c:'var(--neg)'}];
+let stepIdx=0,anim=false,auto=false;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='data')m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>クラス <b>'+K+'</b></div>';else m.innerHTML='<div>深さ <b>'+curDepth+'</b></div><div>領域 <b>'+leafLim(root,curDepth)+'</b></div><div class="acc">正答率 <b>'+(accLim(curDepth)*100).toFixed(0)+'%</b></div>';}
+function renderLegend(){document.getElementById('legend').textContent='上=決定領域(背景色)＋分割線, 下=木(◯質問/■クラス)';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：質問で分類する</h3><div class="desc">点を、特徴（x か y）への「○○以下か？」という Yes/No の質問だけで分類したい。今は「'+document.getElementById('dataSel').options[document.getElementById('dataSel').selectedIndex].text+'」（'+K+'クラス）。右下でデータを変えられます。</div>';}
+  else if(k==='split'){const rd=root.f!==undefined?((root.f===0?'x':'y')+' ≤ '+root.th.toFixed(2)):'—';h+='<h3>② 分割の選び方（Gini）</h3><div class="eq curr">不純度 Gini = 1 − Σ pₖ²　→ 最も下がる軸×閾値を選ぶ</div><div class="desc">全ての「軸×しきい値」を試し、分割後の<b>不純度が最も下がる</b>質問を選びます。根の最良の質問は <b>'+rd+'</b>（上の白線）。これで領域が 2 つに分かれます。</div>';}
+  else if(k==='grow'){h+='<h3>③ 再帰で育てる</h3><div class="eq curr">分かれた各領域に、また同じ質問選びを再帰</div><div class="desc">分割した各側で<b>また最良の質問</b>を選び…を繰り返すと、木が深くなり領域が細かく分かれていきます（軸並行の長方形に分割）。深さ '+curDepth+'・領域 '+leafLim(root,curDepth)+'・正答率 '+(accLim(curDepth)*100).toFixed(0)+'%。</div>';}
+  else{h+='<h3>④ 結果：木＝分割の地図</h3><div class="desc">完成した木（下）の各<b>◯が質問</b>、<b>■が答えのクラス</b>。上の決定領域とぴったり対応します。葉まで質問を辿れば分類完了。正答率 <b style="color:var(--accent)">'+(accLim(curDepth)*100).toFixed(0)+'%</b>。<b>解釈しやすい</b>（なぜそう分類したか質問列で説明できる）のが決定木の長所。</div>';}
+  if(k==='lim'){const isC=document.getElementById('dataSel').value==='circle';h='<span class="lbl">STEP 5 / 5</span><h3>⑤ 限界と注意</h3><div class="desc">決定木は軸に平行な分割しかできないので、<b>円や斜めの境界は「階段状」</b>でしか近似できません'+(isC?'（今の円がまさにそれ）':'（右下で「円」を選ぶと顕著）')+'。また深くしすぎると訓練データに合いすぎる<b>過学習</b>に。多数の木を平均する<b>ランダムフォレスト</b>等で改善します。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・各分割は不純度(Gini)が最も下がる質問<br>・木＝特徴空間の長方形分割／解釈しやすい<br>・曲線は階段近似・深いと過学習</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-mdv.textContent=mdSlider.value;gen();rebuild();
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='data'){curDepth=0;draw(false);}
+  else if(k==='split'){curDepth=1;draw(true);}
+  else if(k==='grow'){curDepth=1;growAnim();}
+  else{curDepth=Math.min(maxd,maxRealDepth(root));draw(true);}
+  renderAll();}
+function growAnim(){anim=true;const full=Math.min(maxd,maxRealDepth(root));function go(){if(!anim||STEPS[stepIdx].key!=='grow')return;draw(true);renderMini();renderExplain();if(curDepth<full){curDepth++;setTimeout(()=>requestAnimationFrame(go),650);}else anim=false;}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='grow'?500:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=5;gen();root=build(X.map((_,i)=>i),0);curDepth=0;stepIdx=0;renderAll();draw(false);}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=reset;
+gen();root=build(X.map((_,i)=>i),0);renderAll();draw(false);
 </script>
 <script src="nav.js"></script>
 </body>
