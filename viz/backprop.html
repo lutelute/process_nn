@@ -240,7 +240,7 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
     +'<div class="desc">出力の誤差 δ<sub>out</sub>='+f2(c.dOut)+' に「次の重み」と「活性化の傾き 1−a²」を掛けて各ノードへ配分。各重みの勾配は <b>∂L/∂w = δ × 入力</b> で出ます。<br><span style="color:var(--faint)">↓ 下の「もっと詳しく」で連鎖律を分解。</span></div>';}
   else if(k==='upd'){let ex='';for(let j=0;j<2;j++)ex+='w<sub>'+(j+1)+'</sub>: '+f2(W[1][j][0])+' − η·('+f2(c.dW1[j])+')<br>';
     h+='<h3>④ 更新：勾配の逆向きに直す</h3>'
-    +'<div class="eq curr">w ← w − η · ∂L/∂w<br>'+ex+'</div>'
+    +'<div class="eq curr">w ← w − η · <span class="frac"><span>∂L</span><span>∂w</span></span><br>'+ex+'</div>'
     +'<div class="desc">各重みを勾配の<b>逆向き</b>に学習率 η だけ動かす。勾配が大きい結線ほど大きく動きます（<span style="color:var(--upd)">紫の光</span>）。これで 1 サイクル完了。次は損失が少し下がります。</div>';}
   else{h+='<h3>⑤ 繰り返す ＝ 学習</h3>'
     +'<div class="desc">①〜④の 1 サイクルでは重みがほんの少し動くだけ。全サンプルに対して<b>何百回</b>繰り返すと、予測（teal）が目標に重なり、損失が下がります。左でリアルタイムに進行中。</div>'
