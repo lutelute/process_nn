@@ -172,6 +172,7 @@
       <a class="mapcard" href="viz/reg.html"><div class="tag">過学習と汎化</div><div class="t">正則化（L2）</div><div class="d">高表現力モデルの暗記＝過学習を、罰 λΣw² で抑え汎化。テスト誤差のU字で最適な複雑さ。</div><div class="dep"><b>前提:</b> 線形回帰・関数近似 ／ <b>関連:</b> 全モデル共通</div></a>
       <a class="mapcard" href="viz/dropout.html"><div class="tag">NN・過学習対策</div><div class="t">ドロップアウト</div><div class="d">訓練中に隠れ素子をランダムに落とす＝サブネットのアンサンブル。NN特有の正則化。</div><div class="dep"><b>前提:</b> 誤差逆伝播・正則化 ／ <b>関連:</b> 全NN共通</div></a>
       <a class="mapcard" href="viz/vanishing.html"><div class="tag">NN・深さの壁</div><div class="t">勾配消失問題</div><div class="d">逆伝播で勾配は各層の微分の掛け算→sigmoidだと指数的に消える。ReLUが解決し深層学習を実現。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> 活性化・RNN</div></a>
+      <a class="mapcard" href="viz/batchnorm.html"><div class="tag">NN・訓練安定化</div><div class="t">バッチ正規化</div><div class="d">各層の活性をバッチごとに平均0分散1へ正規化＋γβで戻す。分布が安定し速く学習。</div><div class="dep"><b>前提:</b> 誤差逆伝播・勾配消失 ／ <b>関連:</b> Layer Norm</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 3</span><span class="ttl">教師あり学習・分類</span><span class="badge">ラベル付きデータから決定境界を学ぶ。</span></div>
