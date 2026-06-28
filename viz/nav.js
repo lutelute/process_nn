@@ -33,6 +33,7 @@
     { href: 'pca.html',         label: 'PCA' },
     { href: 'tsne.html',        label: 't-SNE' },
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
+    { href: 'vae.html',         label: 'VAE' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: 'mlp3d.html',       label: 'MLP(3D)' },
     { href: 'cnn3d.html',       label: 'CNN(3D)' },

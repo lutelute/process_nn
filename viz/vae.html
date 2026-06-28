@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>変分オートエンコーダ（VAE）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff; --gen:#7c8cff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .rc b{color:var(--accent);} .mini .kl b{color:var(--upd);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>変分オートエンコーダ（VAE）を理解する</h1>
+  <div class="lead">オートエンコーダを<b>生成モデル</b>にした拡張。各入力を 1 点でなく<b>確率分布（平均 μ・幅 σ）</b>に符号化し、潜在空間を<b>標準正規分布 N(0,1) に揃える（KL）</b>。すると<b>z を N(0,1) からサンプルして復号するだけ</b>で、学習データに似た<b>新しいデータを生成</b>できる。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="scurve">S字曲線</option><option value="ring">リング</option><option value="line">直線</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：再パラメータ化・KL・AE/GAN との違い</summary>
+    <div class="det"><b>再パラメータ化トリック</b>：z = μ + σ·ε（ε～N(0,1)）と書くと、サンプリングを通して<b>勾配が流せる</b>（μ,σ を学習できる）。損失は<b>再構成誤差 ＋ β·KL(q(z|x)‖N(0,1))</b>。KL は各入力の潜在分布を標準正規へ引き寄せ、潜在空間に<b>穴のない連続な構造</b>を作る——これが生成のカギ。<b>素のオートエンコーダ</b>は潜在に穴があり、適当な z を復号すると破綻しがち。<b>GAN</b> は識別器との敵対で生成し鮮明だが学習が不安定。VAE は安定で潜在が解釈しやすい反面、出力がぼやけやすい。発展に画像生成の VQ-VAE や拡散モデルがあります。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=88;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const H=12,LR=0.01,BETA=0.03;
+let data=[],truePt=t=>[0,0];
+let eW1,eb1,eWm,ebm,eWv,ebv,dW1,db1,dW2,db2,epoch=0,lastRec=0,lastKL=0,gen=[];
+const relu=z=>z>0?z:0,dr=a=>a>0?1:0;
+function mk(a,b,s){return Array.from({length:b},()=>Array.from({length:a},()=>randn()*s));}
+function genData(){const k=document.getElementById('dataSel').value;truePt=k==='scurve'?(t=>{const x=-0.9+1.8*t;return[x,0.6*Math.sin(Math.PI*x)];}):k==='ring'?(t=>[0.8*Math.cos(2*Math.PI*t),0.8*Math.sin(2*Math.PI*t)]):(t=>{const x=-0.9+1.8*t;return[x,x*0.6];});
+  data=[];for(let i=0;i<160;i++){const p=truePt(rng());data.push([p[0]+randn()*0.02,p[1]+randn()*0.02]);}}
+function initNet(){eW1=mk(2,H,Math.sqrt(2/2));eb1=new Array(H).fill(0);eWm=mk(H,1,0.1);ebm=[0];eWv=mk(H,1,0.1);ebv=[0];dW1=mk(1,H,Math.sqrt(2));db1=new Array(H).fill(0);dW2=mk(2,H,Math.sqrt(1/H));db2=[0,0];epoch=0;lastRec=0;lastKL=0;gen=[];}
+function encode(x){const h1=eb1.map((b,j)=>relu(b+eW1[j].reduce((s,w,k)=>s+w*x[k],0)));const mu=ebm[0]+eWm[0].reduce((s,w,k)=>s+w*h1[k],0);const lv=ebv[0]+eWv[0].reduce((s,w,k)=>s+w*h1[k],0);return{h1,mu,lv};}
+function trainStep(){let rec=0,kl=0;for(const x of data){const{h1,mu,lv}=encode(x);const eps=randn(),sigma=Math.exp(0.5*lv),z=mu+sigma*eps;
+  const g1raw=db1.map((b,j)=>b+dW1[j][0]*z),g1=g1raw.map(relu);let o0=db2[0],o1=db2[1];for(let j=0;j<H;j++){o0+=dW2[j][0]*g1[j];o1+=dW2[j][1]*g1[j];}
+  const dout=[o0-x[0],o1-x[1]];rec+=0.5*(dout[0]*dout[0]+dout[1]*dout[1]);kl+=-0.5*(1+lv-mu*mu-Math.exp(lv));
+  // decoder grads
+  const gdb2=[dout[0],dout[1]];const gdW2=g1.map(a=>[dout[0]*a,dout[1]*a]);
+  const dg1=g1.map((a,j)=>(dW2[j][0]*dout[0]+dW2[j][1]*dout[1])*dr(a));
+  const gdW1=dg1.map(d=>[d*z]),gdb1=dg1.slice();
+  const dz=dg1.reduce((s,d,j)=>s+dW1[j][0]*d,0);
+  const dmu=dz+BETA*mu,dlv=dz*0.5*sigma*eps+BETA*0.5*(Math.exp(lv)-1);
+  const geWm=h1.map(a=>dmu*a),gebm=dmu,geWv=h1.map(a=>dlv*a),gebv=dlv;
+  const dh1=h1.map((a,k)=>(eWm[0][k]*dmu+eWv[0][k]*dlv)*dr(a));
+  const geW1=dh1.map(d=>x.map(a=>d*a)),geb1=dh1.slice();
+  // apply
+  for(let j=0;j<H;j++){dW2[j][0]-=LR*gdW2[j][0];dW2[j][1]-=LR*gdW2[j][1];dW1[j][0]-=LR*gdW1[j][0];db1[j]-=LR*gdb1[j];eWm[0][j]-=LR*geWm[j];eWv[0][j]-=LR*geWv[j];eW1[j]=eW1[j].map((w,k)=>w-LR*geW1[j][k]);eb1[j]-=LR*geb1[j];}
+  db2[0]-=LR*gdb2[0];db2[1]-=LR*gdb2[1];ebm[0]-=LR*gebm;ebv[0]-=LR*gebv;}
+  epoch++;lastRec=rec/data.length;lastKL=kl/data.length;}
+function decZ(z){const g1=db1.map((b,j)=>relu(b+dW1[j][0]*z));let o0=db2[0],o1=db2[1];for(let j=0;j<H;j++){o0+=dW2[j][0]*g1[j];o1+=dW2[j][1]*g1[j];}return[o0,o1];}
+function sampleGen(n){gen=[];for(let i=0;i<n;i++)gen.push(decZ(randn()));}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LO=-1.25,HI=1.25,SY0=10,SH=258,px=x=>20+(CW-40)*(x-LO)/(HI-LO),py=y=>SY0+SH*(HI-y)/(HI-LO);
+function manifold(){ctx.strokeStyle='rgba(133,149,168,0.4)';ctx.lineWidth=1.4;ctx.setLineDash([5,4]);ctx.beginPath();for(let i=0;i<=80;i++){const p=truePt(i/80);i?ctx.lineTo(px(p[0]),py(p[1])):ctx.moveTo(px(p[0]),py(p[1]));}ctx.stroke();ctx.setLineDash([]);}
+function dataPts(){for(const x of data){ctx.beginPath();ctx.arc(px(x[0]),py(x[1]),2.6,0,7);ctx.fillStyle='rgba(212,163,106,0.7)';ctx.fill();}}
+function recon(){for(const x of data){const{mu}=encode(x);const r=decZ(mu);ctx.beginPath();ctx.arc(px(r[0]),py(r[1]),2.2,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();}}
+function genPts(){for(const p of gen){ctx.beginPath();ctx.arc(px(p[0]),py(p[1]),2.8,0,7);ctx.fillStyle=getCSS('--gen');ctx.fill();}}
+function latentStrip(showBell){const ly=CH-42,x0=24,x1=CW-24,mid=(x0+x1)/2,sc=(x1-x0)/6; // z in [-3,3]
+  ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(x0,ly);ctx.lineTo(x1,ly);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('潜在 z',mid,ly+16);ctx.fillText('0',mid,ly-12);
+  if(showBell){ctx.strokeStyle='rgba(124,140,255,0.6)';ctx.lineWidth=1.3;ctx.beginPath();for(let i=0;i<=80;i++){const z=-3+6*i/80,b=Math.exp(-z*z/2);const X=mid+z*sc,Y=ly-4-b*26;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();}
+  for(const x of data){const{mu}=encode(x);const X=Math.max(x0,Math.min(x1,mid+mu*sc));ctx.beginPath();ctx.arc(X,ly,2,0,7);ctx.fillStyle='rgba(57,224,196,0.6)';ctx.fill();}}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);manifold();dataPts();if(opt.recon)recon();if(opt.gen)genPts();latentStrip(opt.bell);}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'enc',t:'確率エンコード',c:'var(--upd)'},{key:'kl',t:'KLで整える',c:'var(--gen)'},{key:'learn',t:'学習',c:'var(--loss)'},{key:'gen',t:'生成',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='enc')draw({});else if(k==='kl')draw({bell:true});else if(k==='learn')draw({recon:true,bell:true});else draw({gen:true,bell:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'||k==='enc'){m.innerHTML='<div>点 <b>'+data.length+'</b></div><div>潜在 <b>1次元</b></div>';return;}m.innerHTML='<div>epoch <b>'+epoch+'</b></div><div class="rc">再構成 <b>'+lastRec.toFixed(3)+'</b></div><div class="kl">KL <b>'+lastKL.toFixed(2)+'</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='gen')?'灰破線=真の形, 橙=データ, 紫=N(0,1)から生成, 下=潜在z':'灰破線=真の形, 橙=データ, 青=再構成/潜在, 下=潜在z分布';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：新しいデータを生成したい</h3><div class="desc">学習データ（橙）に似た<b>新しいデータを自分で作りたい</b>。オートエンコーダは復元はできても、潜在空間に<b>穴</b>があり、適当な z を復号すると変な点になりがち。VAE は潜在を整えて「サンプルすれば生成できる」状態にします。右下で形を変えられます。</div>';}
+  else if(k==='enc'){h+='<h3>② 確率的にエンコード</h3><div class="eq curr">x → (μ, σ)、z = μ + σ·ε　(ε～N(0,1))</div><div class="desc">各入力を 1 点でなく<b>分布（平均 μ・幅 σ）</b>に符号化し、そこから z を<b>サンプリング</b>。この「<b>再パラメータ化</b>（z=μ+σε）」のおかげで、ランダムさを含むのに勾配が流せて学習できます。下のストリップが潜在 z（各点の μ）。</div>';}
+  else if(k==='kl'){h+='<h3>③ KL で潜在を整える</h3><div class="eq curr">損失 = 再構成誤差 + β·KL( q(z|x) ‖ N(0,1) )</div><div class="desc"><b>KL 項</b>が各入力の潜在分布を<b>標準正規 N(0,1)（紫の釣鐘）へ引き寄せ</b>ます。これで潜在空間が穴なく N(0,1) で埋まり、「<b>N(0,1) からサンプルした z はすべて意味のある点に復号される</b>」状態に。再構成と KL のせめぎ合いが要。</div>';}
+  else if(k==='learn'){h+='<h3>④ 学習</h3><div class="eq curr">再構成 + KL を同時に最小化（誤差逆伝播）</div><div class="desc">青＝復元点がデータ（橙）に重なり、同時に下の潜在 z 分布が<b>釣鐘（N(0,1)）に整って</b>いきます。epoch '+epoch+'・再構成 '+lastRec.toFixed(3)+'・KL '+lastKL.toFixed(2)+'。</div>';}
+  else{h+='<h3>⑤ 生成：z～N(0,1) を復号</h3><div class="desc">学習データを<b>一切見ずに</b>、<b>標準正規から z をサンプル</b>して復号するだけ（紫の点）。それが学習データの形（灰破線）に<b>ちゃんと乗る</b>＝新しいデータの生成に成功。これが生成モデルです。「↻最初から」で別の生成を。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入力を分布(μ,σ)に符号化＝確率的<br>・KLで潜在をN(0,1)に整える(穴なし)<br>・z～N(0,1)を復号→新データ生成</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function trainTo(n){while(epoch<n)trainStep();}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'||k==='enc'||k==='kl'){if(epoch>0)initNet();}
+  else if(k==='learn'){initNet();runLearn();}
+  else if(k==='gen'){if(epoch<400){if(epoch===0)initNet();trainTo(400);}sampleGen(160);}
+  renderAll();draw_();}
+function runLearn(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='learn')return;for(let s=0;s<3;s++)trainStep();draw_();renderMini();renderExplain();if(epoch>=400){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='learn'?400:1300);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=88+(Math.floor(rng()*900));genData();initNet();stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=()=>{genData();initNet();stepIdx=0;renderAll();draw_();};
+genData();initNet();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
