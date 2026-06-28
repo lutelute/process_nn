@@ -1,6 +1,27 @@
 // viz/ 共有ナビゲーション — 各ページの .nav / .back を同一の完全ナビに統一する。
 // 各ビューアは <script src="nav.js"></script> を読み込むだけ。現在ページを強調表示。
 (function () {
+  // ===== 数式の見た目を全ビューア一括で改善（教科書品質） =====
+  // 各ビューアの inline `.eq{font-family:mono}` を body .eq の詳細度で上書きし、
+  // セリフ＋斜体変数に。分数 .frac / 根号 .rad / 変数 .mvar も全ページで使える。
+  (function injectMath(){
+    if (document.getElementById('mathfmt')) return;
+    const css =
+      'body .eq{font-family:"STIX Two Math","Cambria Math","TeX Gyre Termes Math",Georgia,"Times New Roman",serif;font-size:15.5px;letter-spacing:.2px;line-height:2.05;}'
+      + '.eq i,.eq var,.mvar{font-style:italic;}'
+      + '.eq b{font-weight:600;}'
+      + '.eq .op{font-style:normal;padding:0 .12em;opacity:.85;}'
+      + '.frac{display:inline-flex;flex-direction:column;vertical-align:-0.55em;text-align:center;margin:0 .22em;line-height:1.22;}'
+      + '.frac>span:first-child{border-bottom:1.4px solid currentColor;padding:0 .45em 1px;}'
+      + '.frac>span:last-child{padding:1px .45em 0;}'
+      + '.rad{border-top:1.4px solid currentColor;padding:0 .3em;margin-left:.06em;}'
+      + '.rad::before{content:"\\221A";margin-left:-.52em;margin-right:.02em;}'
+      + '.mvec{font-weight:600;font-style:italic;}';
+    const s = document.createElement('style');
+    s.id = 'mathfmt'; s.textContent = css;
+    (document.head || document.documentElement).appendChild(s);
+  })();
+
   const pages = [
     // ロードマップ順（基礎→応用）。トップの「学習ロードマップ」と同じ並び。
     { href: 'gradient.html',    label: '勾配降下' },
