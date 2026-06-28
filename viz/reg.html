@@ -76,6 +76,7 @@
     <div class="bar">
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ λ自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
       <label>λ <input type="range" id="lam" min="0" max="100" step="1" value="55"></label>
@@ -145,21 +146,28 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
   if(k==='prob'){h+='<h3>① 問題：滑らかな関数を当てる</h3><div class="desc">灰破線が<b>真の関数</b>、橙●はそこから取った<b>ノイズ入りの訓練データ</b>（'+trX.length+'点）。これを '+D+' 次の多項式で当てはめます。表現力が高いほど何でも描けますが…？ 右下で真の関数を変えられます。</div>';}
   else if(k==='over'){h+='<h3>② 過学習（暗記）</h3><div class="eq curr">罰なし（λ≈0）で誤差だけを最小化</div><div class="desc">正則化なしだと、多項式は<b>全ての訓練点をぴったり通ろうと暴れます</b>（青線）。訓練誤差はほぼ 0 でも、点と点の間で真の関数から大きく外れ、<b>新しいデータに弱い</b>＝過学習。訓練誤差 '+mse(w,trX,trY).toFixed(3)+' / テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div>';}
   else if(k==='pen'){h+='<h3>③ 正則化項を足す</h3><div class="eq curr">損失 = Σ(誤差)² + λ·Σ wⱼ²　（L2 / Ridge）</div><div class="desc">損失に「<b>重みの二乗和</b>」の罰を加えます。大きな重み＝急なうねりにペナルティが付くので、解が<b>なめらか</b>になり真の関数に近づく。λ がその強さ（閉じた式 w=(XᵀX+λI)⁻¹Xᵀy で一発）。</div>';}
-  else if(k==='lam'){h+='<h3>④ λ を調整する</h3><div class="desc">右下のスライダーで <b>λ</b> を動かしてみてください。<b>小さすぎ</b>＝過学習（うねうね）、<b>大きすぎ</b>＝過小学習（真っ直ぐ＝鈍い）。右上の <b>誤差カーブ</b>で、テスト誤差（赤）が U 字を描き<b>最適な λ</b>が存在するのが分かります。λ='+lambda.toExponential(1)+'。</div>';}
+  else if(k==='lam'){h+='<h3>④ λ を調整する</h3><div class="desc"><b>λ を自動で動かしています</b>（右上の誤差カーブの縦線が左右に往復）。<b>小さい λ</b>＝過学習（青線がうねうね）、<b>大きい λ</b>＝過小学習（真っ直ぐ＝鈍い）。テスト誤差（赤）が <b>U 字</b>を描き、谷＝<b>最適な λ</b>が存在するのが動きで分かります。スライダーを触れば手動に切替。今 λ='+lambda.toExponential(1)+'。</div>';}
   else{const bl=bestLambda();h+='<h3>⑤ 結果：ちょうど良い複雑さ</h3><div class="desc">テスト誤差が最小になる λ（≈'+bl.toExponential(1)+'）あたりで、青線が<b>真の関数（灰破線）にほぼ一致</b>。暗記でも鈍感でもない「ちょうど良い複雑さ」が汎化につながります。現在 λ='+lambda.toExponential(1)+'・テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・高表現力モデルは過学習しやすい<br>・λΣw² で重みを抑え滑らかに<br>・テスト誤差は U 字、最小点が最適 λ</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+let auto=false,autoDir=1;
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ λ自動';}
+function autoTick(){if(!auto)return;const lamEl=document.getElementById('lam');let s=+lamEl.value+autoDir*0.9;if(s>=100){s=100;autoDir=-1;}else if(s<=0){s=0;autoDir=1;}lamEl.value=s;refit();renderMini();renderLegend();renderExplain();draw_();requestAnimationFrame(autoTick);}
+function startAuto(){if(auto)return;auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(autoTick);}
 function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key,lamEl=document.getElementById('lam');
+  if(k!=='lam')stopAuto();
   if(k==='over'){lamEl.value=2;}
   else if(k==='pen'){lamEl.value=42;}
-  else if(k==='lam'){lamEl.value=55;}
+  else if(k==='lam'){if(+lamEl.value<3||+lamEl.value>97)lamEl.value=55;}
   else if(k==='res'){let bs=55,bv=1e9;for(let s=0;s<=100;s++){const W=ridge(lamFromSlider(s));const te=mse(W,teX,teY);if(te<bv){bv=te;bs=s;}}lamEl.value=bs;}
-  refit();renderAll();draw_();}
+  refit();renderAll();draw_();
+  if(k==='lam')startAuto();}
 document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
-document.getElementById('resetBtn').onclick=()=>{seed=4242+(Math.floor(rng()*900));genData();goStep(0);};
-document.getElementById('lam').oninput=()=>{refit();renderMini();renderLegend();renderExplain();draw_();};
-document.getElementById('fnSel').onchange=()=>{genData();goStep(0);};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(stepIdx!==3)goStep(3);else startAuto();}};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();seed=4242+(Math.floor(rng()*900));genData();goStep(0);};
+document.getElementById('lam').oninput=()=>{stopAuto();refit();renderMini();renderLegend();renderExplain();draw_();};
+document.getElementById('fnSel').onchange=()=>{stopAuto();genData();goStep(0);};
 genData();refit();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
