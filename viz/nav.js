@@ -24,6 +24,7 @@
     { href: 'knn.html',         label: 'kNN' },
     { href: 'svm.html',         label: 'SVM' },
     { href: 'hopfield.html',    label: 'Hopfield' },
+    { href: 'ga.html',          label: '遺伝的AL' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: 'gpt3d.html',       label: 'GPT(3D)' },
     { href: '../gpt2/',         label: 'GPT-2' },
