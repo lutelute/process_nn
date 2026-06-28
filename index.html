@@ -199,7 +199,8 @@
 
     <div class="mapsec"><span class="num">STEP 5</span><span class="ttl">Attention と言語モデル</span><span class="badge">系列を一度に見る → Transformer → GPT。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/word2vec.html"><div class="tag">表現・NLPの土台</div><div class="t">単語埋め込み（word2vec）</div><div class="d">単語を意味ベクトルに。周辺語予測で意味の近い語が空間上に集まる。GPTの入口。</div><div class="dep"><b>前提:</b> 勾配降下 ／ <b>次:</b> 自己注意</div></a>
+      <a class="mapcard" href="viz/word2vec.html"><div class="tag">表現・NLPの土台</div><div class="t">単語埋め込み（word2vec）</div><div class="d">単語を意味ベクトルに。周辺語予測で意味の近い語が空間上に集まる。GPTの入口。</div><div class="dep"><b>前提:</b> 勾配降下 ／ <b>次:</b> 位置エンコーディング・自己注意</div></a>
+      <a class="mapcard" href="viz/positional.html"><div class="tag">語順の注入</div><div class="t">位置エンコーディング</div><div class="d">自己注意は語順を知らない→波長違いのsin/cosで各位置を一意符号化し埋め込みに足す。</div><div class="dep"><b>前提:</b> 単語埋め込み ／ <b>次:</b> 自己注意</div></a>
       <a class="mapcard spineCard" href="viz/attention.html"><div class="tag">注意機構</div><div class="t">自己注意（Self-Attention）</div><div class="d">各トークンが Q・K・V でどこに注目するか計算。softmax(QKᵀ/√d)V。</div><div class="dep"><b>前提:</b> 単語埋め込み・RNN ／ <b>次:</b> Transformer</div></a>
       <a class="mapcard spineCard" href="viz/transformer.html"><div class="tag">言語モデル</div><div class="t">Transformer 学習</div><div class="d">小型 GPT をブラウザで学習。loss 低下で attention・生成が変化。</div><div class="dep"><b>前提:</b> 自己注意 ／ <b>次:</b> GPT-2</div></a>
       <a class="mapcard spineCard" href="gpt2/"><div class="tag">到達点</div><div class="t">GPT-2 推論</div><div class="d">本物の GPT-2 (124M) の生成過程と内部（注意・各層の寄与）を可視化。</div><div class="dep"><b>前提:</b> Transformer</div></a>

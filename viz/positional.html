@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>位置エンコーディングを理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:740px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:380px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>位置エンコーディングを理解する</h1>
+  <div class="lead">自己注意は全トークンを<b>同時に・対等に</b>見るため、そのままでは<b>語順が分からない</b>（「猫が魚を食べた」と「魚が猫を食べた」を区別できない）。そこで各位置に<b>固有のベクトル＝位置エンコーディング</b>を足して順序を教える。Transformer / GPT が文を扱う土台。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="380" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="posSel"></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：なぜ sin/cos・相対位置・学習型 PE</summary>
+    <div class="det"><b>定義</b>：PE(pos, 2i)=sin(pos/10000^(2i/d))、PE(pos, 2i+1)=cos(同じ)。次元 i が大きいほど周波数が低く（波長が長く）なるので、<b>低次元＝細かい位置・高次元＝大まかな位置</b>を表し、組合せで各位置が一意に決まります。<b>なぜ sin/cos</b>：位置 pos+k のエンコーディングが pos のエンコーディングの<b>線形変換（回転）で書ける</b>ため、モデルが<b>相対位置</b>を扱いやすく、訓練で見ていない長さにも<b>外挿</b>しやすい。<b>学習型 PE</b>：位置ごとのベクトルを単に学習する方式（GPT-2 の wpe はこれ）も広く使われます。RoPE（回転位置埋め込み）など発展形も。位置情報は<b>単語埋め込み（<a href="word2vec.html">word2vec</a>）に足して</b>から <a href="attention.html">自己注意</a> に入ります。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const D=32,P=24;
+function PE(pos,i){const denom=Math.pow(10000,2*Math.floor(i/2)/D);return (i%2===0)?Math.sin(pos/denom):Math.cos(pos/denom);}
+const M=[];for(let p=0;p<P;p++){const row=[];for(let i=0;i<D;i++)row.push(PE(p,i));M.push(row);}
+let selPos=4;
+function dot(a,b){let s=0;for(let i=0;i<D;i++)s+=M[a][i]*M[b][i];return s;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function divColor(v){const t=Math.max(-1,Math.min(1,v));if(t>=0)return`rgba(57,224,196,${0.12+0.85*t})`;return`rgba(212,163,106,${0.12+0.85*(-t)})`;}
+function drawHeat(hi){const x0=44,y0=20,w=CW-58,h=CH-58,cw=w/D,ch=h/P;
+  for(let p=0;p<P;p++)for(let i=0;i<D;i++){ctx.fillStyle=divColor(M[p][i]);ctx.fillRect(x0+i*cw,y0+p*ch,cw+0.5,ch+0.5);}
+  if(hi!=null){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.strokeRect(x0-1,y0+hi*ch-1,w+2,ch+2);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';for(let p=0;p<P;p+=4)ctx.fillText('pos'+p,x0-4,y0+p*ch+ch*0.7);
+  ctx.textAlign='center';ctx.fillText('次元 0 → '+(D-1)+'（周波数 高→低）',CW/2,CH-8);
+  ctx.save();ctx.translate(12,CH/2);ctx.rotate(-Math.PI/2);ctx.fillText('位置 pos',0,0);ctx.restore();}
+function drawWaves(){ctx.clearRect(0,0,CW,CH);const x0=20,x1=CW-14,y0=24,y1=CH-30,dims=[0,4,12],cols=['--accent','--warm','--upd'];
+  ctx.strokeStyle=getCSS('--grid');ctx.beginPath();ctx.moveTo(x0,(y0+y1)/2);ctx.lineTo(x1,(y0+y1)/2);ctx.stroke();
+  dims.forEach((dim,di)=>{ctx.strokeStyle=getCSS(cols[di]);ctx.lineWidth=2.2;ctx.beginPath();for(let p=0;p<=P*4;p++){const pos=p/4,v=PE(pos,dim),X=x0+(pos/P)*(x1-x0),Y=(y0+y1)/2-v*(y1-y0)/2.4;p?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+    ctx.fillStyle=getCSS(cols[di]);ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('次元'+dim+(dim<4?'(高周波)':dim<10?'(中)':'(低周波)'),x0+8,y0+12+di*15);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('位置 pos →（次元ごとに波長が違う sin/cos）',CW/2,CH-8);}
+function drawSim(){ctx.clearRect(0,0,CW,CH);const x0=34,x1=CW-14,y0=24,y1=CH-34;const sims=[];let mx=-1e9,mn=1e9;for(let p=0;p<P;p++){const s=dot(selPos,p);sims.push(s);mx=Math.max(mx,s);mn=Math.min(mn,s);}
+  ctx.strokeStyle=getCSS('--grid');ctx.beginPath();ctx.moveTo(x0,y1);ctx.lineTo(x1,y1);ctx.stroke();const bw=(x1-x0)/P;
+  for(let p=0;p<P;p++){const hh=(sims[p]-mn)/(mx-mn+1e-9)*(y1-y0);ctx.fillStyle=p===selPos?getCSS('--upd'):'rgba(57,224,196,0.7)';ctx.fillRect(x0+p*bw+1,y1-hh,bw-2,Math.max(1,hh));}
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('各位置と pos'+selPos+' の内積（類似度）',CW/2,18);ctx.fillText('位置 0 → '+(P-1),CW/2,CH-8);
+  ctx.fillStyle=getCSS('--upd');ctx.textAlign='left';ctx.fillText('▲pos'+selPos,x0+selPos*bw-6,y1+12);}
+function draw(){const k=STEPS[stepIdx].key;if(k==='wave')drawWaves();else if(k==='sim')drawSim();else{ctx.clearRect(0,0,CW,CH);drawHeat(k==='add'?selPos:null);}}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'wave',t:'位置を波で',c:'var(--upd)'},{key:'matrix',t:'PE行列',c:'var(--accent)'},{key:'add',t:'埋め込みに足す',c:'var(--loss)'},{key:'sim',t:'相対位置',c:'var(--accent)'}];
+let stepIdx=0;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='sim'||k==='add')m.innerHTML='<div>選択位置 <b>'+selPos+'</b></div><div>次元 <b>'+D+'</b></div><div>位置数 <b>'+P+'</b></div>';else m.innerHTML='<div>次元 <b>'+D+'</b></div><div>位置数 <b>'+P+'</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='wave')?'各曲線=次元ごとの sin/cos（波長が違う）':(k==='sim')?'バー=各位置と選択位置の内積（紫=選択位置）':'色=PE値（緑+ / 橙−）, 1行=1位置の固有ベクトル';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：語順が分からない</h3><div class="desc">自己注意は全トークンを<b>集合のように同時に</b>処理するので、並べ替えても結果が同じ＝<b>順序の情報がありません</b>。「猫が魚を食べた」と「魚が猫を食べた」が区別できないのは困る。各トークンに「<b>自分は何番目か</b>」を教える必要があります。</div>';}
+  else if(k==='wave'){h+='<h3>② 位置を「波」で表す</h3><div class="eq curr">PE(pos, 2i)=sin(pos/10000^(2i/d)),　奇数次元は cos</div><div class="desc">各次元を、<b>波長の違う sin / cos</b> にします（低次元＝速い波＝細かい位置、高次元＝遅い波＝大まかな位置）。複数の波の<b>組合せ</b>で、どの位置も<b>一意のパターン</b>になります。時計の秒針・分針・時針で時刻が一意に決まるのと同じ発想。</div>';}
+  else if(k==='matrix'){h+='<h3>③ 位置エンコーディング行列</h3><div class="desc">縦＝位置、横＝次元で全部並べると、<b>縞模様</b>になります（左ほど高周波で細かく振動、右ほどゆっくり）。<b>1 行が 1 つの位置の固有ベクトル</b>。値は常に −1〜1 に収まり、学習も不要で固定（GPT-2 は学習型を使用）。</div>';}
+  else if(k==='add'){h+='<h3>④ 埋め込みに足す</h3><div class="eq curr">入力 = 単語埋め込み + 位置エンコーディング</div><div class="desc">この位置ベクトル（紫枠の行＝pos'+selPos+'）を、その位置の<b>単語埋め込みに足し算</b>してから自己注意へ。これで各トークンは「意味＋位置」の両方を持ちます。右下で位置を選べます。</div>';}
+  else{const nb=dot(selPos,Math.max(0,selPos-1)),fr=dot(selPos,(selPos+10)%P);h+='<h3>⑤ 相対位置が表せる</h3><div class="desc">pos'+selPos+' と各位置の<b>内積（類似度）</b>。<b>近い位置ほど大きく</b>（隣 '+nb.toFixed(0)+' > 遠く '+fr.toFixed(0)+'）、距離が内積に表れます。さらに位置 pos+k は pos の<b>回転</b>で書けるので、モデルは「<b>何個離れているか</b>」を扱え、長い文へ<b>外挿</b>もしやすい。これが Transformer の位置の正体です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・自己注意は順序を知らない→位置を注入<br>・波長違いの sin/cos で各位置を一意符号化<br>・埋め込みに足す／相対位置・外挿に有利</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw();}
+function fillPos(){const sel=document.getElementById('posSel');sel.innerHTML='';for(let p=2;p<P-2;p+=2)sel.innerHTML+='<option value="'+p+'"'+(p===selPos?' selected':'')+'>位置 '+p+' を選択</option>';}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>goStep(0);
+document.getElementById('posSel').onchange=e=>{selPos=+e.target.value;renderAll();draw();};
+fillPos();renderAll();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
