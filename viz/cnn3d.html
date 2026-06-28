@@ -3,102 +3,100 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CNN を立体で見る — 特徴マップのボリューム</title>
+<title>CNN を立体で見る — 動くインフォグラフ（3D）</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:radial-gradient(120% 120% at 50% 30%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:760px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1.45fr 1fr;}
+  .vis{padding:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:radial-gradient(120% 120% at 50% 30%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
   canvas:active{cursor:grabbing;}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;align-items:center;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:8px;align-self:flex-start;display:flex;gap:14px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;} .dotmark{width:9px;height:9px;border-radius:50%;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  label.chk{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);cursor:pointer;}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>CNN を立体で見る — 特徴マップのボリューム</h1>
-      <div class="sub">畳み込みは画像を「複数フィルタ × 高さ × 幅」の立体（ボリューム）へ変換する。入力 → 6 種フィルタの特徴マップ → プーリングを 3D で重ねて表示。<b>ドラッグで回転・ホイールで拡大</b></div>
-    </div>
-    <div class="nav">
-      <a href="cnn.html">2D版CNN</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>CNN を立体で見る（3D）</h1>
+  <div class="lead">畳み込みは 1 枚の画像を「<b>高さ × 幅 × チャンネル</b>」の立体（ボリューム）へ変換する。2D 版では 1 枚ずつ見ていた特徴マップを、CNN の実際のデータ形として奥行きに積んで観察。<b>ドラッグで回転・ホイールで拡大</b>。下の流れを「次へ」で追ってください。</div>
 
-  <div class="card">
-    <div class="cap">入力 → 畳み込み（6 チャンネル）→ 最大プーリング　※ドラッグで回転</div>
-    <div class="canvas-host"><canvas id="cv" width="1080" height="600"></canvas></div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="780" height="500"></canvas>
+        <div class="legend">
+          <span><i class="dotmark" style="background:var(--accent)"></i>正の応答</span>
+          <span><i class="dotmark" style="background:var(--neg)"></i>負の応答</span>
+          <span>奥行き=チャンネル（フィルタ）</span>
+        </div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="spinBtn">⟲ 回転</button>
+      <select id="preset"><option value="cross">＋十字</option><option value="x">×バツ</option><option value="box">□四角</option><option value="diag">／斜め</option><option value="t">T字</option></select>
+    </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>入力パターン</label>
-      <select id="preset"><option value="cross">＋ 十字</option><option value="x">× バツ</option><option value="box">□ 四角</option><option value="diag">／ 斜め</option><option value="t">T 字</option></select>
-    </div>
-    <div class="field">
-      <label>チャンネル間隔 <span class="val" id="gapVal"></span></label>
-      <input type="range" id="gapSlider" min="0.3" max="1.4" step="0.05" value="0.6">
-    </div>
-    <div class="field">
-      <label>表示</label>
-      <label class="chk"><input type="checkbox" id="reluChk" checked> ReLU 後を表示</label>
-    </div>
-    <div class="field" style="justify-content:flex-end;">
-      <span class="note" style="grid-column:auto;">各チャンネル＝1 種のフィルタ応答</span>
-    </div>
-    <div class="buttons">
-      <button class="primary" id="spinBtn">⟲ 自動回転</button>
-      <button id="resetBtn">↺ 視点リセット</button>
-      <span class="note" style="grid-column:auto;border:none;padding:0;">フィルタ: 縦/横/斜めエッジ・輪郭(ラプラシアン)・ぼかし・鋭化</span>
-    </div>
-    <div id="narrC3" style="grid-column:1/-1;margin-bottom:8px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#222a37);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">6 種のフィルタ応答を奥行きに積んだ立体です。</div>
-    <div class="note">2D 版では 1 枚ずつだった特徴マップを、CNN の実際のデータ形「H×W×チャンネル」の立体として表示しています。畳み込みでチャンネル方向に厚みが増え、プーリングで H×W が縮む様子が立体で分かります。色：<span style="color:var(--accent)">正</span>／<span style="color:var(--neg)">負</span>。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：チャンネルとは・なぜ立体で見るのか・2D版との対応</summary>
+    <div class="det"><b>チャンネル</b>＝1 種類のフィルタの応答地図。フィルタが K 種あれば出力は K チャンネルぶんの厚みを持ちます（ここでは縦/横/斜めエッジ・輪郭・ぼかし・鋭化の 6 種）。2D 版 <a href="cnn.html">CNN</a> では特徴マップを 1 枚ずつ並べていましたが、実際は「H×W×チャンネル」の立体テンソル。畳み込みで<b>厚み（チャンネル）が増え</b>、プーリングで<b>H×W が縮む</b>のが立体で一目で分かります。層を重ねるほど、エッジ→部品→物体へと抽象度が上がっていきます。学習でフィルタ自体を獲得する様子は 2D 版を参照。</div>
+  </details>
 </div>
 
 <script src="lib3d.js"></script>
 <script>
 "use strict";
 const N=16,K=3,CONV=N-K+1,POOLN=CONV/2;
-const FILTERS=[
-  {n:'縦',f:[-1,0,1,-2,0,2,-1,0,1]},{n:'横',f:[-1,-2,-1,0,0,0,1,2,1]},
-  {n:'斜',f:[0,1,2,-1,0,1,-2,-1,0]},{n:'輪郭',f:[0,-1,0,-1,4,-1,0,-1,0]},
-  {n:'ぼかし',f:[1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9]},{n:'鋭',f:[0,-1,0,-1,5,-1,0,-1,0]},
-];
+const FILTERS=[{n:'縦',f:[-1,0,1,-2,0,2,-1,0,1]},{n:'横',f:[-1,-2,-1,0,0,0,1,2,1]},{n:'斜',f:[0,1,2,-1,0,1,-2,-1,0]},{n:'輪郭',f:[0,-1,0,-1,4,-1,0,-1,0]},{n:'ぼかし',f:[1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9]},{n:'鋭',f:[0,-1,0,-1,5,-1,0,-1,0]}];
 const NF=FILTERS.length;
-let input=new Float32Array(N*N);
-let conv=[],relu=[],pool=[],convMax=1,poolMax=1;
-
+let input=new Float32Array(N*N),conv=[],relu=[],pool=[],convMax=1,poolMax=1;
 function setPreset(name){input=new Float32Array(N*N);const set=(r,c)=>{if(r>=0&&r<N&&c>=0&&c<N)input[r*N+c]=1;};const lo=3,hi=N-4,mid=Math.floor(N/2);
   if(name==='cross'){for(let i=lo;i<=hi;i++){set(i,mid);set(i,mid-1);set(mid,i);set(mid-1,i);}}
   else if(name==='x'){for(let i=lo;i<=hi;i++){set(i,i);set(i,N-1-i);set(i,i-1);set(i,N-i);}}
@@ -110,67 +108,54 @@ function compute(){conv=[];relu=[];pool=[];convMax=1e-6;poolMax=1e-6;
     for(let y=0;y<CONV;y++)for(let x=0;x<CONV;x++){let s=0;for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)s+=input[(y+dy)*N+(x+dx)]*F[dy*K+dx];cm[y*CONV+x]=s;rm[y*CONV+x]=s>0?s:0;convMax=Math.max(convMax,Math.abs(s));}
     conv.push(cm);relu.push(rm);
     const pm=new Float32Array(POOLN*POOLN);for(let y=0;y<POOLN;y++)for(let x=0;x<POOLN;x++){let m=-Infinity;for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++)m=Math.max(m,rm[(2*y+dy)*CONV+(2*x+dx)]);pm[y*POOLN+x]=m;poolMax=Math.max(poolMax,Math.abs(m));}
-    pool.push(pm);}
-  const el=document.getElementById('narrC3');if(el)el.innerHTML='手前→奥の読み方：<b>入力</b>(1枚) → <b>畳み込み</b>(6 チャンネル＝6 種フィルタの応答を奥行きに積層) → <b>ReLU</b>(負を 0 に) → <b>最大プーリング</b>(H×W が半分に縮小)。各チャンネル＝1 種のフィルタが「その特徴がどこにあるか」を示す地図で、明るいマスほど強く反応した位置。畳み込みで厚み（チャンネル）が増え、プーリングで H×W が縮む＝これが CNN の実データ形「H×W×チャンネル」。層を重ねるほどエッジ→部品→物体へ抽象度が上がります。';}
+    pool.push(pm);}}
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
-const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:70,dist:16});
+const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:54,dist:16,yaw:-0.6,pitch:0.42});
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 function grayCol(v){const g=Math.round(v*235);return `rgb(${g},${g},${g})`;}
 function sgnCol(v,scale){const t=Math.max(-1,Math.min(1,v/scale));if(t>=0)return `rgba(57,224,196,${0.12+0.88*t})`;return `rgba(240,111,126,${0.12+0.88*(-t)})`;}
-
-// 平面を quad リストに変換して push
-function pushPlane(quads, data, n, type, scale, X, Z, halfW){
-  for(let r=0;r<n;r++)for(let c=0;c<n;c++){
-    const u0=X+(c/n-0.5)*2*halfW, u1=X+((c+1)/n-0.5)*2*halfW;
-    const v0=(0.5-r/n)*2*halfW, v1=(0.5-(r+1)/n)*2*halfW;
-    const corners=[[u0,v0,Z],[u1,v0,Z],[u1,v1,Z],[u0,v1,Z]];
-    const val=data[r*n+c];
-    const fill=type==='gray'?grayCol(val):(type==='pos'?(val>0?sgnCol(val,scale):'#0e131b'):sgnCol(val,scale));
-    quads.push({corners,fill});
-  }
-}
-function draw(){
-  ctx.clearRect(0,0,CW,CH);
-  const gap=+gapSlider.value;const useRelu=reluChk.checked;
-  const quads=[];
-  const Xin=-3.4, Xconv=0.1, Xpool=3.5;
-  const zc=k=>(k-(NF-1)/2)*gap;
-  // 入力
+function pushPlane(quads,data,n,type,scale,X,Z,halfW){for(let r=0;r<n;r++)for(let c=0;c<n;c++){const u0=X+(c/n-0.5)*2*halfW,u1=X+((c+1)/n-0.5)*2*halfW,v0=(0.5-r/n)*2*halfW,v1=(0.5-(r+1)/n)*2*halfW;const corners=[[u0,v0,Z],[u1,v0,Z],[u1,v1,Z],[u0,v1,Z]];const val=data[r*n+c];const fill=type==='gray'?grayCol(val):(type==='pos'?(val>0?sgnCol(val,scale):'#0e131b'):sgnCol(val,scale));quads.push({corners,fill});}}
+const GAP=0.62;
+let stg=0; // 0 input,1 conv(signed),2 relu,3 pool
+function draw(){ctx.clearRect(0,0,CW,CH);const quads=[];const Xin=-3.4,Xconv=0.1,Xpool=3.5;const zc=k=>(k-(NF-1)/2)*GAP;
   pushPlane(quads,input,N,'gray',1,Xin,0,1.15);
-  // 畳み込み（6ch）
-  for(let k=0;k<NF;k++)pushPlane(quads,useRelu?relu[k]:conv[k],CONV,useRelu?'pos':'signed',convMax,Xconv,zc(k),1.0);
-  // プーリング（6ch）
-  for(let k=0;k<NF;k++)pushPlane(quads,pool[k],POOLN,'pos',poolMax,Xpool,zc(k),0.5);
-  // depth ソート（遠い順）
+  if(stg>=1)for(let k=0;k<NF;k++)pushPlane(quads,stg>=2?relu[k]:conv[k],CONV,stg>=2?'pos':'signed',convMax,Xconv,zc(k),1.0);
+  if(stg>=3)for(let k=0;k<NF;k++)pushPlane(quads,pool[k],POOLN,'pos',poolMax,Xpool,zc(k),0.5);
   for(const q of quads){const cx=(q.corners[0][0]+q.corners[2][0])/2,cy=(q.corners[0][1]+q.corners[2][1])/2,cz=q.corners[0][2];q.d=Lib3D.project([cx,cy,cz],cam).depth;}
-  quads.sort((a,b)=>a.d-b.d);
-  for(const q of quads)Lib3D.quad(ctx,q.corners,cam,q.fill);
-  // ラベル
-  ctx.fillStyle=getCSS('--text');ctx.font='13px '+getCSS('--gothic');ctx.textAlign='center';
+  quads.sort((a,b)=>a.d-b.d);for(const q of quads)Lib3D.quad(ctx,q.corners,cam,q.fill);
+  ctx.fillStyle=getCSS('--text');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';
   const lab=(txt,X,Z,y)=>{const p=Lib3D.project([X,y,Z],cam);ctx.fillText(txt,p.x,p.y);};
   lab('入力 16×16',Xin,0,-1.55);
-  lab('畳み込み 14×14 ×6ch',Xconv,zc(NF-1),-1.5);
-  lab('プーリング 7×7 ×6ch',Xpool,zc(NF-1),-1.0);
-  // フィルタ名（各conv平面の端）
-  ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');ctx.textAlign='right';
-  for(let k=0;k<NF;k++){const p=Lib3D.project([Xconv-1.15,1.05,zc(k)],cam);ctx.fillText(FILTERS[k].n,p.x,p.y);}
+  if(stg>=1)lab((stg>=2?'ReLU ':'畳み込み ')+'14×14×6',Xconv,zc(NF-1),-1.5);
+  if(stg>=3)lab('プール 7×7×6',Xpool,zc(NF-1),-1.0);
+  if(stg>=1){ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');ctx.textAlign='right';for(let k=0;k<NF;k++){const p=Lib3D.project([Xconv-1.15,1.05,zc(k)],cam);ctx.fillText(FILTERS[k].n,p.x,p.y);}}
 }
+let spin=false;
+function loop(){if(!spin)return;cam.yaw+=0.006;draw();requestAnimationFrame(loop);}
 
-/* ===== UI ===== */
-const preset=document.getElementById('preset'),gapSlider=document.getElementById('gapSlider'),reluChk=document.getElementById('reluChk'),spinBtn=document.getElementById('spinBtn');
-const gapVal=document.getElementById('gapVal');
-function lbls(){gapVal.textContent=(+gapSlider.value).toFixed(2);}
-preset.onchange=()=>{setPreset(preset.value);compute();draw();};
-gapSlider.oninput=()=>{lbls();draw();};
-reluChk.onchange=draw;
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)',s:0},{key:'conv',t:'畳み込み',c:'var(--accent)',s:1},{key:'relu',t:'ReLU',c:'var(--warm)',s:2},{key:'pool',t:'プーリング',c:'var(--upd)',s:3},{key:'spin',t:'回して見る',c:'var(--accent)',s:3}];
+let stepIdx=0,auto=false;
+function stopSpin(){spin=false;document.getElementById('spinBtn').classList.remove('primary');document.getElementById('spinBtn').textContent='⟲ 回転';}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：画像を立体テンソルに</h3><div class="desc">入力は 16×16 の 1 枚の画像（手前のグレー面）。CNN はこれを複数フィルタにかけ「<b>H×W×チャンネル</b>」の立体に変換します。右下で入力パターンを変えられます。まず「次へ」で畳み込みへ。</div>';}
+  else if(k==='conv'){h+='<h3>② 畳み込み（6 チャンネル）</h3><div class="eq curr">各チャンネル = 1 種のフィルタを画像全体に適用</div><div class="desc">6 種のフィルタ（縦/横/斜エッジ・輪郭・ぼかし・鋭化）それぞれの応答地図が、<b>奥行き方向に 6 枚積層</b>（14×14×6）。明るいほど強く反応した位置。緑=正/赤=負の応答。これが「厚み（チャンネル）が増える」。</div>';}
+  else if(k==='relu'){h+='<h3>③ ReLU（非線形）</h3><div class="eq curr">ReLU(x) = max(0, x)　（負を 0 に）</div><div class="desc">各応答に ReLU をかけ、<b>負の値を 0</b> にします（赤が消える）。これで「特徴が在る／無い」がはっきりし、非線形性が入ることで複雑なパターンも表現できるように。形は 14×14×6 のまま。</div>';}
+  else if(k==='pool'){h+='<h3>④ 最大プーリング</h3><div class="eq curr">2×2 ごとに最大値 → H×W が半分に</div><div class="desc">2×2 の窓ごとに最大値を取り、<b>14×14 → 7×7 に縮小</b>（一番奥）。情報を要約しつつ位置ずれに強くなる。チャンネル数 6 は保ったまま H×W が縮む＝立体が「細く長く」なっていきます。</div>';}
+  else{h+='<h3>⑤ 回して見る</h3><div class="desc"><b>ドラッグで回転</b>・ホイールで拡大して、入力 → 14×14×6 → 7×7×6 と<b>厚みが増え H×W が縮む</b>立体の流れを観察。これを何層も重ねるのが深い CNN です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・チャンネル＝フィルタ応答の地図<br>・畳み込みで厚み↑、プールでH×W↓<br>・データ形は H×W×チャンネルの立体</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function stopAuto(){auto=false;}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stopSpin();stepIdx=i;stg=STEPS[i].s;if(STEPS[i].key==='spin'){spin=true;document.getElementById('spinBtn').classList.add('primary');document.getElementById('spinBtn').textContent='⏸ 回転停止';loop();}else draw();renderAll();}
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);setTimeout(autoTick,1600);}else stopAuto();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();cam.yaw=-0.6;cam.pitch=0.42;cam.scale=54;goStep(0);};
+document.getElementById('spinBtn').onclick=()=>{stopAuto();spin=!spin;document.getElementById('spinBtn').classList.toggle('primary',spin);document.getElementById('spinBtn').textContent=spin?'⏸ 回転停止':'⟲ 回転';if(spin)loop();else draw();};
+document.getElementById('preset').onchange=e=>{setPreset(e.target.value);compute();draw();};
 Lib3D.attachDrag(cv,cam,draw);
-let spin=false,raf=0;
-spinBtn.onclick=()=>{spin=!spin;spinBtn.classList.toggle('primary',!spin);spinBtn.textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin)loop();};
-function loop(){if(!spin)return;cam.yaw+=0.006;draw();raf=requestAnimationFrame(loop);}
-document.getElementById('resetBtn').onclick=()=>{cam.yaw=-0.6;cam.pitch=0.42;cam.scale=70;draw();};
-
-lbls();setPreset('cross');compute();draw();
+setPreset('cross');compute();renderAll();draw();
 </script>
 <script src="nav.js"></script>
 </body>
