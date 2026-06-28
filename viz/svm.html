@@ -3,174 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>サポートベクターマシン — 最大マージン分類</title>
+<title>サポートベクターマシン（SVM）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --c0:#39e0c4; --c1:#d4a36a; --loss:#f0b03a; --sv:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:23px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6;}
-  .nav{font-size:12.5px;margin:12px 0 16px;line-height:1.9;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
   .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:10px 14px 14px;}
-  canvas{display:block;width:100%;border-radius:6px;}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:20px;font-family:var(--mono);padding:8px 14px 12px;flex-wrap:wrap;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.acc{color:var(--accent);} .readout .v.m{color:var(--loss);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:border-color .15s;}
-  button:hover{border-color:var(--faint);}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .mg b{color:var(--loss);} .mini .acc b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;line-height:1.6;}
-  .narr{margin:0 14px 14px;padding:10px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text);}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}.controls{grid-template-columns:repeat(2,1fr);}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>サポートベクターマシン — 最大マージン分類</h1>
-    <div class="sub">2 クラスを分ける直線のうち、<b>境界から最も近い点までの距離（マージン）が最大</b>になる直線を学習する。マージン上の点＝<b>サポートベクトル</b>だけが境界を決める。ヒンジ損失を確率的劣勾配法（Pegasos）で最小化。</div>
-  </header>
   <div class="nav"></div>
+  <h1>サポートベクターマシン（SVM）を理解する</h1>
+  <div class="lead">2 クラスを分ける直線は無数にあるが、SVM は<b>両クラスの隙間（マージン）が最も広くなる</b>境界を選ぶ。境界を決めるのは、最前線にいる数個の点＝<b>サポートベクトル</b>だけ。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">特徴空間：実線＝決定境界、破線＝マージン、◯＝サポートベクトル</div>
-      <div class="canvas-host"><canvas id="cv" width="520" height="520"></canvas></div>
-      <div class="narr" id="narrV">▶ 学習で、決定境界（実線）と 2 本のマージン（破線）が動き、マージン幅が最大になる位置へ収束します。</div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">正答率</div><div class="v acc" id="accOut">—</div></div>
-          <div><div class="k">マージン幅</div><div class="v m" id="marOut">—</div></div>
-          <div><div class="k">サポートベクトル</div><div class="v" id="svOut">—</div></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="cap">ヒンジ損失の推移（下がるほど良い）</div>
-        <div class="canvas-host"><canvas id="lossC" width="290" height="140"></canvas></div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="sep">分離できる</option><option value="overlap">少し重なる(ソフト)</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>クラスの分離度 <span class="val" id="sepv"></span></label>
-      <input type="range" id="sepSlider" min="0.35" max="1.4" step="0.05" value="1.0">
-    </div>
-    <div class="field">
-      <label>C（マージンの硬さ） <span class="val" id="cv"></span></label>
-      <input type="range" id="cSlider" min="-1" max="1.3" step="0.05" value="0.3">
-    </div>
-    <div class="field">
-      <label>速度（更新/フレーム） <span class="val" id="spdv"></span></label>
-      <input type="range" id="spd" min="10" max="200" step="10" value="60">
-    </div>
-    <div class="field" style="justify-content:flex-end;"><span class="note" style="grid-column:auto;">C 大＝誤りを強く罰し硬いマージン、C 小＝柔らかい</span></div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ 学習</button>
-      <button id="stepBtn">⏭ 1 ステップ</button>
-      <button id="resetBtn">↺ リセット</button>
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">Pegasos: 各ステップでランダムな 1 点を見て、マージン内 (y·f(x)&lt;1) なら境界を引き寄せ、外なら重みを縮める。w を縮めるほどマージン幅 2/‖w‖ は広がるが、誤分類は増える＝そのトレードオフを C で調整。素の JavaScript 実装。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：ソフトマージン・双対とカーネル・非線形</summary>
+    <div class="det">完全に分けられない場合は、はみ出しを許す<b>ソフトマージン</b>（罰金 C で「マージンの広さ」と「誤分類の少なさ」を調整）。最適化はマージン最大化 ⇔ ½‖w‖² 最小化（制約つき）で、双対形にすると内積 xᵢ·xⱼ だけで書けます。これを<b>カーネル</b> K(xᵢ,xⱼ) に置き換える（カーネルトリック）と、高次元へ写像したのと同じ効果で<b>非線形な境界</b>（円や曲線）も引ける。RBF カーネルが代表例。ここでは線形 SVM を劣勾配法で学習しています。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-let rng=mulberry32(11);
-function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
-const lossC=document.getElementById('lossC'),lx=lossC.getContext('2d');
+let seed=21;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-const sepSlider=document.getElementById('sepSlider'),cSlider=document.getElementById('cSlider'),spd=document.getElementById('spd');
-const sepv=document.getElementById('sepv'),cvl=document.getElementById('cv'),spdv=document.getElementById('spdv');
+const COLp=getCSS('--accent'),COLn=getCSS('--warm');
+let X=[],Y=[],w=[0,0],b=0,epoch=0,lam=0.012,lr=0.05,cand=[];
+function genData(){X=[];Y=[];const kind=document.getElementById('dataSel').value;const sd=kind==='overlap'?0.34:0.24,off=kind==='overlap'?0.42:0.62;
+  for(let i=0;i<35;i++){X.push([-off+randn()*sd,-off*0.5+randn()*sd]);Y.push(-1);}
+  for(let i=0;i<35;i++){X.push([off+randn()*sd,off*0.5+randn()*sd]);Y.push(1);}
+  cand=[];for(let j=0;j<4;j++){const ang=Math.PI/2+(rng()-0.5)*1.3;cand.push([Math.cos(ang),Math.sin(ang),(rng()-0.5)*0.4]);}}
+function initW(){w=[randn()*0.1,randn()*0.1];b=0;epoch=0;}
+function trainStep(){let gw0=lam*w[0],gw1=lam*w[1],gb=0;const N=X.length;for(let i=0;i<N;i++){const m=Y[i]*(w[0]*X[i][0]+w[1]*X[i][1]+b);if(m<1){gw0-=Y[i]*X[i][0]/N;gw1-=Y[i]*X[i][1]/N;gb-=Y[i]/N;}}w[0]-=lr*gw0;w[1]-=lr*gw1;b-=lr*gb;epoch++;}
+function trainFull(n){for(let i=0;i<n;i++)trainStep();}
+function normW(){return Math.hypot(w[0],w[1])||1e-9;}
+function isSV(i){const m=Y[i]*(w[0]*X[i][0]+w[1]*X[i][1]+b);return m<=1.05;}
+function acc(){let ok=0;for(let i=0;i<X.length;i++)if(Math.sign(w[0]*X[i][0]+w[1]*X[i][1]+b)===Y[i])ok++;return ok/X.length;}
 
-let X=[],Y=[],w=[0,0],b=0,tA=0,lossHist=[],running=false;
-const RNG=3.0; // 表示範囲 [-3,3]
-const toX=x=>14+(x+RNG)/(2*RNG)*(CW-28), toY=y=>14+(RNG-y)/(2*RNG)*(CH-28);
-function genData(){X=[];Y=[];const sep=+sepSlider.value;for(let i=0;i<120;i++){const c=i%2?1:-1;const cx=c*sep,cy=c*sep*0.5;X.push([cx+randn()*0.45,cy+randn()*0.55]);Y.push(c);}}
-function reset(){w=[0,0];b=0;tA=0;lossHist=[];draw();drawLoss();updateReadout();updateNarr();}
-function lambda(){return 1/((Math.pow(10,+cSlider.value))*X.length);}
-function f(x){return w[0]*x[0]+w[1]*x[1]+b;}
-function step(){const lam=lambda();tA++;const eta=1/(lam*tA);const i=(rng()*X.length)|0,x=X[i],y=Y[i];
-  if(y*f(x)<1){w[0]=(1-eta*lam)*w[0]+eta*y*x[0];w[1]=(1-eta*lam)*w[1]+eta*y*x[1];b+=eta*y;}else{w[0]=(1-eta*lam)*w[0];w[1]=(1-eta*lam)*w[1];}}
-function hingeLoss(){const lam=lambda();let s=0;for(let i=0;i<X.length;i++)s+=Math.max(0,1-Y[i]*f(X[i]));return s/X.length+0.5*lam*(w[0]*w[0]+w[1]*w[1]);}
-function steps(n){for(let i=0;i<n;i++)step();lossHist.push(hingeLoss());if(lossHist.length>2000)lossHist.shift();}
-
-function lineY(xv,off){ // w0*x+w1*y+b=off → y
-  if(Math.abs(w[1])<1e-6)return null;return -(w[0]*xv+b-off)/w[1];}
-function draw(){ctx.clearRect(0,0,CW,CH);
-  const nw=Math.hypot(w[0],w[1]);
-  // マージン帯
-  if(nw>1e-4){ctx.save();ctx.beginPath();ctx.rect(14,14,CW-28,CH-28);ctx.clip();
-    // 2本のマージン線 & 境界
-    const drawLine=(off,style,dash,wd)=>{ctx.strokeStyle=style;ctx.lineWidth=wd;ctx.setLineDash(dash);
-      if(Math.abs(w[1])>=Math.abs(w[0])){const y0=lineY(-RNG,off),y1=lineY(RNG,off);ctx.beginPath();ctx.moveTo(toX(-RNG),toY(y0));ctx.lineTo(toX(RNG),toY(y1));ctx.stroke();}
-      else{const xAt=yv=>-(w[1]*yv+b-off)/w[0];ctx.beginPath();ctx.moveTo(toX(xAt(-RNG)),toY(-RNG));ctx.lineTo(toX(xAt(RNG)),toY(RNG));ctx.stroke();}ctx.setLineDash([]);};
-    drawLine(1,'rgba(240,176,58,0.55)',[5,4],1.2);
-    drawLine(-1,'rgba(240,176,58,0.55)',[5,4],1.2);
-    drawLine(0,getCSS('--text'),[],2);
-    ctx.restore();}
-  // 点（サポートベクトルは縁を強調）
-  for(let i=0;i<X.length;i++){const isSV=nw>1e-4&&Y[i]*f(X[i])<=1.02;
-    ctx.beginPath();ctx.arc(toX(X[i][0]),toY(X[i][1]),isSV?5:3.2,0,7);
-    ctx.fillStyle=Y[i]>0?getCSS('--c0'):getCSS('--c1');ctx.fill();
-    if(isSV){ctx.lineWidth=2;ctx.strokeStyle=getCSS('--sv');ctx.stroke();}else{ctx.lineWidth=0.6;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LO=-1.35,HI=1.35,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
+function drawLineWB(W0,W1,B,c,style,dash){ctx.strokeStyle=style;ctx.lineWidth=c;if(dash)ctx.setLineDash(dash);ctx.beginPath();
+  if(Math.abs(W1)>=Math.abs(W0)){const x0=LO,x1=HI,y0=-(W0*x0+B)/W1,y1=-(W0*x1+B)/W1;ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));}
+  else{const y0=LO,y1=HI,x0=-(W1*y0+B)/W0,x1=-(W1*y1+B)/W0;ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));}
+  ctx.stroke();ctx.setLineDash([]);}
+function drawPts(showSV){for(let i=0;i<X.length;i++){if(showSV&&isSV(i)){ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),7,0,7);ctx.lineWidth=2;ctx.strokeStyle=getCSS('--loss');ctx.stroke();}ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),3.2,0,7);ctx.fillStyle=Y[i]>0?COLp:COLn;ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);
+  if(opt.cand){for(const c of cand)drawLineWB(c[0],c[1],c[2],1,'rgba(231,237,245,0.28)',[4,4]);}
+  if(opt.margin){const nw=normW();
+    // shade margin band
+    ctx.fillStyle='rgba(240,176,58,0.07)';ctx.beginPath();const pts=marginPolygon();if(pts){ctx.moveTo(px(pts[0][0]),py(pts[0][1]));for(let i=1;i<pts.length;i++)ctx.lineTo(px(pts[i][0]),py(pts[i][1]));ctx.closePath();ctx.fill();}
+    drawLineWB(w[0],w[1],b-1,1.1,'rgba(240,176,58,0.7)',[5,4]);
+    drawLineWB(w[0],w[1],b+1,1.1,'rgba(240,176,58,0.7)',[5,4]);
+    drawLineWB(w[0],w[1],b,2,getCSS('--text'));}
+  drawPts(opt.sv);
 }
-function drawLoss(){const W2=lossC.width,H2=lossC.height;lx.clearRect(0,0,W2,H2);
-  if(lossHist.length<2){lx.fillStyle=getCSS('--faint');lx.font='11.5px '+getCSS('--gothic');lx.textAlign='center';lx.fillText('学習すると損失が表示されます',W2/2,H2/2);return;}
-  let hi=Math.max(...lossHist),lo=Math.min(...lossHist);if(hi-lo<1e-4)hi=lo+1e-4;
-  const xToP=i=>10+(W2-20)*i/(lossHist.length-1),yToP=v=>10+(H2-22)*(hi-v)/(hi-lo);
-  lx.strokeStyle=getCSS('--loss');lx.lineWidth=2;lx.beginPath();
-  const stp=Math.max(1,Math.floor(lossHist.length/(W2-20)));
-  for(let i=0;i<lossHist.length;i+=stp){const Xp=xToP(i),Yp=yToP(lossHist[i]);i?lx.lineTo(Xp,Yp):lx.moveTo(Xp,Yp);}
-  lx.lineTo(xToP(lossHist.length-1),yToP(lossHist[lossHist.length-1]));lx.stroke();}
-function metrics(){const nw=Math.hypot(w[0],w[1]);let ok=0,sv=0;for(let i=0;i<X.length;i++){if(Math.sign(f(X[i])||1)===Y[i])ok++;if(nw>1e-4&&Y[i]*f(X[i])<=1.02)sv++;}return {acc:ok/X.length,margin:nw>1e-4?2/nw:0,sv};}
-function updateReadout(){const m=metrics();
-  document.getElementById('accOut').textContent=tA===0?'—':(m.acc*100).toFixed(0)+'%';
-  document.getElementById('marOut').textContent=tA===0?'—':m.margin.toFixed(2);
-  document.getElementById('svOut').textContent=tA===0?'—':m.sv+'個';}
-function updateNarr(){const el=document.getElementById('narrV');if(!el)return;const m=metrics();
-  if(tA===0){el.innerHTML='まだ未学習。▶ 学習で、2 本のマージン（破線）の間隔が最大になる決定境界（実線）を探します。';return;}
-  el.innerHTML='学習中：正答率 <b>'+(m.acc*100).toFixed(0)+'%</b>・マージン幅 <b>'+m.margin.toFixed(2)+'</b>。<span style="color:var(--sv)">◯印のサポートベクトル '+m.sv+' 個</span>だけが境界を支えており、他の点を動かしても境界は変わりません。C を上げると誤りを強く罰し境界が硬く、下げるとマージンが広く柔らかくなります。';}
+function marginPolygon(){const nw=normW();if(nw<1e-6)return null;// region between w·x+b=±1
+  // approximate as a wide band: take boundary line endpoints, offset by margin
+  const ux=w[0]/nw,uy=w[1]/nw,half=1/nw;const cx=-b*w[0]/(nw*nw),cy=-b*w[1]/(nw*nw);const tx=-uy,ty=ux,L=2.6;
+  return[[cx+tx*L+ux*half,cy+ty*L+uy*half],[cx-tx*L+ux*half,cy-ty*L+uy*half],[cx-tx*L-ux*half,cy-ty*L-uy*half],[cx+tx*L-ux*half,cy+ty*L-uy*half]];}
 
-function frame(){if(!running)return;steps(+spd.value);draw();drawLoss();updateReadout();updateNarr();requestAnimationFrame(frame);}
-function setRun(on){running=on;const b=document.getElementById('playBtn');b.textContent=on?'⏸ 一時停止':'▶ 学習';b.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'margin',t:'最大マージン',c:'var(--loss)'},{key:'learn',t:'学習',c:'var(--accent)'},{key:'sv',t:'サポートベクトル',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--upd)'}];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({cand:true});else if(k==='sv')draw({margin:true,sv:true});else draw({margin:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function nSV(){let c=0;for(let i=0;i<X.length;i++)if(isSV(i))c++;return c;}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>候補の線 <b>∞</b></div>';return;}const margin=(2/normW());m.innerHTML='<div class="mg">マージン幅 <b>'+margin.toFixed(2)+'</b></div>'+(k==='learn'?'<div>epoch <b>'+epoch+'</b></div>':'')+(k==='sv'||k==='res'?'<div>SV数 <b>'+nSV()+'</b></div>':'')+'<div class="acc">正答率 <b>'+(acc()*100).toFixed(0)+'%</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=k==='prob'?'点=2クラス, 破線=分け方の候補(無数)':'白=境界, 橙破線=マージン端, 橙丸=サポートベクトル';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：どの境界が最善？</h3><div class="desc">2 クラスを分ける直線は<b>無数にあります</b>（破線はその一部）。どれも訓練データは分けられるけれど、<b>新しいデータに最も強い</b>のはどれ？ SVM はその基準を「マージン」で与えます。</div>';}
+  else if(k==='margin'){h+='<h3>② 最大マージン</h3><div class="eq curr">マージン = 境界と最も近い点の距離 → 最大化</div><div class="desc">境界の両側に空く<b>「隙間（マージン）」が最も広く</b>なる線を選ぶ＝両クラスから最も離れた、いちばん余裕のある境界。これが汎化性能につながります。マージン幅 '+(2/normW()).toFixed(2)+'。</div>';}
+  else if(k==='learn'){h+='<h3>③ 学習（ヒンジ損失）</h3><div class="eq curr">最小化: ½λ‖w‖² + Σ max(0, 1 − yᵢ(w·xᵢ+b))</div><div class="desc">マージンを破る点だけにペナルティ（ヒンジ損失）、‖w‖²小でマージン拡大。劣勾配法で w,b を更新すると境界とマージン端（橙破線）が最適位置へ。epoch '+epoch+'・マージン幅 '+(2/normW()).toFixed(2)+'。</div>';}
+  else if(k==='sv'){h+='<h3>④ サポートベクトル</h3><div class="desc">マージンの端ぎりぎり（橙丸）にある<b>数個の点だけが境界を決めて</b>います＝サポートベクトル。これら以外の点は、動かしても消しても境界は変わりません。境界を「支える」点だから support vector。今 '+nSV()+' 個。</div>';}
+  else{h+='<h3>⑤ 結果とカーネル</h3><div class="desc">最大マージン境界が完成（正答率 '+(acc()*100).toFixed(0)+'%・マージン幅 '+(2/normW()).toFixed(2)+'）。直線で分けられない場合は<b>カーネル</b>で高次元へ写像し、曲がった境界も引けます（折りたたみ参照）。少し重なるデータは右下で試せます。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・最大マージン＝最も余裕のある境界<br>・境界を決めるのはSVだけ<br>・非線形はカーネルトリックで</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-document.getElementById('playBtn').onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);steps(20);draw();drawLoss();updateReadout();updateNarr();};
-document.getElementById('resetBtn').onclick=()=>{setRun(false);reset();};
-document.getElementById('dataBtn').onclick=()=>{setRun(false);rng=mulberry32((rng()*1e9)>>>0);genData();reset();};
-sepSlider.oninput=()=>{sepv.textContent=(+sepSlider.value).toFixed(2);setRun(false);genData();reset();};
-cSlider.oninput=()=>{cvl.textContent=Math.pow(10,+cSlider.value).toFixed(2);};
-spd.oninput=()=>spdv.textContent=spd.value;
-
-sepv.textContent=(+sepSlider.value).toFixed(2);cvl.textContent=Math.pow(10,+cSlider.value).toFixed(2);spdv.textContent=spd.value;
-genData();reset();
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'){/* keep */}
+  else if(k==='margin'||k==='sv'||k==='res'){if(epoch<400)trainFull(400-epoch);}
+  else if(k==='learn'){initW();runLearn();}
+  renderAll();draw_();}
+function runLearn(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='learn')return;for(let s=0;s<6;s++)trainStep();draw_();renderMini();renderExplain();if(epoch>=400){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='learn'?300:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=21;genData();initW();stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=reset;
+genData();initW();trainFull(400);epoch=0;initW();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
 </body>
