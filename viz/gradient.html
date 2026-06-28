@@ -3,227 +3,214 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>勾配降下の可視化 — オプティマイザ比較</title>
+<title>勾配降下法を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
-    --sgd:#f06f7e; --mom:#f0b03a; --adam:#39e0c4;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784; --upd:#c9a6ff;
+    --sgd:#39e0c4; --mom:#d4a36a; --adam:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 300px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);cursor:crosshair;}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .opt{display:flex;align-items:center;gap:10px;padding:8px 14px;font-family:var(--mono);font-size:12.5px;}
-  .opt .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
-  .opt .nm{width:78px;color:var(--text);} .opt .ls{color:var(--muted);margin-left:auto;}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:720px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;}
+  .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1.1fr .9fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;}
+  .mini b{color:var(--text);font-weight:600;} .mini .loss b{color:var(--loss);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin-top:8px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .sw{width:10px;height:10px;border-radius:50%;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .eq .num{color:var(--accent);} .eq .res{color:var(--c,var(--accent));font-weight:700;}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);}
+  button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
+  .three .f{background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:11.5px;color:var(--muted);text-align:center;}
+  .three .f .e{font-family:var(--mono);font-size:13px;color:var(--text);margin-bottom:4px;}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}.three{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>勾配降下の可視化 — オプティマイザ比較</h1>
-      <div class="sub">損失の「地形」の上を SGD・Momentum・Adam が転がって最小へ向かう経路を比較する。地形をクリックすると開始点を変えられます</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="classify.html">決定境界</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="transformer.html">Transformer</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>勾配降下法を理解する</h1>
+  <div class="lead">学習とは<b>損失を最小にする</b>こと。損失の地形を山と谷に見立て、<b>傾き（勾配）の逆向きに少しずつ下る</b>。下の流れを<b>「次へ」で 1 ステップずつ</b>、実際の数値で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">損失地形（等高線）と降下経路</div>
-      <div class="canvas-host"><canvas id="land" width="640" height="560"></canvas></div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="c1d" width="520" height="330"></canvas>
+        <canvas id="c2d" width="520" height="380" style="display:none;"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">オプティマイザ（現在の損失）</div>
-        <div class="opt"><span class="dot" style="background:var(--sgd)"></span><span class="nm">SGD</span><span class="ls" id="lsSGD">—</span></div>
-        <div class="opt"><span class="dot" style="background:var(--mom)"></span><span class="nm">Momentum</span><span class="ls" id="lsMOM">—</span></div>
-        <div class="opt"><span class="dot" style="background:var(--adam)"></span><span class="nm">Adam</span><span class="ls" id="lsADAM">—</span></div>
-        <div class="note" style="padding:0 14px 12px;">明るい谷ほど損失が小さい。星 ★ が真の最小点。</div>
-        <div id="narrG" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">3 つの最適化法が同じ開始点から最小（★）へ。▶降下で「どれが速く谷に着くか」を観察。</div>
-      </div>
-      <div class="card">
-        <div class="cap">step</div>
-        <div class="opt"><span class="nm" style="width:auto;">経過 step</span><span class="ls" id="stepOut">0</span></div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="fnSel"><option value="bowl">L(θ)=½θ²（お椀）</option><option value="well">二重谷（局所最小あり）</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>損失関数（地形）</label>
-      <select id="fnSel">
-        <option value="bowl">楕円ボウル（凸・素直）</option>
-        <option value="rosen">Rosenbrock（細長い谷・難）</option>
-        <option value="saddle">鞍点（saddle）</option>
-        <option value="himmel">Himmelblau（複数の谷）</option>
-      </select>
+  <details>
+    <summary>もっと詳しく：学習率 η を変えるとどうなる？</summary>
+    <div class="det">
+      <div class="desc" style="margin-bottom:8px;">同じお椀を 3 つの η で同時に下らせると、歩幅の影響がよく分かります（θ の動きを重ねて表示）。</div>
+      <canvas id="c3" width="900" height="200"></canvas>
+      <div class="legend" style="margin-top:6px;"><span><i class="sw" style="background:var(--sgd)"></i>η=0.1 小さい・遅い</span><span><i class="sw" style="background:var(--warm)"></i>η=0.9 適切・速い</span><span><i class="sw" style="background:var(--neg)"></i>η=2.05 大きすぎ・発散</span></div>
+      <div style="margin-top:8px;"><button id="run3">▶ 3 つ同時に下る</button> <button id="reset3">↻</button></div>
+      <div class="desc" id="narr3" style="margin-top:8px;">▶ で 3 つのボールが同じ谷を目指します。赤（大きすぎる η）は行き過ぎて発散します。</div>
     </div>
-    <div class="field">
-      <label>学習率 <span class="val" id="lrVal"></span></label>
-      <input type="range" id="lrSlider" min="-3.2" max="-0.3" step="0.01">
-    </div>
-    <div class="field">
-      <label>速度（step/フレーム） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="12" step="1" value="1">
-    </div>
-    <div class="field" style="justify-content:flex-end;">
-      <span class="note" style="grid-column:auto;">経路が消える＝発散（学習率が大きすぎ）</span>
-    </div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ 降下</button>
-      <button id="stepBtn">⏭ 1 step</button>
-      <button id="resetBtn">↺ 開始点へ戻す</button>
-    </div>
-    <div class="note">同じ開始点・同じ学習率で 3 つの更新則を同時に走らせています。SGD は素直に勾配方向、Momentum は慣性で谷を加速、Adam は各軸の勾配履歴でステップを自動調整。数値勾配 (中心差分) で計算。</div>
-  </div>
+  </details>
 </div>
 
 <script>
 "use strict";
-/* ===== 損失関数（2D） ===== */
-const LOSSES={
-  bowl:{R:3.2, lr:0.08, f:(x,y)=>0.5*x*x+0.12*y*y, min:[0,0], start:[-2.6,2.6]},
-  rosen:{R:2.2, lr:0.002, f:(x,y)=>{const a=1-x,b=y-x*x;return (a*a+30*b*b)/30;}, min:[1,1], start:[-1.6,2.0]},
-  saddle:{R:2.6, lr:0.03, f:(x,y)=>x*x-0.6*y*y+0.5, min:null, start:[0.0,0.05]},
-  himmel:{R:5.0, lr:0.006, f:(x,y)=>{const a=x*x+y-11,b=x+y*y-7;return (a*a+b*b)/40;}, min:[3,2], start:[-0.2,0.1]},
-};
-let cur=LOSSES.bowl, R=cur.R, start=[...cur.start];
-function grad(f,x,y){const h=1e-4;return [ (f(x+h,y)-f(x-h,y))/(2*h), (f(x,y+h)-f(x,y-h))/(2*h) ];}
-
-/* ===== オプティマイザ ===== */
-function mkOpts(){return [
-  {key:'SGD',color:getCSS('--sgd'),pos:[...start],path:[[...start]],dead:false},
-  {key:'MOM',color:getCSS('--mom'),pos:[...start],vel:[0,0],path:[[...start]],dead:false},
-  {key:'ADAM',color:getCSS('--adam'),pos:[...start],m:[0,0],v:[0,0],t:0,path:[[...start]],dead:false},
-];}
-let opts=[], steps=0, running=false;
-function stepOpt(o,lr,f){
-  if(o.dead)return;
-  const g=grad(f,o.pos[0],o.pos[1]);
-  if(o.key==='SGD'){for(let i=0;i<2;i++)o.pos[i]-=lr*g[i];}
-  else if(o.key==='MOM'){for(let i=0;i<2;i++){o.vel[i]=0.9*o.vel[i]-lr*g[i];o.pos[i]+=o.vel[i];}}
-  else{o.t++;const b1=0.9,b2=0.999;for(let i=0;i<2;i++){o.m[i]=b1*o.m[i]+(1-b1)*g[i];o.v[i]=b2*o.v[i]+(1-b2)*g[i]*g[i];const mh=o.m[i]/(1-Math.pow(b1,o.t)),vh=o.v[i]/(1-Math.pow(b2,o.t));o.pos[i]-=lr*mh/(Math.sqrt(vh)+1e-8);}}
-  // 発散判定
-  if(!isFinite(o.pos[0])||!isFinite(o.pos[1])||Math.abs(o.pos[0])>R*1.6||Math.abs(o.pos[1])>R*1.6){o.dead=true;return;}
-  o.path.push([o.pos[0],o.pos[1]]);if(o.path.length>1200)o.path.shift();
-}
-
-/* ===== Canvas / 背景キャッシュ ===== */
-const land=document.getElementById('land'),ctx=land.getContext('2d');
-const W=land.width,H=land.height;
-const bg=document.createElement('canvas');bg.width=W;bg.height=H;const bgx=bg.getContext('2d');
-const xToPx=x=>(x+R)/(2*R)*W, yToPx=y=>(R-y)/(2*R)*H;
-const pxToX=px=>px/W*2*R-R, pyToY=py=>R-py/H*2*R;
-
-function renderBG(){
-  const f=cur.f, res=90, cw=W/res, ch=H/res;
-  let lo=Infinity,hi=-Infinity;const vals=[];
-  for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){const x=pxToX((gx+0.5)*cw),y=pyToY((gy+0.5)*ch);const v=Math.log(1+Math.max(0,f(x,y)));vals.push(v);if(v<lo)lo=v;if(v>hi)hi=v;}
-  let idx=0;
-  for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){const t=(vals[idx++]-lo)/(hi-lo+1e-9);
-    // 谷(小)=明るいteal, 山(大)=暗い
-    const b=1-t;const r=Math.round(14+(57-14)*b),g=Math.round(19+(224-19)*b*0.9),bl=Math.round(27+(196-27)*b*0.85);
-    bgx.fillStyle=`rgb(${r},${g},${bl})`;bgx.fillRect(gx*cw,gy*ch,cw+1,ch+1);}
-  // 等高線（log レベル）
-  bgx.strokeStyle='rgba(12,16,22,0.35)';bgx.lineWidth=1;
-  const levels=8;
-  for(let L=1;L<levels;L++){const lev=lo+(hi-lo)*L/levels;
-    for(let gy=0;gy<res-1;gy++)for(let gx=0;gx<res-1;gx++){
-      const i=gy*res+gx,a=vals[i],bb=vals[i+1],cc=vals[i+res];
-      if((a-lev)*(bb-lev)<0){bgx.fillStyle='rgba(12,16,22,0.4)';bgx.fillRect((gx+0.5)*cw,gy*ch,1.2,ch);}
-      if((a-lev)*(cc-lev)<0){bgx.fillStyle='rgba(12,16,22,0.4)';bgx.fillRect(gx*cw,(gy+0.5)*ch,cw,1.2);}
-    }}
-  // 最小点
-  if(cur.min){bgx.fillStyle='#fff';bgx.font='20px serif';bgx.textAlign='center';bgx.textBaseline='middle';bgx.fillText('★',xToPx(cur.min[0]),yToPx(cur.min[1]));}
-}
-
-function draw(){
-  ctx.drawImage(bg,0,0);
-  for(const o of opts){
-    // 経路
-    ctx.strokeStyle=o.color;ctx.lineWidth=2;ctx.globalAlpha=o.dead?0.35:0.95;ctx.beginPath();
-    o.path.forEach((p,i)=>{const px=xToPx(p[0]),py=yToPx(p[1]);i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();
-    // 現在地のボール
-    if(!o.dead){const px=xToPx(o.pos[0]),py=yToPx(o.pos[1]);ctx.beginPath();ctx.arc(px,py,5.5,0,7);ctx.fillStyle=o.color;
-      ctx.shadowColor=o.color;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1.5;ctx.strokeStyle='rgba(12,16,22,0.9)';ctx.stroke();}
-    ctx.globalAlpha=1;
-  }
-}
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const f2=v=>(v>=0?' ':'')+v.toFixed(2),f3=v=>(v>=0?' ':'')+v.toFixed(3);
 
-function updateReadout(){
-  const f=cur.f;const m={SGD:'lsSGD',MOM:'lsMOM',ADAM:'lsADAM'};
-  for(const o of opts){const el=document.getElementById(m[o.key]);el.textContent=o.dead?'発散':f(o.pos[0],o.pos[1]).toFixed(4);}
-  document.getElementById('stepOut').textContent=steps.toLocaleString();
-  const el=document.getElementById('narrG');if(el){const nm={SGD:'SGD',MOM:'Momentum',ADAM:'Adam'};
-    let best=null,bv=Infinity,dead=[];for(const o of opts){if(o.dead){dead.push(nm[o.key]);continue;}const v=f(o.pos[0],o.pos[1]);if(v<bv){bv=v;best=o;}}
-    if(steps===0)el.innerHTML='3 つの最適化法が同じ開始点から最小（★）へ。▶降下で「どれが速く谷に着くか」を観察。';
-    else{let msg='step '+steps+'：今は <b>'+(best?nm[best.key]:'—')+'</b> が最小に最も近い（損失 '+bv.toFixed(3)+'）。各ボールは勾配 ∂L を下っています。';
-      if(dead.length)msg+=' <span style="color:var(--neg)">'+dead.join('・')+' は発散</span>（学習率が大きすぎ）。';
-      el.innerHTML=msg;}}
+const F1={
+  bowl:{f:t=>0.5*t*t,d:t=>t,lo:-3,hi:3,ylo:0,yhi:4.6,start:-2.6,eta:0.35},
+  well:{f:t=>0.08*t*t*t*t-0.7*t*t+0.1*t+1.6,d:t=>0.32*t*t*t-1.4*t+0.1,lo:-3.2,hi:3.2,ylo:0,yhi:3.2,start:-2.9,eta:0.12},
+};
+const STEPS=[
+  {key:'goal',t:'問題',c:'var(--accent)'},
+  {key:'grad',t:'勾配',c:'var(--loss)'},
+  {key:'step',t:'一歩',c:'var(--accent)'},
+  {key:'iter',t:'反復',c:'var(--accent)'},
+  {key:'smart',t:'賢く',c:'var(--upd)'},
+];
+let cur='bowl',theta=F1.bowl.start,prevTheta=null,iterN=0,stepIdx=0,anim=false,auto=false;
+
+/* ===== 1D 描画 ===== */
+const c1=document.getElementById('c1d'),x1=c1.getContext('2d'),CW1=c1.width,CH1=c1.height;
+function P1(){const F=F1[cur],pad=38;return{xToP:t=>pad+(CW1-2*pad)*(t-F.lo)/(F.hi-F.lo),yToP:y=>CH1-26-(CH1-50)*(y-F.ylo)/(F.yhi-F.ylo)};}
+function draw1(showTan,showArrow){const F=F1[cur],{xToP,yToP}=P1();x1.clearRect(0,0,CW1,CH1);
+  x1.strokeStyle=getCSS('--grid');x1.lineWidth=1;x1.beginPath();x1.moveTo(38,yToP(F.ylo));x1.lineTo(CW1-38,yToP(F.ylo));x1.stroke();
+  x1.strokeStyle=getCSS('--true');x1.lineWidth=2.2;x1.beginPath();for(let i=0;i<=120;i++){const t=F.lo+(F.hi-F.lo)*i/120;i?x1.lineTo(xToP(t),yToP(Math.min(F.yhi,F.f(t)))):x1.moveTo(xToP(t),yToP(Math.min(F.yhi,F.f(t))));}x1.stroke();
+  const g=F.d(theta),Lv=F.f(theta);
+  if(showTan){x1.strokeStyle=getCSS('--loss');x1.lineWidth=1.8;x1.setLineDash([5,4]);const dt=0.9;x1.beginPath();x1.moveTo(xToP(theta-dt),yToP(Lv-g*dt));x1.lineTo(xToP(theta+dt),yToP(Lv+g*dt));x1.stroke();x1.setLineDash([]);}
+  if(showArrow&&prevTheta!=null){x1.strokeStyle=getCSS('--accent');x1.globalAlpha=.5;x1.lineWidth=2;x1.beginPath();x1.moveTo(xToP(prevTheta),yToP(F.f(prevTheta)));x1.lineTo(xToP(theta),yToP(F.f(theta)));x1.stroke();x1.globalAlpha=1;}
+  const bx=xToP(theta),by=yToP(Lv);x1.beginPath();x1.arc(bx,by,8,0,7);x1.fillStyle=getCSS('--accent');x1.shadowColor=getCSS('--accent');x1.shadowBlur=12;x1.fill();x1.shadowBlur=0;
+  x1.fillStyle=getCSS('--muted');x1.font='11px '+getCSS('--mono');x1.textAlign='center';x1.fillText('θ='+f2(theta),bx,by-14);
+  x1.fillStyle=getCSS('--faint');x1.fillText('θ',CW1-18,yToP(F.ylo)+15);
 }
 
-/* ===== ループ ===== */
-function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){for(const o of opts)stepOpt(o,lr,cur.f);steps++;}}
-function frame(){if(!running)return;doSteps(+spdSlider.value);draw();updateReadout();
-  if(opts.every(o=>o.dead||converged(o))){running=false;playBtn.textContent='▶ 降下';playBtn.classList.add('primary');return;}
-  requestAnimationFrame(frame);}
-function converged(o){const g=grad(cur.f,o.pos[0],o.pos[1]);return Math.hypot(g[0],g[1])<1e-3;}
-function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 降下';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+/* ===== 2D (step5) ===== */
+const c2=document.getElementById('c2d'),x2=c2.getContext('2d'),CW2=c2.width,CH2=c2.height;
+const off2=document.createElement('canvas');off2.width=CW2;off2.height=CH2;const ox2=off2.getContext('2d');
+const R2=3,f2d=(x,y)=>0.5*x*x+0.05*y*y;
+function gr2(x,y){const h=1e-4;return[(f2d(x+h,y)-f2d(x-h,y))/(2*h),(f2d(x,y+h)-f2d(x,y-h))/(2*h)];}
+const P2x=x=>14+(CW2-28)*(x+R2)/(2*R2),P2y=y=>14+(CH2-28)*(R2-y)/(2*R2);
+function renderBG2(){const G=120,cw=(CW2-28)/G,ch=(CH2-28)/G;ox2.clearRect(0,0,CW2,CH2);let mn=1e9,mx=-1e9;const v=[];
+  for(let r=0;r<G;r++){v.push([]);for(let c=0;c<G;c++){const x=(c+0.5)/G*2*R2-R2,y=R2-(r+0.5)/G*2*R2,val=f2d(x,y);v[r].push(val);mn=Math.min(mn,val);mx=Math.max(mx,val);}}
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const t=1-Math.pow((v[r][c]-mn)/(mx-mn+1e-9),0.42);ox2.fillStyle='rgb('+Math.round(10+t*36)+','+Math.round(18+t*150)+','+Math.round(28+t*135)+')';ox2.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}}
+let opts=[],run2=false,it2=0;
+function resetOpts(){opts=[{k:'SGD',c:'--sgd',p:[-2.6,2.6],v:[0,0]},{k:'Momentum',c:'--mom',p:[-2.6,2.6],v:[0,0]},{k:'Adam',c:'--adam',p:[-2.6,2.6],m:[0,0],vv:[0,0],t:0}];opts.forEach(o=>o.hist=[[...o.p]]);it2=0;}
+function stepOpt(o){const lr=0.18,g=gr2(o.p[0],o.p[1]);if(o.k==='SGD'){o.p[0]-=lr*g[0];o.p[1]-=lr*g[1];}else if(o.k==='Momentum'){o.v[0]=0.9*o.v[0]-lr*g[0];o.v[1]=0.9*o.v[1]-lr*g[1];o.p[0]+=o.v[0];o.p[1]+=o.v[1];}else{o.t++;for(let i=0;i<2;i++){o.m[i]=0.9*o.m[i]+0.1*g[i];o.vv[i]=0.999*o.vv[i]+0.001*g[i]*g[i];o.p[i]-=0.25*(o.m[i]/(1-0.9**o.t))/(Math.sqrt(o.vv[i]/(1-0.999**o.t))+1e-8);}}o.hist.push([...o.p]);if(o.hist.length>300)o.hist.shift();}
+function draw2(){x2.clearRect(0,0,CW2,CH2);x2.drawImage(off2,0,0);
+  for(const o of opts){x2.strokeStyle=getCSS(o.c);x2.lineWidth=2;x2.beginPath();o.hist.forEach((p,i)=>{i?x2.lineTo(P2x(p[0]),P2y(p[1])):x2.moveTo(P2x(p[0]),P2y(p[1]));});x2.stroke();x2.beginPath();x2.arc(P2x(o.p[0]),P2y(o.p[1]),5,0,7);x2.fillStyle=getCSS(o.c);x2.fill();}
+  x2.fillStyle=getCSS('--text');x2.font='15px sans-serif';x2.textAlign='center';x2.textBaseline='middle';x2.fillText('★',P2x(0),P2y(0));}
+function loop2(){if(!run2)return;for(let i=0;i<2;i++)opts.forEach(stepOpt);it2++;draw2();renderMini();if(it2>200){run2=false;}else requestAnimationFrame(loop2);}
 
-function reset(){setRun(false);opts=mkOpts();steps=0;draw();updateReadout();}
-function rebuild(){cur=LOSSES[fnSel.value];R=cur.R;start=[...cur.start];lrSlider.value=Math.log10(cur.lr);lbls();renderBG();reset();}
+/* ===== ステッパー/mini/legend/説明 ===== */
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),F=F1[cur],k=STEPS[stepIdx].key;
+  if(k==='smart'){m.innerHTML=opts.map(o=>'<div><span style="color:'+getCSS(o.c)+'">●</span> '+o.k+' 損失 <b>'+f2d(o.p[0],o.p[1]).toFixed(3)+'</b></div>').join('');return;}
+  m.innerHTML='<div>θ <b>'+f2(theta)+'</b></div><div class="loss">損失 L <b>'+F.f(theta).toFixed(3)+'</b></div><div>傾き ∂L/∂θ <b>'+f3(F.d(theta))+'</b></div><div>歩数 <b>'+iterN+'</b></div>';}
+function renderLegend(){const l=document.getElementById('legend'),k=STEPS[stepIdx].key;
+  if(k==='smart'){l.innerHTML='<span><i class="sw" style="background:var(--sgd)"></i>SGD</span><span><i class="sw" style="background:var(--mom)"></i>Momentum</span><span><i class="sw" style="background:var(--adam)"></i>Adam</span><span><i class="sw" style="background:var(--text)"></i>★最小</span>';}
+  else l.innerHTML='<span><i class="sw" style="background:var(--true)"></i>損失 L(θ)</span><span><i class="sw" style="background:var(--loss)"></i>接線=勾配</span><span><i class="sw" style="background:var(--accent)"></i>今の θ</span>';}
+function renderExplain(){const el=document.getElementById('explain'),F=F1[cur],k=STEPS[stepIdx].key,s=STEPS[stepIdx];el.style.setProperty('--c',s.c);
+  const g=F.d(theta),nt=theta-F.eta*g;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='goal'){h+='<h3>① 問題：谷（最小）を探す</h3><div class="eq curr">θ ← θ − <span style="color:var(--loss)">η</span> · <span style="color:var(--accent)">∂L/∂θ</span></div><div class="desc">損失 L(θ) の地形の上にボール（今の θ='+f2(theta)+'）。目標はこの<b>谷の底＝損失が最小</b>の場所。たった上の 1 式を繰り返して下ります。</div>';}
+  else if(k==='grad'){h+='<h3>② 勾配を測る</h3><div class="eq curr">∂L/∂θ = <span class="res">'+f3(g)+'</span></div><div class="desc">今の位置の<b>接線の傾き</b>（黄色の破線）。'+(g>0?'正＝右上がりなので、谷は<b>左</b>':'負＝右下がりなので、谷は<b>右</b>')+'。傾きが急なほど勾配が大きい。</div>';}
+  else if(k==='step'){h+='<h3>③ 逆向きに一歩</h3><div class="eq curr">θ ← '+f2(prevTheta!=null?prevTheta:F.start)+' − '+F.eta.toFixed(2)+'·('+f3(F.d(prevTheta!=null?prevTheta:F.start))+') = <span class="res">'+f2(theta)+'</span></div><div class="desc">勾配の<b>逆向き</b>に、学習率 η='+F.eta.toFixed(2)+' の歩幅だけ動いた。損失が '+F.f(prevTheta!=null?prevTheta:F.start).toFixed(3)+' → <b>'+F.f(theta).toFixed(3)+'</b> に下がっています。</div>';}
+  else if(k==='iter'){const conv=Math.abs(g)<0.02;h+='<h3>④ 繰り返して谷へ</h3><div class="eq curr">歩数 '+iterN+'　θ='+f2(theta)+'　傾き='+f3(g)+'</div><div class="desc">同じ 1 式をひたすら繰り返すと、傾きが緩む（谷に近づく）ほど歩幅も自然に小さくなり、'+(conv?'<b>傾き≈0 ＝ 谷の底に到達</b>（収束）。':'谷へ吸い込まれていきます。')+(cur==='well'?' ※二重谷では、出発点しだいで<b>手前の谷（局所最小）</b>に落ちることも。':'')+'</div>';}
+  else{h+='<h3>⑤ 賢い下り方（2 次元）</h3><div class="desc">重みが 2 つなら勾配はベクトル。素朴な <b style="color:var(--sgd)">SGD</b> は平らな方向で遅い。<b style="color:var(--mom)">Momentum</b> は慣性で加速、<b style="color:var(--adam)">Adam</b> は軸ごとに歩幅を自動調整して速く ★ へ。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・勾配＝坂の傾き、逆向き（−）に進めば損失が減る<br>・η は歩幅：小さい＝遅い、大きすぎ＝発散（下の詳細）<br>・Momentum/Adam は勾配の履歴を使う工夫</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);
+  const k=STEPS[stepIdx].key;c1.style.display=(k==='smart')?'none':'block';c2.style.display=(k==='smart')?'block':'none';}
 
-/* ===== UI ===== */
-const fnSel=document.getElementById('fnSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),playBtn=document.getElementById('playBtn');
-const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
-function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(4);spdVal.textContent=spdSlider.value;}
-land.addEventListener('click',e=>{const rect=land.getBoundingClientRect();const px=(e.clientX-rect.left)*(W/rect.width),py=(e.clientY-rect.top)*(H/rect.height);
-  start=[pxToX(px),pyToY(py)];reset();});
-fnSel.onchange=rebuild;
-lrSlider.oninput=lbls;spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);doSteps(1);draw();updateReadout();};
+/* ===== 進行 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));run2=false;const k=STEPS[i].key;stepIdx=i;
+  const F=F1[cur];
+  if(k==='goal'||k==='grad'){theta=F.start;prevTheta=null;iterN=0;renderAll();draw1(k==='grad',false);}
+  else if(k==='step'){prevTheta=F.start;theta=F.start-F.eta*F.d(F.start);iterN=1;renderAll();animStep(F.start,theta);}
+  else if(k==='iter'){theta=F.start;prevTheta=null;iterN=0;renderAll();iterDescend();}
+  else{renderAll();renderBG2();resetOpts();draw2();run2=true;requestAnimationFrame(loop2);}}
+function animStep(a,b){anim=true;let f=0,dur=26;function go(){if(!anim)return;f++;const e=Math.min(1,f/dur);theta=a+(b-a)*e;draw1(true,true);renderMini();if(e<1)requestAnimationFrame(go);else{anim=false;theta=b;draw1(true,true);renderMini();}}requestAnimationFrame(go);}
+function iterDescend(){anim=true;const F=F1[cur];function go(){if(!anim||STEPS[stepIdx].key!=='iter')return;const g=F.d(theta);prevTheta=theta;theta=Math.max(F.lo,Math.min(F.hi,theta-F.eta*g));iterN++;draw1(true,false);renderMini();renderExplain();
+  if(Math.abs(g)<0.012||iterN>200){anim=false;return;}setTimeout(()=>requestAnimationFrame(go),120);}requestAnimationFrame(go);}
+
+let autoTimer=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim||run2&&it2<60){requestAnimationFrame(wait);}else autoTimer=setTimeout(autoTick,STEPS[stepIdx].key==='iter'?600:1050);};requestAnimationFrame(wait);}else stopAuto();}
+
+function reset(){stopAuto();anim=false;run2=false;stepIdx=0;theta=F1[cur].start;prevTheta=null;iterN=0;renderAll();draw1(false,false);}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)reset();auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('fnSel').onchange=e=>{cur=e.target.value;reset();};
 
-/* ===== 起動 ===== */
-function start_(){cur=LOSSES.bowl;R=cur.R;start=[...cur.start];lrSlider.value=Math.log10(cur.lr);lbls();renderBG();reset();}
-start_();
+/* ===== 詳細: η 比較 ===== */
+const c3=document.getElementById('c3'),x3=c3.getContext('2d'),CW3=c3.width,CH3=c3.height;
+const RATES=[{lr:0.1,c:'--sgd'},{lr:0.9,c:'--warm'},{lr:2.05,c:'--neg'}];let balls3=[],run3on=false,iter3=0;
+function reset3(){balls3=RATES.map(r=>({lr:r.lr,c:r.c,t:-2.7,hist:[-2.7]}));iter3=0;draw3();}
+function draw3(){x3.clearRect(0,0,CW3,CH3);const lo=-3,hi=3,yhi=5,pad=40;const xToP=t=>pad+(CW3-2*pad)*(t-lo)/(hi-lo),yToP=y=>CH3-22-(CH3-40)*y/yhi;
+  x3.strokeStyle=getCSS('--grid');x3.beginPath();x3.moveTo(pad,yToP(0));x3.lineTo(CW3-pad,yToP(0));x3.stroke();
+  x3.strokeStyle=getCSS('--true');x3.lineWidth=2;x3.beginPath();for(let i=0;i<=120;i++){const t=lo+(hi-lo)*i/120;i?x3.lineTo(xToP(t),yToP(Math.min(yhi,0.5*t*t))):x3.moveTo(xToP(t),yToP(Math.min(yhi,0.5*t*t)));}x3.stroke();
+  for(const b of balls3){x3.strokeStyle=getCSS(b.c);x3.globalAlpha=.4;x3.lineWidth=1.2;x3.beginPath();b.hist.forEach((h,i)=>{const t=Math.max(lo,Math.min(hi,h));i?x3.lineTo(xToP(t),yToP(Math.min(yhi,0.5*h*h))):x3.moveTo(xToP(t),yToP(Math.min(yhi,0.5*h*h)));});x3.stroke();x3.globalAlpha=1;
+    const t=Math.max(lo,Math.min(hi,b.t));x3.beginPath();x3.arc(xToP(t),yToP(Math.min(yhi,0.5*b.t*b.t)),7,0,7);x3.fillStyle=getCSS(b.c);x3.fill();}}
+function step3(){for(const b of balls3){b.t=b.t-b.lr*b.t;b.hist.push(b.t);if(b.hist.length>50)b.hist.shift();}iter3++;draw3();
+  document.getElementById('narr3').innerHTML='歩数 '+iter3+'：<span style="color:var(--warm)">η=0.9</span> は谷の底付近、<span style="color:var(--sgd)">η=0.1</span> はゆっくり前進、<span style="color:var(--neg)">η=2.05</span> は'+(Math.abs(balls3[2].t)>4?'<b>発散</b>（谷から飛び出した）':'振動して外へ')+'。';}
+function loop3(){if(!run3on)return;step3();if(iter3>40||Math.abs(balls3[2].t)>8){run3on=false;document.getElementById('run3').textContent='▶ 3 つ同時に下る';return;}setTimeout(()=>requestAnimationFrame(loop3),260);}
+document.getElementById('run3').onclick=()=>{if(iter3>30||Math.abs(balls3[2].t)>8)reset3();run3on=!run3on;document.getElementById('run3').textContent=run3on?'⏸ 停止':'▶ 3 つ同時に下る';if(run3on)loop3();};
+document.getElementById('reset3').onclick=()=>{run3on=false;document.getElementById('run3').textContent='▶ 3 つ同時に下る';reset3();};
+
+reset();reset3();
 </script>
 <script src="nav.js"></script>
 </body>
