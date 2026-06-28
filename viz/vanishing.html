@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勾配消失問題（活性化関数と深さ）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:740px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:380px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .vn b{color:var(--neg);} .mini .ok b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>勾配消失問題（活性化関数と深さ）を理解する</h1>
+  <div class="lead">層を深くするほど表現力は増すのに、昔の深いネットは<b>うまく学習できなかった</b>。逆伝播で勾配は各層の微分を<b>掛け算</b>していくため、微分が 1 より小さいと<b>入力側の層へ届く頃には指数的に消える</b>＝勾配消失。これを <b>ReLU</b> が大きく緩和し、深層学習を実用化した。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="380" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 別の初期値</button>
+      <span class="spacer"></span>
+      <select id="actSel"><option value="sigmoid">sigmoid</option><option value="tanh">tanh</option><option value="relu">ReLU</option></select>
+      <select id="depthSel"><option value="6">6層</option><option value="10" selected>10層</option><option value="14">14層</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：なぜ ReLU が効く・初期化・残差接続・勾配爆発</summary>
+    <div class="det"><b>なぜ消えるか</b>：逆伝播の勾配 ∝ Π(各層の活性化の微分 × 重み)。sigmoid の微分は<b>最大 0.25</b>（飽和域でほぼ 0）、tanh は最大 1 でも飽和で 0。1 未満を何層も掛ければ指数的に 0 へ。<b>ReLU の微分は 0 か 1</b> なので、活性なら勾配をそのまま通し消えにくい（ただし「死んだ ReLU」問題はある→Leaky ReLU 等）。対策は他にも、適切な<b>初期化</b>（He/Xavier）、<b>バッチ正規化</b>、そして<b>残差接続（ResNet）</b>＝勾配の近道で、超深層を可能にしました。逆に微分や重みが大きいと<b>勾配爆発</b>（勾配クリッピングで対処）。RNN の長期依存が難しいのも同じ理由（<a href="rnn.html">RNN</a>→LSTM/GRU）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=42;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const WD=6;
+const FN={sigmoid:z=>1/(1+Math.exp(-z)),tanh:z=>Math.tanh(z),relu:z=>z>0?z:0};
+const DER={sigmoid:a=>a*(1-a),tanh:a=>1-a*a,relu:a=>a>0?1:0};
+let Ln=10,act='sigmoid',gnorm=[];
+function compute(){const fn=FN[act],der=DER[act],sc=act==='relu'?Math.sqrt(2/WD):Math.sqrt(1/WD);
+  const W=[null],B=[null];for(let l=1;l<=Ln;l++){W[l]=Array.from({length:WD},()=>Array.from({length:WD},()=>randn()*sc));B[l]=new Array(WD).fill(0);}
+  let a=[Array.from({length:WD},()=>randn()*0.5)];for(let l=1;l<=Ln;l++){const al=[];for(let j=0;j<WD;j++){let s=B[l][j];for(let k=0;k<WD;k++)s+=W[l][j][k]*a[l-1][k];al.push(fn(s));}a.push(al);}
+  let d=a[Ln].map(()=>1);gnorm=new Array(Ln+1).fill(0);
+  for(let l=Ln;l>=1;l--){const dz=d.map((dd,j)=>dd*der(a[l][j]));let n=0;for(let j=0;j<WD;j++)for(let k=0;k<WD;k++)n+=(dz[j]*a[l-1][k])**2;gnorm[l]=Math.sqrt(n)+1e-30;const dp=new Array(WD).fill(0);for(let k=0;k<WD;k++){let s=0;for(let j=0;j<WD;j++)s+=W[l][j][k]*dz[j];dp[k]=s;}d=dp;}}
+function ratio(){return gnorm[1]/gnorm[Ln];}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function drawActDeriv(){ctx.clearRect(0,0,CW,CH);const fn=FN[act],der=DER[act];const x0=40,x1=CW-20,y0=30,y1=CH-40,mx=(x0+x1)/2,my=(y0+y1)/2;
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,my);ctx.lineTo(x1,my);ctx.moveTo(mx,y0);ctx.lineTo(mx,y1);ctx.stroke();
+  const sx=z=>mx+z/5*(x1-x0)/2,sy=v=>my-v*(y1-y0)/2.4;
+  // f(z)
+  ctx.strokeStyle=getCSS('--muted');ctx.lineWidth=1.8;ctx.beginPath();for(let i=0;i<=120;i++){const z=-5+10*i/120,a=fn(z);i?ctx.lineTo(sx(z),sy(a)):ctx.moveTo(sx(z),sy(a));}ctx.stroke();
+  // f'(z)
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.4;ctx.beginPath();for(let i=0;i<=120;i++){const z=-5+10*i/120,a=fn(z),d=der(a);i?ctx.lineTo(sx(z),sy(d)):ctx.moveTo(sx(z),sy(d));}ctx.stroke();
+  ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('f(z) = '+act,x0,y0-10);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('f′(z)（微分）',x0,y0+8);
+  let maxD=0;for(let i=0;i<=200;i++){const z=-5+10*i/200,d=der(fn(z));if(d>maxD)maxD=d;}
+  ctx.fillStyle=getCSS('--loss');ctx.textAlign='right';ctx.fillText('微分の最大 = '+maxD.toFixed(2),x1,y1+24);}
+function drawBars(){ctx.clearRect(0,0,CW,CH);const x0=42,x1=CW-14,y0=24,y1=CH-46,bw=(x1-x0)/Ln;
+  const logMin=-9,logMax=1;const sy=g=>{const lg=Math.max(logMin,Math.min(logMax,Math.log10(g)));return y1-(lg-logMin)/(logMax-logMin)*(y1-y0);};
+  // gridlines (powers of 10)
+  ctx.strokeStyle=getCSS('--grid');ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.lineWidth=1;
+  for(let e=logMax;e>=logMin;e-=2){const y=sy(Math.pow(10,e));ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.fillText('1e'+e,x0-3,y+3);}
+  for(let l=1;l<=Ln;l++){const g=gnorm[l],x=x0+(l-1)*bw,h=y1-sy(g);const tiny=g<1e-3;
+    ctx.fillStyle=tiny?'rgba(240,111,126,0.85)':(g<0.05?'rgba(240,176,58,0.85)':'rgba(57,224,196,0.85)');
+    ctx.fillRect(x+bw*0.16,sy(g),bw*0.68,Math.max(1,h));}
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('← 入力側の層',x0+bw*1.4,CH-26);ctx.fillText('出力側 →',x1-bw*1.2,CH-26);
+  ctx.fillText('各層の勾配の大きさ（対数目盛）',CW/2,CH-8);}
+function draw(){const k=STEPS[stepIdx].key;if(k==='deriv')drawActDeriv();else drawBars();}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'deriv',t:'活性化の微分',c:'var(--upd)'},{key:'chain',t:'連鎖律で掛け算',c:'var(--neg)'},{key:'bars',t:'層ごとの勾配',c:'var(--loss)'},{key:'relu',t:'ReLUで解決',c:'var(--accent)'}];
+let stepIdx=0;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='deriv'){const der=DER[act];let mx=0;for(let i=0;i<=200;i++){const z=-5+10*i/200,d=der(FN[act](z));if(d>mx)mx=d;}m.innerHTML='<div>活性化 <b>'+act+'</b></div><div>微分の最大 <b>'+mx.toFixed(2)+'</b></div>';return;}const r=ratio();m.innerHTML='<div>活性化 <b>'+act+'</b></div><div>深さ <b>'+Ln+'</b></div>'+(act==='relu'?'<div class="ok">入力側/出力側 <b>'+r.toExponential(1)+'</b></div>':'<div class="vn">入力側/出力側 <b>'+r.toExponential(1)+'</b></div>');}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='deriv')?'灰=f(z), 緑=f′(z)（微分）':'バー=各層の勾配の大きさ(対数), 緑=健全/橙=小/赤=ほぼ消失';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const r=ratio();let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：深いと学習できない</h3><div class="desc">層を深くすると表現力は上がるはずなのに、2010 年代前半まで<b>深いネットはうまく学習できません</b>でした。とくに<b>入力に近い層の重みがほとんど更新されない</b>。原因は逆伝播で勾配が消えてしまうこと。右下で活性化関数と深さを変えられます。</div>';}
+  else if(k==='deriv'){const der=DER[act];let mx=0;for(let i=0;i<=200;i++){const z=-5+10*i/200,d=der(FN[act](z));if(d>mx)mx=d;}h+='<h3>② 活性化関数の微分</h3><div class="eq curr">勾配には各層で <b>f′(z)</b> が掛かる</div><div class="desc"><b>'+act+'</b> の関数（灰）とその微分（緑）。微分の<b>最大が '+mx.toFixed(2)+'</b>'+(act==='sigmoid'?'（sigmoid は最大 0.25！）':act==='tanh'?'（tanh は中央で 1、両端で 0）':'（ReLU は 0 か 1）')+'。'+(act!=='relu'?'入力が大きいと<b>飽和</b>して微分がほぼ 0 になります。':'飽和せず、活性な所は微分 1 のまま。')+' 右下で活性化を切り替えて比べて。</div>';}
+  else if(k==='chain'){h+='<h3>③ 連鎖律で掛け算される</h3><div class="eq curr">勾配(第l層) ∝ f′(z_L)·…·f′(z_{l+1}) × 重み</div><div class="desc">逆伝播は出力側から入力側へ、各層の微分を<b>次々に掛け算</b>します。1 つ 1 つが 1 未満なら、'+Ln+' 回も掛けるうちに<b>指数的に小さく</b>なる——これが入力側の層で勾配が消える理由。次のステップで各層の勾配を見ます。</div>';}
+  else if(k==='bars'){h+='<h3>④ 層ごとの勾配を見る</h3><div class="desc">各層に届いた勾配の大きさ（対数目盛）。<b>'+act+'</b>・'+Ln+' 層では、出力側（右）は健全でも<b>入力側（左）へ行くほど'+(act==='relu'?'ほぼ一定で保たれます':'急激に小さく')+'</b>。入力側/出力側の比は <b>'+r.toExponential(1)+'</b>'+(r<0.01?'＝ほぼ消失（赤いバー）':'')+'。右下で sigmoid と ReLU を切り替えて違いを。</div>';}
+  else{compute();const rs=ratio();h+='<h3>⑤ ReLU で解決</h3><div class="desc"><b>ReLU の微分は 0 か 1</b>。活性なニューロンは勾配を<b>そのまま素通し</b>するので、深くても消えにくい（入力側/出力側の比 '+rs.toExponential(1)+' ≒ 1）。これが深層学習をブレイクさせた一因です。さらに<b>適切な初期化・バッチ正規化・残差接続</b>で超深層も学習可能に（折りたたみ参照）。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・勾配は各層の微分の掛け算<br>・微分&lt;1 を多層で掛ける→指数的に消失<br>・ReLU(微分0/1)で素通し→深層が学習可能</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;if(STEPS[i].key==='relu'){act='relu';document.getElementById('actSel').value='relu';compute();}renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>{seed=42+(Math.floor(rng()*900));compute();renderAll();draw();};
+document.getElementById('actSel').onchange=e=>{act=e.target.value;compute();renderAll();draw();};
+document.getElementById('depthSel').onchange=e=>{Ln=+e.target.value;compute();renderAll();draw();};
+compute();renderAll();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
