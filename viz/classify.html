@@ -3,278 +3,172 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>決定境界の学習 — 2分類ビューア</title>
+<title>決定境界の学習（分類）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --c0:#39e0c4; --c1:#d4a36a;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .grid{display:grid;grid-template-columns:1fr 330px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
-  .side{display:flex;flex-direction:column;gap:14px;}
-  .readout{display:flex;gap:24px;font-family:var(--mono);padding:4px 14px 12px;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.loss{color:var(--loss);} .readout .v.acc{color:var(--accent);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .acc b{color:var(--accent);} .mini .loss b{color:var(--loss);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin-top:8px;align-self:flex-start;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;} .sw{width:10px;height:10px;border-radius:50%;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:13.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .eq .num{color:var(--accent);} .eq .res{color:var(--c,var(--accent));font-weight:700;}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .pbar{height:14px;border-radius:3px;margin:3px 0;}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
-  .legend{display:flex;gap:16px;padding:0 14px 12px;font-size:12px;color:var(--muted);}
-  .legend span{display:inline-flex;align-items:center;gap:7px;}
-  .dotmark{width:10px;height:10px;border-radius:50%;}
-  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>決定境界の学習 — 2分類ビューア</h1>
-      <div class="sub">点群を 2 クラスに分けるニューラルネットの「決定境界（背景の色分け）」が、学習でリアルタイムに形成されていく様子を観察する</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="cnn.html">CNN</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="transformer.html">Transformer</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>分類と「決定境界」を理解する</h1>
+  <div class="lead">2 種類の点を分ける<b>境界</b>を、学習で見つける。各点の<b>クラス確率</b>を出し（softmax）、外れたら<b>誤差を逆伝播</b>して境界を動かす。隠れ層があると境界は<b>曲線</b>にもなる。下の流れを「次へ」で追ってください。</div>
 
-  <div class="grid">
-    <div class="card">
-      <div class="cap">決定境界とデータ点</div>
-      <div class="canvas-host"><canvas id="board" width="600" height="600"></canvas></div>
-      <div class="legend">
-        <span><i class="dotmark" style="background:var(--accent)"></i>クラス A</span>
-        <span><i class="dotmark" style="background:var(--warm)"></i>クラス B</span>
-        <span>背景＝モデルが思う各点のクラス（濃いほど確信）</span>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
       </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="side">
-      <div class="card">
-        <div class="cap">指標</div>
-        <div class="readout">
-          <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
-          <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
-          <div><div class="k">accuracy</div><div class="v acc" id="accOut">—</div></div>
-        </div>
-        <div id="narrC" style="padding:0 14px 12px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶学習を押すと、背景の決定境界がデータの 2 クラスを分けるよう形成されていきます。</div>
-      </div>
-      <div class="card">
-        <div class="cap">loss の推移（対数）</div>
-        <div class="canvas-host"><canvas id="lossC" width="330" height="170"></canvas></div>
-      </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="moons">データ: 三日月</option><option value="circle">円の内外</option><option value="xor">市松 XOR</option><option value="spiral">渦巻き</option><option value="blobs">2 つの塊</option></select>
     </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>データセット</label>
-      <select id="dataSel">
-        <option value="circle">同心円（内 vs 外）</option>
-        <option value="moons">二日月（moons）</option>
-        <option value="spiral">渦巻き（2 本）</option>
-        <option value="xor">XOR（市松）</option>
-        <option value="blobs">2 つの塊（線形分離可）</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>活性化関数</label>
-      <select id="actSel"><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sigmoid">sigmoid</option></select>
-    </div>
-    <div class="field">
-      <label>隠れ層の数</label>
-      <select id="depthSel"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select>
-    </div>
-    <div class="field">
-      <label>各層のユニット数</label>
-      <select id="widthSel"><option value="6">6</option><option value="10">10</option><option value="16" selected>16</option><option value="24">24</option></select>
-    </div>
-    <div class="field">
-      <label>学習率 <span class="val" id="lrVal"></span></label>
-      <input type="range" id="lrSlider" min="-3" max="-0.5" step="0.01">
-    </div>
-    <div class="field">
-      <label>ノイズ <span class="val" id="noiseVal"></span></label>
-      <input type="range" id="noiseSlider" min="0" max="0.35" step="0.01" value="0.12">
-    </div>
-    <div class="field">
-      <label>速度（epoch/フレーム） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="15" step="1" value="3">
-    </div>
-    <div class="field" style="justify-content:flex-end;">
-      <span class="note" style="grid-column:auto;">背景は数 epoch ごとに更新</span>
-    </div>
-
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ 学習</button>
-      <button id="stepBtn">⏭ 1 epoch</button>
-      <button id="resetBtn">↺ 重みリセット</button>
-      <button id="dataBtn">🎲 データ再生成</button>
-    </div>
-    <div class="note">2 入力 → 隠れ層 → 2 クラス（softmax）。損失は交差エントロピー、最適化は Adam。順伝播・誤差逆伝播は素の JavaScript 実装。決定境界は平面の各点をモデルに通して描いています。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：なぜ隠れ層で「曲線」の境界が引けるのか</summary>
+    <div class="det">隠れ層のない（線形）モデルが引けるのは<b>直線</b>の境界だけ。三日月・円・渦巻きのように直線で分けられないデータは解けません。隠れ層は入力を非線形（tanh など）に変換し、その空間で直線を引く＝元の空間では<b>曲がった境界</b>になります。層を増やすほど複雑な境界を表現できます（が、増やしすぎると過学習）。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-let rng=mulberry32(42);
-function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-function actFn(n,z){if(n==='tanh')return Math.tanh(z);if(n==='relu')return z>0?z:0;return 1/(1+Math.exp(-z));}
-function actDeriv(n,z,a){if(n==='tanh')return 1-a*a;if(n==='relu')return z>0?1:0;return a*(1-a);}
-
-/* ===== MLP（2入力→…→2クラス softmax, CE, Adam） ===== */
-class MLP{
-  constructor(sizes,act){this.sizes=sizes;this.L=sizes.length-1;this.act=act;this.W=[null];this.b=[null];
-    for(let l=1;l<=this.L;l++){const nIn=sizes[l-1],nOut=sizes[l];const s=act==='relu'?Math.sqrt(2/nIn):Math.sqrt(1/nIn);
-      const Wl=[];for(let j=0;j<nOut;j++){const r=new Float64Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s;Wl.push(r);}this.W[l]=Wl;this.b[l]=new Float64Array(nOut);}
-    this.initOpt();}
-  initOpt(){this.mW=[null];this.vW=[null];this.mB=[null];this.vB=[null];this.t=0;
-    for(let l=1;l<=this.L;l++){const nIn=this.sizes[l-1],nOut=this.sizes[l];const mW=[],vW=[];
-      for(let j=0;j<nOut;j++){mW.push(new Float64Array(nIn));vW.push(new Float64Array(nIn));}
-      this.mW[l]=mW;this.vW[l]=vW;this.mB[l]=new Float64Array(nOut);this.vB[l]=new Float64Array(nOut);}}
-  forward(x){const a=[x],z=[null];
-    for(let l=1;l<=this.L;l++){const nOut=this.sizes[l],nIn=this.sizes[l-1],zl=new Float64Array(nOut),al=new Float64Array(nOut),Wl=this.W[l],bl=this.b[l],ap=a[l-1];
-      for(let j=0;j<nOut;j++){let s=bl[j],Wj=Wl[j];for(let k=0;k<nIn;k++)s+=Wj[k]*ap[k];zl[j]=s;al[j]=(l===this.L)?s:actFn(this.act,s);}
-      z[l]=zl;a[l]=al;}return{a,z};}
-  proba(x){const{a}=this.forward(x);return softmax(a[this.L]);}
-  trainStep(X,Y,lr){const L=this.L,N=X.length;const dW=[null],db=[null];
-    for(let l=1;l<=L;l++){const g=[];for(let j=0;j<this.sizes[l];j++)g.push(new Float64Array(this.sizes[l-1]));dW[l]=g;db[l]=new Float64Array(this.sizes[l]);}
-    let loss=0;
-    for(let n=0;n<N;n++){const{a,z}=this.forward(X[n]);const p=softmax(a[L]);const y=Y[n];
-      loss+=-Math.log(Math.max(p[y],1e-12));
-      let delta=new Float64Array(this.sizes[L]);for(let j=0;j<this.sizes[L];j++)delta[j]=p[j]-(j===y?1:0);
-      for(let l=L;l>=1;l--){const nOut=this.sizes[l],nIn=this.sizes[l-1],ap=a[l-1];
-        for(let j=0;j<nOut;j++){const dj=delta[j];db[l][j]+=dj;const row=dW[l][j];for(let k=0;k<nIn;k++)row[k]+=dj*ap[k];}
-        if(l>1){const dp=new Float64Array(nIn);for(let k=0;k<nIn;k++){let s=0;for(let j=0;j<nOut;j++)s+=this.W[l][j][k]*delta[j];dp[k]=s*actDeriv(this.act,z[l-1][k],a[l-1][k]);}delta=dp;}}}
-    loss/=N;const invN=1/N;this.t++;const b1=0.9,b2=0.999,eps=1e-8,bc1=1-Math.pow(b1,this.t),bc2=1-Math.pow(b2,this.t);
-    for(let l=1;l<=L;l++){const nOut=this.sizes[l],nIn=this.sizes[l-1];
-      for(let j=0;j<nOut;j++){let gb=db[l][j]*invN;this.mB[l][j]=b1*this.mB[l][j]+(1-b1)*gb;this.vB[l][j]=b2*this.vB[l][j]+(1-b2)*gb*gb;this.b[l][j]-=lr*(this.mB[l][j]/bc1)/(Math.sqrt(this.vB[l][j]/bc2)+eps);
-        const Wj=this.W[l][j],dWj=dW[l][j],mWj=this.mW[l][j],vWj=this.vW[l][j];
-        for(let k=0;k<nIn;k++){let gw=dWj[k]*invN;mWj[k]=b1*mWj[k]+(1-b1)*gw;vWj[k]=b2*vWj[k]+(1-b2)*gw*gw;Wj[k]-=lr*(mWj[k]/bc1)/(Math.sqrt(vWj[k]/bc2)+eps);}}}
-    return loss;}
-}
-function softmax(v){let m=-Infinity;for(const x of v)if(x>m)m=x;let s=0;const o=new Float64Array(v.length);for(let i=0;i<v.length;i++){o[i]=Math.exp(v[i]-m);s+=o[i];}for(let i=0;i<v.length;i++)o[i]/=s;return o;}
-
-/* ===== データ生成（[-1,1]²） ===== */
-function genData(kind,noise){
-  const X=[],Y=[],N=220;const nz=()=>randn()*noise;
-  for(let i=0;i<N;i++){
-    const c=i%2;let x,y;
-    if(kind==='circle'){const r=c===0?0.25+0.2*rng():0.7+0.18*rng();const th=2*Math.PI*rng();x=r*Math.cos(th);y=r*Math.sin(th);}
-    else if(kind==='moons'){const th=Math.PI*rng();if(c===0){x=Math.cos(th)-0.5;y=Math.sin(th)-0.2;}else{x=Math.cos(th+Math.PI)+0.5;y=Math.sin(th+Math.PI)+0.2;}x*=0.8;y*=0.8;}
-    else if(kind==='spiral'){const t=rng();const r=0.15+0.8*t;const th=t*3.2*Math.PI+(c===0?0:Math.PI);x=r*Math.cos(th);y=r*Math.sin(th);}
-    else if(kind==='xor'){x=2*rng()-1;y=2*rng()-1;const q=(x>0?1:0)^(y>0?1:0);return_push(X,Y,x+nz(),y+nz(),q);continue;}
-    else{const cx=c===0?-0.45:0.45,cy=c===0?-0.35:0.35;x=cx+0.32*randn();y=cy+0.32*randn();}
-    X.push([x+nz(),y+nz()]);Y.push(c);
-  }
-  return{X,Y};
-}
-function return_push(X,Y,x,y,c){X.push([x,y]);Y.push(c);}
-
-/* ===== 状態 ===== */
-let net=null,data=null,epoch=0,lossHist=[],lastLoss=null,lastAcc=null,running=false,boardCtr=0;
-
-function currentSizes(){const d=+depthSel.value,w=+widthSel.value;const s=[2];for(let i=0;i<d;i++)s.push(w);s.push(2);return s;}
-function rebuildNet(){net=new MLP(currentSizes(),actSel.value);epoch=0;lossHist=[];lastLoss=null;lastAcc=null;updateReadout();drawBoard();drawLoss();}
-function regenData(){rng=mulberry32((Math.floor(rng()*1e9))>>>0);data=genData(dataSel.value,+noiseSlider.value);}
-
-/* ===== Canvas ===== */
-const board=document.getElementById('board'),bctx=board.getContext('2d');
-const lossC=document.getElementById('lossC'),lctx=lossC.getContext('2d');
-const BW=board.width,BH=board.height;
-const toPx=(x)=>(x+1)/2*BW, toPy=(y)=>(1-(y+1)/2)*BH;
-
-function drawBoard(){
-  bctx.clearRect(0,0,BW,BH);
-  // 決定境界（背景）
-  const res=46,cw=BW/res,ch=BH/res;
-  for(let gy=0;gy<res;gy++)for(let gx=0;gx<res;gx++){
-    const x=(gx+0.5)/res*2-1, y=1-(gy+0.5)/res*2;
-    const p=net.proba([x,y]);const pa=p[0];
-    const r=Math.round(212+(57-212)*pa), g=Math.round(163+(224-163)*pa), b=Math.round(106+(196-106)*pa);
-    const conf=Math.abs(pa-0.5)*2;bctx.fillStyle=`rgba(${r},${g},${b},${0.15+0.45*conf})`;
-    bctx.fillRect(gx*cw,gy*ch,cw+1,ch+1);
-  }
-  // 境界線（p=0.5付近）薄く
-  // データ点
-  for(let i=0;i<data.X.length;i++){const[x,y]=data.X[i];const px=toPx(x),py=toPy(y);
-    bctx.beginPath();bctx.arc(px,py,4.5,0,7);bctx.fillStyle=data.Y[i]===0?getCSS('--accent'):getCSS('--warm');
-    bctx.fill();bctx.lineWidth=1.2;bctx.strokeStyle='rgba(12,16,22,0.9)';bctx.stroke();}
-}
-function drawLoss(){
-  const W=lossC.width,H=lossC.height;lctx.clearRect(0,0,W,H);const pad=30;
-  if(lossHist.length<2){lctx.fillStyle=getCSS('--faint');lctx.font='12px '+getCSS('--gothic');lctx.textAlign='center';lctx.fillText('学習すると表示されます',W/2,H/2);return;}
-  const logs=lossHist.map(v=>Math.log10(Math.max(v,1e-6)));let hi=Math.ceil(Math.max(...logs)),lo=Math.floor(Math.min(...logs));if(hi-lo<1)lo=hi-1;
-  const xToP=i=>pad+(W-pad-8)*i/(lossHist.length-1),yToP=v=>8+(H-pad-8)*(hi-v)/(hi-lo);
-  lctx.strokeStyle=getCSS('--grid');lctx.lineWidth=1;lctx.fillStyle=getCSS('--faint');lctx.font='9px '+getCSS('--mono');lctx.textAlign='right';
-  for(let e=lo;e<=hi;e++){const py=yToP(e);lctx.beginPath();lctx.moveTo(pad,py);lctx.lineTo(W-8,py);lctx.stroke();lctx.fillText('1e'+e,pad-4,py+3);}
-  lctx.strokeStyle=getCSS('--loss');lctx.lineWidth=2;lctx.beginPath();const st=Math.max(1,Math.floor(lossHist.length/(W-pad)));
-  for(let i=0;i<lossHist.length;i+=st){const px=xToP(i),py=yToP(logs[i]);i?lctx.lineTo(px,py):lctx.moveTo(px,py);}
-  lctx.lineTo(xToP(lossHist.length-1),yToP(logs[logs.length-1]));lctx.stroke();
-}
+let seed=7;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const sizes=[2,12,12,2],L=3;let W,B,mW,vW,mB,vB,tA;
+function build(){seed=7;W=[null];B=[null];mW=[null];vW=[null];mB=[null];vB=[null];for(let l=1;l<=L;l++){const nI=sizes[l-1],nO=sizes[l],s=Math.sqrt(1/nI);const Wl=[],m=[],v=[];for(let j=0;j<nO;j++){const r=[],mm=[],vv=[];for(let k=0;k<nI;k++){r.push(randn()*s);mm.push(0);vv.push(0);}Wl.push(r);m.push(mm);v.push(vv);}W[l]=Wl;mW[l]=m;vW[l]=v;B[l]=Array(nO).fill(0);mB[l]=Array(nO).fill(0);vB[l]=Array(nO).fill(0);}tA=0;}
+const act=z=>Math.tanh(z),actD=a=>1-a*a;
+function fwd(x){const a=[x],z=[null];for(let l=1;l<=L;l++){const nO=sizes[l],nI=sizes[l-1],zl=[],al=[];for(let j=0;j<nO;j++){let s=B[l][j];for(let k=0;k<nI;k++)s+=W[l][j][k]*a[l-1][k];zl.push(s);al.push(l===L?s:act(s));}z.push(zl);a.push(al);}return{a,z};}
+function softmax2(o){const m=Math.max(o[0],o[1]),e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
+function proba(x){return softmax2(fwd(x).a[L]);}
+let data;
+function gen(){const kind=dataSel.value,X=[],Y=[],n=220;seed=7;
+  for(let i=0;i<n;i++){const c=i%2;let x,y;
+    if(kind==='moons'){const t=Math.PI*rng();if(c===0){x=Math.cos(t)-0.5;y=Math.sin(t)-0.18;}else{x=Math.cos(t+Math.PI)+0.5;y=Math.sin(t+Math.PI)+0.18;}x*=0.8;y*=0.8;x+=randn()*0.06;y+=randn()*0.06;}
+    else if(kind==='circle'){const r=c===0?0.28+0.18*rng():0.72+0.16*rng(),th=2*Math.PI*rng();x=r*Math.cos(th);y=r*Math.sin(th);}
+    else if(kind==='xor'){x=2*rng()-1;y=2*rng()-1;const q=(x>0?1:0)^(y>0?1:0);X.push([x*0.85+randn()*0.04,y*0.85+randn()*0.04]);Y.push(q);continue;}
+    else if(kind==='spiral'){const t=rng(),r=0.12+0.78*t,th=t*3.2*Math.PI+(c?0:Math.PI);x=r*Math.cos(th);y=r*Math.sin(th);}
+    else{const cx=c?0.5:-0.5,cy=c?0.35:-0.35;x=cx+0.3*randn();y=cy+0.3*randn();}
+    X.push([x,y]);Y.push(c);}
+  data={X,Y};}
+function trainStep(){const lr=0.03,N=data.X.length;const dW=[null],dB=[null];for(let l=1;l<=L;l++){const g=[];for(let j=0;j<sizes[l];j++)g.push(Array(sizes[l-1]).fill(0));dW[l]=g;dB[l]=Array(sizes[l]).fill(0);}let loss=0,ok=0;
+  for(let n=0;n<N;n++){const{a,z}=fwd(data.X[n]);const p=softmax2(a[L]),y=data.Y[n];loss+=-Math.log(p[y]+1e-9);if((p[1]>p[0]?1:0)===y)ok++;let dl=[p[0]-(y===0?1:0),p[1]-(y===1?1:0)];
+    for(let l=L;l>=1;l--){for(let j=0;j<sizes[l];j++){dB[l][j]+=dl[j];for(let k=0;k<sizes[l-1];k++)dW[l][j][k]+=dl[j]*a[l-1][k];}if(l>1){const dp=Array(sizes[l-1]).fill(0);for(let k=0;k<sizes[l-1];k++){let s=0;for(let j=0;j<sizes[l];j++)s+=W[l][j][k]*dl[j];dp[k]=s*actD(a[l-1][k]);}dl=dp;}}}
+  const iN=1/N;tA++;const b1=.9,b2=.999,bc1=1-b1**tA,bc2=1-b2**tA;for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+.1*gb;vB[l][j]=b2*vB[l][j]+.001*gb*gb;B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+1e-8);for(let k=0;k<sizes[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+.1*gw;vW[l][j][k]=b2*vW[l][j][k]+.001*gw*gw;W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+1e-8);}}
+  return{loss:loss/N,acc:ok/N};}
+let lastLoss=null,lastAcc=null,epoch=0;
+function evalLA(){let loss=0,ok=0;for(let n=0;n<data.X.length;n++){const p=proba(data.X[n]),y=data.Y[n];loss+=-Math.log(p[y]+1e-9);if((p[1]>p[0]?1:0)===y)ok++;}return{loss:loss/data.X.length,acc:ok/data.X.length};}
 
-function accuracy(){let ok=0;for(let i=0;i<data.X.length;i++){const p=net.proba(data.X[i]);const pred=p[0]>=p[1]?0:1;if(pred===data.Y[i])ok++;}return ok/data.X.length;}
-function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toFixed(3);accOut.textContent=lastAcc==null?'—':(lastAcc*100).toFixed(1)+'%';
-  const el=document.getElementById('narrC');if(el){const dn={circle:'同心円',moons:'二日月',spiral:'渦巻き',xor:'市松(XOR)',blobs:'2つの塊'}[dataSel.value]||'';
-    if(epoch===0||lastAcc==null)el.innerHTML='『'+dn+'』データ。学習前は境界がデタラメ。▶学習で誤差逆伝播により境界が 2 クラスを分離していきます。';
-    else el.innerHTML='『'+dn+'』を学習中。正答率 <b>'+(lastAcc*100).toFixed(0)+'%</b>。背景の色＝モデルが思う各点のクラス。loss が下がるほど境界がデータの形に適合（'+(lastAcc>0.97?'<span style="color:var(--accent)">ほぼ分離完了</span>':lastAcc>0.8?'分離が進行中':'まだ粗い')+'）。';}}
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const RG=1.3,toX=x=>10+(CW-20)*(x+RG)/(2*RG),toY=y=>10+(CH-20)*(RG-y)/(2*RG),fromX=px=>(px-10)/(CW-20)*2*RG-RG,fromY=py=>RG-(py-10)/(CH-20)*2*RG;
+function drawRegions(res){const G=res||50,cw=(CW-20)/G,ch=(CH-20)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const x=fromX(10+(c+0.5)*cw),y=fromY(10+(r+0.5)*ch);const p=proba([x,y]);const cl=p[1]>p[0]?1:0,conf=Math.abs(p[1]-p[0]);ctx.fillStyle=(cl?'rgba(212,163,106,':'rgba(57,224,196,')+(0.05+0.32*conf)+')';ctx.fillRect(10+c*cw,10+r*ch,cw+1,ch+1);}}
+function drawPoints(showWrong){for(let i=0;i<data.X.length;i++){const x=toX(data.X[i][0]),y=toY(data.X[i][1]),cl=data.Y[i];ctx.beginPath();ctx.arc(x,y,3.4,0,7);ctx.fillStyle=cl?getCSS('--c1'):getCSS('--c0');ctx.fill();
+  if(showWrong){const p=proba(data.X[i]);if((p[1]>p[0]?1:0)!==cl){ctx.lineWidth=2;ctx.strokeStyle=getCSS('--neg');ctx.stroke();}else{ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+  else{ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}}
+let exIdx=0;
+function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
+  if(k==='data'){ctx.fillStyle=getCSS('--panel-2');ctx.fillRect(0,0,CW,CH);drawPoints(false);}
+  else if(k==='nonlin'){drawRegions(58);drawPoints(false);}
+  else{drawRegions(k==='learn'?40:54);drawPoints(k==='loss');}
+  if(k==='predict'){const x=toX(data.X[exIdx][0]),y=toY(data.X[exIdx][1]);ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.lineWidth=2.5;ctx.strokeStyle='#fff';ctx.stroke();}
+}
 
-/* ===== 学習ループ ===== */
-function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=net.trainStep(data.X,data.Y,lr);epoch++;lossHist.push(lastLoss);}}
-function frame(){if(!running)return;doSteps(+spdSlider.value);lastAcc=accuracy();updateReadout();drawLoss();if((boardCtr++%2)===0)drawBoard();requestAnimationFrame(frame);}
-function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+const STEPS=[{key:'data',t:'問題',c:'var(--accent)'},{key:'predict',t:'予測',c:'var(--accent)'},{key:'loss',t:'損失',c:'var(--loss)'},{key:'learn',t:'学習',c:'var(--accent)'},{key:'nonlin',t:'非線形',c:'var(--upd)'}];
+let stepIdx=0,training=false,auto=false;
 
-/* ===== UI ===== */
-const dataSel=document.getElementById('dataSel'),actSel=document.getElementById('actSel'),depthSel=document.getElementById('depthSel'),widthSel=document.getElementById('widthSel'),
-  lrSlider=document.getElementById('lrSlider'),noiseSlider=document.getElementById('noiseSlider'),spdSlider=document.getElementById('spdSlider'),
-  epOut=document.getElementById('epOut'),lossOut=document.getElementById('lossOut'),accOut=document.getElementById('accOut'),playBtn=document.getElementById('playBtn');
-function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);noiseVal.textContent=(+noiseSlider.value).toFixed(2);spdVal.textContent=spdSlider.value;}
-const lrVal=document.getElementById('lrVal'),noiseVal=document.getElementById('noiseVal'),spdVal=document.getElementById('spdVal');
-lrSlider.value=Math.log10(0.03);
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='data'){m.innerHTML='<div>点の数 <b>'+data.X.length+'</b></div><div>クラス <b>2</b></div>';return;}const la=evalLA();m.innerHTML='<div class="acc">正答率 <b>'+(la.acc*100).toFixed(0)+'%</b></div><div class="loss">損失 <b>'+la.loss.toFixed(3)+'</b></div>'+(k==='learn'?'<div>epoch <b>'+epoch+'</b></div>':'');}
+function renderLegend(){document.getElementById('legend').innerHTML='<span><i class="sw" style="background:var(--c0)"></i>クラス0</span><span><i class="sw" style="background:var(--c1)"></i>クラス1</span>'+(STEPS[stepIdx].key==='loss'?'<span><i class="sw" style="background:var(--neg)"></i>誤分類</span>':'')+'<span style="color:var(--faint)">背景＝モデルの予測</span>';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='data'){h+='<h3>① 問題：2 クラスを分ける</h3><div class="desc">平面上に 2 種類（<span style="color:var(--c0)">●</span>/<span style="color:var(--c1)">●</span>）の点。目標は、新しい点がどちらかを当てられる<b>境界</b>を引くこと。今は「'+dataSel.options[dataSel.selectedIndex].text.replace('データ: ','')+'」。</div>';}
+  else if(k==='predict'){const p=proba(data.X[exIdx]),y=data.Y[exIdx],cl=p[1]>p[0]?1:0;
+    h+='<h3>② 予測：各点にクラス確率</h3><div class="eq curr">ネット → 2 つの点数 → softmax → 確率</div><div style="font-size:12px;color:var(--muted);">白丸の点（正解クラス'+y+'）の予測：</div><div style="margin:6px 0;">クラス0 '+(p[0]*100).toFixed(0)+'%<div class="pbar" style="width:'+Math.max(2,p[0]*100)+'%;background:var(--c0);opacity:.8;"></div>クラス1 '+(p[1]*100).toFixed(0)+'%<div class="pbar" style="width:'+Math.max(2,p[1]*100)+'%;background:var(--c1);opacity:.8;"></div></div><div class="desc">背景の色＝各場所でモデルが予想するクラス。<b>未学習なので境界はデタラメ</b>。これから直していきます。</div>';}
+  else if(k==='loss'){const la=evalLA();h+='<h3>③ 損失：外れを罰する</h3><div class="eq curr">L = −Σ log( 正解クラスの確率 )　（交差エントロピー）</div><div class="desc"><span style="color:var(--neg)">赤縁</span>の点は今<b>誤分類</b>。正解クラスに低い確率しか出していない点ほど損失が大きい。今の損失 <b style="color:var(--loss)">'+la.loss.toFixed(3)+'</b>・正答率 '+(la.acc*100).toFixed(0)+'%。これを下げるのが学習。</div>';}
+  else if(k==='learn'){const la=evalLA();h+='<h3>④ 学習：境界が形になる</h3><div class="eq curr">逆伝播で勾配 → Adam で重み更新 → 境界が動く</div><div class="desc">誤差を逆伝播して重みを更新するたび、背景の境界がデータを分けるよう<b>変形</b>していきます。正答率 <b style="color:var(--accent)">'+(la.acc*100).toFixed(0)+'%</b>・損失 '+la.loss.toFixed(3)+'（epoch '+epoch+'）。'+(la.acc>0.97?'ほぼ分離完了。':'進行中…')+'</div>';}
+  else{h+='<h3>⑤ 非線形：曲がる境界</h3><div class="desc">隠れ層があるおかげで、境界は<b>直線でなく曲線</b>になれる。三日月・円・渦巻き・XOR など、直線では分けられないデータも分離できます（右下でデータを切替）。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・各点→softmaxでクラス確率<br>・交差エントロピーで誤りを測り逆伝播<br>・隠れ層が非線形な決定境界を可能にする</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-dataSel.onchange=()=>{setRun(false);regenData();rebuildNet();};
-noiseSlider.onchange=()=>{setRun(false);regenData();rebuildNet();};
-noiseSlider.oninput=lbls;
-actSel.onchange=()=>{setRun(false);rebuildNet();};
-depthSel.onchange=()=>{setRun(false);rebuildNet();};
-widthSel.onchange=()=>{setRun(false);rebuildNet();};
-lrSlider.oninput=lbls;spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);doSteps(1);lastAcc=accuracy();updateReadout();drawBoard();drawLoss();};
-document.getElementById('resetBtn').onclick=()=>{setRun(false);rebuildNet();};
-document.getElementById('dataBtn').onclick=()=>{setRun(false);regenData();rebuildNet();};
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));training=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='predict'){exIdx=(rng()*data.X.length)|0;}
+  if(k==='learn'){startTrain();}
+  else{renderAll();draw();}}
+function startTrain(){training=true;renderAll();function go(){if(!training||STEPS[stepIdx].key!=='learn')return;for(let i=0;i<3;i++){const r=trainStep();epoch++;}draw();renderMini();renderExplain();const la=evalLA();if(epoch>=600||la.acc>=0.995){training=false;}else requestAnimationFrame(go);}requestAnimationFrame(go);}
 
-/* ===== 起動 ===== */
-function start(){lbls();regenData();rebuildNet();}
-start();
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(training){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='learn'?300:1150);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();training=false;build();gen();epoch=0;stepIdx=0;renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=()=>{reset();};
+
+const dataSel=document.getElementById('dataSel');
+build();gen();renderAll();draw();
 </script>
 <script src="nav.js"></script>
 </body>
