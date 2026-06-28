@@ -93,12 +93,14 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>ニューラルネットの学習過程</h1>
-      <div class="sub">機械学習の学習過程と内部構造を、リアルタイムに可視化する 20+ のビューア集（下は MLP の関数近似デモ）</div>
+      <h1>機械学習 学習ロードマップ</h1>
+      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、28 の動くインフォグラフを学習の流れで並べた地図。各ページは 1 手法を実際に動かして理解できます。</div>
       <div style="margin-top:9px;font-size:12.5px;letter-spacing:.02em;">
-        <a href="viz/" style="color:var(--accent);text-decoration:none;">▶ 信号の流れ（順伝播）</a>
+        <a href="viz/" style="color:var(--accent);text-decoration:none;">▶ 最初から始める（信号の流れ）</a>
         <span style="color:var(--faint);margin:0 8px;">·</span>
-        <a href="gpt2/" style="color:var(--accent);text-decoration:none;">GPT-2 内部ビューア</a>
+        <a href="#demo" style="color:var(--accent);text-decoration:none;">関数近似デモ</a>
+        <span style="color:var(--faint);margin:0 8px;">·</span>
+        <a href="gpt2/" style="color:var(--accent);text-decoration:none;">GPT-2（到達点）</a>
       </div>
     </div>
     <div class="readout">
@@ -109,84 +111,117 @@
 
   <section style="margin-bottom:24px;">
     <style>
-      .mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(214px,1fr));gap:10px;margin-bottom:4px;}
-      .mapcard{display:block;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s;}
+      .mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;margin-bottom:4px;}
+      .mapcard{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s;}
       .mapcard:hover{border-color:var(--accent);transform:translateY(-2px);}
       .mapcard .t{font-size:14px;font-weight:600;margin-bottom:3px;}
-      .mapcard .d{font-size:11.5px;color:var(--muted);line-height:1.5;}
+      .mapcard .d{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1;}
       .mapcard .tag{font-size:10px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;}
-      .mapsec{font-family:var(--mincho);font-size:14.5px;letter-spacing:.05em;color:var(--text);margin:22px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line);}
-      .mapsec .badge{font-family:var(--gothic);font-size:10.5px;color:var(--faint);letter-spacing:.03em;margin-left:9px;}
-      .path{display:flex;flex-wrap:wrap;gap:7px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 15px;margin-bottom:4px;}
-      .path a{color:var(--accent);text-decoration:none;font-size:12.5px;white-space:nowrap;}
-      .path a:hover{text-decoration:underline;}
-      .path .arr{color:var(--faint);font-size:11px;}
+      .mapcard.spineCard{border-left:3px solid var(--accent);}
+      .mapcard.branchCard{border-style:dashed;}
+      .dep{font-size:10.5px;color:var(--faint);margin-top:8px;padding-top:6px;border-top:1px dashed var(--line);line-height:1.5;}
+      .dep b{color:var(--muted);font-weight:600;}
+      .mapsec{display:flex;align-items:baseline;gap:10px;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+      .mapsec .num{font-family:var(--mono);font-size:12px;color:#06231f;background:var(--accent);border-radius:6px;padding:2px 8px;font-weight:700;}
+      .mapsec .ttl{font-family:var(--mincho);font-size:15.5px;letter-spacing:.04em;color:var(--text);}
+      .mapsec .badge{font-family:var(--gothic);font-size:11px;color:var(--muted);letter-spacing:.02em;}
+      .mapsec.opt .num{background:var(--upd);}
+      .roadintro{color:var(--muted);font-size:12.5px;margin-bottom:14px;line-height:1.7;}
+      .spine{background:linear-gradient(180deg,#121a24,#0f141d);border:1px solid var(--line);border-radius:12px;padding:14px 15px;margin-bottom:6px;}
+      .spine .slbl{font-size:11.5px;color:var(--muted);margin-bottom:9px;}
+      .spine .slbl b{color:var(--accent);}
+      .spineflow{display:flex;flex-wrap:wrap;gap:7px 4px;align-items:center;}
+      .spineflow a{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 11px 5px 6px;color:var(--text);text-decoration:none;font-size:12px;transition:.15s;}
+      .spineflow a:hover{border-color:var(--accent);}
+      .spineflow a b{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:var(--accent);color:#06231f;border-radius:50%;font-family:var(--mono);font-size:10.5px;font-weight:700;}
+      .spineflow i{color:var(--faint);font-style:normal;font-size:11px;}
+      .branchnote{font-size:11px;color:var(--faint);margin:-2px 0 8px;}
     </style>
-    <div style="font-family:var(--mincho);font-size:18px;letter-spacing:.04em;margin:2px 0 4px;">学習の地図</div>
-    <div style="color:var(--muted);font-size:12px;margin-bottom:12px;line-height:1.6;">機械学習の「過程」と「内部構造」を、フレームワークに頼らず素の JavaScript 実装で 1 ステップずつ観察するビューア集。<b style="color:var(--pred);">全ビューアが実学習＋実況解説つき</b> — ランダムな重みが学習で意味を持ち、「今この瞬間に何が起きているか」を言葉で表示します。</div>
+    <div style="font-family:var(--mincho);font-size:18px;letter-spacing:.04em;margin:2px 0 4px;">学習ロードマップ</div>
+    <div class="roadintro">下の <b style="color:var(--accent)">推奨順路</b>（背骨）に沿って番号順に進むのが基本ルート。各カテゴリは<b>前提 → 応用</b>の順に並び、カードの下部に「前提／次」を表示しています。点線のカードは寄り道（別アプローチ・発展）。</div>
 
-    <div class="path">
-      <span style="color:var(--muted);font-size:11.5px;">はじめての順路</span><span class="arr">：</span>
-      <a href="viz/">信号の流れ</a><span class="arr">→</span>
-      <a href="viz/backprop.html">逆伝播</a><span class="arr">→</span>
-      <a href="#demo">関数近似</a><span class="arr">→</span>
-      <a href="viz/classify.html">分類</a><span class="arr">→</span>
-      <a href="viz/cnn.html">CNN</a><span class="arr">→</span>
-      <a href="viz/rnn.html">RNN</a><span class="arr">→</span>
-      <a href="viz/transformer.html">Transformer</a><span class="arr">→</span>
-      <a href="gpt2/">GPT-2</a>
+    <div class="spine">
+      <div class="slbl">🧭 <b>推奨順路</b>：何から始め、次にどこへ（クリックで各ページへ）</div>
+      <div class="spineflow">
+        <a href="viz/"><b>1</b>信号の流れ</a><i>→</i>
+        <a href="#demo"><b>2</b>関数近似</a><i>→</i>
+        <a href="viz/gradient.html"><b>3</b>勾配降下</a><i>→</i>
+        <a href="viz/backprop.html"><b>4</b>誤差逆伝播</a><i>→</i>
+        <a href="viz/classify.html"><b>5</b>分類</a><i>→</i>
+        <a href="viz/cnn.html"><b>6</b>CNN</a><i>→</i>
+        <a href="viz/rnn.html"><b>7</b>RNN</a><i>→</i>
+        <a href="viz/attention.html"><b>8</b>自己注意</a><i>→</i>
+        <a href="viz/transformer.html"><b>9</b>Transformer</a><i>→</i>
+        <a href="gpt2/"><b>10</b>GPT-2</a>
+      </div>
     </div>
 
-    <div class="mapsec">① ニューラルネットの基礎<span class="badge">入力がどう流れ、誤差がどう重みを変えるか</span></div>
+    <div class="mapsec"><span class="num">STEP 1</span><span class="ttl">数学・最適化の基礎</span><span class="badge">学習＝損失を小さくすること。その土台。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/"><div class="tag">順伝播</div><div class="t">信号の流れ</div><div class="d">入力が層を流れ活性値で光る。合計の符号を実学習＋実況</div></a>
-      <a class="mapcard" href="viz/backprop.html"><div class="tag">誤差逆伝播</div><div class="t">backprop</div><div class="d">順伝播→誤差→勾配の逆流→重み更新を1サイクル。結果の関数フィットも同時表示</div></a>
-      <a class="mapcard" href="#demo"><div class="tag">教師あり・回帰</div><div class="t">関数近似（このページ↓）</div><div class="d">MLP が 1 次元関数に当てはまっていく学習過程</div></a>
+      <a class="mapcard spineCard" href="viz/gradient.html"><div class="tag">最適化</div><div class="t">勾配降下法</div><div class="d">損失の地形を、傾き（勾配）の逆向きに下って最小へ。SGD/Momentum/Adam を比較。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> 誤差逆伝播</div></a>
+      <a class="mapcard branchCard" href="viz/ga.html"><div class="tag">発展・分岐</div><div class="t">遺伝的アルゴリズム</div><div class="d">勾配を使わない最適化。集団が選択・交叉・突然変異で進化。</div><div class="dep"><b>前提:</b> 最適化の考え方 ／ <b>関連:</b> 勾配降下</div></a>
     </div>
 
-    <div class="mapsec">② 教師あり学習 — 分類・認識<span class="badge">ラベルから境界・特徴を学ぶ</span></div>
+    <div class="mapsec"><span class="num">STEP 2</span><span class="ttl">ニューラルネットの基礎</span><span class="badge">NN がどう計算し（順伝播）、どう学ぶか（逆伝播）。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/classify.html"><div class="tag">分類</div><div class="t">決定境界</div><div class="d">点群を 2 クラスに分ける境界が学習で形成。5 種のデータで実況</div></a>
-      <a class="mapcard" href="viz/dtree.html"><div class="tag">分類・非NN</div><div class="t">決定木（CART）</div><div class="d">不純度が下がる軸で領域を再帰分割。木の成長＝特徴空間の分割</div></a>
-      <a class="mapcard" href="viz/knn.html"><div class="tag">分類・事例ベース</div><div class="t">k近傍法（kNN）</div><div class="d">学習せず近い k 個の多数決。★をドラッグし近傍と投票を観察</div></a>
-      <a class="mapcard" href="viz/svm.html"><div class="tag">分類・マージン</div><div class="t">SVM（サポートベクターマシン）</div><div class="d">マージン最大の境界を学習。サポートベクトルだけが境界を支える</div></a>
-      <a class="mapcard" href="viz/naivebayes.html"><div class="tag">分類・生成/確率</div><div class="t">ナイーブベイズ</div><div class="d">各クラスをガウスで表しベイズ則で分類。★で事後確率を観察</div></a>
-      <a class="mapcard" href="viz/digit.html"><div class="tag">解釈・分類</div><div class="t">数字を認識する</div><div class="d">描いた数字を認識し、判断の根拠（どの画素を見たか）を実況</div></a>
-      <a class="mapcard" href="viz/cnn.html"><div class="tag">畳み込み</div><div class="t">CNN</div><div class="d">フィルタが画像を走査。🎓 フィルタを学習させ、自力で特徴検出器を獲得する様子も見られる</div></a>
-      <a class="mapcard" href="viz/rnn.html"><div class="tag">系列・記憶</div><div class="t">RNN</div><div class="d">時系列を 1 ステップ先予測。隠れ状態の時間発展と自由走行生成</div></a>
+      <a class="mapcard spineCard" href="viz/"><div class="tag">順伝播</div><div class="t">信号の流れ</div><div class="d">入力が層を流れ、各ニューロンが活性値で光る。NN の「計算」の基本。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> 関数近似・逆伝播</div></a>
+      <a class="mapcard spineCard" href="#demo"><div class="tag">回帰・当てはめ</div><div class="t">関数近似（↓デモ）</div><div class="d">MLP が 1 次元関数に当てはまる様子。データと損失、学習の全体像。</div><div class="dep"><b>前提:</b> 信号の流れ ／ <b>次:</b> 逆伝播</div></a>
+      <a class="mapcard spineCard" href="viz/backprop.html"><div class="tag">学習の心臓部</div><div class="t">誤差逆伝播法</div><div class="d">誤差を出力→入力へ逆流させ、連鎖律で各重みの勾配を求めて更新。</div><div class="dep"><b>前提:</b> 勾配降下・信号の流れ ／ <b>次:</b> 分類・CNN・RNN</div></a>
     </div>
 
-    <div class="mapsec">③ 言語モデル — Transformer から GPT へ<span class="badge">注意機構と次トークン予測</span></div>
+    <div class="mapsec"><span class="num">STEP 3</span><span class="ttl">教師あり学習・分類</span><span class="badge">ラベル付きデータから決定境界を学ぶ。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/transformer.html"><div class="tag">言語モデル</div><div class="t">Transformer 学習</div><div class="d">小型 GPT をブラウザで学習。loss 低下で attention・生成が変化</div></a>
-      <a class="mapcard" href="gpt2/"><div class="tag">言語モデル</div><div class="t">GPT-2 推論</div><div class="d">本物の GPT-2 (124M) の内部を可視化。次トークン予測を実況</div></a>
+      <a class="mapcard spineCard" href="viz/classify.html"><div class="tag">分類の基本</div><div class="t">決定境界</div><div class="d">2 クラスを分ける境界が学習で形成。softmax＋交差エントロピー。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>次:</b> 数字認識・CNN</div></a>
+      <a class="mapcard" href="viz/digit.html"><div class="tag">解釈つき分類</div><div class="t">数字認識</div><div class="d">描いた数字を分類し、判断の根拠（注目画素）を saliency で表示。</div><div class="dep"><b>前提:</b> 決定境界</div></a>
+    </div>
+    <div class="branchnote">↓ NN 以外の分類器（別アプローチ・寄り道。境界の作り方を比べると理解が深まる）</div>
+    <div class="mapgrid">
+      <a class="mapcard branchCard" href="viz/dtree.html"><div class="tag">非NN・木</div><div class="t">決定木（CART）</div><div class="d">不純度が下がる軸で領域を再帰分割。木の成長＝特徴空間の分割。</div><div class="dep"><b>前提:</b> 分類の考え方</div></a>
+      <a class="mapcard branchCard" href="viz/knn.html"><div class="tag">非NN・事例ベース</div><div class="t">k近傍法（kNN）</div><div class="d">学習せず近い k 個の多数決。★をドラッグして近傍と投票を観察。</div><div class="dep"><b>前提:</b> 距離の概念</div></a>
+      <a class="mapcard branchCard" href="viz/svm.html"><div class="tag">非NN・マージン</div><div class="t">SVM</div><div class="d">マージン最大の境界。サポートベクトルだけが境界を支える。</div><div class="dep"><b>前提:</b> 決定境界</div></a>
+      <a class="mapcard branchCard" href="viz/naivebayes.html"><div class="tag">非NN・確率</div><div class="t">ナイーブベイズ</div><div class="d">各クラスをガウスで表しベイズ則で分類。生成モデルの分類器。</div><div class="dep"><b>前提:</b> 確率の基礎 ／ <b>関連:</b> GMM</div></a>
     </div>
 
-    <div class="mapsec">④ 教師なし学習 — 構造を見つける<span class="badge">ラベル無しでクラスタ・低次元を発見</span></div>
+    <div class="mapsec"><span class="num">STEP 4</span><span class="ttl">画像と系列のネットワーク</span><span class="badge">構造を持つデータ（画像・時系列）を扱う。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/kmeans.html"><div class="tag">教師なし</div><div class="t">k-means</div><div class="d">ラベル無しで重心が収束しクラスタが現れる。割当→移動を実況</div></a>
-      <a class="mapcard" href="viz/gmm.html"><div class="tag">密度推定</div><div class="t">GMM（混合ガウス）</div><div class="d">EM 法でソフト割り当て、共分散楕円がクラスタに収束</div></a>
-      <a class="mapcard" href="viz/autoencoder.html"><div class="tag">表現学習</div><div class="t">オートエンコーダ</div><div class="d">入力をボトルネックに圧縮して復元。圧縮の限界も見える</div></a>
-      <a class="mapcard" href="viz/pca.html"><div class="tag">次元削減</div><div class="t">PCA（主成分分析）</div><div class="d">最大分散方向をべき乗反復で見つけ 1 次元へ圧縮</div></a>
-      <a class="mapcard" href="viz/tsne.html"><div class="tag">可視化</div><div class="t">t-SNE</div><div class="d">高次元データを 2 次元へ。早期誇張でクラスタ構造が浮かぶ</div></a>
-      <a class="mapcard" href="viz/som.html"><div class="tag">競合学習</div><div class="t">SOM（自己組織化マップ）</div><div class="d">格子がデータの形に広がり組織化。近傍を保ち構造を写し取る</div></a>
-      <a class="mapcard" href="viz/hopfield.html"><div class="tag">連想記憶</div><div class="t">Hopfield ネットワーク</div><div class="d">パターンを記憶し、ノイズから想起。エネルギーが下がり記憶へ収束</div></a>
+      <a class="mapcard spineCard" href="viz/cnn.html"><div class="tag">画像・畳み込み</div><div class="t">CNN</div><div class="d">フィルタで画像を走査し特徴マップへ。🎓 フィルタ自体も学習で獲得。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>次:</b> 自己注意</div></a>
+      <a class="mapcard spineCard" href="viz/rnn.html"><div class="tag">時系列・記憶</div><div class="t">RNN</div><div class="d">同じセルを使い回し、隠れ状態 h に過去を記憶。次の値を予測・生成。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>次:</b> 自己注意</div></a>
     </div>
 
-    <div class="mapsec">⑤ 強化学習・最適化<span class="badge">報酬から方策を、勾配で最小へ</span></div>
+    <div class="mapsec"><span class="num">STEP 5</span><span class="ttl">Attention と言語モデル</span><span class="badge">系列を一度に見る → Transformer → GPT。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/qlearning.html"><div class="tag">強化学習</div><div class="t">Q学習</div><div class="d">報酬から最短経路を学習。価値が伝播し方策が定まる</div></a>
-      <a class="mapcard" href="viz/gradient.html"><div class="tag">最適化</div><div class="t">勾配降下</div><div class="d">損失地形を SGD/Momentum/Adam が降下し比較</div></a>
-      <a class="mapcard" href="viz/ga.html"><div class="tag">最適化・進化</div><div class="t">遺伝的アルゴリズム</div><div class="d">勾配なしで最適化。集団が選択・交叉・突然変異で大域最適へ進化</div></a>
+      <a class="mapcard spineCard" href="viz/attention.html"><div class="tag">注意機構</div><div class="t">自己注意（Self-Attention）</div><div class="d">各トークンが Q・K・V でどこに注目するか計算。softmax(QKᵀ/√d)V。</div><div class="dep"><b>前提:</b> RNN（系列の動機） ／ <b>次:</b> Transformer</div></a>
+      <a class="mapcard spineCard" href="viz/transformer.html"><div class="tag">言語モデル</div><div class="t">Transformer 学習</div><div class="d">小型 GPT をブラウザで学習。loss 低下で attention・生成が変化。</div><div class="dep"><b>前提:</b> 自己注意 ／ <b>次:</b> GPT-2</div></a>
+      <a class="mapcard spineCard" href="gpt2/"><div class="tag">到達点</div><div class="t">GPT-2 推論</div><div class="d">本物の GPT-2 (124M) の生成過程と内部（注意・各層の寄与）を可視化。</div><div class="dep"><b>前提:</b> Transformer</div></a>
     </div>
 
-    <div class="mapsec">⑥ 立体で見る — 3D 構造<span class="badge">ドラッグで回転、奥行きで構造を俯瞰</span></div>
+    <div class="mapsec"><span class="num">STEP 6</span><span class="ttl">教師なし学習・クラスタリング</span><span class="badge">ラベルなしで、データの構造を見つける。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/mlp3d.html"><div class="tag">MLP・3D</div><div class="t">MLP を立体で見る</div><div class="d">層をシートとして奥行きに並べ、信号が立体を流れる。実学習対応</div></a>
-      <a class="mapcard" href="viz/cnn3d.html"><div class="tag">CNN・3D</div><div class="t">CNN を立体で見る</div><div class="d">特徴マップのボリューム(H×W×ch)を回転して観察</div></a>
-      <a class="mapcard" href="viz/rnn3d.html"><div class="tag">RNN・3D</div><div class="t">RNN を立体で見る</div><div class="d">時間方向に展開。BPTT で系列予測を実学習</div></a>
-      <a class="mapcard" href="viz/attention3d.html"><div class="tag">Attention・3D</div><div class="t">Attention を立体で見る</div><div class="d">本物の注目を 3D 弧で、ヘッドを奥行きに分離・学習で形成</div></a>
-      <a class="mapcard" href="viz/gpt3d.html"><div class="tag">GPT・3D</div><div class="t">GPT-2 を立体で見る</div><div class="d">12 層 × 12 ヘッドの構造を 3D で俯瞰・ブロック内部を展開</div></a>
+      <a class="mapcard" href="viz/kmeans.html"><div class="tag">クラスタリング</div><div class="t">k-means</div><div class="d">最寄り重心へ割当→重心を平均へ移動、を繰り返してクラスタ形成。</div><div class="dep"><b>前提:</b> 距離の概念 ／ <b>次:</b> GMM</div></a>
+      <a class="mapcard" href="viz/gmm.html"><div class="tag">確率・密度</div><div class="t">GMM（混合ガウス）</div><div class="d">EM 法でソフト割当。共分散の楕円で傾いた・重なった塊も表現。</div><div class="dep"><b>前提:</b> k-means・確率 ／ <b>関連:</b> ナイーブベイズ</div></a>
+      <a class="mapcard branchCard" href="viz/som.html"><div class="tag">競合学習・分岐</div><div class="t">SOM（自己組織化マップ）</div><div class="d">格子がデータの形に広がり組織化。近傍を保ち構造を写し取る。</div><div class="dep"><b>関連:</b> クラスタリング・次元削減</div></a>
+      <a class="mapcard branchCard" href="viz/hopfield.html"><div class="tag">連想記憶・発展</div><div class="t">Hopfield ネットワーク</div><div class="d">パターンを記憶し、ノイズからエネルギー降下で想起。</div><div class="dep"><b>前提:</b> なし（独立トピック）</div></a>
+    </div>
+
+    <div class="mapsec"><span class="num">STEP 7</span><span class="ttl">表現学習・次元削減</span><span class="badge">高次元を圧縮・可視化し、本質を取り出す。</span></div>
+    <div class="mapgrid">
+      <a class="mapcard" href="viz/pca.html"><div class="tag">線形・次元削減</div><div class="t">PCA（主成分分析）</div><div class="d">最も広がる方向（主成分）へ射影して次元圧縮。寄与率で評価。</div><div class="dep"><b>前提:</b> 分散・共分散 ／ <b>次:</b> t-SNE</div></a>
+      <a class="mapcard" href="viz/tsne.html"><div class="tag">非線形・可視化</div><div class="t">t-SNE</div><div class="d">高次元データを 2 次元へ。近さを保ちクラスタ構造を浮かび上がらせる。</div><div class="dep"><b>前提:</b> PCA（次元削減の動機）</div></a>
+      <a class="mapcard" href="viz/autoencoder.html"><div class="tag">NN・表現学習</div><div class="t">オートエンコーダ</div><div class="d">入力をボトルネック z に圧縮して復元。NN による次元削減。</div><div class="dep"><b>前提:</b> 誤差逆伝播</div></a>
+    </div>
+
+    <div class="mapsec"><span class="num">STEP 8</span><span class="ttl">強化学習</span><span class="badge">正解ラベルでなく、報酬から行動を学ぶ。</span></div>
+    <div class="mapgrid">
+      <a class="mapcard" href="viz/qlearning.html"><div class="tag">強化学習</div><div class="t">Q学習</div><div class="d">試行錯誤と報酬から、各状態の価値と最適な方策（行動）を学習。</div><div class="dep"><b>前提:</b> なし（独立トピック）</div></a>
+    </div>
+
+    <div class="mapsec opt"><span class="num">補足</span><span class="ttl">立体で見る — 3D 構造</span><span class="badge">同じ仕組みを 3D で俯瞰（ドラッグで回転）。各基礎ページの補助。</span></div>
+    <div class="mapgrid">
+      <a class="mapcard branchCard" href="viz/mlp3d.html"><div class="tag">MLP・3D</div><div class="t">MLP を立体で見る</div><div class="d">層をシートとして奥行きに積層、信号が立体を流れる。</div><div class="dep"><b>関連:</b> 信号の流れ</div></a>
+      <a class="mapcard branchCard" href="viz/cnn3d.html"><div class="tag">CNN・3D</div><div class="t">CNN を立体で見る</div><div class="d">特徴マップのボリューム(H×W×ch)を回転して観察。</div><div class="dep"><b>関連:</b> CNN</div></a>
+      <a class="mapcard branchCard" href="viz/rnn3d.html"><div class="tag">RNN・3D</div><div class="t">RNN を立体で見る</div><div class="d">時間方向に展開した隠れ状態。BPTT で系列予測。</div><div class="dep"><b>関連:</b> RNN</div></a>
+      <a class="mapcard branchCard" href="viz/attention3d.html"><div class="tag">Attention・3D</div><div class="t">Attention を立体で見る</div><div class="d">本物の注目を 3D 弧で、ヘッドを奥行きに分離。</div><div class="dep"><b>関連:</b> 自己注意・Transformer</div></a>
+      <a class="mapcard branchCard" href="viz/gpt3d.html"><div class="tag">GPT・3D</div><div class="t">GPT-2 を立体で見る</div><div class="d">12 層 × 12 ヘッドの構造を 3D で俯瞰、ブロック内部を展開。</div><div class="dep"><b>関連:</b> GPT-2</div></a>
     </div>
   </section>
 
