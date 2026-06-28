@@ -3,277 +3,185 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RNN の時系列学習 — 記憶を持つネットワーク</title>
+<title>RNN（再帰型ネット）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --true:#cdb784; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 12px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:var(--panel-2);}
-  .readout{display:flex;gap:26px;font-family:var(--mono);padding:2px 14px 0;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:20px;color:var(--text);font-variant-numeric:tabular-nums;}
-  .readout .v.loss{color:var(--loss);}
-  .legend{display:flex;gap:16px;padding:4px 14px 10px;font-size:12px;color:var(--muted);}
-  .legend span{display:inline-flex;align-items:center;gap:7px;}
-  .sw{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1.1fr .9fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;}
+  .mini b{color:var(--text);font-weight:600;} .mini .loss b{color:var(--loss);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin-top:8px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;} .sw{width:11px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .eq .num{color:var(--accent);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  button.primary:hover{filter:brightness(1.08);}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>RNN の時系列学習 — 記憶を持つネットワーク</h1>
-      <div class="sub">隠れ状態 h に過去を畳み込みながら 1 ステップ先を予測する再帰型ネット。学習で予測が真の系列に重なり、自由走行で波形を再生できるようになる様子を観察する</div>
-    </div>
-    <div class="nav">
-      <a href="./">信号(MLP)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="transformer.html">Transformer</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="gradient.html">勾配降下</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>RNN（再帰型ネット）を理解する</h1>
+  <div class="lead">時系列を扱うネット。<b>同じセルを各時刻で使い回し</b>、<b>隠れ状態 h</b>に過去を記憶として運ぶ。1 ステップ先を予測するよう学習し、最後は自分の予測を入力に戻して波形を生成できる。下の流れを「次へ」で追ってください。</div>
 
-  <div class="card">
-    <div class="cap">系列の予測（teacher forcing）と自由走行による生成</div>
-    <div class="readout">
-      <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
-      <div><div class="k">loss (MSE)</div><div class="v loss" id="lossOut">—</div></div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="520" height="340"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="canvas-host"><canvas id="seqC" width="1100" height="300"></canvas></div>
-    <div class="legend">
-      <span><i class="sw" style="border-top-color:var(--true)"></i>真の系列</span>
-      <span><i class="sw" style="border-top-color:var(--accent)"></i>1 ステップ予測</span>
-      <span><i class="sw" style="border-top-color:var(--neg);border-top-style:dashed"></i>自由走行（生成）</span>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="serSel"><option value="sine">系列: 正弦波</option><option value="sine2">2 つの波の合成</option><option value="saw">のこぎり波</option></select>
     </div>
-    <div id="narrR2" style="padding:0 14px 14px;font-size:12.5px;line-height:1.6;color:var(--muted);">▶学習で、1 ステップ先予測（teal）が真の系列（金）に重なり、自由走行（破線）も波形を再現するようになります。</div>
   </div>
 
-  <div class="card">
-    <div class="cap">隠れ状態 h の時間発展（行=ユニット, 列=時刻）</div>
-    <div class="canvas-host"><canvas id="hidC" width="1100" height="170"></canvas></div>
-  </div>
-
-  <div class="controls">
-    <div class="field">
-      <label>系列の種類</label>
-      <select id="serSel">
-        <option value="sine">正弦波</option>
-        <option value="sine2">2 つの正弦の合成</option>
-        <option value="saw">のこぎり波</option>
-        <option value="square">矩形波</option>
-        <option value="damp">減衰振動</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>隠れユニット数</label>
-      <select id="hSel"><option value="8">8</option><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option></select>
-    </div>
-    <div class="field">
-      <label>学習率 <span class="val" id="lrVal"></span></label>
-      <input type="range" id="lrSlider" min="-3" max="-1" step="0.01">
-    </div>
-    <div class="field">
-      <label>速度（epoch/フレーム） <span class="val" id="spdVal"></span></label>
-      <input type="range" id="spdSlider" min="1" max="12" step="1" value="3">
-    </div>
-    <div class="buttons">
-      <button class="primary" id="playBtn">▶ 学習</button>
-      <button id="stepBtn">⏭ 1 epoch</button>
-      <button id="resetBtn">↺ 重みリセット</button>
-      <button id="serBtn">🎲 系列を変える</button>
-    </div>
-    <div class="note">Elman RNN: hₜ = tanh(Wxh·xₜ + Whh·hₜ₋₁ + bₕ)、yₜ = Why·hₜ + by。損失は1ステップ先予測の MSE、学習は BPTT（時間方向の誤差逆伝播）+ Adam。自由走行は予測値を次の入力に戻して系列を伸ばします（学習が進むと真の波形を再生）。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：BPTT（時間方向の逆伝播）と勾配消失</summary>
+    <div class="det">学習は、展開した各時刻の誤差を<b>時間をさかのぼって</b>逆伝播する＝BPTT（Backpropagation Through Time）。ただし遠い過去へ勾配を伝えると掛け算が重なって<b>消失/爆発</b>しやすく、長期記憶が苦手。これを克服するのが LSTM / GRU（ゲートで記憶を制御）であり、さらに系列を一度に見る Attention/Transformer へとつながります。</div>
+  </details>
 </div>
 
 <script>
 "use strict";
-let seed=123; const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+let seed=5;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
-
-/* ===== 系列生成（正規化 [-1,1] 付近） ===== */
-const T=64;
-let series=[];
-function genSeries(kind){
-  series=[];
-  for(let t=0;t<T+1;t++){
-    const p=t/8;let v;
-    if(kind==='sine')v=Math.sin(p);
-    else if(kind==='sine2')v=0.6*Math.sin(p)+0.4*Math.sin(2.3*p+1);
-    else if(kind==='saw')v=2*((p/Math.PI/2)%1)-1;
-    else if(kind==='square')v=Math.sin(p)>=0?0.8:-0.8;
-    else v=Math.sin(2*p)*Math.exp(-t/45);
-    series.push(v);
-  }
-}
-
-/* ===== Elman RNN（スカラー入出力, BPTT, Adam） ===== */
-let H=16;
-let Wxh,Whh,Why,bh,by;
-let aWxh,aWhh,aWhy,abh,aby; // adam m,v ペア（{m,v}）
-function zeros(n){return new Float64Array(n);}
-function mat(r,c){return Array.from({length:r},()=>new Float64Array(c));}
-function adamSlot(shape){return shape==='v'?{m:zeros(H),v:zeros(H)}:null;}
-function build(){
-  H=+hSel.value;const s=0.4/Math.sqrt(H);
-  Wxh=new Float64Array(H).map(()=>randn()*0.5);
-  Whh=mat(H,H);for(let i=0;i<H;i++)for(let j=0;j<H;j++)Whh[i][j]=randn()*s;
-  Why=new Float64Array(H).map(()=>randn()*s);
-  bh=zeros(H);by=0;
-  // adam states
-  aWxh={m:zeros(H),v:zeros(H)};
-  aWhh={m:mat(H,H),v:mat(H,H)};
-  aWhy={m:zeros(H),v:zeros(H)};
-  abh={m:zeros(H),v:zeros(H)};
-  aby={m:0,v:0};
-  tAdam=0;
-}
-let tAdam=0;
-// forward 全系列。返り値 hs[T+1][H], ys[T]
-function forward(){
-  const hs=[zeros(H)];const ys=new Float64Array(T);
-  for(let t=0;t<T;t++){
-    const x=series[t];const hp=hs[t];const a=new Float64Array(H);
-    for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}
-    hs.push(a);let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];ys[t]=y;
-  }
-  return{hs,ys};
-}
-function trainStep(lr){
-  const{hs,ys}=forward();
-  let loss=0;
-  const dWxh=zeros(H),dWhy=zeros(H),dbh=zeros(H);let dby=0;const dWhh=mat(H,H);
-  let dhNext=zeros(H);
-  for(let t=T-1;t>=0;t--){
-    const tgt=series[t+1];const dy=2*(ys[t]-tgt)/T;loss+=(ys[t]-tgt)*(ys[t]-tgt)/T;
-    const h=hs[t+1],hp=hs[t];
-    const dh=new Float64Array(H);
-    for(let i=0;i<H;i++){dWhy[i]+=dy*h[i];dh[i]=Why[i]*dy+dhNext[i];}
-    dby+=dy;
-    const da=new Float64Array(H);
-    for(let i=0;i<H;i++)da[i]=dh[i]*(1-h[i]*h[i]);
-    const x=series[t];
-    for(let i=0;i<H;i++){dWxh[i]+=da[i]*x;dbh[i]+=da[i];const Wi=dWhh[i];for(let j=0;j<H;j++)Wi[j]+=da[i]*hp[j];}
-    // dh for previous step
-    const dprev=zeros(H);
-    for(let j=0;j<H;j++){let s=0;for(let i=0;i<H;i++)s+=Whh[i][j]*da[i];dprev[j]=s;}
-    dhNext=dprev;
-  }
-  // grad clip
-  const clip=5;
-  const cl=v=>v>clip?clip:(v<-clip?-clip:v);
-  // Adam
-  tAdam++;const b1=0.9,b2=0.999,eps=1e-8,bc1=1-Math.pow(b1,tAdam),bc2=1-Math.pow(b2,tAdam);
-  const up1=(P,A,g,i)=>{const gg=cl(g);A.m[i]=b1*A.m[i]+(1-b1)*gg;A.v[i]=b2*A.v[i]+(1-b2)*gg*gg;return -lr*(A.m[i]/bc1)/(Math.sqrt(A.v[i]/bc2)+eps);};
-  for(let i=0;i<H;i++){Wxh[i]+=up1(Wxh,aWxh,dWxh[i],i);Why[i]+=up1(Why,aWhy,dWhy[i],i);bh[i]+=up1(bh,abh,dbh[i],i);}
-  {const gg=cl(dby);aby.m=b1*aby.m+(1-b1)*gg;aby.v=b2*aby.v+(1-b2)*gg*gg;by+=-lr*(aby.m/bc1)/(Math.sqrt(aby.v/bc2)+eps);}
-  for(let i=0;i<H;i++)for(let j=0;j<H;j++){const gg=cl(dWhh[i][j]);aWhh.m[i][j]=b1*aWhh.m[i][j]+(1-b1)*gg;aWhh.v[i][j]=b2*aWhh.v[i][j]+(1-b2)*gg*gg;Whh[i][j]+=-lr*(aWhh.m[i][j]/bc1)/(Math.sqrt(aWhh.v[i][j]/bc2)+eps);}
-  return loss;
-}
-// 自由走行: seed まで真値、その後は予測を入力に戻す
-function freeRun(seedLen){
-  const out=[];let hp=zeros(H);
-  for(let t=0;t<T;t++){
-    const x=t<seedLen?series[t]:out[t-1];
-    const a=new Float64Array(H);
-    for(let i=0;i<H;i++){let s=Wxh[i]*x+bh[i];const Wi=Whh[i];for(let j=0;j<H;j++)s+=Wi[j]*hp[j];a[i]=Math.tanh(s);}
-    let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];out.push(y);hp=a;
-  }
-  return out;
-}
-
-/* ===== 状態 ===== */
-let epoch=0,lastLoss=null,running=false,lastFwd=null;
-
-/* ===== Canvas ===== */
-const seqC=document.getElementById('seqC'),sx=seqC.getContext('2d');
-const hidC=document.getElementById('hidC'),hx=hidC.getContext('2d');
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function drawSeq(){
-  const W=seqC.width,Hh=seqC.height;sx.clearRect(0,0,W,Hh);const pad=30;
-  const xToP=t=>pad+(W-2*pad)*t/(T-1), yToP=v=>Hh/2-(Hh/2-20)*v;
+const T=48,H=10;
+let series=[],Wxh,Whh,Why,bh,by,mWxh,vWxh,mWhh,vWhh,mWhy,vWhy,mbh,vbh,mby,vby,tA;
+function genSeries(){series=[];const k=document.getElementById('serSel').value;for(let t=0;t<T+1;t++){const p=t/7;series.push(k==='sine'?Math.sin(p):k==='sine2'?0.6*Math.sin(p)+0.4*Math.sin(2.3*p+1):2*((p/Math.PI/2)%1)-1);}}
+function build(){Wxh=Float64Array.from({length:H},()=>randn()*0.5);const s=0.4/Math.sqrt(H);Whh=Array.from({length:H},()=>Float64Array.from({length:H},()=>randn()*s));Why=Float64Array.from({length:H},()=>randn()*s);bh=new Float64Array(H);by=0;
+  mWxh=new Float64Array(H);vWxh=new Float64Array(H);mWhy=new Float64Array(H);vWhy=new Float64Array(H);mbh=new Float64Array(H);vbh=new Float64Array(H);mby=0;vby=0;mWhh=Array.from({length:H},()=>new Float64Array(H));vWhh=Array.from({length:H},()=>new Float64Array(H));tA=0;}
+function forward(){const hs=[new Float64Array(H)],ys=new Float64Array(T);for(let t=0;t<T;t++){const x=series[t],hp=hs[t],a=new Float64Array(H);for(let i=0;i<H;i++){let z=Wxh[i]*x+bh[i];for(let j=0;j<H;j++)z+=Whh[i][j]*hp[j];a[i]=Math.tanh(z);}hs.push(a);let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];ys[t]=y;}return{hs,ys};}
+function trainStep(lr){const{hs,ys}=forward();let loss=0;const cnt=T-1;const dWxh=new Float64Array(H),dWhy=new Float64Array(H),dbh=new Float64Array(H);let dby=0;const dWhh=Array.from({length:H},()=>new Float64Array(H));let dhN=new Float64Array(H);
+  for(let t=T-1;t>=0;t--){const has=(t<T-1);const dy=has?2*(ys[t]-series[t+1])/cnt:0;if(has)loss+=(ys[t]-series[t+1])**2/cnt;const h=hs[t+1],hp=hs[t],dh=new Float64Array(H);
+    for(let i=0;i<H;i++){if(has)dWhy[i]+=dy*h[i];dh[i]=(has?Why[i]*dy:0)+dhN[i];}if(has)dby+=dy;
+    const da=new Float64Array(H);for(let i=0;i<H;i++)da[i]=dh[i]*(1-h[i]*h[i]);const x=series[t];for(let i=0;i<H;i++){dWxh[i]+=da[i]*x;dbh[i]+=da[i];for(let j=0;j<H;j++)dWhh[i][j]+=da[i]*hp[j];}
+    const dp=new Float64Array(H);for(let j=0;j<H;j++){let z=0;for(let i=0;i<H;i++)z+=Whh[i][j]*da[i];dp[j]=z;}dhN=dp;}
+  const cl=v=>v>5?5:(v<-5?-5:v);tA++;const b1=.9,b2=.999,bc1=1-b1**tA,bc2=1-b2**tA;
+  for(let i=0;i<H;i++){let g=cl(dWxh[i]);mWxh[i]=b1*mWxh[i]+.1*g;vWxh[i]=b2*vWxh[i]+.001*g*g;Wxh[i]-=lr*(mWxh[i]/bc1)/(Math.sqrt(vWxh[i]/bc2)+1e-8);g=cl(dWhy[i]);mWhy[i]=b1*mWhy[i]+.1*g;vWhy[i]=b2*vWhy[i]+.001*g*g;Why[i]-=lr*(mWhy[i]/bc1)/(Math.sqrt(vWhy[i]/bc2)+1e-8);g=cl(dbh[i]);mbh[i]=b1*mbh[i]+.1*g;vbh[i]=b2*vbh[i]+.001*g*g;bh[i]-=lr*(mbh[i]/bc1)/(Math.sqrt(vbh[i]/bc2)+1e-8);}
+  let g=cl(dby);mby=b1*mby+.1*g;vby=b2*vby+.001*g*g;by-=lr*(mby/bc1)/(Math.sqrt(vby/bc2)+1e-8);for(let i=0;i<H;i++)for(let j=0;j<H;j++){g=cl(dWhh[i][j]);mWhh[i][j]=b1*mWhh[i][j]+.1*g;vWhh[i][j]=b2*vWhh[i][j]+.001*g*g;Whh[i][j]-=lr*(mWhh[i][j]/bc1)/(Math.sqrt(vWhh[i][j]/bc2)+1e-8);}
+  return loss;}
+function freeRun(seedLen,extra){let hp=new Float64Array(H);const out=[];for(let t=0;t<seedLen;t++){const x=series[t],a=new Float64Array(H);for(let i=0;i<H;i++){let z=Wxh[i]*x+bh[i];for(let j=0;j<H;j++)z+=Whh[i][j]*hp[j];a[i]=Math.tanh(z);}hp=a;let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];out.push(y);}
+  let last=out[out.length-1];for(let t=0;t<extra;t++){const a=new Float64Array(H);for(let i=0;i<H;i++){let z=Wxh[i]*last+bh[i];for(let j=0;j<H;j++)z+=Whh[i][j]*hp[j];a[i]=Math.tanh(z);}hp=a;let y=by;for(let i=0;i<H;i++)y+=Why[i]*a[i];out.push(y);last=y;}return out;}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PT=14,PB=110,PL=14,PR=14;// series area top, hidden strip bottom
+function sx(t){return PL+(CW-PL-PR)*t/T;}
+function sy(v){const top=PT,h=CH-PB-PT;return top+h*(1.3-v)/2.6;}
+function drawSeries(predUpTo,free){
   // grid
-  sx.strokeStyle=getCSS('--grid');sx.lineWidth=1;sx.beginPath();sx.moveTo(pad,yToP(0));sx.lineTo(W-pad,yToP(0));sx.stroke();
-  // 真の系列（target = series[1..T]）
-  sx.strokeStyle=getCSS('--true');sx.lineWidth=1.8;sx.globalAlpha=.7;sx.beginPath();
-  for(let t=0;t<T;t++){const px=xToP(t),py=yToP(series[t+1]);t?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();sx.globalAlpha=1;
-  if(lastFwd){
-    // 1ステップ予測
-    sx.strokeStyle=getCSS('--accent');sx.lineWidth=2.2;sx.beginPath();
-    for(let t=0;t<T;t++){const px=xToP(t),py=yToP(lastFwd.ys[t]);t?sx.lineTo(px,py):sx.moveTo(px,py);}sx.stroke();
-  }
-  // 自由走行
-  const seedLen=8;const fr=freeRun(seedLen);
-  sx.strokeStyle=getCSS('--neg');sx.lineWidth=1.8;sx.setLineDash([5,4]);sx.beginPath();
-  for(let t=seedLen;t<T;t++){const px=xToP(t),py=yToP(fr[t]);t===seedLen?sx.moveTo(px,py):sx.lineTo(px,py);}sx.stroke();sx.setLineDash([]);
-  // seed 区切り
-  sx.strokeStyle=getCSS('--faint');sx.setLineDash([2,3]);sx.beginPath();sx.moveTo(xToP(seedLen),10);sx.lineTo(xToP(seedLen),Hh-10);sx.stroke();sx.setLineDash([]);
-  sx.fillStyle=getCSS('--faint');sx.font='10px '+getCSS('--mono');sx.textAlign='left';sx.fillText('← teacher forcing | 自由走行 →',xToP(seedLen)+4,14);
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PL,sy(0));ctx.lineTo(CW-PR,sy(0));ctx.stroke();
+  // target
+  ctx.strokeStyle=getCSS('--true');ctx.lineWidth=2;ctx.globalAlpha=.7;ctx.beginPath();for(let t=0;t<=T;t++){const X=sx(t),Y=sy(series[t]);t?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.globalAlpha=1;
+  // sample dots
+  ctx.fillStyle=getCSS('--warm');for(let t=0;t<=T;t+=2){ctx.beginPath();ctx.arc(sx(t),sy(series[t]),1.8,0,7);ctx.fill();}
+  // prediction
+  if(predUpTo>0){const{ys}=forward();ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.4;ctx.shadowColor=getCSS('--accent');ctx.shadowBlur=5;ctx.beginPath();for(let t=0;t<Math.min(predUpTo,T);t++){const X=sx(t+1),Y=sy(ys[t]);t?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.shadowBlur=0;}
+  // free-run（自由走行）
+  if(free){const seedLen=Math.floor(T*0.35),ex=T-seedLen;const fr=freeRun(seedLen,ex);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();for(let t=0;t<fr.length;t++){const X=sx(t+1),Y=sy(fr[t]);t?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle='rgba(240,111,126,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sx(seedLen),PT);ctx.lineTo(sx(seedLen),CH-PB);ctx.stroke();}
 }
-function drawHidden(){
-  const W=hidC.width,Hh=hidC.height;hx.clearRect(0,0,W,Hh);
-  if(!lastFwd)return;const hs=lastFwd.hs;const cw=W/T,ch=Hh/H;
-  for(let t=0;t<T;t++)for(let i=0;i<H;i++){const v=hs[t+1][i];const a=Math.max(-1,Math.min(1,v));
-    hx.fillStyle=a>=0?`rgba(57,224,196,${0.12+0.88*a})`:`rgba(240,111,126,${0.12+0.88*(-a)})`;
-    hx.fillRect(t*cw,i*ch,cw+0.5,ch+0.5);}
+function drawHidden(upTo){const top=CH-PB+18,h=PB-26,cw=(CW-PL-PR)/T;
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('隠れ状態 h（各時刻 × '+H+'ユニット）',PL,CH-PB+12);
+  const{hs}=forward();for(let t=0;t<T;t++){if(upTo>=0&&t>upTo)break;for(let i=0;i<H;i++){const v=hs[t+1][i];const t2=Math.max(-1,Math.min(1,v));ctx.fillStyle=t2>=0?`rgba(57,224,196,${0.12+0.8*t2})`:`rgba(240,111,126,${0.12+0.8*-t2})`;ctx.fillRect(PL+t*cw,top+i*(h/H),cw-0.5,h/H-0.5);}}}
+function drawCell(){ctx.clearRect(0,0,CW,CH);const cx=CW/2,cy=CH/2-10;
+  // box
+  ctx.fillStyle='#16222e';ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(cx-70,cy-46,140,92,12);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='14px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('RNN セル',cx,cy-18);ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--mono');ctx.fillText('h = tanh(Wx·x',cx,cy+4);ctx.fillText('+ Wh·h₋₁ + b)',cx,cy+22);
+  // input arrow
+  ctx.strokeStyle=getCSS('--warm');ctx.fillStyle=getCSS('--warm');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx-150,cy);ctx.lineTo(cx-72,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-72,cy);ctx.lineTo(cx-80,cy-5);ctx.lineTo(cx-80,cy+5);ctx.fill();ctx.textAlign='center';ctx.fillText('入力 xₜ',cx-120,cy-10);
+  // output arrow
+  ctx.strokeStyle=getCSS('--accent');ctx.fillStyle=getCSS('--accent');ctx.beginPath();ctx.moveTo(cx+70,cy);ctx.lineTo(cx+150,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx+150,cy);ctx.lineTo(cx+142,cy-5);ctx.lineTo(cx+142,cy+5);ctx.fill();ctx.fillText('予測 yₜ',cx+120,cy-10);
+  // recurrence loop
+  ctx.strokeStyle=getCSS('--upd');ctx.fillStyle=getCSS('--upd');ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(cx+40,cy+46);ctx.bezierCurveTo(cx+40,cy+96,cx-40,cy+96,cx-40,cy+46);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-40,cy+46);ctx.lineTo(cx-45,cy+55);ctx.lineTo(cx-35,cy+55);ctx.fill();
+  ctx.font='12px '+getCSS('--gothic');ctx.fillText('記憶 h を次の時刻へ',cx,cy+90);
 }
-function updateReadout(){epOut.textContent=epoch.toLocaleString();lossOut.textContent=lastLoss==null?'—':lastLoss.toExponential(2);
-  const el=document.getElementById('narrR2');if(el){
-    if(epoch===0||lastLoss==null)el.innerHTML='未学習。▶学習(BPTT)で 1 ステップ先予測の誤差を時間方向に逆伝播し、重みを調整します。';
-    else el.innerHTML='epoch '+epoch+'・loss <b>'+lastLoss.toExponential(1)+'</b>。'+(lastLoss<0.02?'予測(teal)が真の系列に<span style="color:var(--accent)">ほぼ一致</span>、自由走行も波形を再現。':'予測が真の系列へ近づき中。')+'隠れ状態 h が過去を記憶として運びます。';}}
 
-/* ===== ループ ===== */
-function doSteps(n){const lr=Math.pow(10,+lrSlider.value);for(let i=0;i<n;i++){lastLoss=trainStep(lr);epoch++;}lastFwd=forward();}
-function frame(){if(!running)return;doSteps(+spdSlider.value);drawSeq();drawHidden();updateReadout();requestAnimationFrame(frame);}
-function setRun(on){running=on;playBtn.textContent=on?'⏸ 一時停止':'▶ 学習';playBtn.classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
+const STEPS=[{key:'seq',t:'問題',c:'var(--accent)'},{key:'cell',t:'セル',c:'var(--upd)'},{key:'time',t:'時間展開',c:'var(--accent)'},{key:'learn',t:'学習(BPTT)',c:'var(--loss)'},{key:'gen',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,cursor=0,anim=false,auto=false,training=false,lastLoss=null,epoch=0;
+function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
+  if(k==='cell'){drawCell();return;}
+  if(k==='seq'){drawSeries(0,false);drawHidden(-2);}
+  else if(k==='time'){drawSeries(cursor,false);drawHidden(cursor);}
+  else if(k==='learn'){drawSeries(T,false);drawHidden(T);}
+  else{drawSeries(T,true);drawHidden(T);}
+}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='time')m.innerHTML='<div>時刻 t = <b>'+cursor+'</b> / '+T+'</div>';else if(k==='learn')m.innerHTML='<div>epoch <b>'+epoch+'</b></div><div class="loss">予測誤差 <b>'+(lastLoss!=null?lastLoss.toExponential(1):'—')+'</b></div>';else m.innerHTML='';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').innerHTML=k==='cell'?'':'<span><i class="sw" style="border-top-color:var(--true)"></i>正解の系列</span><span><i class="sw" style="border-top-color:var(--accent)"></i>1ステップ予測</span>'+(k==='gen'?'<span><i class="sw" style="border-top-color:var(--neg);border-top-style:dashed"></i>自由走行(生成)</span>':'');}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='seq'){h+='<h3>① 問題：次の値を予測</h3><div class="desc">時間とともに変わる<b>系列</b>（正解＝薄い線）。各時刻で「<b>次の値</b>」を当てるのが課題。過去の流れを覚えていないと当てられません。右下で系列を変えられます。</div>';}
+  else if(k==='cell'){h+='<h3>② セル：記憶を持つ</h3><div class="eq curr">hₜ = tanh(Wx·xₜ + Wh·hₜ₋₁ + b)<br>yₜ = Wy·hₜ</div><div class="desc">RNN は<b>1 つのセルを毎時刻使い回す</b>。鍵は隠れ状態 <b style="color:var(--upd)">h</b>＝「これまでの要約（記憶）」。今の入力 xₜ と<b>前の記憶 hₜ₋₁</b>から新しい hₜ を作り、そこから予測 yₜ を出します。</div>';}
+  else if(k==='time'){h+='<h3>③ 時間展開：h が流れる</h3><div class="eq curr">x₀→h₀→x₁→h₁→ … 同じセルを順に適用</div><div class="desc">系列を 1 ステップずつ入れていくと、隠れ状態 h（下のヒートマップ）が更新され、各時刻の予測 yₜ（teal）が出ます。h が過去を運ぶので、波の「続き」を予想できます。時刻 t='+cursor+'。</div>';}
+  else if(k==='learn'){h+='<h3>④ 学習：BPTT</h3><div class="eq curr">損失 = Σ (yₜ − 次の正解)²　→ 時間をさかのぼり逆伝播</div><div class="desc">1 ステップ先予測の誤差を、<b>時間方向に逆伝播</b>（BPTT）して Wx・Wh・Wy を更新。予測（teal）が正解（薄線）に重なっていきます。予測誤差 <b style="color:var(--loss)">'+(lastLoss!=null?lastLoss.toExponential(1):'—')+'</b>（epoch '+epoch+'）。</div>';}
+  else{h+='<h3>⑤ 結果：予測と自由走行</h3><div class="desc">学習後、1 ステップ予測（teal）は正解にほぼ一致。さらに<b style="color:var(--neg)">自由走行</b>（赤破線）＝途中から自分の予測を次の入力に戻して続けると、波形を<b>生成</b>できます（縦線より右）。文章生成 GPT と同じ「自己回帰」の原理。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・同じセルを使い回し、h に過去を記憶<br>・BPTT で時間方向に学習<br>・自分の出力を入力に戻して系列を生成</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
-/* ===== UI ===== */
-const serSel=document.getElementById('serSel'),hSel=document.getElementById('hSel'),lrSlider=document.getElementById('lrSlider'),spdSlider=document.getElementById('spdSlider'),
-  epOut=document.getElementById('epOut'),lossOut=document.getElementById('lossOut'),playBtn=document.getElementById('playBtn');
-const lrVal=document.getElementById('lrVal'),spdVal=document.getElementById('spdVal');
-function lbls(){lrVal.textContent=Math.pow(10,+lrSlider.value).toFixed(3);spdVal.textContent=spdSlider.value;}
-lrSlider.value=Math.log10(0.02);
-function rebuild(){setRun(false);build();epoch=0;lastLoss=null;lastFwd=forward();drawSeq();drawHidden();updateReadout();}
-function regen(){setRun(false);seed=(Math.floor(rng()*1e9))>>>0;genSeries(serSel.value);rebuild();}
-
-serSel.onchange=()=>{genSeries(serSel.value);rebuild();};
-hSel.onchange=rebuild;
-lrSlider.oninput=lbls;spdSlider.oninput=lbls;
-playBtn.onclick=()=>setRun(!running);
-document.getElementById('stepBtn').onclick=()=>{setRun(false);doSteps(1);drawSeq();drawHidden();updateReadout();};
-document.getElementById('resetBtn').onclick=rebuild;
-document.getElementById('serBtn').onclick=regen;
-
-lbls();genSeries('sine');rebuild();
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;training=false;stepIdx=i;const k=STEPS[i].key;renderAll();
+  if(k==='time'){cursor=0;animTime();}else if(k==='learn'){startTrain();}else draw();}
+function animTime(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='time')return;draw();renderMini();renderExplain();if(cursor<T-1){cursor++;setTimeout(()=>requestAnimationFrame(go),55);}else anim=false;}requestAnimationFrame(go);}
+function startTrain(){training=true;function go(){if(!training||STEPS[stepIdx].key!=='learn')return;for(let i=0;i<4;i++){lastLoss=trainStep(0.02);epoch++;}draw();renderMini();renderExplain();if(epoch>=400){training=false;}else requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim||training){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,1150);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;training=false;seed=5;build();genSeries();epoch=0;lastLoss=null;cursor=0;stepIdx=0;renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('serSel').onchange=()=>{reset();};
+if(!CanvasRenderingContext2D.prototype.roundRect){CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){this.beginPath();this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);this.closePath();return this;};}
+build();genSeries();renderAll();draw();
 </script>
 <script src="nav.js"></script>
 </body>
