@@ -16,6 +16,7 @@
     { href: 'logreg.html',      label: 'ロジスティック回帰' },
     { href: 'classify.html',    label: '決定境界' },
     { href: 'digit.html',       label: '数字認識' },
+    { href: 'metrics.html',     label: '評価指標' },
     { href: 'dtree.html',       label: '決定木' },
     { href: 'forest.html',      label: 'ランダムフォレスト' },
     { href: 'boosting.html',    label: '勾配ブースティング' },

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>評価指標（混同行列・適合率・再現率）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --pos:#39e0c4; --negc:#d4a36a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:740px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:380px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:14px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .pr b{color:var(--accent);} .mini .rc b{color:var(--upd);} .mini .f1 b{color:var(--loss);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:110px;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>評価指標（混同行列・適合率・再現率）を理解する</h1>
+  <div class="lead">分類器の良し悪しは<b>正答率（accuracy）だけでは測れない</b>。とくに陽性が少ない<b>不均衡データ</b>では「全部陰性」と答えるだけで高精度に見える。<b>混同行列</b>から<b>適合率・再現率・F1</b>を読み、<b>しきい値</b>でトレードオフを調整する——これが「測り方」の基本。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="380" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 別のデータ</button>
+      <span class="spacer"></span>
+      <label>しきい値 <input type="range" id="th" min="2" max="98" step="1" value="50"></label>
+      <select id="balSel"><option value="bal">均衡</option><option value="imb" selected>不均衡(陽性少)</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：F1とFβ・ROC/AUC・どの指標を使うか</summary>
+    <div class="det"><b>適合率(precision)=TP/(TP+FP)</b>＝「陽性と予測したうち本当に陽性の割合」（誤検知を嫌う場面で重視：スパム判定で正常メールを消したくない等）。<b>再現率(recall)=TP/(TP+FN)</b>＝「本物の陽性を取りこぼさない割合」（見逃しを嫌う場面で重視：病気の検査・不正検知等）。両者はふつう<b>トレードオフ</b>で、<b>F1＝調和平均 2PR/(P+R)</b> がバランス指標。重視度を変えるなら <b>Fβ</b>。しきい値を動かすと (再現率, 適合率) の<b>PR曲線</b>、(偽陽性率, 再現率) の<b>ROC曲線</b>が描け、その下の面積 <b>AUC</b> はしきい値に依らない総合力。<b>不均衡</b>では accuracy より PR-AUC や F1 が有用。多クラスはクラスごとに出して平均（macro/micro）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=7;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+let data=[],thr=0.5;
+function clip(v){return Math.max(0.01,Math.min(0.99,v));}
+function genData(){data=[];const imb=document.getElementById('balSel').value==='imb';const nPos=imb?28:90,nNeg=imb?160:90;
+  for(let i=0;i<nPos;i++)data.push({y:1,s:clip(0.62+randn()*0.17)});
+  for(let i=0;i<nNeg;i++)data.push({y:0,s:clip(0.38+randn()*0.17)});}
+function counts(t){let TP=0,FP=0,FN=0,TN=0;for(const d of data){const p=d.s>=t?1:0;if(d.y===1&&p===1)TP++;else if(d.y===0&&p===1)FP++;else if(d.y===1&&p===0)FN++;else TN++;}return{TP,FP,FN,TN};}
+function metrics(t){const{TP,FP,FN,TN}=counts(t);const prec=TP+FP?TP/(TP+FP):0,rec=TP+FN?TP/(TP+FN):0,f1=prec+rec?2*prec*rec/(prec+rec):0,acc=(TP+TN)/data.length,fpr=FP+TN?FP/(FP+TN):0;return{TP,FP,FN,TN,prec,rec,f1,acc,fpr};}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const BINS=26;
+function hist(label){const h=new Array(BINS).fill(0);for(const d of data)if(d.y===label){let b=Math.floor(d.s*BINS);b=Math.max(0,Math.min(BINS-1,b));h[b]++;}return h;}
+function drawDist(showRegions){const x0=20,x1=CW-14,y0=20,y1=CH-46,bw=(x1-x0)/BINS;const hp=hist(1),hn=hist(0),mx=Math.max(1,...hp,...hn);
+  const tx=x0+thr*(x1-x0);
+  for(let b=0;b<BINS;b++){const sMid=(b+0.5)/BINS,predPos=sMid>=thr;
+    const hpH=hp[b]/mx*(y1-y0)*0.5,hnH=hn[b]/mx*(y1-y0)*0.5;const midY=(y0+y1)/2;
+    // negatives downward, positives upward
+    let cP=showRegions?(predPos?'rgba(57,224,196,0.9)':'rgba(57,224,196,0.32)'):'rgba(57,224,196,0.7)';
+    let cN=showRegions?(predPos?'rgba(240,111,126,0.7)':'rgba(212,163,106,0.5)'):'rgba(212,163,106,0.6)';
+    ctx.fillStyle=cP;ctx.fillRect(x0+b*bw,midY-hpH,bw-1,hpH);
+    ctx.fillStyle=cN;ctx.fillRect(x0+b*bw,midY,bw-1,hnH);}
+  ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(x0,(y0+y1)/2);ctx.lineTo(x1,(y0+y1)/2);ctx.stroke();
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2;ctx.setLineDash([5,3]);ctx.beginPath();ctx.moveTo(tx,y0-4);ctx.lineTo(tx,y1);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--loss');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('しきい値 '+thr.toFixed(2),tx,y0-8);
+  ctx.fillStyle=getCSS('--pos');ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('↑ 本当に陽性',x0,(y0+y1)/2-4-(y1-y0)*0.5);
+  ctx.fillStyle=getCSS('--negc');ctx.fillText('↓ 本当に陰性',x0,(y0+y1)/2+12);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('← 陰性と予測   |   陽性と予測 →',CW/2,CH-26);ctx.fillText('モデルのスコア（0→1）',CW/2,CH-10);}
+function drawMatrix(){const m=metrics(thr);const bx=CW-150,by=24,cw=64,ch=42;
+  const cells=[[m.TP,'TP','rgba(57,224,196,0.85)'],[m.FP,'FP','rgba(240,111,126,0.8)'],[m.FN,'FN','rgba(240,176,58,0.7)'],[m.TN,'TN','rgba(120,135,155,0.5)']];
+  for(let i=0;i<4;i++){const r=i<2?0:1,c=i%2;ctx.fillStyle=cells[i][2];ctx.fillRect(bx+c*cw,by+r*ch,cw-2,ch-2);ctx.fillStyle='#0c1016';ctx.font='bold 14px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(cells[i][0],bx+c*cw+cw/2,by+r*ch+ch/2+1);ctx.font='9px '+getCSS('--mono');ctx.fillText(cells[i][1],bx+c*cw+cw/2,by+r*ch+12);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('予測→',bx+cw,by-4);ctx.save();ctx.translate(bx-8,by+ch);ctx.rotate(-Math.PI/2);ctx.fillText('実際',0,0);ctx.restore();}
+function drawPR(){ctx.clearRect(0,0,CW,CH);const x0=44,x1=CW-20,y0=24,y1=CH-44;
+  ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x0,y1);ctx.lineTo(x1,y1);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('再現率(recall) →',(x0+x1)/2,CH-10);ctx.save();ctx.translate(14,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText('適合率(precision)',0,0);ctx.restore();
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();let first=true;for(let i=0;i<=60;i++){const t=i/60;const mm=metrics(t);const X=x0+mm.rec*(x1-x0),Y=y1-mm.prec*(y1-y0);if(first){ctx.moveTo(X,Y);first=false;}else ctx.lineTo(X,Y);}ctx.stroke();
+  const cur=metrics(thr);ctx.fillStyle=getCSS('--loss');ctx.beginPath();ctx.arc(x0+cur.rec*(x1-x0),y1-cur.prec*(y1-y0),5,0,7);ctx.fill();
+  ctx.fillStyle=getCSS('--loss');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('●今のしきい値',x0+8,y0+10);
+  for(const v of[0,0.5,1]){ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText(v.toFixed(1),x0-3,y1-v*(y1-y0)+3);ctx.textAlign='center';ctx.fillText(v.toFixed(1),x0+v*(x1-x0),y1+12);}}
+function draw(){const k=STEPS[stepIdx].key;if(k==='thresh'||k==='res'){ctx.clearRect(0,0,CW,CH);drawDist(true);drawMatrix();}else if(k==='pr'){drawPR();}else{ctx.clearRect(0,0,CW,CH);drawDist(k!=='prob');if(k==='matrix')drawMatrix();}}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'matrix',t:'混同行列',c:'var(--upd)'},{key:'pr',t:'適合率と再現率',c:'var(--accent)'},{key:'thresh',t:'しきい値',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0;
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=metrics(thr),el=document.getElementById('mini');el.innerHTML='<div>正答率 <b>'+(m.acc*100).toFixed(0)+'%</b></div><div class="pr">適合率 <b>'+(m.prec*100).toFixed(0)+'%</b></div><div class="rc">再現率 <b>'+(m.rec*100).toFixed(0)+'%</b></div><div class="f1">F1 <b>'+m.f1.toFixed(2)+'</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='pr')?'曲線=全しきい値のPR, ●=今のしきい値':'上=陽性の山/下=陰性の山, 橙線=しきい値, 右の表=混同行列';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const m=metrics(thr),imb=document.getElementById('balSel').value==='imb';let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){const allNeg=metrics(1);h+='<h3>① 問題：正答率だけでは不十分</h3><div class="desc">上が本当に陽性のスコア分布、下が陰性。'+(imb?'<b style="color:var(--neg)">陽性が少ない不均衡データ</b>では、<b>全部「陰性」と答えるだけで正答率 '+(allNeg.acc*100).toFixed(0)+'%</b>——でも陽性を 1 つも見つけられず無意味。':'')+'正答率だけでは「何ができていないか」が見えません。もっと細かく測りましょう。</div>';}
+  else if(k==='matrix'){h+='<h3>② 混同行列</h3><div class="eq curr">予測×実際 の 2×2：TP / FP / FN / TN</div><div class="desc">しきい値で「陽性と予測」した結果を、実際の正解と突き合わせます。<b>TP</b>=正しく陽性、<b>FP</b>=陰性を誤って陽性（誤検知）、<b>FN</b>=陽性を見逃し、<b>TN</b>=正しく陰性。今 TP'+m.TP+' / FP'+m.FP+' / FN'+m.FN+' / TN'+m.TN+'。すべての指標はこの 4 つから計算します。</div>';}
+  else if(k==='pr'){h+='<h3>③ 適合率と再現率</h3><div class="eq curr">適合率=TP/(TP+FP)　再現率=TP/(TP+FN)</div><div class="desc"><b>適合率</b>＝陽性と言った中の的中率（誤検知の少なさ）。<b>再現率</b>＝本物の陽性の拾えた割合（見逃しの少なさ）。曲線は全しきい値での両者の関係で、ふつう<b>片方を上げると他方が下がるトレードオフ</b>。今 適合率 '+(m.prec*100).toFixed(0)+'% / 再現率 '+(m.rec*100).toFixed(0)+'%。</div>';}
+  else if(k==='thresh'){h+='<h3>④ しきい値を動かす</h3><div class="desc">右下のスライダーで<b>しきい値（橙線）</b>を動かしてください。<b>右へ（高く）</b>＝陽性判定が厳しくなり<b>適合率↑・再現率↓</b>（慎重）。<b>左へ（低く）</b>＝<b>再現率↑・適合率↓</b>（取りこぼさないが誤検知増）。目的に応じて選びます（病気の検査は再現率重視、スパム判定は適合率重視）。適合率 '+(m.prec*100).toFixed(0)+'% / 再現率 '+(m.rec*100).toFixed(0)+'%。</div>';}
+  else{h+='<h3>⑤ 結果：F1 と総合力</h3><div class="desc"><b>F1＝適合率と再現率の調和平均</b>（'+m.f1.toFixed(2)+'）で両者をバランス評価。しきい値に依らない総合力は <b>PR曲線/ROC曲線の下の面積（AUC）</b>で測ります。<b>不均衡データでは正答率より F1・PR-AUC</b> が有用。「何を重視するか」で見る指標を選ぶのが肝心です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・正答率だけでは不均衡で誤解を生む<br>・混同行列→適合率/再現率/F1<br>・しきい値でトレードオフ・AUCで総合評価</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>{seed=7+(Math.floor(rng()*900));genData();renderAll();draw();};
+document.getElementById('th').oninput=e=>{thr=+e.target.value/100;renderMini();renderLegend();renderExplain();draw();};
+document.getElementById('balSel').onchange=()=>{genData();renderAll();draw();};
+genData();renderAll();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
