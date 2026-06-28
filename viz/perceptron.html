@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>単純パーセプトロンを理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --c1:#39e0c4; --cm:#d4a36a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .mk b{color:var(--neg);} .mini .ok b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>単純パーセプトロンを理解する</h1>
+  <div class="lead">1958 年の「学習する機械」。重み付き和の符号で 2 クラスを分け、<b>間違えた点だけ</b>を使って境界を動かす<b>誤り駆動の学習則</b>。線形分離できるデータなら必ず収束する（収束定理）一方、<b>XOR は解けず</b>、それが多層ニューラルネットへの道を開いた。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="dataSel"><option value="sep">線形分離できる</option><option value="tight">際どい(分離可)</option><option value="xor">XOR(分離不可)</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：収束定理・ロジスティック回帰との違い・XOR と MLP</summary>
+    <div class="det"><b>パーセプトロン収束定理</b>：データが線形分離可能なら、この更新を繰り返すと<b>有限回で必ず</b>全点を正しく分ける重みに到達します。<b>ロジスティック回帰との違い</b>：パーセプトロンは出力が<b>ハードな符号（0/1）</b>で「間違えた時だけ」更新（確率も損失勾配も使わない）。ロジスティックは<b>滑らかな確率</b>＋交差エントロピー勾配で全点から学ぶ。<b>XOR 問題</b>：1 本の直線では分けられない配置はパーセプトロンでは永遠に収束しません（Minsky & Papert, 1969）。これが第 1 次 AI 冬の引き金になり、<b>非線形を扱える多層パーセプトロン（MLP）＋誤差逆伝播</b>へとつながりました。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=1958;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const ETA=0.4;
+let X=[],Y=[],w=[0,0],b=0,epoch=0,lastUpd=-1,converged=false;
+function genData(){X=[];Y=[];const kind=document.getElementById('dataSel').value;
+  if(kind==='xor'){const c=[[-0.55,-0.55,-1],[0.55,0.55,-1],[-0.55,0.55,1],[0.55,-0.55,1]];for(const[cx,cy,lab]of c)for(let i=0;i<14;i++){X.push([cx+randn()*0.16,cy+randn()*0.16]);Y.push(lab);}}
+  else{const sd=kind==='tight'?0.26:0.22,off=kind==='tight'?0.42:0.62;for(let i=0;i<28;i++){X.push([-off+randn()*sd,-off*0.55+randn()*sd]);Y.push(-1);}for(let i=0;i<28;i++){X.push([off+randn()*sd,off*0.55+randn()*sd]);Y.push(1);}}}
+function initW(){w=[0,0];b=0;epoch=0;lastUpd=-1;converged=false;}
+function score(i){return w[0]*X[i][0]+w[1]*X[i][1]+b;}
+function mistakes(){let c=0;for(let i=0;i<X.length;i++)if(Y[i]*score(i)<=0)c++;return c;}
+function updateOne(){for(let i=0;i<X.length;i++){if(Y[i]*score(i)<=0){w[0]+=ETA*Y[i]*X[i][0];w[1]+=ETA*Y[i]*X[i][1];b+=ETA*Y[i];lastUpd=i;return i;}}lastUpd=-1;return -1;}
+function epochPass(){let upd=0;for(let i=0;i<X.length;i++){if(Y[i]*score(i)<=0){w[0]+=ETA*Y[i]*X[i][0];w[1]+=ETA*Y[i]*X[i][1];b+=ETA*Y[i];upd++;lastUpd=i;}}epoch++;if(upd===0)converged=true;return upd;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LO=-1.35,HI=1.35,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
+const fromX=sx=>(sx-14)/(CW-28)*(HI-LO)+LO,fromY=sy=>HI-(sy-14)/(CH-28)*(HI-LO);
+function shade(){const G=44,cw=(CW-28)/G,ch=(CH-28)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=fromX(14+(c+0.5)*cw),yy=fromY(14+(r+0.5)*ch);const s=w[0]*xx+w[1]*yy+b;ctx.fillStyle=s>=0?'rgba(57,224,196,0.08)':'rgba(212,163,106,0.08)';ctx.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}}
+function line(){const nw=Math.hypot(w[0],w[1]);if(nw<1e-6)return;ctx.strokeStyle=getCSS('--text');ctx.lineWidth=2;
+  if(Math.abs(w[1])>=Math.abs(w[0])){const x0=LO,x1=HI,y0=-(w[0]*x0+b)/w[1],y1=-(w[0]*x1+b)/w[1];ctx.beginPath();ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));ctx.stroke();}
+  else{const y0=LO,y1=HI,x0=-(w[1]*y0+b)/w[0],x1=-(w[1]*y1+b)/w[0];ctx.beginPath();ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));ctx.stroke();}}
+function pts(markWrong,markUpd){for(let i=0;i<X.length;i++){const wrong=Y[i]*score(i)<=0;
+  if(markWrong&&wrong){ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),6.5,0,7);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6;ctx.stroke();}
+  if(markUpd&&i===lastUpd){ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),8.5,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2;ctx.stroke();}
+  ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),3.4,0,7);ctx.fillStyle=Y[i]>0?getCSS('--c1'):getCSS('--cm');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);if(opt.shade)shade();if(opt.line)line();pts(opt.wrong,opt.upd);}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'thr',t:'しきい(符号)',c:'var(--upd)'},{key:'rule',t:'誤り駆動更新',c:'var(--neg)'},{key:'iter',t:'反復で収束',c:'var(--accent)'},{key:'res',t:'結果',c:'var(--loss)'}];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='thr')draw({shade:true,line:true});else if(k==='rule')draw({shade:true,line:true,wrong:true,upd:true});else if(k==='iter')draw({shade:true,line:true,wrong:true});else draw({shade:true,line:true,wrong:true});}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>クラス <b>2</b></div>';return;}const mk=mistakes();m.innerHTML='<div>epoch <b>'+epoch+'</b></div>'+(mk>0?'<div class="mk">誤分類 <b>'+mk+'</b></div>':'<div class="ok">誤分類 <b>0</b></div>')+(k==='res'?'<div>'+(converged?'<span style="color:var(--accent)">収束</span>':'<span style="color:var(--neg)">未収束</span>')+'</div>':'');}
+function renderLegend(){document.getElementById('legend').textContent='青/橙=2クラス, 白線=境界, 背景=±の領域'+((STEPS[stepIdx].key==='rule')?', 赤丸=誤分類, 紫丸=更新に使う点':(STEPS[stepIdx].key==='iter'||STEPS[stepIdx].key==='res')?', 赤丸=まだ誤分類の点':'');}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const xor=document.getElementById('dataSel').value==='xor';let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：直線で 2 クラス分け</h3><div class="desc">青(+1)と橙(−1)の点を、<b>1 本の直線</b>で分けたい。パーセプトロンは脳のニューロンを真似た最初の学習機械。今はランダムな境界です。右下でデータを変えられます（XOR も試せます）。</div>';}
+  else if(k==='thr'){h+='<h3>② 重み付き和としきい</h3><div class="eq curr">予測 = sign(w·x + b)　（≥0 なら +1, それ以外 −1）</div><div class="desc">入力に重み w を掛けて足し、<b>符号（しきい関数）</b>で +1/−1 を出す＝1 個のニューロン。背景の色が「+ と判定する領域／− と判定する領域」、白線がその境界です。ロジスティック回帰の滑らかな確率と違い、ここは<b>ハードな 0/1</b>。</div>';}
+  else if(k==='rule'){h+='<h3>③ 誤り駆動の学習則</h3><div class="eq curr">誤分類した点だけ：w ← w + η·y·x,　b ← b + η·y</div><div class="desc">正しく分類できている点は<b>放置</b>。<b>間違えた点（赤丸）</b>を 1 つ選び（紫丸）、その点を正しい側へ引き込むよう境界を動かします。「間違えた時だけ学ぶ」のがパーセプトロン。誤分類 '+mistakes()+' 個。</div>';}
+  else if(k==='iter'){h+='<h3>④ 反復して収束</h3><div class="eq curr">全点を巡回し、誤分類がなくなるまで更新</div><div class="desc">この更新を全点について繰り返すと、境界が回転して<b>誤分類がゼロ</b>に近づきます。線形分離できるデータなら<b>必ず有限回で収束</b>（収束定理）。epoch '+epoch+'・誤分類 '+mistakes()+'。</div>';}
+  else{h+='<h3>⑤ 結果と限界</h3><div class="desc">'+(converged?'全点を正しく分ける直線に<b>収束</b>しました（epoch '+epoch+'）。線形分離可能なら必ずここに到達します。':'<b style="color:var(--neg)">収束しません</b>（誤分類 '+mistakes()+' が残り続ける）。')+(xor?' <b>XOR は 1 本の直線では絶対に分けられない</b>配置——これがパーセプトロンの限界として有名で、<b>多層化＋誤差逆伝播（MLP）</b>が必要になりました。':' 右下で「XOR」を選ぶと、直線では分けられず収束しない様子＝限界が見られます。')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・sign(w·x+b) の 1 ニューロン<br>・誤分類点だけで w←w+ηyx（誤り駆動）<br>・線形分離可なら収束／XORは不可→MLPへ</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'){initW();}
+  else if(k==='thr'){initW();updateOne();}
+  else if(k==='rule'){initW();updateOne();}
+  else if(k==='iter'){initW();runIter();}
+  else if(k==='res'){initW();let g=0;while(!converged&&epochPass()>0&&g++<60){}}
+  renderAll();draw_();}
+function runIter(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='iter')return;const upd=epochPass();draw_();renderMini();renderExplain();if(converged||epoch>=60){anim=false;return;}setTimeout(()=>requestAnimationFrame(go),260);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='iter'?400:1200);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=1958+(Math.floor(rng()*900));genData();initW();stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('dataSel').onchange=()=>{genData();initW();stepIdx=0;renderAll();draw_();};
+genData();initW();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'ga.html',          label: '遺伝的AL' },
     { href: 'index.html',       label: '信号の流れ' },
+    { href: 'perceptron.html',  label: 'パーセプトロン' },
     { href: 'linreg.html',      label: '線形回帰' },
     { href: 'backprop.html',    label: '逆伝播' },
     { href: 'reg.html',         label: '正則化' },
