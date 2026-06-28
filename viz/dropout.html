@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドロップアウトを理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
+    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --c0:#39e0c4; --c1:#d4a36a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .tr b{color:var(--warm);} .mini .te b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>ドロップアウトを理解する</h1>
+  <div class="lead">ニューラルネットの<b>過学習を防ぐ訓練テクニック</b>。学習中、隠れニューロンを<b>毎回ランダムに一定割合だけ「落とす」（0 にする）</b>。特定の組合せに頼れなくなり（共適応の抑制）、実質<b>多数のサブネットの平均</b>を学ぶことになって、汎化が良くなる。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="pSel"><option value="0">落とさない(0%)</option><option value="0.3">30%落とす</option><option value="0.5" selected>50%落とす</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：逆ドロップアウト・アンサンブル解釈・推論時</summary>
+    <div class="det"><b>逆ドロップアウト（inverted dropout）</b>：訓練時に残した素子を 1/(1−p) 倍にスケールしておくと、<b>推論時は何もせず全素子を使う</b>だけでよい（期待値が揃う）。<b>アンサンブル解釈</b>：毎ステップ違うサブネットを訓練し、重みを共有しているので、推論時の「全部入り」は指数的な数のサブネットを平均したのに近い＝強力な正則化。<b>共適応の抑制</b>：あるニューロンが「隣の特定ニューロンが必ずいる」前提で働けなくなり、各自が単独でも役立つ頑健な特徴を学ぶ。<b>注意</b>：落としすぎ（p 大）や小さい NN では逆効果。<a href="reg.html">L2 正則化</a>や データ拡張と併用されます。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=2020;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const SZ=[2,20,20,2],L=3,relu=z=>z>0?z:0;
+let W,B,mW,vW,mB,vB,tA,trX=[],trY=[],teX=[],teY=[],epoch=0,pdrop=0.5,curMask=[null,null,null],demoMask=[null,null,null];
+function mk(a,b,s){return Array.from({length:b},()=>Array.from({length:a},()=>randn()*s));}
+function build(){W=[null];B=[null];mW=[null];vW=[null];mB=[null];vB=[null];for(let l=1;l<=L;l++){const s=Math.sqrt(2/SZ[l-1]);W[l]=mk(SZ[l-1],SZ[l],s);B[l]=new Array(SZ[l]).fill(0);mW[l]=mk(SZ[l-1],SZ[l],0);vW[l]=mk(SZ[l-1],SZ[l],0);mB[l]=new Array(SZ[l]).fill(0);vB[l]=new Array(SZ[l]).fill(0);}tA=0;epoch=0;}
+function genMoons(n,noise){const X=[],Y=[];for(let i=0;i<n;i++){const t=Math.PI*rng();let x,y,c;if(i%2===0){x=(Math.cos(t)-0.45)*0.9+randn()*0.12;y=(Math.sin(t)-0.2)*0.9+randn()*0.12;c=0;}else{x=(Math.cos(t+Math.PI)+0.45)*0.9+randn()*0.12;y=(Math.sin(t+Math.PI)+0.2)*0.9+randn()*0.12;c=1;}if(rng()<noise)c=1-c;X.push([x,y]);Y.push(c);}return{X,Y};}
+function genData(){const a=genMoons(50,0.18);trX=a.X;trY=a.Y;const b=genMoons(300,0);teX=b.X;teY=b.Y;}
+function fwd(x,train){let a=[x];const masks=[null];for(let l=1;l<=L;l++){const z=B[l].map((b,j)=>b+W[l][j].reduce((s,w,k)=>s+w*a[l-1][k],0));let al=l===L?z:z.map(relu);let mask=null;if(l<L&&train&&pdrop>0){mask=al.map(()=>rng()<pdrop?0:1/(1-pdrop));al=al.map((v,j)=>v*mask[j]);}masks.push(mask);a.push(al);}return{a,masks};}
+function sm(o){const m=Math.max(o[0],o[1]),e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
+function trainStep(){const dW=[null],dB=[null];for(let l=1;l<=L;l++){dW[l]=mk(SZ[l-1],SZ[l],0).map(r=>r.map(()=>0));dB[l]=new Array(SZ[l]).fill(0);}let lastMask=[null,null,null];
+  for(let i=0;i<trX.length;i++){const{a,masks}=fwd(trX[i],true);if(i===trX.length-1)lastMask=masks;const p=sm(a[L]);let d=[p[0]-(trY[i]===0?1:0),p[1]-(trY[i]===1?1:0)];
+    for(let l=L;l>=1;l--){for(let j=0;j<SZ[l];j++){dB[l][j]+=d[j];for(let k=0;k<SZ[l-1];k++)dW[l][j][k]+=d[j]*a[l-1][k];}if(l>1){const dp=new Array(SZ[l-1]).fill(0);for(let k=0;k<SZ[l-1];k++){let s=0;for(let j=0;j<SZ[l];j++)s+=W[l][j][k]*d[j];let g=s*(a[l-1][k]>0?1:0);if(masks[l-1])g*=(masks[l-1][k]>0?1:0);dp[k]=g;}d=dp;}}}
+  curMask=lastMask;const iN=1/trX.length;tA++;const b1=.9,b2=.999,bc1=1-b1**tA,bc2=1-b2**tA,lr=0.01;
+  for(let l=1;l<=L;l++)for(let j=0;j<SZ[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+.1*gb;vB[l][j]=b2*vB[l][j]+.001*gb*gb;B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+1e-8);for(let k=0;k<SZ[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+.1*gw;vW[l][j][k]=b2*vW[l][j][k]+.001*gw*gw;W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+1e-8);}}epoch++;}
+function pred(x){return sm(fwd(x,false).a[L]);}
+function acc(X,Y){let ok=0;for(let i=0;i<X.length;i++)if((pred(X[i])[1]>pred(X[i])[0]?1:0)===Y[i])ok++;return ok/X.length;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LO=-1.3,HI=1.3,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
+function drawBoundary(){const G=52,cw=(CW-28)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=LO+(c+0.5)/G*(HI-LO),yy=HI-(r+0.5)/G*(HI-LO);const p=pred([xx,yy]);ctx.fillStyle=p[1]>p[0]?'rgba(212,163,106,0.14)':'rgba(57,224,196,0.14)';ctx.fillRect(14+c*cw,14+r*cw,cw+1,cw+1);}
+  for(let i=0;i<trX.length;i++){ctx.beginPath();ctx.arc(px(trX[i][0]),py(trX[i][1]),3.4,0,7);ctx.fillStyle=trY[i]?getCSS('--c1'):getCSS('--c0');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+function drawNet(mask){const cols=[{n:2,x:46},{n:SZ[1],x:140},{n:SZ[2],x:234},{n:2,x:324}];const ya=(n,i)=>30+(CH-60)*(n===1?0.5:i/(n-1));
+  // connections
+  for(let c=0;c<cols.length-1;c++){const A=cols[c],Bc=cols[c+1];for(let i=0;i<A.n;i++)for(let j=0;j<Bc.n;j++){const di=(c>0&&mask[c]&&mask[c][i]===0),dj=(c+1<3&&mask[c+1]&&mask[c+1][j]===0);ctx.strokeStyle=(di||dj)?'rgba(70,86,107,0.06)':'rgba(57,224,196,0.07)';ctx.beginPath();ctx.moveTo(A.x,ya(A.n,i));ctx.lineTo(Bc.x,ya(Bc.n,j));ctx.stroke();}}
+  for(let c=0;c<cols.length;c++){const col=cols[c];for(let i=0;i<col.n;i++){const dropped=(c>0&&c<3&&mask[c]&&mask[c][i]===0);ctx.beginPath();ctx.arc(col.x,ya(col.n,i),c===0||c===3?5:3.6,0,7);if(dropped){ctx.fillStyle='#2b3a4d';ctx.fill();ctx.strokeStyle='rgba(240,111,126,0.5)';ctx.lineWidth=1;ctx.stroke();}else{ctx.fillStyle=c===3?getCSS('--warm'):getCSS('--accent');ctx.fill();}}}
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('入力',46,CH-8);ctx.fillText('隠れ層',187,CH-8);ctx.fillText('出力',324,CH-8);}
+function genDemoMask(){demoMask=[null,null,null];for(let l=1;l<=2;l++)demoMask[l]=Array.from({length:SZ[l]},()=>rng()<pdrop?0:1);}
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'drop',t:'ランダムに落とす',c:'var(--neg)'},{key:'why',t:'なぜ効く',c:'var(--upd)'},{key:'learn',t:'学習',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;if(k==='drop'||k==='why')drawNetClear(demoMask);else{ctx.clearRect(0,0,CW,CH);drawBoundary();}}
+function drawNetClear(mask){ctx.clearRect(0,0,CW,CH);drawNet(mask);}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='drop'||k==='why'){const kept=demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0;m.innerHTML='<div>落とす率 <b>'+(pdrop*100)+'%</b></div><div>稼働中 <b>'+kept+'/'+(SZ[1]+SZ[2])+'</b></div>';return;}m.innerHTML='<div>epoch <b>'+epoch+'</b></div><div>落とす率 <b>'+(pdrop*100)+'%</b></div><div class="tr">訓練 <b>'+(acc(trX,trY)*100).toFixed(0)+'%</b></div><div class="te">テスト <b>'+(acc(teX,teY)*100).toFixed(0)+'%</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='drop'||k==='why')?'緑/橙=稼働ニューロン, 灰(赤枠)=今回落とされた素子':'背景=決定境界, ●=訓練データ(ノイズ18%)';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：過学習</h3><div class="desc">幅の広いニューラルネットは表現力が高く、<b>少なくノイズのある訓練データ</b>を丸暗記してしまいがち（訓練は完璧でもテストで失敗＝過学習）。重みを罰する <a href="reg.html">L2 正則化</a>とは別の、ネットの<b>構造</b>に効く対策がドロップアウト。右下で落とす率を変えられます。</div>';}
+  else if(k==='drop'){h+='<h3>② ランダムに落とす</h3><div class="eq curr">各ステップ、隠れ素子を確率 p で 0 にする</div><div class="desc">学習の<b>毎ステップ</b>、隠れニューロンを<b>ランダムに p='+(pdrop*100)+'% だけ無効化</b>（灰・赤枠）。毎回ネットの形が変わります。残った素子は 1/(1−p) 倍にスケール（逆ドロップアウト）。今 '+(demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0)+' 素子が稼働中。</div>';}
+  else if(k==='why'){h+='<h3>③ なぜ効くのか</h3><div class="eq curr">≒ 多数のサブネットを平均（共有重み）</div><div class="desc">毎回違う部分ネットで学ぶので、ある素子が「<b>隣の特定の素子が必ずいる</b>」前提で働けない＝<b>共適応の抑制</b>。各素子が単独でも役立つ頑健な特徴を学びます。これは<b>指数的な数のサブネットのアンサンブル</b>を学ぶのに近く、強い正則化になります。</div>';}
+  else if(k==='learn'){h+='<h3>④ 学習：汎化を確認</h3><div class="eq curr">ドロップアウトつきで学習 → テスト精度で評価</div><div class="desc">落とす率 '+(pdrop*100)+'% で学習。<b>訓練</b>精度と<b>テスト</b>精度の差（過学習ギャップ）に注目。p=0 だと訓練がほぼ満点でもテストが低い＝過学習。p>0 だと訓練は下がってもテストが改善しやすい。epoch '+epoch+'・訓練 '+(acc(trX,trY)*100).toFixed(0)+'%・テスト '+(acc(teX,teY)*100).toFixed(0)+'%。</div>';}
+  else{h+='<h3>⑤ 結果と推論時</h3><div class="desc">境界がなめらかになり、<b>テスト精度が改善</b>（訓練 '+(acc(trX,trY)*100).toFixed(0)+'% / テスト '+(acc(teX,teY)*100).toFixed(0)+'%）。<b>推論時はドロップアウトを切り、全ニューロンを使います</b>（学習時にスケール済みなのでそのままでOK）。右下で落とす率 0% と比べると過学習ギャップの違いが分かります。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・訓練時だけ素子をランダムに落とす<br>・共適応を抑え≒サブネットの集合を学習<br>・推論は全素子（汎化が向上）</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'){build();}
+  else if(k==='drop'||k==='why'){genDemoMask();maskAnim();}
+  else if(k==='learn'){build();runLearn();}
+  else if(k==='res'){if(epoch<300){build();while(epoch<300)trainStep();}}
+  renderAll();draw_();}
+let maskT=0;
+function maskAnim(){anim=true;let last=0;function go(ts){if(!anim||(STEPS[stepIdx].key!=='drop'&&STEPS[stepIdx].key!=='why'))return;if(ts-last>500){genDemoMask();draw_();renderMini();renderExplain();last=ts;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runLearn(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='learn')return;for(let s=0;s<3;s++)trainStep();draw_();renderMini();renderExplain();if(epoch>=300){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;const k=STEPS[stepIdx].key;if(k==='learn'&&anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,(k==='drop'||k==='why')?1700:(k==='learn'?500:1200));};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=2020+(Math.floor(rng()*900));pdrop=+document.getElementById('pSel').value;genData();build();stepIdx=0;genDemoMask();renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('pSel').onchange=()=>{pdrop=+document.getElementById('pSel').value;const k=STEPS[stepIdx].key;if(k==='learn'||k==='res'){build();if(k==='res'){while(epoch<300)trainStep();}else runLearn();}renderAll();draw_();};
+genData();build();pdrop=0.5;genDemoMask();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

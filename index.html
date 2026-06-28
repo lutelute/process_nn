@@ -170,6 +170,7 @@
       <a class="mapcard spineCard" href="#demo"><div class="tag">回帰・当てはめ</div><div class="t">関数近似（↓デモ）</div><div class="d">MLP が 1 次元関数に当てはまる様子。データと損失、学習の全体像。</div><div class="dep"><b>前提:</b> 線形回帰・信号の流れ ／ <b>次:</b> 逆伝播</div></a>
       <a class="mapcard spineCard" href="viz/backprop.html"><div class="tag">学習の心臓部</div><div class="t">誤差逆伝播法</div><div class="d">誤差を出力→入力へ逆流させ、連鎖律で各重みの勾配を求めて更新。</div><div class="dep"><b>前提:</b> 勾配降下・信号の流れ ／ <b>次:</b> 分類・CNN・RNN</div></a>
       <a class="mapcard" href="viz/reg.html"><div class="tag">過学習と汎化</div><div class="t">正則化（L2）</div><div class="d">高表現力モデルの暗記＝過学習を、罰 λΣw² で抑え汎化。テスト誤差のU字で最適な複雑さ。</div><div class="dep"><b>前提:</b> 線形回帰・関数近似 ／ <b>関連:</b> 全モデル共通</div></a>
+      <a class="mapcard" href="viz/dropout.html"><div class="tag">NN・過学習対策</div><div class="t">ドロップアウト</div><div class="d">訓練中に隠れ素子をランダムに落とす＝サブネットのアンサンブル。NN特有の正則化。</div><div class="dep"><b>前提:</b> 誤差逆伝播・正則化 ／ <b>関連:</b> 全NN共通</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 3</span><span class="ttl">教師あり学習・分類</span><span class="badge">ラベル付きデータから決定境界を学ぶ。</span></div>
