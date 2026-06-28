@@ -3,179 +3,153 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Attention を立体で見る — 本物の注目を 3D で</title>
+<title>Attention を立体で見る — 動くインフォグラフ（3D）</title>
 <style>
   :root{
     --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
     --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a;
+    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 48px;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
-  h1{font-family:var(--mincho);font-weight:600;font-size:24px;margin:0;letter-spacing:.03em;}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:6px;}
-  .nav{font-size:13px;color:var(--muted);}
-  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:10px 14px 0;}
-  .canvas-host{width:100%;padding:8px 10px 12px;}
-  canvas{display:block;width:100%;height:auto;border-radius:8px;background:radial-gradient(130% 130% at 50% 28%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:760px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1.45fr 1fr;}
+  .vis{padding:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:radial-gradient(130% 130% at 50% 30%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
   canvas:active{cursor:grabbing;}
-  .readout{display:flex;gap:24px;font-family:var(--mono);padding:4px 14px 10px;}
-  .readout .k{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
-  .readout .v{font-size:18px;color:var(--text);} .readout .v.loss{color:var(--loss);}
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
-  .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
-  .field label{font-size:11.5px;color:var(--muted);}
-  .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
-  select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
-  select:focus{border-color:var(--accent);outline:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;}
-  .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;align-items:center;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;transition:.15s;}
-  button:hover{border-color:var(--faint);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:8px;align-self:flex-start;display:flex;gap:14px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;} .dotmark{width:9px;height:9px;border-radius:50%;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .stat{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;} .stat b{color:var(--text);} .stat .l b{color:var(--loss);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
-  .note{grid-column:1/-1;color:var(--faint);font-size:11px;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div>
-      <h1>Attention を立体で見る — 本物の注目を 3D で</h1>
-      <div class="sub">小型 Transformer を実際に学習させ、その<b>本物の attention</b> を 3D の弧で表示。各ヘッドを奥行きに分け、どのトークンがどこを見ているかを立体で観察。学習で注目パターンが形成される様子もリアルタイムに見える。<b>ドラッグで回転</b></div>
-    </div>
-    <div class="nav">
-      <a href="transformer.html">Transformer学習(2D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="gpt3d.html">GPT構造(3D)</a><span style="color:var(--faint);margin:0 6px;">·</span>
-      <a href="../">トップ</a>
-    </div>
-  </header>
+  <div class="nav"></div>
+  <h1>Attention を立体で見る（3D）</h1>
+  <div class="lead">小型 Transformer を<b>実際に学習</b>させ、その<b>本物の attention（注目）</b>を 3D の弧で表示。各ヘッドを奥行きに分け、どのトークンがどこを見ているかを立体で観察。学習で注目パターンが形成される様子もリアルタイムに見える。<b>ドラッグで回転・ホイールで拡大</b>。下の流れを「次へ」で追ってください。</div>
 
-  <div class="card">
-    <div class="cap">attention の弧（キー位置 → クエリ位置 / ヘッドを奥行きに分離）※ドラッグで回転</div>
-    <div class="readout">
-      <div><div class="k">epoch</div><div class="v" id="epOut">0</div></div>
-      <div><div class="k">loss</div><div class="v loss" id="lossOut">—</div></div>
-      <div><div class="k">構成</div><div class="v" id="cfgOut" style="font-size:13px;">—</div></div>
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="800" height="520"></canvas>
+        <div class="legend">
+          <span><i class="dotmark" style="background:var(--warm)"></i>トークン</span>
+          <span><i class="dotmark" style="background:var(--accent)"></i>注目の弧（太いほど強い）</span>
+          <span>奥行き=ヘッド</span>
+        </div>
+      </div>
+      <div class="explain" id="explain"></div>
     </div>
-    <div class="canvas-host"><canvas id="cv" width="1080" height="560"></canvas></div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="spinBtn">⟲ 回転</button>
+      <select id="corpus"><option value="hello world. ">hello world.</option><option value="the cat sat on the mat. ">the cat sat...</option><option value="abcabcabc ">abcabc（周期）</option></select>
+      <select id="layerSel"><option value="0">層0</option><option value="1">層1</option><option value="2">層2</option></select>
+    </div>
   </div>
 
-  <div class="controls">
-    <div class="field">
-      <label>学習コーパス</label>
-      <select id="corpus">
-        <option value="hello world. ">hello world.</option>
-        <option value="the cat sat on the mat. ">the cat sat...</option>
-        <option value="abcabcabc ">abcabc（周期）</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>表示する層 <span class="val" id="layerVal"></span></label>
-      <input type="range" id="layerSlider" min="0" max="2" step="1" value="0">
-    </div>
-    <div class="field">
-      <label>弧のしきい値 <span class="val" id="thVal"></span></label>
-      <input type="range" id="thSlider" min="0.02" max="0.3" step="0.01" value="0.06">
-    </div>
-    <div class="field">
-      <label>学習速度 <span class="val" id="spdv"></span></label>
-      <input type="range" id="spd" min="1" max="12" step="1" value="4">
-    </div>
-    <div class="buttons">
-      <button class="primary" id="trainBtn">▶ 学習</button>
-      <button id="stepBtn">⏭ 50 step</button>
-      <button id="resetBtn">↺ リセット</button>
-      <button id="spinBtn">⟲ 自動回転</button>
-    </div>
-    <div class="note">構造: 小型 decoder-only Transformer（3 層 × 4 ヘッド / 埋め込み 32）。因果的自己注意なので弧は必ず「過去（左）→現在（右）」へ。弧の明るさ・高さ＝注目の強さ。学習前はぼんやり、学習が進むと特定の位置に注目が集中していくのが立体で分かります。各ヘッドが別々のパターンを学ぶ様子も奥行きで比較できます。</div>
-  </div>
+  <details>
+    <summary>もっと詳しく：自己注意・因果マスク・ヘッドの役割・2D版との対応</summary>
+    <div class="det">構造は小型 decoder-only Transformer（3 層 × 4 ヘッド / 埋め込み 32）。各トークンは Query・Key・Value を持ち、注目度は softmax(QKᵀ/√d) で決まります（<a href="attention.html">自己注意(2D)</a> 参照）。<b>因果マスク</b>のため弧は必ず「過去（左）→現在（右）」のみ。弧の明るさ・高さ＝注目の強さ。学習前はぼんやり拡散、学習が進むと特定位置に集中し、<b>各ヘッドが別々のパターン</b>（直前を見る／特定文字を探す等）を学ぶ様子が奥行きで比較できます。全 12 層 × 12 ヘッドの本物 GPT-2 構造は <a href="gpt3d.html">GPT-2(3D)</a> へ。</div>
+  </details>
 </div>
 
 <script src="lib3d.js"></script>
 <script type="module">
 import { MiniGPT } from '../gpt2/tools/minigpt.mjs';
 const $=id=>document.getElementById(id);
-const NL=3, NH=4, T=12;
+const NL=3, NH=4, T=12, TH=0.06, SPD=8, LEARN_TARGET=600;
 let chars=[], stoi={}, itos=[], data=[], model=null, idx=[], att=null, epoch=0, lastLoss=null;
-
-function build(){
-  const base=$('corpus').value; const text=base.repeat(Math.ceil(300/base.length));
-  chars=[...new Set(text)].sort(); stoi=Object.fromEntries(chars.map((c,i)=>[c,i])); itos=chars.slice();
-  data=[...text].map(c=>stoi[c]);
-  model=new MiniGPT({nLayer:NL,nHead:NH,nEmbd:32,blockSize:T,vocabSize:chars.length});
-  idx=data.slice(0,T); epoch=0; lastLoss=null;
-  $('cfgOut').textContent=NL+'層×'+NH+'ヘッド';
-  capture();
-}
-function trainStep(){ const p=Math.floor(Math.random()*(data.length-T-1)); const x=data.slice(p,p+T), y=data.slice(p+1,p+T+1);
-  model.forward(x); lastLoss=model.backward(y); model.step(0.01); epoch++; }
-function capture(){ const {viz}=model.forward(idx,{capture:true}); att=viz.att; } // att[layer][head][i][j]
+function build(){const base=$('corpus').value;const text=base.repeat(Math.ceil(300/base.length));chars=[...new Set(text)].sort();stoi=Object.fromEntries(chars.map((c,i)=>[c,i]));itos=chars.slice();data=[...text].map(c=>stoi[c]);model=new MiniGPT({nLayer:NL,nHead:NH,nEmbd:32,blockSize:T,vocabSize:chars.length});idx=data.slice(0,T);epoch=0;lastLoss=null;capture();}
+function trainStep(){const p=Math.floor(Math.random()*(data.length-T-1));const x=data.slice(p,p+T),y=data.slice(p+1,p+T+1);model.forward(x);lastLoss=model.backward(y);model.step(0.01);epoch++;}
+function capture(){const {viz}=model.forward(idx,{capture:true});att=viz.att;}
 
 const cv=$('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
-const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:54,dist:20,yaw:-0.5,pitch:0.34});
+const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:50,dist:20,yaw:-0.5,pitch:0.34});
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 const xGap=0.62, zGap=1.25, arcH=2.2;
 function tokPos(i,z){return [(i-(T-1)/2)*xGap, 0, z];}
-function bezier(a,b,h,z,seg){ const mx=(a+b)/2; const pts=[]; for(let s=0;s<=seg;s++){const t=s/seg; const x=(1-t)*(1-t)*a+2*(1-t)*t*mx+t*t*b; const y=2*(1-t)*t*h; pts.push([x,y,z]);} return pts; }
-
-function draw(){
-  ctx.clearRect(0,0,CW,CH); if(!att) return;
-  const L=+$('layerSlider').value|0; const th=+$('thSlider').value;
-  // ヘッド面を深度ソートして奥から描く
+function bezier(a,b,h,z,seg){const mx=(a+b)/2;const pts=[];for(let s=0;s<=seg;s++){const t=s/seg;const x=(1-t)*(1-t)*a+2*(1-t)*t*mx+t*t*b;const y=2*(1-t)*t*h;pts.push([x,y,z]);}return pts;}
+function draw(){ctx.clearRect(0,0,CW,CH);if(!att)return;const L=+$('layerSel').value|0;
   const order=[];for(let h=0;h<NH;h++){const z=(h-(NH-1)/2)*zGap;order.push({h,z,d:Lib3D.project([0,0.6,z],cam).depth});}
   order.sort((a,b)=>a.d-b.d);
-  for(const {h,z} of order){
-    const A=att[L][h];
-    // 弧
-    for(let i=0;i<T;i++)for(let j=0;j<=i;j++){const a=A[i][j];if(a<th)continue;
-      const pa=tokPos(j,z)[0], pb=tokPos(i,z)[0];
-      const pts=bezier(pa,pb,arcH*(0.25+0.75*a)*(0.5+0.5*Math.min(1,(i-j)/4)),z,16);
-      ctx.beginPath();let first=true;for(const p of pts){const pr=Lib3D.project(p,cam);if(first){ctx.moveTo(pr.x,pr.y);first=false;}else ctx.lineTo(pr.x,pr.y);}
-      ctx.strokeStyle=`rgba(57,224,196,${0.12+0.85*a})`;ctx.lineWidth=0.6+2.6*a;ctx.stroke();}
-    // トークン基線ノード＋ラベル
-    for(let i=0;i<T;i++){const pr=Lib3D.project(tokPos(i,z),cam);const f=cam.dist/(cam.dist-pr.depth);
-      ctx.beginPath();ctx.arc(pr.x,pr.y,3*f,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();}
-    // ヘッドラベル
-    const hl=Lib3D.project([(-(T-1)/2-1)*xGap,0,z],cam);ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('H'+h,hl.x,hl.y);
-  }
-  // トークン文字ラベル（最前面の面のみ, 下に）
+  for(const {h,z} of order){const A=att[L][h];
+    for(let i=0;i<T;i++)for(let j=0;j<=i;j++){const a=A[i][j];if(a<TH)continue;const pa=tokPos(j,z)[0],pb=tokPos(i,z)[0];const pts=bezier(pa,pb,arcH*(0.25+0.75*a)*(0.5+0.5*Math.min(1,(i-j)/4)),z,16);ctx.beginPath();let first=true;for(const p of pts){const pr=Lib3D.project(p,cam);if(first){ctx.moveTo(pr.x,pr.y);first=false;}else ctx.lineTo(pr.x,pr.y);}ctx.strokeStyle=`rgba(57,224,196,${0.12+0.85*a})`;ctx.lineWidth=0.6+2.6*a;ctx.stroke();}
+    for(let i=0;i<T;i++){const pr=Lib3D.project(tokPos(i,z),cam);const f=cam.dist/(cam.dist-pr.depth);ctx.beginPath();ctx.arc(pr.x,pr.y,3*f,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();}
+    const hl=Lib3D.project([(-(T-1)/2-1)*xGap,0,z],cam);ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('H'+h,hl.x,hl.y);}
   const zf=(NH-1-(NH-1)/2)*zGap;
-  for(let i=0;i<T;i++){const pr=Lib3D.project([(i-(T-1)/2)*xGap,-0.5,zf],cam);ctx.fillStyle=getCSS('--text');ctx.font='12px '+getCSS('--mono');ctx.textAlign='center';
-    const ch=itos[idx[i]]; ctx.fillText(ch===' '?'␣':ch, pr.x, pr.y);}
-  ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
-  const tl=Lib3D.project([0,-1.2,zf],cam);ctx.fillText('入力トークン（因果: 各位置は自分より左だけを見る）',tl.x,tl.y);
-}
+  for(let i=0;i<T;i++){const pr=Lib3D.project([(i-(T-1)/2)*xGap,-0.5,zf],cam);ctx.fillStyle=getCSS('--text');ctx.font='12px '+getCSS('--mono');ctx.textAlign='center';const ch=itos[idx[i]];ctx.fillText(ch===' '?'␣':ch,pr.x,pr.y);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';const tl=Lib3D.project([0,-1.2,zf],cam);ctx.fillText('入力トークン（因果: 各位置は自分より左だけを見る）',tl.x,tl.y);}
 
-function updateReadout(){$('epOut').textContent=epoch.toLocaleString();$('lossOut').textContent=lastLoss==null?'—':lastLoss.toFixed(3);}
-
-/* ループ */
-let running=false;
-function frame(){if(!running)return;for(let i=0;i<(+$('spd').value);i++)trainStep();capture();draw();updateReadout();requestAnimationFrame(frame);}
-function setRun(on){running=on;$('trainBtn').textContent=on?'⏸ 一時停止':'▶ 学習';$('trainBtn').classList.toggle('primary',!on);if(on)requestAnimationFrame(frame);}
-
-/* UI */
-function lbls(){$('layerVal').textContent='層'+$('layerSlider').value;$('thVal').textContent=(+$('thSlider').value).toFixed(2);$('spdv').textContent=$('spd').value;}
-$('corpus').addEventListener('change',()=>{setRun(false);build();draw();updateReadout();});
-$('layerSlider').addEventListener('input',()=>{lbls();draw();});
-$('thSlider').addEventListener('input',()=>{lbls();draw();});
-$('spd').addEventListener('input',lbls);
-$('trainBtn').addEventListener('click',()=>setRun(!running));
-$('stepBtn').addEventListener('click',()=>{setRun(false);for(let i=0;i<50;i++)trainStep();capture();draw();updateReadout();});
-$('resetBtn').addEventListener('click',()=>{setRun(false);build();draw();updateReadout();});
-Lib3D.attachDrag(cv,cam,draw);
-let spin=false;$('spinBtn').addEventListener('click',()=>{spin=!spin;$('spinBtn').classList.toggle('primary',!spin);$('spinBtn').textContent=spin?'⏸ 回転停止':'⟲ 自動回転';if(spin&&!running)sloop();});
+let running=false,spin=false;
+function frame(){if(!running)return;for(let i=0;i<SPD;i++)trainStep();capture();draw();renderExplain();if(epoch>=LEARN_TARGET){running=false;renderAll();if(auto)setTimeout(autoTick,800);return;}requestAnimationFrame(frame);}
 function sloop(){if(!spin)return;cam.yaw+=0.005;draw();requestAnimationFrame(sloop);}
-$('resetBtn2')?.addEventListener('click',()=>{});
 
-lbls(); build(); draw(); updateReadout();
-window.addEventListener('keydown',e=>{ if(e.key==='r'){cam.yaw=-0.5;cam.pitch=0.34;cam.scale=54;draw();} });
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'heads',t:'トークンとヘッド',c:'var(--upd)'},{key:'arcs',t:'注目の弧',c:'var(--accent)'},{key:'learn',t:'学習',c:'var(--loss)'},{key:'spin',t:'回して見る',c:'var(--accent)'}];
+let stepIdx=0,auto=false;
+function stopAll(){running=false;spin=false;$('spinBtn').classList.remove('primary');$('spinBtn').textContent='⟲ 回転';}
+function renderStepper(){const el=$('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderExplain(){const el=$('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：注目を立体で見る</h3><div class="desc">文（下のトークン列）を処理するとき、各語は「文中のどこを見て」意味を決めるのか＝<b>attention</b>。3 層 × 4 ヘッドの注目を、ヘッドを奥行きに分けて立体表示します。今は未学習なので弧はぼんやり拡散。右下でコーパスを変えられます。</div><div class="stat"><span class="l">loss <b>'+(lastLoss==null?'—':lastLoss.toFixed(2))+'</b></span></div>';}
+  else if(k==='heads'){h+='<h3>② トークンとヘッド</h3><div class="eq curr">各トークンが Q・K・V を持ち、注目 = softmax(QKᵀ/√d)</div><div class="desc">下の横一列が<b>入力トークン</b>（時系列）。同じ並びが奥行き方向に <b>4 枚（=4 ヘッド H0〜H3）</b>あります。各ヘッドは独立に「どこを見るか」を計算。ドラッグで回転して、ヘッドが奥に重なっているのを確かめて。</div>';}
+  else if(k==='arcs'){h+='<h3>③ 注目の弧（因果）</h3><div class="eq curr">弧 = キー位置(左) → クエリ位置(右)、太さ=注目の強さ</div><div class="desc">弧は「あるトークンが別のトークンに<b>どれだけ注目したか</b>」。<b>因果マスク</b>のため、各位置は<b>自分より左（過去）だけ</b>を見られる＝弧は必ず左から右へ。太く明るい弧ほど強い注目です。</div>';}
+  else if(k==='learn'){h+='<h3>④ 学習：注目が形成される</h3><div class="eq curr">次トークン予測の誤差を逆伝播 → 注目が研ぎ澄まされる</div><div class="desc">小型 Transformer を実際に学習。loss が下がるにつれ、ぼんやりした弧が<b>特定の位置へ集中</b>し、各ヘッドが別々の役割（直前を見る等）を獲得します。'+(epoch>0?'epoch <b>'+epoch.toLocaleString()+'</b>・loss <b style="color:var(--loss)">'+(lastLoss==null?'—':lastLoss.toFixed(2))+'</b>。':'「次へ」で学習が走ります。')+'</div>';}
+  else{h+='<h3>⑤ 回して見る</h3><div class="desc"><b>ドラッグで回転</b>・右下で層やコーパスを変え、学習後の注目パターンをヘッドごと（奥行き）に比較。ヘッドにより「直前に注目」「同じ文字を探す」など分業しているのが立体で分かります。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・各語が文中のどこを見るか=attention<br>・因果マスクで過去だけを参照<br>・学習で注目が集中・ヘッドが分業</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderExplain();$('prevBtn').disabled=(stepIdx===0);$('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function stopAuto(){auto=false;}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stopAll();stepIdx=i;const k=STEPS[i].key;
+  if(k==='learn'){running=true;$('trainBtn')&&0;requestAnimationFrame(frame);}
+  else if(k==='spin'){spin=true;$('spinBtn').classList.add('primary');$('spinBtn').textContent='⏸ 回転停止';capture();draw();sloop();}
+  else{capture();draw();}
+  renderAll();}
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const k=STEPS[stepIdx].key;if(k==='learn')return;/*frame triggers next*/setTimeout(autoTick,1600);}else stopAuto();}
+$('nextBtn').addEventListener('click',()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);});
+$('prevBtn').addEventListener('click',()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);});
+$('resetBtn').addEventListener('click',()=>{stopAuto();build();goStep(0);});
+$('spinBtn').addEventListener('click',()=>{stopAuto();spin=!spin;$('spinBtn').classList.toggle('primary',spin);$('spinBtn').textContent=spin?'⏸ 回転停止':'⟲ 回転';if(spin){running=false;sloop();}else draw();});
+$('corpus').addEventListener('change',()=>{stopAll();build();goStep(0);});
+$('layerSel').addEventListener('change',draw);
+Lib3D.attachDrag(cv,cam,draw);
+build();renderAll();draw();
 </script>
 <script src="nav.js"></script>
 </body>
