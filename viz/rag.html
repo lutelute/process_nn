@@ -37,6 +37,7 @@
   .qbox{font-family:var(--gothic);font-size:13px;font-weight:700;color:var(--ink);background:#fff;border:1px solid var(--ink);border-left:3px solid var(--loss);border-radius:2px;padding:9px 11px;margin-bottom:10px;}
   .qbox .qi{font-family:var(--mono);font-size:10px;color:var(--loss);letter-spacing:.1em;margin-right:6px;}
   .doclbl{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-3);margin-bottom:6px;}
+  .vis canvas{display:block;width:100%;max-width:380px;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;margin:0 auto 10px;}
   .psg{position:relative;font-family:var(--gothic);font-size:11.5px;line-height:1.55;color:var(--ink-2);background:#fffdf6;border:1px solid var(--rule);border-radius:2px;padding:7px 9px 7px 30px;margin-bottom:5px;transition:.15s;}
   .psg .pi{position:absolute;left:7px;top:7px;font-family:var(--mono);font-size:9px;color:var(--ink-3);}
   .psg .pbar{position:absolute;left:0;bottom:0;height:2.5px;background:var(--accent);width:0;}
@@ -74,6 +75,7 @@
     <div class="body">
       <div class="vis">
         <div class="qbox" id="qbox"></div>
+        <canvas id="plot" width="380" height="200"></canvas>
         <div class="doclbl" id="doclbl"></div>
         <div id="passages"></div>
       </div>
@@ -97,6 +99,7 @@
 
 <script>
 "use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 const CORPORA={
   tale:{label:'昔話（桃太郎）', docs:[
     'むかしむかし、あるところにおじいさんとおばあさんが住んでいました。',
@@ -143,10 +146,32 @@ const CORPORA={
 };
 let ck='tale', qi=0, K=2;
 function bigrams(s){s=s.replace(/[、。？！\s・]/g,'');const m={};for(let i=0;i<s.length-1;i++){const g=s[i]+s[i+1];m[g]=(m[g]||0)+1;}return m;}
-let docB=[],idf={},docV=[];
+let docB=[],idf={},docV=[],pos2d=[];
 function buildIndex(){const docs=CORPORA[ck].docs;docB=docs.map(bigrams);const df={};for(const m of docB)for(const g in m)df[g]=(df[g]||0)+1;
   idf={};for(const g in df)idf[g]=Math.log((docs.length+1)/(df[g]+1))+1;
-  docV=docB.map(m=>{const v={};for(const g in m)v[g]=m[g]*(idf[g]||1);return v;});}
+  docV=docB.map(m=>{const v={};for(const g in m)v[g]=m[g]*(idf[g]||1);return v;});pos2d=mds(docV);}
+// 古典的MDS: passage間のコサイン距離を2次元に配置（似た文ほど近く）
+function mds(vecs){const n=vecs.length;const D2=[];for(let i=0;i<n;i++){D2[i]=[];for(let j=0;j<n;j++){const d=1-cos(vecs[i],vecs[j]);D2[i][j]=d*d;}}
+  const rm=D2.map(r=>r.reduce((s,v)=>s+v,0)/n),gm=rm.reduce((s,v)=>s+v,0)/n;
+  const B=[];for(let i=0;i<n;i++){B[i]=[];for(let j=0;j<n;j++)B[i][j]=-0.5*(D2[i][j]-rm[i]-rm[j]+gm);}
+  function eig(prev){let v=B.map((_,i)=>Math.sin(i*1.3+1+(prev?7:0)));for(let it=0;it<200;it++){let u=new Array(n).fill(0);for(let i=0;i<n;i++)for(let j=0;j<n;j++)u[i]+=B[i][j]*v[j];if(prev){const dp=u.reduce((s,x,i)=>s+x*prev[i],0);for(let i=0;i<n;i++)u[i]-=dp*prev[i];}const nm=Math.hypot(...u)||1;v=u.map(x=>x/nm);}
+    let Mv=new Array(n).fill(0);for(let i=0;i<n;i++)for(let j=0;j<n;j++)Mv[i]+=B[i][j]*v[j];return{v,lam:v.reduce((s,x,i)=>s+x*Mv[i],0)};}
+  const e1=eig(null),e2=eig(e1.v),s1=Math.sqrt(Math.max(1e-6,e1.lam)),s2=Math.sqrt(Math.max(1e-6,e2.lam));
+  return e1.v.map((_,i)=>[e1.v[i]*s1,e2.v[i]*s2]);}
+function qpos(qv){const r=docV.map(d=>Math.max(0,cos(qv,d)));let sx=0,sy=0,sw=0;for(let i=0;i<r.length;i++){const w=Math.pow(r[i],3)+0.02;sx+=w*pos2d[i][0];sy+=w*pos2d[i][1];sw+=w;}return[sx/sw,sy/sw];}
+const plot=document.getElementById('plot'),pctx=plot.getContext('2d'),PW=plot.width,PH=plot.height;
+function drawPlot(){const k=STEPS[stepIdx].key;pctx.clearRect(0,0,PW,PH);
+  const all=pos2d.slice();const qv=tfidf(bigrams(CORPORA[ck].qs[qi].q));const qp=qpos(qv);all.push(qp);
+  let x0=Math.min(...all.map(p=>p[0])),x1=Math.max(...all.map(p=>p[0])),y0=Math.min(...all.map(p=>p[1])),y1=Math.max(...all.map(p=>p[1]));
+  const m=28,X=v=>m+(v-x0)/(x1-x0+1e-9)*(PW-2*m),Y=v=>PH-m-(v-y0)/(y1-y0+1e-9)*(PH-2*m);
+  pctx.strokeStyle='rgba(150,143,127,0.16)';pctx.lineWidth=1;for(let g=0;g<=6;g++){pctx.beginPath();pctx.moveTo(m+(PW-2*m)*g/6,8);pctx.lineTo(m+(PW-2*m)*g/6,PH-8);pctx.stroke();pctx.beginPath();pctx.moveTo(10,8+(PH-16)*g/6);pctx.lineTo(PW-8,8+(PH-16)*g/6);pctx.stroke();}
+  const showQ=(k!=='prob');const r=ranked(),top=new Set(r.slice(0,K).map(o=>o.i));
+  if(showQ&&(k==='retrieve'||k==='answer'||k==='res')){for(const o of r.slice(0,K)){pctx.strokeStyle='rgba(31,158,138,0.7)';pctx.lineWidth=1.6;pctx.setLineDash([4,3]);pctx.beginPath();pctx.moveTo(X(qp[0]),Y(qp[1]));pctx.lineTo(X(pos2d[o.i][0]),Y(pos2d[o.i][1]));pctx.stroke();pctx.setLineDash([]);}}
+  for(let i=0;i<pos2d.length;i++){const hit=(k==='retrieve'||k==='answer'||k==='res')&&top.has(i);pctx.beginPath();pctx.arc(X(pos2d[i][0]),Y(pos2d[i][1]),hit?6:4.5,0,7);pctx.fillStyle=hit?'#1f9e8a':'rgba(82,80,74,0.85)';pctx.fill();if(hit){pctx.lineWidth=2;pctx.strokeStyle=getCSS('--ink');pctx.stroke();}
+    pctx.fillStyle=hit?getCSS('--ink'):'rgba(26,26,23,0.7)';pctx.font=(hit?'700 ':'')+'10px '+getCSS('--mono');pctx.textAlign='left';pctx.textBaseline='middle';pctx.fillText((i+1),X(pos2d[i][0])+7,Y(pos2d[i][1]));}
+  if(showQ){const x=X(qp[0]),y=Y(qp[1]);pctx.save();pctx.translate(x,y);pctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,rr=i%2?4:9;pctx[i?'lineTo':'moveTo'](Math.cos(a)*rr,-Math.sin(a)*rr);}pctx.closePath();pctx.fillStyle=getCSS('--loss');pctx.fill();pctx.lineWidth=1.3;pctx.strokeStyle=getCSS('--ink');pctx.stroke();pctx.restore();
+    pctx.fillStyle=getCSS('--loss');pctx.font='700 10px '+getCSS('--gothic');pctx.textAlign='left';pctx.fillText('質問',x+11,y-8);}
+  pctx.fillStyle=getCSS('--ink-3');pctx.font='9px '+getCSS('--mono');pctx.textAlign='center';pctx.fillText('文の意味空間（MDSで2次元化, 近い=似た内容, 数字=文番号）',PW/2,PH-6);}
 function tfidf(m){const v={};for(const g in m)v[g]=m[g]*(idf[g]||(Math.log((CORPORA[ck].docs.length+1)/1)+1));return v;}
 function cos(a,b){let d=0,na=0,nb=0;for(const g in a){na+=a[g]*a[g];if(b[g])d+=a[g]*b[g];}for(const g in b)nb+=b[g]*b[g];return d/(Math.sqrt(na*nb)+1e-9);}
 function ranked(){const qv=tfidf(bigrams(CORPORA[ck].qs[qi].q));return docV.map((d,i)=>({i,s:cos(qv,d)})).sort((a,b)=>b.s-a.s);}
@@ -159,7 +184,8 @@ function renderDoc(){const k=STEPS[stepIdx].key,docs=CORPORA[ck].docs,r=ranked()
   document.getElementById('doclbl').textContent=(k==='chunk')?'文書を「チャンク（文）」に分割 → 各を意味ベクトルへ':(k==='retrieve'||k==='answer'||k==='res')?'各チャンクと質問のコサイン類似度（上位'+K+'件を取得）':'知識ベース＝この文書';
   const showScore=(k==='retrieve'||k==='answer'||k==='res');
   document.getElementById('passages').innerHTML=docs.map((t,i)=>{const sc=r.find(o=>o.i===i).s,hit=showScore&&top.has(i),dim=showScore&&!top.has(i);
-    return '<div class="psg'+(hit?' hit':'')+(dim?' dim':'')+'"><span class="pi">文'+(i+1)+'</span>'+(showScore?'<span class="psc">'+sc.toFixed(2)+'</span>':'')+t+(showScore?'<div class="pbar" style="width:'+(sc/mx*100)+'%"></div>':'')+'</div>';}).join('');}
+    return '<div class="psg'+(hit?' hit':'')+(dim?' dim':'')+'"><span class="pi">文'+(i+1)+'</span>'+(showScore?'<span class="psc">'+sc.toFixed(2)+'</span>':'')+t+(showScore?'<div class="pbar" style="width:'+(sc/mx*100)+'%"></div>':'')+'</div>';}).join('');
+  drawPlot();}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key,r=ranked(),Q=CORPORA[ck].qs[qi];let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：文書の中身は知らない</h3><div class="desc">言語モデルは<b>学習時の一般知識</b>しか持たず、この「'+CORPORA[ck].label+'」のような<b>特定の文書</b>の中身は知りません。そのまま聞くと<b>もっともらしく間違える</b>（幻覚）。そこで文書から関係する箇所を<b>検索して与え</b>、それを根拠に答えさせます。</div>';}
   else if(k==='chunk'){h+='<h3>② 文書をチャンクに分けて埋め込み</h3><div class="eq">文書 → 文ごとに分割 → 各文を意味ベクトルに</div><div class="desc">文書を扱いやすい<b>チャンク（ここでは 1 文）</b>に分け、各チャンクを<b>ベクトル</b>に変換しておきます（ここでは<b>文字バイグラムの TF-IDF</b>で簡略化）。実際は文埋め込みモデルでベクトル化し<b>ベクトルDB</b>に保存します。</div>';}
