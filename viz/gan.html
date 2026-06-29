@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAN（敵対的生成ネットワーク）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --ink:#1a1a17; --ink-2:#52504a; --ink-3:#928f84; --rule:#dcd8cc;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 30px 64px;}
+  .nav{font-family:var(--mono);font-size:11px;letter-spacing:.03em;line-height:2.0;color:var(--ink-3);margin-bottom:22px;}
+  .nav a{color:var(--ink-2);text-decoration:none;} .nav a:hover{color:var(--ink);text-decoration:underline;}
+  h1{font-family:var(--gothic);font-weight:700;font-size:21px;letter-spacing:.04em;color:var(--ink);margin:0;padding-bottom:11px;border-bottom:1px solid var(--ink);}
+  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:780px;margin:15px 0 22px;}
+  .lead b{color:var(--ink);font-weight:700;}
+  .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--ink);}
+  .stp{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 6px;cursor:pointer;position:relative;border-right:1px dashed var(--rule);}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:20px;height:20px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;background:transparent;color:var(--ink-3);border:1px solid var(--ink-3);}
+  .stp .t{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-3);}
+  .stp.done .n{color:var(--ink);border-color:var(--ink);} .stp.done .t{color:var(--ink-2);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .stp.active .t{color:var(--ink);font-weight:700;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px dashed var(--rule);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:340px;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;}
+  canvas#loss{margin-top:8px;border-style:solid;}
+  .mini{display:flex;gap:14px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--ink);font-weight:700;} .mini .ok b{color:var(--accent);}
+  .legend{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:7px;align-self:flex-start;line-height:1.7;}
+  .legend i{font-style:normal;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:10px;font-family:var(--mono);letter-spacing:.18em;color:var(--ink-3);border:1px solid var(--ink-3);border-radius:2px;padding:2px 8px;margin-bottom:11px;text-transform:uppercase;}
+  .explain h3{font-family:var(--gothic);font-weight:700;font-size:16px;margin:0 0 9px;color:var(--ink);}
+  .eq{font-family:var(--mono);font-size:12px;background:#fff;border:1px solid var(--ink);border-radius:2px;border-left:3px solid var(--accent);padding:10px 13px;margin:9px 0;line-height:1.8;color:var(--ink);}
+  .desc{font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .desc b{color:var(--ink);font-weight:700;}
+  .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:12.5px;border-radius:2px;padding:8px 14px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:.12s;}
+  button:hover:not(:disabled){background:var(--panel-2);} button:disabled{opacity:.35;cursor:default;}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .bar .spacer{flex:1;}
+  select{background:#fff;color:var(--ink);border:1px solid var(--ink);border-radius:2px;padding:7px 9px;font-family:var(--gothic);font-size:12px;cursor:pointer;}
+  details{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
+  summary{padding:12px 15px;cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--ink-2);} summary:hover{color:var(--ink);}
+  .det{padding:0 15px 15px;font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px dashed var(--rule);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>GAN（敵対的生成ネットワーク）を理解する</h1>
+  <div class="lead"><b>生成モデル</b>は「本物そっくりの新しいデータ」を作る。GAN は 2 つのネットを<b>競わせて</b>これを学ぶ：<b>生成器 G</b> はノイズから偽データを作り、<b>識別器 D</b> は本物か偽物かを見分ける。G は D を<b>騙そう</b>とし、D は<b>見破ろう</b>とする — このいたちごっこ（min-max ゲーム）で、G は本物の分布に迫る。下のグリッドで、G の生成点が<b>本物の分布へ寄っていく</b>様子を見ます。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="340" height="300"></canvas>
+        <canvas id="loss" width="340" height="52"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 学習</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="tgtSel"><option value="gauss">標的: 8ガウス分布</option><option value="ring">標的: リング</option></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：min-max 目的・モード崩壊・VAE との違い</summary>
+    <div class="det">GAN の目的関数は <b>min<sub>G</sub> max<sub>D</sub> E[log D(x)] + E[log(1−D(G(z)))]</b>。D はこれを<b>最大化</b>（本物に 1・偽物に 0 を出す）、G は<b>最小化</b>（D(G(z)) を 1 に近づけ騙す）。理想的には G がデータ分布に一致し D は 0.5（見分けられない）になります。<b>モード崩壊</b>：G が「D を騙せる一部のパターン」だけを量産し、データの<b>多様性を取りこぼす</b>失敗（8 個の山のうち数個しか作らない等）。学習は<b>不安定</b>になりがちで、安定化に instance noise・<a href="batchnorm.html">バッチ正規化</a>・勾配ペナルティ（WGAN-GP）などが使われます。<b><a href="vae.html">VAE</a> との違い</b>：VAE は尤度ベースで安定だがぼやけやすい、GAN は鋭い生成ができるが不安定。ここでは G[2-48-48-2]・D[2-48-48-1] を本物の勾配で敵対学習しています（生成は簡略な 2D）。本格的な画像生成は <a href="vae.html">VAE</a> や拡散モデルの系譜へ。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+let seed=42;function mul(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
+function randn(){let u=0,v=0;while(u===0)u=mul();while(v===0)v=mul();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+// ===== 標的分布 =====
+let target='gauss';
+const MODES=Array.from({length:8},(_,i)=>[Math.cos(i/8*2*Math.PI)*1.2,Math.sin(i/8*2*Math.PI)*1.2]);
+function realSample(){if(target==='ring'){const a=mul()*2*Math.PI,r=1.2+randn()*0.05;return[Math.cos(a)*r,Math.sin(a)*r];}const m=MODES[Math.floor(mul()*8)];return[m[0]+randn()*0.09,m[1]+randn()*0.09];}
+// ===== MLP =====
+const GS=[2,48,48,2], DS=[2,48,48,1];
+function mlp(s){const W=[null],B=[null];for(let l=1;l<s.length;l++){const nI=s[l-1],nO=s[l],sc=Math.sqrt(2/nI),Wl=[];for(let j=0;j<nO;j++){const r=new Float64Array(nI);for(let k=0;k<nI;k++)r[k]=randn()*sc;Wl.push(r);}W[l]=Wl;B[l]=new Float64Array(nO);}return{W,B,sizes:s,m:opt(s),v:opt(s),t:0};}
+function opt(s){const W=[null],B=[null];for(let l=1;l<s.length;l++){W[l]=Array.from({length:s[l]},()=>new Float64Array(s[l-1]));B[l]=new Float64Array(s[l]);}return{W,B};}
+const lrl=z=>z>0?z:0.2*z, dlrl=z=>z>0?1:0.2, sig=z=>1/(1+Math.exp(-z));
+function fwd(M,x,os){const s=M.sizes,L=s.length-1,a=[x.slice()],zs=[null];for(let l=1;l<=L;l++){const z=new Float64Array(s[l]),al=new Float64Array(s[l]);for(let j=0;j<s[l];j++){let v=M.B[l][j];for(let k=0;k<s[l-1];k++)v+=M.W[l][j][k]*a[l-1][k];z[j]=v;al[j]=(l===L)?(os?sig(v):v):lrl(v);}zs.push(z);a.push(al);}return{a,zs};}
+function bp(M,fc,dOut,G){const s=M.sizes,L=s.length-1;let d=dOut;for(let l=L;l>=1;l--){const ap=fc.a[l-1];for(let j=0;j<s[l];j++){G.B[l][j]+=d[j];for(let k=0;k<s[l-1];k++)G.W[l][j][k]+=d[j]*ap[k];}const dp=new Float64Array(s[l-1]);for(let k=0;k<s[l-1];k++){let v=0;for(let j=0;j<s[l];j++)v+=M.W[l][j][k]*d[j];dp[k]=(l>1)?v*dlrl(fc.zs[l-1][k]):v;}d=dp;}return d;}
+function adam(M,G,lr){const L=M.sizes.length-1;M.t++;const b1=.5,b2=.999,bc1=1-Math.pow(b1,M.t),bc2=1-Math.pow(b2,M.t);for(let l=1;l<=L;l++)for(let j=0;j<M.sizes[l];j++){const gb=G.B[l][j];M.m.B[l][j]=b1*M.m.B[l][j]+(1-b1)*gb;M.v.B[l][j]=b2*M.v.B[l][j]+(1-b2)*gb*gb;M.B[l][j]-=lr*(M.m.B[l][j]/bc1)/(Math.sqrt(M.v.B[l][j]/bc2)+1e-8);for(let k=0;k<M.sizes[l-1];k++){const gw=G.W[l][j][k];M.m.W[l][j][k]=b1*M.m.W[l][j][k]+(1-b1)*gw;M.v.W[l][j][k]=b2*M.v.W[l][j][k]+(1-b2)*gw*gw;M.W[l][j][k]-=lr*(M.m.W[l][j][k]/bc1)/(Math.sqrt(M.v.W[l][j][k]/bc2)+1e-8);}}}
+// ===== 状態 =====
+let G,D,iter,lossG,lossD,zDisp,realDisp;
+const ND=180;
+function reset(){seed=42;G=mlp(GS);D=mlp(DS);iter=0;lossG=[];lossD=[];zDisp=[];for(let i=0;i<ND;i++)zDisp.push([randn(),randn()]);realDisp=[];for(let i=0;i<ND;i++)realDisp.push(realSample());}
+function Gout(z){return fwd(G,z).a[GS.length-1];}
+function Dprob(x){return fwd(D,x,1).a[DS.length-1][0];}
+function trainStep(){const BS=48,ns=Math.max(0.03,0.3*(1-iter/1600));
+  // D step
+  const gD=opt(DS);let dr=0,df=0;for(let b=0;b<BS;b++){let xr=realSample();xr=[xr[0]+randn()*ns,xr[1]+randn()*ns];const fr=fwd(D,xr,1);const pr=fr.a[3][0];dr+=pr;bp(D,fr,[pr-1],gD);
+    let xf=Gout([randn(),randn()]).slice();xf=[xf[0]+randn()*ns,xf[1]+randn()*ns];const ff=fwd(D,xf,1);const pf=ff.a[3][0];df+=pf;bp(D,ff,[pf],gD);}
+  for(let l=1;l<=3;l++)for(let j=0;j<DS[l];j++){gD.B[l][j]/=(2*BS);for(let k=0;k<DS[l-1];k++)gD.W[l][j][k]/=(2*BS);}adam(D,gD,0.001);
+  // G step
+  const gG=opt(GS);for(let b=0;b<BS;b++){const z=[randn(),randn()],fg=fwd(G,z),ff=fwd(D,fg.a[3],1);const dx=bp(D,ff,[ff.a[3][0]-1],opt(DS));bp(G,fg,dx,gG);}
+  for(let l=1;l<=3;l++)for(let j=0;j<GS[l];j++){gG.B[l][j]/=BS;for(let k=0;k<GS[l-1];k++)gG.W[l][j][k]/=BS;}adam(G,gG,0.001);
+  dr/=BS;df/=BS;lossD.push(-(Math.log(dr+1e-6)+Math.log(1-df+1e-6)));lossG.push(-Math.log(df+1e-6));if(lossD.length>240){lossD.shift();lossG.shift();}iter++;}
+function modesCovered(){if(target!=='gauss')return null;const hit=new Array(8).fill(0);for(const z of zDisp){const o=Gout(z);let bd=1e9,bm=0;for(let m=0;m<8;m++){const d=Math.hypot(o[0]-MODES[m][0],o[1]-MODES[m][1]);if(d<bd){bd=d;bm=m;}}if(bd<0.45)hit[bm]++;}return hit.filter(c=>c>0).length;}
+
+// ===== 描画 =====
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const lcv=document.getElementById('loss'),lctx=lcv.getContext('2d'),LW=lcv.width,LH=lcv.height;
+const R=2.0;const X=x=>(x+R)/(2*R)*CW, Y=y=>CH-(y+R)/(2*R)*CH;
+function draw(showD,showFake){ctx.clearRect(0,0,CW,CH);
+  // D決定境界 heatmap
+  if(showD){const g=34,cw=CW/g,ch=CH/g;for(let i=0;i<g;i++)for(let j=0;j<g;j++){const x=-R+(i+0.5)/g*2*R,y=R-(j+0.5)/g*2*R;const p=sig(Dprob([x,y]));
+    // p=1(本物と判定)→teal, p=0(偽物と判定)→warm
+    let r,gn,b;if(p>=0.5){const t=(p-0.5)*2;r=255-t*224;gn=255-t*97;b=255-t*117;}else{const t=(0.5-p)*2;r=255-t*0;gn=255-t*70;b=255-t*150;}
+    ctx.fillStyle=`rgb(${r|0},${gn|0},${b|0})`;ctx.fillRect(i*cw,j*ch,cw+1,ch+1);}}
+  else{ctx.fillStyle='#fffdf6';ctx.fillRect(0,0,CW,CH);}
+  // 本物点
+  ctx.fillStyle='rgba(82,80,74,0.5)';for(const p of realDisp){ctx.beginPath();ctx.arc(X(p[0]),Y(p[1]),1.8,0,7);ctx.fill();}
+  // 生成点
+  if(showFake){ctx.fillStyle=getCSS('--upd');for(const z of zDisp){const o=Gout(z);ctx.beginPath();ctx.arc(X(o[0]),Y(o[1]),2.2,0,7);ctx.fill();}}
+  ctx.strokeStyle='rgba(150,143,127,0.4)';ctx.lineWidth=1;ctx.strokeRect(.5,.5,CW-1,CH-1);}
+function drawLoss(){lctx.clearRect(0,0,LW,LH);lctx.fillStyle='#fffdf6';lctx.fillRect(0,0,LW,LH);
+  if(lossD.length<2){lctx.fillStyle=getCSS('--ink-3');lctx.font='9px '+getCSS('--mono');lctx.textAlign='center';lctx.fillText('損失（学習で綱引き）',LW/2,LH/2);return;}
+  const all=lossD.concat(lossG),mx=Math.max(...all,0.1),mn=Math.min(...all,0);const n=lossD.length;
+  function line(arr,col){lctx.strokeStyle=col;lctx.lineWidth=1.4;lctx.beginPath();for(let i=0;i<n;i++){const x=i/(n-1)*(LW-4)+2,y=LH-3-(arr[i]-mn)/(mx-mn+1e-9)*(LH-9);lctx[i?'lineTo':'moveTo'](x,y);}lctx.stroke();}
+  line(lossD,getCSS('--neg'));line(lossG,getCSS('--upd'));
+  lctx.fillStyle=getCSS('--neg');lctx.font='9px '+getCSS('--mono');lctx.textAlign='left';lctx.fillText('D損失',5,10);lctx.fillStyle=getCSS('--upd');lctx.fillText('G損失',46,10);}
+
+const STEPS=[{key:'prob',t:'問題'},{key:'gd',t:'GとD'},{key:'game',t:'敵対ゲーム'},{key:'train',t:'学習'},{key:'res',t:'結果'}];
+let stepIdx=0,auto=false;
+function drawStep(){const k=STEPS[stepIdx].key;draw(k!=='prob', k!=='prob');drawLoss();}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=document.getElementById('mini'),mc=modesCovered();m.innerHTML='<div>iter <b>'+iter+'</b></div>'+(lossD.length?'<div>D損失 <b>'+lossD[lossD.length-1].toFixed(2)+'</b></div><div>G損失 <b>'+lossG[lossG.length-1].toFixed(2)+'</b></div>':'')+(mc!==null&&iter>30?'<div class="ok">モード網羅 <b>'+mc+'/8</b></div>':'');}
+function renderLegend(){document.getElementById('legend').innerHTML='<i style="color:var(--ink-2)">●</i> 本物の分布　<i style="color:var(--upd)">●</i> 生成（偽物）　背景=D判定（<i style="color:var(--accent)">緑=本物</i>/<i style="color:var(--neg)">赤=偽物</i>と判定）';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：本物そっくりを生成したい</h3><div class="desc">手元のデータ（灰の点＝本物の分布）と<b>見分けがつかない新しいデータ</b>を作りたい。でも「本物らしさ」を直接式で書くのは難しい。GAN は<b>もう一つのネットに採点させる</b>という発想で、これを解きます。右下で標的の分布を切替できます。</div>';}
+  else if(k==='gd'){h+='<h3>② 生成器 G と識別器 D</h3><div class="eq">G: ノイズ z → 偽データ　／　D: データ → 本物らしさ(0〜1)</div><div class="desc"><b>生成器 G</b> はランダムなノイズ z を受け取り<b>偽データ</b>（紫の点）を出す。<b>識別器 D</b> は点を見て<b>本物(1)か偽物(0)か</b>を判定（背景の色＝D の判定地図）。最初は G の点はデタラメな位置にばらまかれています。</div>';}
+  else if(k==='game'){h+='<h3>③ 敵対ゲーム（min-max）</h3><div class="eq">min<sub>G</sub> max<sub>D</sub>　E[log D(x)] + E[log(1−D(G(z)))]</div><div class="desc"><b>D は見破ろう</b>とする：本物に 1、偽物に 0 を出すよう学習。<b>G は騙そう</b>とする：D が 1 と誤判定する偽物を作るよう学習。両者が交互に強くなり、<b>G は本物の分布へ追い込まれて</b>いきます。これが敵対的学習。</div>';}
+  else if(k==='train'){h+='<h3>④ 学習：生成点が本物へ寄る</h3><div class="eq">損失の綱引き（下のグラフ）：D が下げれば G が上がる</div><div class="desc">「⏵ 学習」で敵対学習が走ります。<b>紫の生成点が本物の山へ移動</b>し、D の境界（背景）も動きます。理想は D が見分けられず<b>0.5</b>（背景が淡く）になる状態。'+(target==='gauss'?'8 個の山をどれだけ網羅できるか（モード網羅）に注目。':'')+' iter '+iter+'。</div>';}
+  else{h+='<h3>⑤ 結果：強力だが難しい</h3><div class="desc">G は<b>鋭い・多様な生成</b>ができ、画像・音声・3D など幅広く使われます。一方で学習は<b>不安定</b>で、<b>モード崩壊</b>（多様性を取りこぼし一部だけ量産）が起きがち。安定化に instance noise や勾配ペナルティが使われます。'+(target==='gauss'?'今のモード網羅 '+(modesCovered()||0)+'/8。':'')+'</div><div class="eq"><b>要点</b><br>・G(生成)とD(判定)を競わせて学ぶ<br>・min-maxゲームでGが本物分布に迫る<br>・不安定/モード崩壊が課題（cf. <a href="vae.html">VAE</a>）</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 学習';}
+function frame(){if(!auto)return;for(let i=0;i<5;i++)trainStep();renderMini();renderExplain();drawStep();
+  if(iter>=2200){stopAuto();renderAll();drawStep();return;}requestAnimationFrame(frame);}
+function startAuto(){if(auto)return;auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(frame);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;if(k!=='train')stopAuto();renderAll();drawStep();if(k==='train'&&iter<2200)startAuto();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(STEPS[stepIdx].key!=='train')goStep(3);else startAuto();}};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();reset();goStep(0);};
+document.getElementById('tgtSel').onchange=e=>{stopAuto();target=e.target.value;reset();goStep(0);};
+reset();renderAll();drawStep();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

@@ -62,6 +62,7 @@
     { href: 'tsne.html',        label: 't-SNE' },
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
     { href: 'vae.html',         label: 'VAE' },
+    { href: 'gan.html',         label: 'GAN' },
     { href: 'qlearning.html',   label: 'Q学習' },
     { href: 'dqn.html',         label: 'DQN' },
     { href: 'mlp3d.html',       label: 'MLP(3D)' },

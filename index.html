@@ -228,6 +228,7 @@
       <a class="mapcard" href="viz/tsne.html"><div class="tag">非線形・可視化</div><div class="t">t-SNE</div><div class="d">高次元データを 2 次元へ。近さを保ちクラスタ構造を浮かび上がらせる。</div><div class="dep"><b>前提:</b> PCA（次元削減の動機）</div></a>
       <a class="mapcard" href="viz/autoencoder.html"><div class="tag">NN・表現学習</div><div class="t">オートエンコーダ</div><div class="d">入力をボトルネック z に圧縮して復元。NN による次元削減。</div><div class="dep"><b>前提:</b> 誤差逆伝播</div></a>
       <a class="mapcard" href="viz/vae.html"><div class="tag">NN・生成モデル</div><div class="t">VAE（変分AE）</div><div class="d">潜在を確率分布にしKLでN(0,1)へ整える。z～N(0,1)を復号して新データを生成。</div><div class="dep"><b>前提:</b> オートエンコーダ ／ <b>関連:</b> 生成モデル</div></a>
+      <a class="mapcard" href="viz/gan.html"><div class="tag">NN・生成モデル</div><div class="t">GAN（敵対的生成）</div><div class="d">生成器Gと識別器Dを競わせ、Gが本物分布に迫る。8ガウスを実際に敵対学習。鋭い生成と不安定さ。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> VAE</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 8</span><span class="ttl">強化学習</span><span class="badge">正解ラベルでなく、報酬から行動を学ぶ。</span></div>
