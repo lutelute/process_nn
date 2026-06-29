@@ -229,6 +229,7 @@
       <a class="mapcard" href="viz/autoencoder.html"><div class="tag">NN・表現学習</div><div class="t">オートエンコーダ</div><div class="d">入力をボトルネック z に圧縮して復元。NN による次元削減。</div><div class="dep"><b>前提:</b> 誤差逆伝播</div></a>
       <a class="mapcard" href="viz/vae.html"><div class="tag">NN・生成モデル</div><div class="t">VAE（変分AE）</div><div class="d">潜在を確率分布にしKLでN(0,1)へ整える。z～N(0,1)を復号して新データを生成。</div><div class="dep"><b>前提:</b> オートエンコーダ ／ <b>関連:</b> 生成モデル</div></a>
       <a class="mapcard" href="viz/gan.html"><div class="tag">NN・生成モデル</div><div class="t">GAN（敵対的生成）</div><div class="d">生成器Gと識別器Dを競わせ、Gが本物分布に迫る。8ガウスを実際に敵対学習。鋭い生成と不安定さ。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> VAE</div></a>
+      <a class="mapcard" href="viz/diffusion.html"><div class="tag">NN・生成モデル</div><div class="t">拡散モデル（DDPM）</div><div class="d">データに少しずつノイズを足す逆を学ぶ。ノイズから少しずつ除去して生成。Stable Diffusionの土台。GANより安定。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> GAN・VAE</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 8</span><span class="ttl">強化学習</span><span class="badge">正解ラベルでなく、報酬から行動を学ぶ。</span></div>
