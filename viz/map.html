@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>手法マップ（全手法の俯瞰）— 動くインフォグラフ</title>
+<title>手法マップ（全手法の俯瞰アトラス）— 動くインフォグラフ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -17,11 +17,11 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);line-height:1.6;-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1040px;margin:0 auto;padding:40px 30px 64px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 26px 64px;}
   .nav{font-family:var(--mono);font-size:11px;letter-spacing:.03em;line-height:2.0;color:var(--ink-3);margin-bottom:22px;}
   .nav a{color:var(--ink-2);text-decoration:none;} .nav a:hover{color:var(--ink);text-decoration:underline;}
   h1{font-family:var(--gothic);font-weight:700;font-size:21px;letter-spacing:.04em;color:var(--ink);margin:0;padding-bottom:11px;border-bottom:1px solid var(--ink);}
-  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:780px;margin:15px 0 22px;}
+  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:840px;margin:15px 0 22px;}
   .lead b{color:var(--ink);font-weight:700;}
   .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden;}
   .maphost{position:relative;}
@@ -29,47 +29,51 @@
   .axis{position:absolute;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;pointer-events:none;}
   .axis.x{bottom:8px;right:14px;} .axis.x2{bottom:8px;left:14px;}
   .axis.y{top:10px;left:12px;} .axis.y2{bottom:30px;left:12px;}
-  .bar{display:flex;align-items:center;gap:14px;padding:11px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
-  .legend{display:flex;gap:8px 16px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);}
+  .bar{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
+  .legend{display:flex;gap:7px 14px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);}
   .legend b{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;letter-spacing:.02em;}
   .legend .sw{width:11px;height:11px;border-radius:2px;border:1px solid rgba(0,0,0,.2);}
-  .legend b.off{opacity:.32;}
+  .legend b.off{opacity:.3;}
   .hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-left:auto;}
+  button{font-family:var(--gothic);font-size:11.5px;border-radius:2px;padding:6px 11px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:.12s;}
+  button:hover{background:var(--panel-2);} button.on{background:var(--ink);color:#fff;font-weight:700;}
   details{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
   summary{padding:12px 15px;cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--ink-2);} summary:hover{color:var(--ink);}
   .det{padding:0 15px 15px;font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .det a{color:var(--accent);}
-  @media print{@page{size:A4 landscape;margin:10mm;}html,body{background:#fff;}.stage{border-color:#000;}}
+  @media print{@page{size:A3 landscape;margin:8mm;}html,body{background:#fff;}.stage{border-color:#000;}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="nav"></div>
-  <h1>手法マップ（全手法の俯瞰）</h1>
-  <div class="lead">このサイトの<b>全手法</b>を、性質（教師あり/なし・ニューラルか・深さ・生成的か 等）で<b>2 次元に配置</b>した地図。近い手法ほど近くに、<b>カテゴリごとに色とグループ</b>で囲んで俯瞰できます。<b>横＝教師なし←→教師あり／最適化</b>、<b>縦＝古典的←→深層・言語</b>がだいたいの向き。点に乗ると詳細、<b>クリックでそのページへ</b>。</div>
+  <h1>手法マップ（全手法の俯瞰アトラス）</h1>
+  <div class="lead">このサイトの<b>全手法</b>を、性質（教師あり/なし・ニューラルか・深さ・生成的か 等）で<b>2 次元に配置</b>した地図。各手法は中身を表す<b>ミニ可視化カード</b>になっていて、<b>カテゴリごとに色と枠</b>でまとまっています。<b>横＝教師なし←→教師あり・最適化／縦＝古典的←→深層・言語</b>。カードに乗ると強調、<b>クリックでそのページへ</b>。「推奨順路」で学びの道筋も重ねられます。</div>
 
   <div class="stage">
     <div class="maphost">
-      <canvas id="cv" width="980" height="620"></canvas>
+      <canvas id="cv" width="1160" height="884"></canvas>
       <span class="axis x">教師あり・最適化 →</span>
       <span class="axis x2">← 教師なし</span>
       <span class="axis y">↑ 深層・言語</span>
       <span class="axis y2">↓ 古典的</span>
     </div>
     <div class="bar">
+      <button id="pathBtn">⊹ 推奨順路</button>
       <div class="legend" id="legend"></div>
-      <span class="hint">点=手法 / 枠=カテゴリ / クリックで開く</span>
+      <span class="hint">カード=手法 / 枠=カテゴリ / クリックで開く</span>
     </div>
   </div>
 
   <details>
     <summary>この地図の作り方・見方</summary>
-    <div class="det">各手法に「教師あり度・ニューラルか・層の深さ・生成的か・系列を扱うか・確率的か・非線形か・構造を見るか」などの<b>属性</b>を与え、それを 2 次元に配置しています（似た属性＝近い位置）。配置は読みやすさのため属性ベースの座標＋<b>重なり回避（反発）</b>で整えています。色は主カテゴリ。これは <a href="pca.html">PCA</a>・<a href="tsne.html">t-SNE</a>・<a href="kmeans.html">クラスタリング</a> がやっている「高次元の関係を 2 次元で俯瞰する」ことの、<b>手法そのものを対象にした版</b>です。凡例のカテゴリ名をクリックすると絞り込めます。</div>
+    <div class="det">各手法に「教師あり度・ニューラルか・層の深さ・生成的か・系列を扱うか・確率的か」などの<b>属性</b>を与え、それを 2 次元に配置（似た属性＝近い位置）。読みやすさのため<b>重なり回避</b>でカードを整列しています。各カードのミニ図は手法の典型的な振る舞いの<b>サムネ</b>。色は主カテゴリ、点線枠はカテゴリのまとまり。背景の方眼は位置の目安です。これは <a href="pca.html">PCA</a>・<a href="tsne.html">t-SNE</a>・<a href="kmeans.html">クラスタリング</a> がやっている「高次元を 2 次元で俯瞰」を、<b>手法そのものに適用</b>した版。「⊹ 推奨順路」で <a href="index.html">信号の流れ</a>→…→<a href="../gpt2/">GPT-2</a> の学習ルートを重ねられます。</div>
   </details>
 </div>
 
 <script>
 "use strict";
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function rng(s){let x=s>>>0;return ()=>{x=(Math.imul(x,1103515245)+12345)&0x7fffffff;return x/0x7fffffff;};}
 const CATS={
   unsup:{label:'教師なし',color:'#4e9a4e'},
   dimred:{label:'次元削減・表現',color:'#cf4f5f'},
@@ -80,85 +84,124 @@ const CATS={
   opt:{label:'最適化',color:'#7a776e'},
   rl:{label:'強化学習',color:'#9a6a3a'},
 };
-// n:表示名, h:リンク, c:カテゴリ, x,y:0..1 の概念座標(横=教師なし→教師あり/最適化, 縦=古典→深層)
+// n:名, h:リンク, c:カテゴリ, x,y:概念座標(0..1), mo:ミニ可視化モチーフ
 const M=[
-  {n:'勾配降下',h:'gradient.html',c:'opt',x:0.80,y:0.45},
-  {n:'遺伝的AL',h:'ga.html',c:'opt',x:0.91,y:0.53},
-  {n:'Q学習',h:'qlearning.html',c:'rl',x:0.89,y:0.30},
-  {n:'k-means',h:'kmeans.html',c:'unsup',x:0.15,y:0.30},
-  {n:'GMM',h:'gmm.html',c:'unsup',x:0.23,y:0.21},
-  {n:'DBSCAN',h:'dbscan.html',c:'unsup',x:0.10,y:0.19},
-  {n:'SOM',h:'som.html',c:'unsup',x:0.21,y:0.41},
-  {n:'Hopfield',h:'hopfield.html',c:'unsup',x:0.10,y:0.47},
-  {n:'PCA',h:'pca.html',c:'dimred',x:0.15,y:0.62},
-  {n:'t-SNE',h:'tsne.html',c:'dimred',x:0.25,y:0.69},
-  {n:'オートエンコーダ',h:'autoencoder.html',c:'dimred',x:0.17,y:0.79},
-  {n:'VAE',h:'vae.html',c:'dimred',x:0.27,y:0.82},
-  {n:'信号の流れ',h:'index.html',c:'nnbasic',x:0.44,y:0.46},
-  {n:'パーセプトロン',h:'perceptron.html',c:'nnbasic',x:0.37,y:0.35},
-  {n:'線形回帰',h:'linreg.html',c:'nnbasic',x:0.34,y:0.23},
-  {n:'ロジスティック回帰',h:'logreg.html',c:'nnbasic',x:0.41,y:0.29},
-  {n:'誤差逆伝播',h:'backprop.html',c:'nnbasic',x:0.48,y:0.52},
-  {n:'正則化',h:'reg.html',c:'nnbasic',x:0.40,y:0.60},
-  {n:'ドロップアウト',h:'dropout.html',c:'nnbasic',x:0.50,y:0.64},
-  {n:'勾配消失',h:'vanishing.html',c:'nnbasic',x:0.56,y:0.58},
-  {n:'バッチ正規化',h:'batchnorm.html',c:'nnbasic',x:0.58,y:0.66},
-  {n:'決定境界',h:'classify.html',c:'supervised',x:0.50,y:0.37},
-  {n:'数字認識',h:'digit.html',c:'supervised',x:0.58,y:0.45},
-  {n:'評価指標',h:'metrics.html',c:'supervised',x:0.45,y:0.18},
-  {n:'決定木',h:'dtree.html',c:'supervised',x:0.61,y:0.23},
-  {n:'ランダムフォレスト',h:'forest.html',c:'supervised',x:0.67,y:0.29},
-  {n:'勾配ブースティング',h:'boosting.html',c:'supervised',x:0.69,y:0.37},
-  {n:'kNN',h:'knn.html',c:'supervised',x:0.56,y:0.16},
-  {n:'SVM',h:'svm.html',c:'supervised',x:0.63,y:0.14},
-  {n:'ナイーブベイズ',h:'naivebayes.html',c:'supervised',x:0.50,y:0.10},
-  {n:'CNN',h:'cnn.html',c:'imgseq',x:0.62,y:0.56},
-  {n:'RNN',h:'rnn.html',c:'imgseq',x:0.70,y:0.63},
-  {n:'単語埋め込み',h:'word2vec.html',c:'lang',x:0.74,y:0.70},
-  {n:'位置エンコーディング',h:'positional.html',c:'lang',x:0.81,y:0.66},
-  {n:'自己注意',h:'attention.html',c:'lang',x:0.83,y:0.77},
-  {n:'Transformer',h:'transformer.html',c:'lang',x:0.89,y:0.81},
-  {n:'GPT-2',h:'../gpt2/',c:'lang',x:0.93,y:0.88},
+  {n:'勾配降下',h:'gradient.html',c:'opt',x:0.80,y:0.45,mo:'descent'},
+  {n:'遺伝的AL',h:'ga.html',c:'opt',x:0.92,y:0.54,mo:'pop'},
+  {n:'Q学習',h:'qlearning.html',c:'rl',x:0.90,y:0.29,mo:'grid'},
+  {n:'k-means',h:'kmeans.html',c:'unsup',x:0.15,y:0.30,mo:'cluster'},
+  {n:'GMM',h:'gmm.html',c:'unsup',x:0.24,y:0.20,mo:'cluster'},
+  {n:'DBSCAN',h:'dbscan.html',c:'unsup',x:0.09,y:0.18,mo:'cluster'},
+  {n:'SOM',h:'som.html',c:'unsup',x:0.21,y:0.42,mo:'cluster'},
+  {n:'Hopfield',h:'hopfield.html',c:'unsup',x:0.09,y:0.48,mo:'pattern'},
+  {n:'PCA',h:'pca.html',c:'dimred',x:0.15,y:0.62,mo:'proj'},
+  {n:'t-SNE',h:'tsne.html',c:'dimred',x:0.25,y:0.70,mo:'proj'},
+  {n:'オートエンコーダ',h:'autoencoder.html',c:'dimred',x:0.16,y:0.80,mo:'net'},
+  {n:'VAE',h:'vae.html',c:'dimred',x:0.27,y:0.83,mo:'proj'},
+  {n:'信号の流れ',h:'index.html',c:'nnbasic',x:0.44,y:0.46,mo:'net'},
+  {n:'パーセプトロン',h:'perceptron.html',c:'nnbasic',x:0.37,y:0.35,mo:'boundary'},
+  {n:'線形回帰',h:'linreg.html',c:'nnbasic',x:0.33,y:0.22,mo:'curve'},
+  {n:'ロジスティック回帰',h:'logreg.html',c:'nnbasic',x:0.41,y:0.28,mo:'sigmoid'},
+  {n:'誤差逆伝播',h:'backprop.html',c:'nnbasic',x:0.48,y:0.53,mo:'net'},
+  {n:'正則化',h:'reg.html',c:'nnbasic',x:0.39,y:0.61,mo:'curve'},
+  {n:'ドロップアウト',h:'dropout.html',c:'nnbasic',x:0.50,y:0.64,mo:'net'},
+  {n:'勾配消失',h:'vanishing.html',c:'nnbasic',x:0.56,y:0.58,mo:'bars'},
+  {n:'バッチ正規化',h:'batchnorm.html',c:'nnbasic',x:0.58,y:0.66,mo:'bars'},
+  {n:'決定境界',h:'classify.html',c:'supervised',x:0.50,y:0.37,mo:'boundary'},
+  {n:'数字認識',h:'digit.html',c:'supervised',x:0.58,y:0.45,mo:'pixel'},
+  {n:'評価指標',h:'metrics.html',c:'supervised',x:0.45,y:0.17,mo:'confusion'},
+  {n:'決定木',h:'dtree.html',c:'supervised',x:0.61,y:0.22,mo:'tree'},
+  {n:'ランダムフォレスト',h:'forest.html',c:'supervised',x:0.68,y:0.29,mo:'tree'},
+  {n:'勾配ブースティング',h:'boosting.html',c:'supervised',x:0.70,y:0.37,mo:'tree'},
+  {n:'kNN',h:'knn.html',c:'supervised',x:0.56,y:0.15,mo:'boundary'},
+  {n:'SVM',h:'svm.html',c:'supervised',x:0.63,y:0.13,mo:'boundary'},
+  {n:'ナイーブベイズ',h:'naivebayes.html',c:'supervised',x:0.49,y:0.09,mo:'boundary'},
+  {n:'CNN',h:'cnn.html',c:'imgseq',x:0.62,y:0.56,mo:'filter'},
+  {n:'RNN',h:'rnn.html',c:'imgseq',x:0.70,y:0.63,mo:'seq'},
+  {n:'単語埋め込み',h:'word2vec.html',c:'lang',x:0.74,y:0.70,mo:'proj'},
+  {n:'位置エンコーディング',h:'positional.html',c:'lang',x:0.81,y:0.66,mo:'wave'},
+  {n:'自己注意',h:'attention.html',c:'lang',x:0.83,y:0.77,mo:'attn'},
+  {n:'Transformer',h:'transformer.html',c:'lang',x:0.89,y:0.81,mo:'attn'},
+  {n:'GPT-2',h:'../gpt2/',c:'lang',x:0.94,y:0.88,mo:'attn'},
 ];
+const SPINE=['信号の流れ','勾配降下','誤差逆伝播','決定境界','CNN','RNN','自己注意','Transformer','GPT-2'];
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
-const PAD=58;
+const PAD=66, CWH=47, CHH=32; // card half-width / half-height
 function toPx(m){return{x:PAD+m.x*(CW-2*PAD), y:CH-PAD-m.y*(CH-2*PAD)};}
-// 初期座標→重なり回避(反発)で整える
 M.forEach(m=>{const p=toPx(m);m.px=p.x;m.py=p.y;});
-function relax(){for(let it=0;it<140;it++){for(let i=0;i<M.length;i++)for(let j=i+1;j<M.length;j++){const a=M[i],b=M[j];let dx=b.px-a.px,dy=b.py-a.py;let d=Math.hypot(dx,dy)||0.01;const min=(a.c===b.c)?34:46;if(d<min){const f=(min-d)/d*0.5;dx*=f;dy*=f;a.px-=dx;a.py-=dy;b.px+=dx;b.py+=dy;}}
-  for(const m of M){m.px=Math.max(PAD-8,Math.min(CW-PAD+8,m.px));m.py=Math.max(PAD-6,Math.min(CH-PAD+6,m.py));}}}
+// AABB 反発で重なり回避
+function relax(){const gx=18,gy=24;for(let it=0;it<320;it++){let moved=false;
+  for(let i=0;i<M.length;i++)for(let j=i+1;j<M.length;j++){const a=M[i],b=M[j];const dx=b.px-a.px,dy=b.py-a.py;const ox=(CWH+gx)-Math.abs(dx),oy=(CHH+gy)-Math.abs(dy);
+    if(ox>0&&oy>0){moved=true;if(ox<oy){const s=(dx<0?-1:1)*ox/2;a.px-=s;b.px+=s;}else{const s=(dy<0?-1:1)*oy/2;a.py-=s;b.py+=s;}}}
+  for(const m of M){m.px=Math.max(PAD-2,Math.min(CW-PAD+2,m.px));m.py=Math.max(PAD+6,Math.min(CH-PAD,m.py));}
+  if(!moved)break;}}
 relax();
 
 function hull(pts){if(pts.length<3)return pts.slice();const p=pts.slice().sort((a,b)=>a.x-b.x||a.y-b.y);const cr=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);const lo=[];for(const q of p){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}const up=[];for(let i=p.length-1;i>=0;i--){const q=p[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q);}lo.pop();up.pop();return lo.concat(up);}
 function expand(poly,m){const cx=poly.reduce((s,p)=>s+p.x,0)/poly.length,cy=poly.reduce((s,p)=>s+p.y,0)/poly.length;return poly.map(p=>{const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy)||1;return{x:p.x+dx/d*m,y:p.y+dy/d*m};});}
 function hex2rgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 
-let hover=-1,off={};
-function draw(){ctx.clearRect(0,0,CW,CH);
-  // カテゴリのグループ枠（凸包を膨らませて塗り）
-  for(const k in CATS){if(off[k])continue;const pts=M.filter(m=>m.c===k).map(m=>({x:m.px,y:m.py}));if(!pts.length)continue;const[r,g,b]=hex2rgb(CATS[k].color);
-    let poly;if(pts.length>=3)poly=expand(hull(pts),26);else{const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;poly=[];for(let a=0;a<12;a++){poly.push({x:cx+Math.cos(a/12*6.283)*40,y:cy+Math.sin(a/12*6.283)*40});}}
-    ctx.beginPath();poly.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();
-    ctx.fillStyle=`rgba(${r},${g},${b},0.07)`;ctx.fill();ctx.strokeStyle=`rgba(${r},${g},${b},0.5)`;ctx.setLineDash([4,4]);ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
-    // カテゴリラベル(枠の上部)
-    let topx=poly[0].x,topy=poly[0].y;for(const p of poly)if(p.y<topy){topy=p.y;topx=p.x;}ctx.fillStyle=`rgba(${r},${g},${b},0.95)`;ctx.font='600 10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(CATS[k].label,topx,topy-5);}
-  // ノード
-  for(let i=0;i<M.length;i++){const m=M[i];if(off[m.c])continue;const[r,g,b]=hex2rgb(CATS[m.c].color);const hl=(i===hover);
-    ctx.beginPath();ctx.arc(m.px,m.py,hl?6.5:4.5,0,7);ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fill();
-    if(hl){ctx.lineWidth=2;ctx.strokeStyle=getCSS('--ink');ctx.stroke();}
-    ctx.fillStyle=hl?getCSS('--ink'):'rgba(26,26,23,0.82)';ctx.font=(hl?'700 ':'')+'10.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';
-    const lx=m.px+8;ctx.fillText(m.n,lx,m.py);}
-  // hover ツールチップ(カテゴリ)
-  if(hover>=0){const m=M[hover];ctx.fillStyle=getCSS('--ink-3');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('▸ '+CATS[m.c].label+' / クリックで開く',16,CH-14);}
-}
-function renderLegend(){const el=document.getElementById('legend');el.innerHTML=Object.keys(CATS).map(k=>'<b data-k="'+k+'" class="'+(off[k]?'off':'')+'"><span class="sw" style="background:'+CATS[k].color+'"></span>'+CATS[k].label+'</b>').join('');
-  el.querySelectorAll('b').forEach(b=>b.onclick=()=>{const k=b.dataset.k;off[k]=!off[k];renderLegend();draw();});}
-function pick(mx,my){let best=-1,bd=18*18;for(let i=0;i<M.length;i++){const m=M[i];if(off[m.c])continue;const d=(m.px-mx)**2+(m.py-my)**2;if(d<bd){bd=d;best=i;}}return best;}
-function evt(e){const r=cv.getBoundingClientRect(),sx=CW/r.width,sy=CH/r.height;return{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};}
-cv.addEventListener('mousemove',e=>{const p=evt(e);const h=pick(p.x,p.y);cv.style.cursor=h>=0?'pointer':'crosshair';if(h!==hover){hover=h;draw();}});
+/* ===== ミニ可視化モチーフ：(x,y,w,h,col) の枠内に手法の典型図を描く ===== */
+const INK='#3a3a34', MUT='#9a978d';
+function clipCard(x,y,w,h,fn){ctx.save();rr(x,y,w,h,2);ctx.clip();fn();ctx.restore();}
+const MOT={
+  net(x,y,w,h,c){const cols=[3,4,2],gapx=w/(cols.length+1);const pos=[];for(let l=0;l<cols.length;l++){const cx=x+gapx*(l+1),arr=[];for(let k=0;k<cols[l];k++){const cy=y+h*(k+1)/(cols[l]+1);arr.push([cx,cy]);}pos.push(arr);}
+    ctx.strokeStyle='rgba(60,60,52,0.28)';ctx.lineWidth=.7;for(let l=0;l<pos.length-1;l++)for(const a of pos[l])for(const b of pos[l+1]){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+    for(let l=0;l<pos.length;l++)for(const a of pos[l]){ctx.beginPath();ctx.arc(a[0],a[1],2.4,0,7);ctx.fillStyle=l===pos.length-1?c:INK;ctx.fill();}},
+  curve(x,y,w,h,c){const g=rng(7);ctx.strokeStyle=c;ctx.lineWidth=1.6;ctx.beginPath();for(let i=0;i<=24;i++){const t=i/24,px=x+t*w,py=y+h*(0.5-0.36*Math.sin(t*Math.PI*1.6));i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.stroke();
+    ctx.fillStyle=INK;for(let i=0;i<8;i++){const t=g(),px=x+t*w,py=y+h*(0.5-0.36*Math.sin(t*Math.PI*1.6))+(g()-0.5)*h*0.34;ctx.beginPath();ctx.arc(px,py,1.8,0,7);ctx.fill();}},
+  sigmoid(x,y,w,h,c){ctx.strokeStyle=MUT;ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x,y+h/2);ctx.lineTo(x+w,y+h/2);ctx.stroke();ctx.strokeStyle=c;ctx.lineWidth=1.8;ctx.beginPath();for(let i=0;i<=26;i++){const t=i/26,px=x+t*w,py=y+h-h/(1+Math.exp(-(t*10-5)));i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.stroke();},
+  boundary(x,y,w,h,c){const g=rng(11);ctx.strokeStyle='rgba(60,60,52,0.5)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(x+w*0.18,y+h);ctx.lineTo(x+w*0.82,y);ctx.stroke();
+    for(let i=0;i<16;i++){const a=g()<0.5,px=x+4+g()*(w-8),py=y+4+g()*(h-8);const above=(py-y)<((px-x)/w)* -h+h*1.0; // rough
+      ctx.beginPath();ctx.arc(px,py,1.9,0,7);ctx.fillStyle=( (px-x)*h+(py-y)*w < w*h*0.6 )?c:INK;ctx.fill();}},
+  cluster(x,y,w,h,c){const cs=[[x+w*0.28,y+h*0.34,c],[x+w*0.7,y+h*0.4,'#c2891b'],[x+w*0.5,y+h*0.74,'#6f54c4']];const g=rng(5);for(const cl of cs){for(let i=0;i<7;i++){const px=cl[0]+(g()-0.5)*w*0.3,py=cl[1]+(g()-0.5)*h*0.34;ctx.beginPath();ctx.arc(px,py,1.8,0,7);ctx.fillStyle=cl[2];ctx.fill();}ctx.beginPath();ctx.arc(cl[0],cl[1],2.8,0,7);ctx.fillStyle=cl[2];ctx.fill();ctx.lineWidth=1;ctx.strokeStyle='#1a1a17';ctx.stroke();}},
+  proj(x,y,w,h,c){ctx.strokeStyle=MUT;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x+4,y+h-4);ctx.lineTo(x+w-4,y+h-4);ctx.moveTo(x+4,y+h-4);ctx.lineTo(x+4,y+4);ctx.stroke();const g=rng(9);const cl=[c,'#c2891b','#2f6fae'];for(let k=0;k<3;k++){const bx=x+w*(0.3+0.22*k),by=y+h*(0.3+0.18*((k*7)%3));for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(bx+(g()-0.5)*w*0.18,by+(g()-0.5)*h*0.2,1.7,0,7);ctx.fillStyle=cl[k];ctx.fill();}}},
+  tree(x,y,w,h,c){const cx=x+w/2;ctx.strokeStyle=INK;ctx.lineWidth=1;function br(px,py,dx,dy,d){if(d===0)return;const nx=px+dx,ny=py+dy;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(nx,ny);ctx.stroke();br(nx,ny,dx*0.66,dy,d-1);br(nx,ny,-dx*0.66,dy,d-1);}
+    br(cx,y+4,w*0.22,h*0.3,3);ctx.fillStyle=c;[[x+w*0.18,y+h-5],[x+w*0.42,y+h-5],[x+w*0.62,y+h-5],[x+w*0.84,y+h-5]].forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],2.2,0,7);ctx.fill();});},
+  pixel(x,y,w,h,c){const N=5,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2;const pat=[0,0,1,0,0, 0,1,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,1,1,1,0];for(let r=0;r<N;r++)for(let cc=0;cc<N;cc++){ctx.fillStyle=pat[r*N+cc]?c:'rgba(60,60,52,0.12)';ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1,cw-1);}},
+  confusion(x,y,w,h,c){const s=Math.min(w,h)-6,ox=x+(w-s)/2,oy=y+(h-s)/2,cw=s/2;const v=[0.82,0.18,0.22,0.78];for(let r=0;r<2;r++)for(let cc=0;cc<2;cc++){const on=(r===cc);ctx.fillStyle=on?c:'rgba(207,79,95,0.55)';ctx.globalAlpha=0.3+0.6*v[r*2+cc];ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1.5,cw-1.5);}ctx.globalAlpha=1;},
+  bars(x,y,w,h,c){const n=7,bw=w/n*0.6,g=rng(3);for(let i=0;i<n;i++){const bh=h*(0.85*Math.pow(0.62,i));const bx=x+w*(i+0.5)/n-bw/2;ctx.fillStyle=i>4?'rgba(207,79,95,0.75)':c;ctx.fillRect(bx,y+h-bh,bw,bh);}},
+  filter(x,y,w,h,c){const N=5,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2,g=rng(13);for(let r=0;r<N;r++)for(let cc=0;cc<N;cc++){ctx.fillStyle='rgba(60,60,52,'+(0.1+0.25*g())+')';ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1,cw-1);}ctx.strokeStyle=c;ctx.lineWidth=1.6;ctx.strokeRect(ox+cw*1,oy+cw*1,cw*2,cw*2);},
+  seq(x,y,w,h,c){ctx.strokeStyle=c;ctx.lineWidth=1.6;ctx.beginPath();for(let i=0;i<=30;i++){const t=i/30,px=x+t*w,py=y+h/2-Math.sin(t*Math.PI*3)*h*0.32;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.stroke();ctx.fillStyle=INK;for(let i=0;i<5;i++){const t=i/4,px=x+t*w;ctx.beginPath();ctx.arc(px,y+h/2-Math.sin(t*Math.PI*3)*h*0.32,1.8,0,7);ctx.fill();}},
+  wave(x,y,w,h,c){const cl=[c,'#c2891b','#2f6fae'];for(let k=0;k<3;k++){ctx.strokeStyle=cl[k];ctx.globalAlpha=.85;ctx.lineWidth=1.3;ctx.beginPath();for(let i=0;i<=30;i++){const t=i/30,px=x+t*w,py=y+h/2-Math.sin(t*Math.PI*(2+k*2.2))*h*0.3;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.stroke();}ctx.globalAlpha=1;},
+  attn(x,y,w,h,c){const n=5,ys=y+h-7;const xs=[];for(let i=0;i<n;i++)xs.push(x+w*(i+0.5)/n);ctx.strokeStyle=c;for(let i=0;i<n;i++){for(let j=0;j<i;j++){const wgt=(j===i-1)?1:0.3;ctx.globalAlpha=0.15+0.55*wgt;ctx.lineWidth=0.6+1.6*wgt;const mx=(xs[i]+xs[j])/2,peak=ys-h*0.42-Math.abs(i-j)*2;ctx.beginPath();ctx.moveTo(xs[i],ys);ctx.quadraticCurveTo(mx,peak,xs[j],ys);ctx.stroke();}}ctx.globalAlpha=1;ctx.fillStyle=INK;for(const xx of xs){ctx.fillRect(xx-3,ys,6,5);}},
+  descent(x,y,w,h,c){const cx=x+w*0.62,cy=y+h*0.5;ctx.strokeStyle='rgba(60,60,52,0.3)';ctx.lineWidth=.8;for(let r=1;r<=4;r++){ctx.beginPath();ctx.ellipse(cx,cy,r*w*0.11,r*h*0.13,0,0,7);ctx.stroke();}ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.fillStyle=c;let px=x+5,py=y+6;ctx.beginPath();ctx.moveTo(px,py);const pts=[[x+w*0.2,y+h*0.25],[x+w*0.4,y+h*0.4],[cx,cy]];for(const p of pts){ctx.lineTo(p[0],p[1]);}ctx.stroke();for(const p of[[x+5,y+6],...pts]){ctx.beginPath();ctx.arc(p[0],p[1],1.8,0,7);ctx.fill();}},
+  pop(x,y,w,h,c){const g=rng(17);for(let i=0;i<18;i++){const px=x+4+g()*(w-8),py=y+4+g()*(h-8),top=py<y+h*0.4;ctx.beginPath();ctx.arc(px,py,top?2.3:1.6,0,7);ctx.fillStyle=top?c:'rgba(60,60,52,0.4)';ctx.fill();}},
+  grid(x,y,w,h,c){const N=4,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2;ctx.strokeStyle='rgba(60,60,52,0.25)';ctx.lineWidth=.7;for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(ox+i*cw,oy);ctx.lineTo(ox+i*cw,oy+N*cw);ctx.moveTo(ox,oy+i*cw);ctx.lineTo(ox+N*cw,oy+i*cw);ctx.stroke();}
+    ctx.strokeStyle=c;ctx.lineWidth=1.6;ctx.beginPath();const path=[[0,3],[1,3],[1,2],[2,2],[2,1],[3,1],[3,0]];path.forEach((p,i)=>{const px=ox+(p[0]+0.5)*cw,py=oy+(p[1]+0.5)*cw;i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();ctx.fillStyle=c;ctx.fillRect(ox+0.5*cw-2,oy+3.5*cw-2,4,4);},
+  pattern(x,y,w,h,c){const N=6,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2,g=rng(23);for(let r=0;r<N;r++)for(let cc=0;cc<N;cc++){const on=((r+cc)%2===0)^(g()<0.18);ctx.fillStyle=on?c:'rgba(60,60,52,0.1)';ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1,cw-1);}},
+};
+
+let hover=-1,off={},showPath=false;
+function drawGrid(){const step=29;ctx.lineWidth=1;
+  for(let x=PAD%step;x<CW;x+=step){const major=Math.round((x-PAD%step)/step)%5===0;ctx.strokeStyle=major?'rgba(150,143,127,0.28)':'rgba(150,143,127,0.13)';ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,CH);ctx.stroke();}
+  for(let y=PAD%step;y<CH;y+=step){const major=Math.round((y-PAD%step)/step)%5===0;ctx.strokeStyle=major?'rgba(150,143,127,0.28)':'rgba(150,143,127,0.13)';ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(CW,y+.5);ctx.stroke();}}
+function drawHulls(){for(const k in CATS){if(off[k])continue;const pts=M.filter(m=>m.c===k).map(m=>({x:m.px,y:m.py}));if(!pts.length)continue;const[r,g,b]=hex2rgb(CATS[k].color);
+  let poly;if(pts.length>=3)poly=expand(hull(pts),38);else{const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;poly=[];for(let a=0;a<14;a++)poly.push({x:cx+Math.cos(a/14*6.283)*(CWH+26),y:cy+Math.sin(a/14*6.283)*(CHH+22)});}
+  ctx.beginPath();poly.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=`rgba(${r},${g},${b},0.06)`;ctx.fill();ctx.strokeStyle=`rgba(${r},${g},${b},0.45)`;ctx.setLineDash([5,4]);ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
+  let tx=poly[0].x,ty=poly[0].y;for(const p of poly)if(p.y<ty){ty=p.y;tx=p.x;}ctx.fillStyle=`rgba(${r},${g},${b},0.95)`;ctx.font='600 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(CATS[k].label,tx,ty-6);}}
+function drawPath(){const pts=SPINE.map(n=>M.find(m=>m.n===n)).filter(m=>m&&!off[m.c]);if(pts.length<2)return;
+  ctx.strokeStyle='rgba(26,26,23,0.55)';ctx.lineWidth=1.8;ctx.setLineDash([2,5]);ctx.beginPath();pts.forEach((m,i)=>i?ctx.lineTo(m.px,m.py):ctx.moveTo(m.px,m.py));ctx.stroke();ctx.setLineDash([]);
+  pts.forEach((m,i)=>{const bx=m.px-CWH+8,by=m.py-CHH+8;ctx.beginPath();ctx.arc(bx,by,8,0,7);ctx.fillStyle='#1a1a17';ctx.fill();ctx.fillStyle='#fff';ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i+1,bx,by+.5);});}
+function drawCard(m,i){if(off[m.c])return;const[r,g,b]=hex2rgb(CATS[m.c].color);const hl=(i===hover);const x=m.px-CWH,y=m.py-CHH,w=CWH*2,h=CHH*2;
+  ctx.save();ctx.shadowColor='rgba(0,0,0,0.10)';ctx.shadowBlur=hl?7:3;ctx.shadowOffsetY=1.5;rr(x,y,w,h,3);ctx.fillStyle='#fffefb';ctx.fill();ctx.restore();
+  rr(x,y,w,h,3);ctx.lineWidth=hl?2:1;ctx.strokeStyle=hl?'#1a1a17':'rgba(26,26,23,0.32)';ctx.stroke();
+  ctx.fillStyle=CATS[m.c].color;rr(x,y,w,3.2,2);ctx.fill(); // category top bar
+  const vx=x+5,vy=y+8,vw=w-10,vh=h-24; clipCard(vx,vy,vw,vh,()=>MOT[m.mo](vx,vy,vw,vh,CATS[m.c].color));
+  ctx.fillStyle=hl?'#1a1a17':'rgba(26,26,23,0.9)';ctx.font=(hl?'700 ':'600 ')+'9.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+  let nm=m.n;if(nm.length>9)nm=nm.slice(0,8)+'…';ctx.fillText(nm,m.px,y+h-8);}
+function draw(){ctx.clearRect(0,0,CW,CH);drawGrid();drawHulls();if(showPath)drawPath();
+  for(let i=0;i<M.length;i++)if(i!==hover)drawCard(M[i],i);if(hover>=0)drawCard(M[hover],hover);
+  if(hover>=0){const m=M[hover];ctx.fillStyle='#1a1a17';ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(m.n,16,CH-16);ctx.fillStyle=getCSS('--ink-3');ctx.font='10px '+getCSS('--mono');ctx.fillText('  ▸ '+CATS[m.c].label+' / クリックで開く',16+ctx.measureText(m.n).width+6,CH-16);}}
+function renderLegend(){const el=document.getElementById('legend');el.innerHTML=Object.keys(CATS).map(k=>'<b data-k="'+k+'" class="'+(off[k]?'off':'')+'"><span class="sw" style="background:'+CATS[k].color+'"></span>'+CATS[k].label+'</b>').join('');el.querySelectorAll('b').forEach(b=>b.onclick=()=>{off[b.dataset.k]=!off[b.dataset.k];renderLegend();draw();});}
+function pick(mx,my){for(let i=M.length-1;i>=0;i--){const m=M[i];if(off[m.c])continue;if(Math.abs(mx-m.px)<=CWH&&Math.abs(my-m.py)<=CHH)return i;}return -1;}
+function evt(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height};}
+cv.addEventListener('mousemove',e=>{const p=evt(e),h=pick(p.x,p.y);cv.style.cursor=h>=0?'pointer':'crosshair';if(h!==hover){hover=h;draw();}});
 cv.addEventListener('mouseleave',()=>{if(hover!==-1){hover=-1;draw();}});
-cv.addEventListener('click',e=>{const p=evt(e);const h=pick(p.x,p.y);if(h>=0)location.href=M[h].h;});
+cv.addEventListener('click',e=>{const p=evt(e),h=pick(p.x,p.y);if(h>=0)location.href=M[h].h;});
+document.getElementById('pathBtn').onclick=function(){showPath=!showPath;this.classList.toggle('on',showPath);draw();};
 renderLegend();draw();
 </script>
 <script src="nav.js"></script>
