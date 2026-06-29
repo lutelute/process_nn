@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深層強化学習（DQN）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --ink:#1a1a17; --ink-2:#52504a; --ink-3:#928f84; --rule:#dcd8cc;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 30px 64px;}
+  .nav{font-family:var(--mono);font-size:11px;letter-spacing:.03em;line-height:2.0;color:var(--ink-3);margin-bottom:22px;}
+  .nav a{color:var(--ink-2);text-decoration:none;} .nav a:hover{color:var(--ink);text-decoration:underline;}
+  h1{font-family:var(--gothic);font-weight:700;font-size:21px;letter-spacing:.04em;color:var(--ink);margin:0;padding-bottom:11px;border-bottom:1px solid var(--ink);}
+  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:780px;margin:15px 0 22px;}
+  .lead b{color:var(--ink);font-weight:700;}
+  .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--ink);}
+  .stp{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 6px;cursor:pointer;position:relative;border-right:1px dashed var(--rule);}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:20px;height:20px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;background:transparent;color:var(--ink-3);border:1px solid var(--ink-3);}
+  .stp .t{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-3);}
+  .stp.done .n{color:var(--ink);border-color:var(--ink);} .stp.done .t{color:var(--ink-2);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .stp.active .t{color:var(--ink);font-weight:700;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px dashed var(--rule);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:340px;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--ink);font-weight:700;} .mini .ok b{color:var(--accent);}
+  .legend{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:7px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:10px;font-family:var(--mono);letter-spacing:.18em;color:var(--ink-3);border:1px solid var(--ink-3);border-radius:2px;padding:2px 8px;margin-bottom:11px;text-transform:uppercase;}
+  .explain h3{font-family:var(--gothic);font-weight:700;font-size:16px;margin:0 0 9px;color:var(--ink);}
+  .eq{font-family:var(--mono);font-size:12px;background:#fff;border:1px solid var(--ink);border-radius:2px;border-left:3px solid var(--accent);padding:10px 13px;margin:9px 0;line-height:1.8;color:var(--ink);}
+  .desc{font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .desc b{color:var(--ink);font-weight:700;}
+  .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:12.5px;border-radius:2px;padding:8px 14px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:.12s;}
+  button:hover:not(:disabled){background:var(--panel-2);} button:disabled{opacity:.35;cursor:default;}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .bar .spacer{flex:1;}
+  details{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
+  summary{padding:12px 15px;cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--ink-2);} summary:hover{color:var(--ink);}
+  .det{padding:0 15px 15px;font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px dashed var(--rule);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>深層強化学習（DQN）を理解する</h1>
+  <div class="lead"><a href="qlearning.html">Q学習</a>は各「状態×行動」の価値を<b>表（Qテーブル）</b>で覚えるが、状態が多い・連続だと表が爆発して持てない。<b>DQN</b>は、状態を入力に<b>各行動の価値 Q をニューラルネットで近似</b>し、<b>経験再生</b>と<b>ε-貪欲</b>で安定に学習する。下のグリッドで、座標を入力にした Q 網が<b>価値地形と方策</b>を学ぶ様子を見ます。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="340" height="340"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 学習</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：経験再生・ターゲット網・なぜ安定するか</summary>
+    <div class="det">DQN の肝は 2 つの工夫です。<b>経験再生（Experience Replay）</b>：遷移 (s,a,r,s') を大きなバッファに貯め、<b>ランダムに取り出して</b>学習する。直近の経験は時間的に強く相関していて、そのまま学習すると不安定になるため、<b>相関を崩して</b>i.i.d. に近づけます。<b>ターゲット網（Target Network）</b>：教師信号 r+γ·maxQ(s') の Q を<b>少し前の固定コピー</b>で計算する。学習対象と教師が同じ網だと目標が動いて発散しやすいので、教師を<b>一定期間固定</b>して安定化します。損失は <b>(Q(s,a) − [r+γ·maxₐ′Q(s′,a′)])²</b> の TD 誤差。さらに Double DQN・Dueling・優先度つき経験再生 などの発展があります。表形式版は <a href="qlearning.html">Q学習</a> へ。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=7;function mul(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
+function randn(){let u=0,v=0;while(u===0)u=mul();while(v===0)v=mul();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const N=7, GOAL=[6,6], WALL=new Set(['3,1','3,2','3,3','3,4']);
+const A=[[0,1],[0,-1],[1,0],[-1,0]], AR=['↑','↓','→','←']; // y+ is up in grid coords
+const feat=(x,y)=>[x/(N-1),y/(N-1)];
+function step(x,y,a){let nx=x+A[a][0],ny=y+A[a][1];if(nx<0||nx>=N||ny<0||ny>=N||WALL.has(nx+','+ny)){nx=x;ny=y;}const done=(nx===GOAL[0]&&ny===GOAL[1]);return{nx,ny,r:done?1:-0.02,done};}
+const sizes=[2,24,24,4];let Q,Tnet,mW,vW,mB,vB,tA,buf,eps,episodes,steps,agent,reach=0;
+function netNew(){const W=[null],B=[null];for(let l=1;l<sizes.length;l++){const nI=sizes[l-1],nO=sizes[l],sc=Math.sqrt(2/nI),Wl=[];for(let j=0;j<nO;j++){const r=new Float64Array(nI);for(let k=0;k<nI;k++)r[k]=randn()*sc;Wl.push(r);}W[l]=Wl;B[l]=new Float64Array(nO);}return{W,B};}
+function copyNet(M){return{W:M.W.map(l=>l&&l.map(r=>Float64Array.from(r))),B:M.B.map(b=>b&&Float64Array.from(b))};}
+const relu=z=>z>0?z:0;
+function fwd(M,x){let a=[x.slice()];const L=sizes.length-1;for(let l=1;l<=L;l++){const nO=sizes[l],nI=sizes[l-1],al=new Float64Array(nO);for(let j=0;j<nO;j++){let s=M.B[l][j];for(let k=0;k<nI;k++)s+=M.W[l][j][k]*a[l-1][k];al[j]=(l===L)?s:relu(s);}a.push(al);}return a;}
+function qvals(M,x,y){return fwd(M,feat(x,y))[sizes.length-1];}
+function maxQ(M,x,y){const o=qvals(M,x,y);let m=o[0];for(const v of o)if(v>m)m=v;return m;}
+function greedy(M,x,y){const o=qvals(M,x,y);let a=0;for(let j=1;j<4;j++)if(o[j]>o[a])a=j;return a;}
+function reset(){seed=7+(episodes?Math.floor(mul()*900):0)|0;seed=7;Q=netNew();Tnet=copyNet(Q);mW=[null];vW=[null];mB=[null];vB=[null];for(let l=1;l<sizes.length;l++){const nI=sizes[l-1],nO=sizes[l];mW[l]=Q.W[l].map(()=>new Float64Array(nI));vW[l]=Q.W[l].map(()=>new Float64Array(nI));mB[l]=new Float64Array(nO);vB[l]=new Float64Array(nO);}tA=0;buf=[];eps=1;episodes=0;steps=0;agent=[0,0];reach=0;}
+reset();
+function trainBatch(batch,lr,gamma){const L=sizes.length-1;const dW=[null],dB=[null];for(let l=1;l<=L;l++){dW[l]=Q.W[l].map(r=>new Float64Array(r.length));dB[l]=new Float64Array(sizes[l]);}
+  for(const e of batch){const a=fwd(Q,e.s),o=a[L];let tgt=e.r;if(!e.done)tgt+=gamma*Math.max(...fwd(Tnet,e.ns)[L]);
+    const delta=new Float64Array(sizes[L]);delta[e.a]=o[e.a]-tgt;let d=delta;
+    for(let l=L;l>=1;l--){const nO=sizes[l],nI=sizes[l-1],ap=a[l-1];for(let j=0;j<nO;j++){dB[l][j]+=d[j];for(let k=0;k<nI;k++)dW[l][j][k]+=d[j]*ap[k];}
+      if(l>1){const dp=new Float64Array(nI);for(let k=0;k<nI;k++){let s=0;for(let j=0;j<nO;j++)s+=Q.W[l][j][k]*d[j];dp[k]=s*(a[l-1][k]>0?1:0);}d=dp;}}}
+  const iN=1/batch.length;tA++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,tA),bc2=1-Math.pow(b2,tA);
+  for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+0.1*gb;vB[l][j]=b2*vB[l][j]+0.001*gb*gb;Q.B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+1e-8);
+    for(let k=0;k<sizes[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+0.1*gw;vW[l][j][k]=b2*vW[l][j][k]+0.001*gw*gw;Q.W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+1e-8);}}}
+let epStep=0;
+function envTick(){let[x,y]=agent;const f=feat(x,y);let a;if(mul()<eps)a=Math.floor(mul()*4);else a=greedy(Q,x,y);
+  const{nx,ny,r,done}=step(x,y,a);buf.push({s:f,a,r,ns:feat(nx,ny),done});if(buf.length>4000)buf.shift();agent=[nx,ny];steps++;epStep++;
+  if(buf.length>=64){const b=[];for(let i=0;i<32;i++)b.push(buf[Math.floor(mul()*buf.length)]);trainBatch(b,0.005,0.95);}
+  if(steps%200===0)Tnet=copyNet(Q);
+  if(done||epStep>=80){agent=[0,0];epStep=0;episodes++;eps=Math.max(0.08,eps*0.985);}}
+function evalReach(){let s=0,t=0;for(let sx=0;sx<N;sx++)for(let sy=0;sy<N;sy++){if((sx===GOAL[0]&&sy===GOAL[1])||WALL.has(sx+','+sy))continue;t++;let x=sx,y=sy;for(let k=0;k<60;k++){const a=greedy(Q,x,y);const r=step(x,y,a);x=r.nx;y=r.ny;if(r.done){s++;break;}}}return s/t;}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function draw(showVals,showAgent){ctx.clearRect(0,0,CW,CH);const cs=CW/N;
+  let vmin=1e9,vmax=-1e9;const V=[];for(let x=0;x<N;x++){V[x]=[];for(let y=0;y<N;y++){const v=maxQ(Q,x,y);V[x][y]=v;if(!WALL.has(x+','+y)){vmin=Math.min(vmin,v);vmax=Math.max(vmax,v);}}}
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++){const px=x*cs,py=(N-1-y)*cs;
+    if(WALL.has(x+','+y)){ctx.fillStyle='#cfcabd';ctx.fillRect(px,py,cs,cs);}
+    else{const t=showVals?(V[x][y]-vmin)/(vmax-vmin+1e-9):0;ctx.fillStyle=`rgba(31,158,138,${0.06+0.62*t})`;ctx.fillRect(px,py,cs,cs);}
+    ctx.strokeStyle='rgba(150,143,127,0.35)';ctx.lineWidth=1;ctx.strokeRect(px+.5,py+.5,cs,cs);}
+  // goal
+  {const px=GOAL[0]*cs,py=(N-1-GOAL[1])*cs;ctx.fillStyle=getCSS('--loss');ctx.font='700 '+(cs*0.5)+'px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',px+cs/2,py+cs/2);}
+  // policy arrows
+  if(showVals){ctx.fillStyle='rgba(26,26,23,0.78)';ctx.font='700 '+(cs*0.42)+'px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+    for(let x=0;x<N;x++)for(let y=0;y<N;y++){if(WALL.has(x+','+y)||(x===GOAL[0]&&y===GOAL[1]))continue;const a=greedy(Q,x,y);ctx.fillText(AR[a],x*cs+cs/2,(N-1-y)*cs+cs/2);}}
+  // agent
+  if(showAgent){const px=agent[0]*cs,py=(N-1-agent[1])*cs;ctx.beginPath();ctx.arc(px+cs/2,py+cs/2,cs*0.22,0,7);ctx.fillStyle=getCSS('--upd');ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle=getCSS('--ink');ctx.stroke();}}
+
+const STEPS=[{key:'prob',t:'問題'},{key:'qnet',t:'ニューラルQ'},{key:'replay',t:'経験再生'},{key:'train',t:'学習'},{key:'res',t:'結果'}];
+let stepIdx=0,auto=false;
+function drawStep(){const k=STEPS[stepIdx].key;draw(k!=='prob', k==='replay'||k==='train');}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>状態 <b>'+(N*N)+'</b></div><div>episode <b>'+episodes+'</b></div><div>ε <b>'+eps.toFixed(2)+'</b></div>'+(episodes>2?'<div class="ok">到達率 <b>'+Math.round(reach*100)+'%</b></div>':'');}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='prob')?'灰=壁, ★=ゴール':'色=各マスの価値 maxQ(濃い=高), 矢印=方策, 紫●=エージェント';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：表（Qテーブル）が爆発する</h3><div class="desc"><a href="qlearning.html">Q学習</a>は「状態×行動」ごとに価値を<b>表で記憶</b>します。でも状態が多い・連続だと表が巨大になり持てません（画面なら何百万通り）。そこで価値を<b>関数で近似</b>します。グリッドの灰は壁、★はゴール。左下から★まで最短で行く方策を学びたい。</div>';}
+  else if(k==='qnet'){h+='<h3>② 価値をニューラルネットで近似</h3><div class="eq">状態 (x,y) → NN → [Q↑, Q↓, Q→, Q←]</div><div class="desc">マスの<b>座標 (x,y) を入力</b>に、ニューラルネット（2→24→24→4）が<b>各行動の価値 Q</b> を出力します。表のように 1 マスずつ覚えるのでなく、<b>近い状態は近い価値</b>と汎化できるのが利点。各マスの色は今の maxQ（学習前はほぼ均一）。</div>';}
+  else if(k==='replay'){h+='<h3>③ 経験再生 ＋ ε-貪欲</h3><div class="eq">遷移 (s,a,r,s′) をバッファに貯め → ランダムに取り出して学習</div><div class="desc"><b>ε-貪欲</b>：確率 ε で<b>ランダムに探索</b>、それ以外は今の最善手（探索と活用の両立）。集めた遷移を<b>経験バッファ</b>に貯め、<b>ランダムサンプル</b>して学習＝直近経験の<b>時間的相関を崩し</b>て安定化。紫●が動いて経験を集めます。</div>';}
+  else if(k==='train'){h+='<h3>④ 学習：価値地形と方策が定まる</h3><div class="eq">損失 = (Q(s,a) − [r + γ·maxₐ′Q(s′,a′)])²</div><div class="desc">「⏵ 学習」で訓練が走ります。TD 誤差で Q を更新すると、<b>ゴールに近いほど価値が高い</b>地形（色）ができ、各マスの<b>方策矢印</b>がゴールへ向きます。episode '+episodes+'・到達率 約 '+Math.round(reach*100)+'%。ターゲット網で教師を安定化（折りたたみ参照）。</div>';}
+  else{h+='<h3>⑤ 結果：表形式Q学習の深層版</h3><div class="desc">ニューラルQが価値を<b>関数で近似</b>するので、状態が大きくても（連続でも）方策を学べます（DQN は Atari をピクセルから学習しました）。<b>経験再生</b>と<b>ターゲット網</b>が安定学習の鍵。到達率 約 '+Math.round(reach*100)+'%。</div><div class="eq"><b>要点</b><br>・Qを表でなくNNで近似→大きな状態でも<br>・経験再生で相関を崩す/ε貪欲で探索<br>・ターゲット網でTD学習を安定化</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 学習';}
+function frame(){if(!auto)return;for(let i=0;i<6;i++)envTick();if(episodes%2===0||steps%40===0)reach=evalReach();renderMini();renderExplain();drawStep();
+  if(episodes>=300){stopAuto();reach=evalReach();renderAll();drawStep();return;}requestAnimationFrame(frame);}
+function startAuto(){if(auto)return;auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(frame);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;if(k!=='train')stopAuto();renderAll();drawStep();if(k==='train'&&episodes<300)startAuto();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(STEPS[stepIdx].key!=='train')goStep(3);else startAuto();}};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();reset();goStep(0);};
+renderAll();drawStep();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
