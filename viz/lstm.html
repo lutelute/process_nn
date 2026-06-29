@@ -34,7 +34,7 @@
   .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);}
   .body{display:grid;grid-template-columns:1fr 1fr;}
   .vis{padding:16px;border-right:1px dashed var(--rule);display:flex;flex-direction:column;align-items:center;}
-  canvas{display:block;width:100%;max-width:360px;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;}
+  canvas{display:block;width:100%;max-width:370px;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;}
   .mini{display:flex;gap:14px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
   .mini b{color:var(--ink);font-weight:700;} .mini .ok b{color:var(--accent);}
   .legend{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:7px;align-self:flex-start;line-height:1.7;}
@@ -59,13 +59,13 @@
 <div class="wrap">
   <div class="nav"></div>
   <h1>LSTM（長短期記憶）を理解する</h1>
-  <div class="lead">素朴な <a href="rnn.html">RNN</a> は系列が長いと<b>昔の情報を忘れがち</b>（<a href="vanishing.html">勾配消失</a>）。<b>LSTM</b> は、記憶専用の通り道<b>セル状態</b>と、情報の出入りを制御する<b>3 つのゲート</b>（入力・忘却・出力）を持ち、必要な情報を<b>長く保持</b>できる。下では「<b>系列の最初の値を、たくさんの邪魔のあとで思い出す</b>」記憶タスクを LSTM に解かせ、<b>ゲートの開閉とセル状態</b>を見ます。</div>
+  <div class="lead">素朴な <a href="rnn.html">RNN</a> は系列が長いと<b>昔の情報を忘れがち</b>（<a href="vanishing.html">勾配消失</a>）。<b>LSTM</b> は記憶専用の通り道<b>セル状態</b>と、情報を<b>書く・保つ・読む</b>を制御する<b>3 つのゲート</b>を持つ。下では「<b>最初の値を、たくさんの邪魔のあとで思い出す</b>」課題を解かせ、<b>同じ邪魔でも最初の値が 1 か 0 かでセルの値が二手に分かれ、最後まで保たれる</b>（だから思い出せる）様子を見ます。</div>
 
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">
       <div class="vis">
-        <canvas id="cv" width="360" height="300"></canvas>
+        <canvas id="cv" width="370" height="306"></canvas>
         <div class="mini" id="mini"></div>
         <div class="legend" id="legend"></div>
       </div>
@@ -82,7 +82,7 @@
 
   <details>
     <summary>もっと詳しく：式・なぜ長期記憶できるか・GRU/Transformer</summary>
-    <div class="det">各時刻、入力 x<sub>t</sub> と前の隠れ状態 h<sub>t−1</sub> から 3 つの<b>ゲート</b>（0〜1）と候補 g を作ります：<b>i</b>=σ(…)（入力＝どれだけ書くか）、<b>f</b>=σ(…)（忘却＝どれだけ残すか）、<b>o</b>=σ(…)（出力＝どれだけ読むか）、<b>g</b>=tanh(…)（書き込む内容）。<b>セル状態</b>は <b>c<sub>t</sub> = f⊙c<sub>t−1</sub> + i⊙g</b>、出力は <b>h<sub>t</sub> = o⊙tanh(c<sub>t</sub>)</b>。なぜ長期記憶できるか：忘却ゲート f≈1 のとき c はほぼ<b>そのまま素通り</b>（＋で更新）するので、勾配が掛け算で消えにくく、<b>遠い過去の情報が保たれる</b>（これが「定数誤差カルーセル」）。素朴な RNN は毎回行列を掛け tanh で潰すので勾配が消えやすい（<a href="vanishing.html">勾配消失</a>）。<b>GRU</b> はゲートを 2 つに簡略化した親戚。並列計算と超長距離の依存に強い <a href="transformer.html">Transformer</a>／<a href="attention.html">自己注意</a> が後継として主流になりました。学習は時間方向の逆伝播（BPTT）です。</div>
+    <div class="det">各時刻、入力 x<sub>t</sub> と前の隠れ状態 h<sub>t−1</sub> から 3 つの<b>ゲート</b>（0〜1）と候補 g を作ります：<b>i</b>=σ(…)（入力＝どれだけ書くか）、<b>f</b>=σ(…)（忘却＝どれだけ残すか）、<b>o</b>=σ(…)（出力＝どれだけ読むか）、<b>g</b>=tanh(…)（書き込む内容）。<b>セル状態</b>は <b>c<sub>t</sub> = f⊙c<sub>t−1</sub> + i⊙g</b>、出力は <b>h<sub>t</sub> = o⊙tanh(c<sub>t</sub>)</b>。なぜ長期記憶できるか：忘却ゲート f≈1 のとき c はほぼ<b>そのまま素通り</b>（＋で更新）するので、勾配が掛け算で消えにくく、<b>遠い過去の情報が保たれる</b>（「定数誤差カルーセル」）。素朴な RNN は毎回行列を掛け tanh で潰すので勾配が消えやすい（<a href="vanishing.html">勾配消失</a>）。<b>GRU</b> はゲートを 2 つに簡略化した親戚。並列計算と超長距離の依存に強い <a href="transformer.html">Transformer</a>／<a href="attention.html">自己注意</a> が後継として主流になりました。学習は時間方向の逆伝播（BPTT）です。</div>
   </details>
 </div>
 
@@ -96,65 +96,87 @@ const D=2,H=12,L=24;
 function gen(){const b=mul()<0.5?0:1;const X=[];for(let t=0;t<L;t++){if(t===0)X.push([b?1:-1,1]);else X.push([(mul()*2-1)*0.5,0]);}return{X,b};}
 function mat(r,c,s){const m=[];for(let i=0;i<r;i++){const row=new Float64Array(c);for(let j=0;j<c;j++)row[j]=randn()*s;m.push(row);}return m;}
 function mv(M,v){const o=new Float64Array(M.length);for(let i=0;i<M.length;i++){let s=0;for(let j=0;j<v.length;j++)s+=M[i][j]*v[j];o[i]=s;}return o;}
-let P,evalX,evalB;
+let P,X1,X0,trainIter,lossHist,acc;
 function reset(){seed=42;P={Wi:mat(H,D,.3),Ui:mat(H,H,.3),bi:new Float64Array(H),Wf:mat(H,D,.3),Uf:mat(H,H,.3),bf:new Float64Array(H).fill(1),Wo:mat(H,D,.3),Uo:mat(H,H,.3),bo:new Float64Array(H),Wg:mat(H,D,.3),Ug:mat(H,H,.3),bg:new Float64Array(H),Wy:mat(1,H,.3),by:new Float64Array(1)};
-  trainIter=0;lossHist=[];acc=0;seed=123;const e=gen();evalX=e.X;evalB=e.b;seed=42;}
-function run(X){const T=X.length;const hs=[new Float64Array(H)],cs=[new Float64Array(H)],is=[],fs=[],os=[],gs=[];
-  for(let t=0;t<T;t++){const x=X[t],hp=hs[t],cp=cs[t];const i=new Float64Array(H),f=new Float64Array(H),o=new Float64Array(H),g=new Float64Array(H),c=new Float64Array(H),h=new Float64Array(H);
+  trainIter=0;lossHist=[];acc=0;
+  // 表示用: 同じ邪魔入力で「最初=1」「最初=0」の2系列
+  seed=55;const dis=[];for(let t=1;t<L;t++)dis.push([(mul()*2-1)*0.5,0]);X1=[[1,1]].concat(dis);X0=[[-1,1]].concat(dis);seed=42;}
+function run(X){const T=X.length;const hs=[new Float64Array(H)],cs=[new Float64Array(H)],is=[],fs=[],os=[];
+  for(let t=0;t<T;t++){const x=X[t],hp=hs[t],cp=cs[t];const i=new Float64Array(H),f=new Float64Array(H),o=new Float64Array(H),c=new Float64Array(H),h=new Float64Array(H);
     const wi=mv(P.Wi,x),ui=mv(P.Ui,hp),wf=mv(P.Wf,x),uf=mv(P.Uf,hp),wo=mv(P.Wo,x),uo=mv(P.Uo,hp),wg=mv(P.Wg,x),ug=mv(P.Ug,hp);
-    for(let k=0;k<H;k++){i[k]=sig(wi[k]+ui[k]+P.bi[k]);f[k]=sig(wf[k]+uf[k]+P.bf[k]);o[k]=sig(wo[k]+uo[k]+P.bo[k]);g[k]=th(wg[k]+ug[k]+P.bg[k]);c[k]=f[k]*cp[k]+i[k]*g[k];h[k]=o[k]*th(c[k]);}
-    hs.push(h);cs.push(c);is.push(i);fs.push(f);os.push(o);gs.push(g);}
-  const y=P.by[0]+mv(P.Wy,hs[T])[0];return{p:sig(y),hs,cs,is,fs,os,gs,T};}
-function grad(X,b){const R=run(X),T=R.T;const g={};for(const k in P)g[k]=Array.isArray(P[k])?P[k].map(r=>new Float64Array(r.length)):new Float64Array(P[k].length);
+    for(let k=0;k<H;k++){i[k]=sig(wi[k]+ui[k]+P.bi[k]);f[k]=sig(wf[k]+uf[k]+P.bf[k]);o[k]=sig(wo[k]+uo[k]+P.bo[k]);const g=th(wg[k]+ug[k]+P.bg[k]);c[k]=f[k]*cp[k]+i[k]*g;h[k]=o[k]*th(c[k]);}
+    hs.push(h);cs.push(c);is.push(i);fs.push(f);os.push(o);}
+  const y=P.by[0]+mv(P.Wy,hs[T])[0];return{p:sig(y),hs,cs,is,fs,os};}
+function grad(X,b){const R=run(X),T=X.length;const g={};for(const k in P)g[k]=Array.isArray(P[k])?P[k].map(r=>new Float64Array(r.length)):new Float64Array(P[k].length);
   const dy=R.p-b;for(let k=0;k<H;k++)g.Wy[0][k]+=dy*R.hs[T][k];g.by[0]+=dy;let dh=new Float64Array(H);for(let k=0;k<H;k++)dh[k]=P.Wy[0][k]*dy;let dc=new Float64Array(H);
-  for(let t=T-1;t>=0;t--){const i=R.is[t],f=R.fs[t],o=R.os[t],gg=R.gs[t],cp=R.cs[t],c=R.cs[t+1],hp=R.hs[t],x=X[t];const di=new Float64Array(H),df=new Float64Array(H),doo=new Float64Array(H),dg=new Float64Array(H);
-    for(let k=0;k<H;k++){const tc=Math.tanh(c[k]);doo[k]=dh[k]*tc*o[k]*(1-o[k]);dc[k]+=dh[k]*o[k]*(1-tc*tc);di[k]=dc[k]*gg[k]*i[k]*(1-i[k]);df[k]=dc[k]*cp[k]*f[k]*(1-f[k]);dg[k]=dc[k]*i[k]*(1-gg[k]*gg[k]);}
-    for(let k=0;k<H;k++){for(let j=0;j<D;j++){g.Wi[k][j]+=di[k]*x[j];g.Wf[k][j]+=df[k]*x[j];g.Wo[k][j]+=doo[k]*x[j];g.Wg[k][j]+=dg[k]*x[j];}for(let j=0;j<H;j++){g.Ui[k][j]+=di[k]*hp[j];g.Uf[k][j]+=df[k]*hp[j];g.Uo[k][j]+=doo[k]*hp[j];g.Ug[k][j]+=dg[k]*hp[j];}g.bi[k]+=di[k];g.bf[k]+=df[k];g.bo[k]+=doo[k];g.bg[k]+=dg[k];}
-    const dhp=new Float64Array(H);for(let j=0;j<H;j++){let s=0;for(let k=0;k<H;k++)s+=P.Ui[k][j]*di[k]+P.Uf[k][j]*df[k]+P.Uo[k][j]*doo[k]+P.Ug[k][j]*dg[k];dhp[j]=s;}
+  for(let t=T-1;t>=0;t--){const i=R.is[t],f=R.fs[t],o=R.os[t],cp=R.cs[t],c=R.cs[t+1],hp=R.hs[t],x=X[t];const wg=mv(P.Wg,x),ug=mv(P.Ug,hp),gg=new Float64Array(H);for(let k=0;k<H;k++)gg[k]=th(wg[k]+ug[k]+P.bg[k]);
+    const di=new Float64Array(H),df=new Float64Array(H),doo=new Float64Array(H),dgv=new Float64Array(H);
+    for(let k=0;k<H;k++){const tc=Math.tanh(c[k]);doo[k]=dh[k]*tc*o[k]*(1-o[k]);dc[k]+=dh[k]*o[k]*(1-tc*tc);di[k]=dc[k]*gg[k]*i[k]*(1-i[k]);df[k]=dc[k]*cp[k]*f[k]*(1-f[k]);dgv[k]=dc[k]*i[k]*(1-gg[k]*gg[k]);}
+    for(let k=0;k<H;k++){for(let j=0;j<D;j++){g.Wi[k][j]+=di[k]*x[j];g.Wf[k][j]+=df[k]*x[j];g.Wo[k][j]+=doo[k]*x[j];g.Wg[k][j]+=dgv[k]*x[j];}for(let j=0;j<H;j++){g.Ui[k][j]+=di[k]*hp[j];g.Uf[k][j]+=df[k]*hp[j];g.Uo[k][j]+=doo[k]*hp[j];g.Ug[k][j]+=dgv[k]*hp[j];}g.bi[k]+=di[k];g.bf[k]+=df[k];g.bo[k]+=doo[k];g.bg[k]+=dgv[k];}
+    const dhp=new Float64Array(H);for(let j=0;j<H;j++){let s=0;for(let k=0;k<H;k++)s+=P.Ui[k][j]*di[k]+P.Uf[k][j]*df[k]+P.Uo[k][j]*doo[k]+P.Ug[k][j]*dgv[k];dhp[j]=s;}
     const dcp=new Float64Array(H);for(let k=0;k<H;k++)dcp[k]=dc[k]*f[k];dh=dhp;dc=dcp;}
   return{g,p:R.p};}
 function sgd(g,lr){for(const k in P){if(Array.isArray(P[k]))for(let i=0;i<P[k].length;i++)for(let j=0;j<P[k][i].length;j++)P[k][i][j]-=lr*Math.max(-1,Math.min(1,g[k][i][j]));else for(let i=0;i<P[k].length;i++)P[k][i]-=lr*Math.max(-1,Math.min(1,g[k][i]));}}
-let trainIter,lossHist,acc;
-function trainStep(){const{X,b}=gen();const r=grad(X,b);sgd(r.g,0.05);trainIter++;lossHist.push((r.p-b)**2);if(lossHist.length>240)lossHist.shift();}
+function trainStep(){const{X,b}=gen();const r=grad(X,b);sgd(r.g,0.05);trainIter++;lossHist.push((r.p-b)**2);}
 function evalAcc(){let c=0;const sv=seed;seed=7;for(let n=0;n<120;n++){const{X,b}=gen();if((run(X).p>0.5?1:0)===b)c++;}seed=sv;return c/120;}
-function avg(a){let s=0;for(const v of a)s+=v;return s/a.length;}
+function traces(){const R1=run(X1),R0=run(X0);let u=0,best=-1;for(let k=0;k<H;k++){const d=Math.abs(R1.cs[L][k]-R0.cs[L][k]);if(d>best){best=d;u=k;}}
+  const c1=[],c0=[];for(let t=0;t<=L;t++){c1.push(R1.cs[t][u]);c0.push(R0.cs[t][u]);}
+  let gi=0,gf=0,go=0;for(let t=0;t<L;t++){gi+=R1.is[t][u];gf+=R1.fs[t][u];go+=R1.os[t][u];}
+  return{u,c1,c0,gi:gi/L,gf:gf/L,go:go/L,p1:R1.p,p0:R0.p};}
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
-function heat01(v){return `rgba(31,158,138,${0.07+0.88*v})`;}
-function draw(showGates){ctx.clearRect(0,0,CW,CH);ctx.fillStyle='#fffdf6';ctx.fillRect(0,0,CW,CH);
-  const R=run(evalX);const LBL=70,gx0=LBL,gw=(CW-LBL-8)/L;
-  const rows=[{n:'入力 x',type:'in'},{n:'入力ゲート i',a:R.is},{n:'忘却ゲート f',a:R.fs},{n:'出力ゲート o',a:R.os},{n:'セル状態 c',type:'cell'}];
-  const rh=40,top=14;
-  ctx.textAlign='right';ctx.textBaseline='middle';
-  for(let r=0;r<rows.length;r++){const y=top+r*rh;ctx.fillStyle=getCSS('--ink-2');ctx.font='10px '+getCSS('--mono');ctx.fillText(rows[r].n,LBL-6,y+rh/2-4);
-    for(let t=0;t<L;t++){const x=gx0+t*gw;let col;
-      if(rows[r].type==='in'){const val=evalX[t][0];const fl=evalX[t][1];col=t===0?getCSS('--loss'):`rgba(82,80,74,${0.12+Math.abs(val)*0.25})`;}
-      else if(rows[r].type==='cell'){if(!showGates){col='#f4f1e8';}else{const cn=Math.tanh(Math.sqrt(R.cs[t+1].reduce((s,v)=>s+v*v,0))/3);col=`rgba(111,84,196,${0.1+0.8*cn})`;}}
-      else{col=showGates?heat01(avg(rows[r].a[t])):'#f4f1e8';}
-      ctx.fillStyle=col;ctx.fillRect(x,y,gw-1,rh-9);
-      if(rows[r].type==='in'&&t===0){ctx.fillStyle='#fff';ctx.font='700 9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('信号',x+gw/2,y+(rh-9)/2);ctx.textAlign='right';}}
-  }
-  // 時間軸
-  ctx.fillStyle=getCSS('--ink-3');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('時刻 t →（0=信号, あとは邪魔な入力）',gx0,top+rows.length*rh+2);
-  // 出力(思い出した値)
-  const py=top+rows.length*rh+14;const p=R.p;ctx.textAlign='left';ctx.fillStyle=getCSS('--ink-2');ctx.font='10px '+getCSS('--mono');
-  ctx.fillText('最後に思い出した値:',gx0,py+6);
-  ctx.fillStyle=showGates?(((p>0.5?1:0)===evalB)?getCSS('--accent'):getCSS('--neg')):getCSS('--ink-3');ctx.font='700 11px '+getCSS('--mono');
-  ctx.fillText(showGates?((p>0.5?'1':'0')+' (正解 '+evalB+')'+(((p>0.5?1:0)===evalB)?' ✓':'')):'— 学習前 —',gx0+118,py+6);
+function draw(trained){ctx.clearRect(0,0,CW,CH);ctx.fillStyle='#fffdf6';ctx.fillRect(0,0,CW,CH);
+  const Tr=traces();
+  // ===== 上: 記憶トレース =====
+  const pl=44,pr=12,tp=24,hh=140;const xf=t=>pl+t/L*(CW-pl-pr);
+  let ma=1.2;for(let t=0;t<=L;t++){ma=Math.max(ma,Math.abs(Tr.c1[t]),Math.abs(Tr.c0[t]));}ma*=1.12;
+  const yf=v=>tp+hh/2-v/ma*(hh/2);
+  ctx.fillStyle=getCSS('--ink');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillText('記憶セル c の値（時間ごと）',pl,16);
+  // 枠と0線
+  ctx.strokeStyle='rgba(150,143,127,0.25)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(pl,yf(0));ctx.lineTo(CW-pr,yf(0));ctx.stroke();ctx.setLineDash([]);
+  // 信号の縦線
+  ctx.strokeStyle='rgba(194,137,27,0.6)';ctx.beginPath();ctx.moveTo(xf(0),tp);ctx.lineTo(xf(0),tp+hh);ctx.stroke();
+  ctx.fillStyle=getCSS('--loss');ctx.font='9px '+getCSS('--mono');ctx.fillText('信号(t=0)',xf(0)+3,tp+9);
+  ctx.fillStyle=getCSS('--ink-3');ctx.textAlign='right';ctx.fillText('+',pl-4,yf(ma*0.8));ctx.fillText('0',pl-4,yf(0)+3);ctx.fillText('−',pl-4,yf(-ma*0.8));ctx.textAlign='left';
+  function line(arr,col){ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();for(let t=0;t<=L;t++){const x=xf(t),y=yf(arr[t]);ctx[t?'lineTo':'moveTo'](x,y);}ctx.stroke();ctx.fillStyle=col;for(let t=0;t<=L;t+=2){ctx.beginPath();ctx.arc(xf(t),yf(arr[t]),1.6,0,7);ctx.fill();}}
+  line(Tr.c1,getCSS('--accent'));line(Tr.c0,getCSS('--upd'));
+  // 凡例
+  ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--accent');ctx.fillText('● 最初=1',CW-pr-66,tp+10);ctx.fillStyle=getCSS('--upd');ctx.fillText('● 最初=0',CW-pr-66,tp+23);
+  ctx.fillStyle=getCSS('--ink-3');ctx.font='9px '+getCSS('--mono');ctx.fillText('時刻 t →（0=信号, 1〜'+(L-1)+'=邪魔な入力）',pl,tp+hh+12);
+  // 末尾の「区別できる」注記
+  if(trained){const yg=(yf(Tr.c1[L])+yf(Tr.c0[L]))/2;ctx.fillStyle=getCSS('--ink-2');ctx.font='700 9px '+getCSS('--gothic');ctx.textAlign='right';ctx.fillText('差が保たれ',CW-pr,yg-4);ctx.fillText('区別できる→思い出せる',CW-pr,yg+8);ctx.textAlign='left';}
+  // ===== 下: ゲート(弁) =====
+  const by=tp+hh+26;ctx.strokeStyle='rgba(150,143,127,0.3)';ctx.beginPath();ctx.moveTo(pl,by-8);ctx.lineTo(CW-pr,by-8);ctx.stroke();
+  ctx.fillStyle=getCSS('--ink');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('情報の弁＝3つのゲート（この記憶ユニットの開き具合）',pl,by+4);
+  const gates=[['入力ゲート i','書く',Tr.gi],['忘却ゲート f','保つ',Tr.gf],['出力ゲート o','読む',Tr.go]];
+  const gw=92,gap=14,gx0=pl+6,gy=by+16,gbh=30;
+  for(let n=0;n<3;n++){const gx=gx0+n*(gw+gap);const v=trained?gates[n][2]:0.5;
+    ctx.fillStyle='rgba(146,143,132,0.18)';ctx.fillRect(gx,gy,gw,gbh);ctx.fillStyle=`rgba(31,158,138,${0.18+0.7*v})`;ctx.fillRect(gx,gy,gw*v,gbh);
+    ctx.strokeStyle='rgba(150,143,127,0.5)';ctx.lineWidth=1;ctx.strokeRect(gx+.5,gy+.5,gw,gbh);
+    ctx.fillStyle=getCSS('--ink');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(gates[n][1],gx+5,gy+gbh/2-1);
+    ctx.fillStyle=getCSS('--ink-2');ctx.font='9px '+getCSS('--mono');ctx.fillText(gates[n][0],gx+5,gy+gbh/2+11);
+    ctx.fillStyle=getCSS('--ink');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText(trained?v.toFixed(2):'—',gx+gw-5,gy+gbh/2+4);ctx.textAlign='left';}
+  // 思い出した値
+  const ry=gy+gbh+18;ctx.fillStyle=getCSS('--ink-2');ctx.font='10px '+getCSS('--gothic');ctx.fillText('思い出した値:',pl,ry);
+  if(trained){const ok1=(Tr.p1>0.5),ok0=(Tr.p0<=0.5);ctx.font='700 11px '+getCSS('--mono');
+    ctx.fillStyle=ok1?getCSS('--accent'):getCSS('--neg');ctx.fillText('最初=1 → '+(Tr.p1>0.5?'1':'0')+(ok1?' ✓':' ✗'),pl+86,ry);
+    ctx.fillStyle=ok0?getCSS('--accent'):getCSS('--neg');ctx.fillText('最初=0 → '+(Tr.p0>0.5?'1':'0')+(ok0?' ✓':' ✗'),pl+200,ry);}
+  else{ctx.fillStyle=getCSS('--ink-3');ctx.font='11px '+getCSS('--mono');ctx.fillText('— 学習前 —',pl+86,ry);}
   ctx.strokeStyle='rgba(150,143,127,0.4)';ctx.lineWidth=1;ctx.strokeRect(.5,.5,CW-1,CH-1);}
 
 const STEPS=[{key:'prob',t:'問題'},{key:'gate',t:'ゲートの発想'},{key:'cell',t:'3ゲートとセル'},{key:'train',t:'学習(BPTT)'},{key:'res',t:'結果'}];
 let stepIdx=0,auto=false;
-function drawStep(){draw(stepIdx>=3 ? true : (stepIdx>=1));}
+function drawStep(){draw(stepIdx>=3);}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
-function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>系列長 <b>'+L+'</b></div><div>学習 <b>'+trainIter+'</b></div>'+(lossHist.length?'<div>損失 <b>'+lossHist[lossHist.length-1].toFixed(3)+'</b></div>':'')+(trainIter>40?'<div class="ok">正解率 <b>'+Math.round(acc*100)+'%</b></div>':'');}
-function renderLegend(){document.getElementById('legend').innerHTML='ゲート: <i style="color:var(--ink-3)">淡=閉(0)</i> → <i style="color:var(--accent)">濃=開(1)</i>　セル状態: <i style="color:var(--upd)">紫=情報を保持</i>　<i style="color:var(--loss)">■</i>=信号(t=0)';}
-function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① 問題：RNN は昔を忘れる</h3><div class="desc">素朴な <a href="rnn.html">RNN</a> は、毎時刻 隠れ状態に行列を掛けて tanh で潰すため、系列が長いと<b>遠い過去の情報も勾配も消えて</b>いきます（<a href="vanishing.html">勾配消失</a>）。ここでの課題は「<b>最初の値を、'+(L-1)+' 個の邪魔な入力のあとで思い出す</b>」こと。長期の記憶が要ります。</div>';}
-  else if(k==='gate'){h+='<h3>② ゲートの発想：弁で情報を制御</h3><div class="desc">LSTM の鍵は、記憶専用の通り道<b>セル状態 c</b> と、その出入りを制御する<b>ゲート</b>（0〜1 の弁）。<b>書く</b>（入力ゲート）・<b>保つ</b>（忘却ゲート）・<b>読む</b>（出力ゲート）を学習で調整し、必要な情報だけを<b>長く保持</b>します。上のグリッドの各帯がゲートの開き具合（濃い=開）。</div>';}
-  else if(k==='cell'){h+='<h3>③ 3 つのゲートとセル状態</h3><div class="eq">i,f,o = σ(W·x + U·h + b)　g = tanh(…)<br>c<sub>t</sub> = <b>f</b>⊙c<sub>t−1</sub> + <b>i</b>⊙g　（保つ＋書く）<br>h<sub>t</sub> = <b>o</b>⊙tanh(c<sub>t</sub>)　（読む）</div><div class="desc"><b>入力 i</b>=どれだけ書くか、<b>忘却 f</b>=どれだけ残すか、<b>出力 o</b>=どれだけ読むか。セル状態は「f で残し i で足す」だけなので、<b>f≈1 なら情報がほぼ素通り</b>＝長期記憶の高速道路。学習前のいまはゲートがまだ無意味です。</div>';}
-  else if(k==='train'){h+='<h3>④ 学習：BPTT でタスクを解く</h3><div class="eq">損失 = (予測 − 正解)²　を時間方向に逆伝播</div><div class="desc">「⏵ 学習」で訓練します。<b>ゲートが意味のある開閉</b>を学び、セル状態（紫の帯）が<b>信号を末尾まで運ぶ</b>ようになります。正解率が上がり、最後に<b>最初の値を正しく思い出せる</b>ように。学習 '+trainIter+'・正解率 約 '+Math.round(acc*100)+'%。</div>';}
-  else{h+='<h3>⑤ 結果：長期依存に強い</h3><div class="desc">忘却ゲートを開いて<b>セル状態に情報を保つ</b>ことで、LSTM は素朴な RNN が苦手な<b>長期の依存</b>を扱えます（正解率 約 '+Math.round(acc*100)+'%）。ゲートを 2 つに簡略化した <b>GRU</b> も同系。さらに長距離・並列に強い <a href="transformer.html">Transformer</a>／<a href="attention.html">自己注意</a> が後継として主流に。</div><div class="eq"><b>要点</b><br>・セル状態=記憶専用の通り道（情報の高速道路）<br>・3ゲート(入力/忘却/出力)で書く・保つ・読むを制御<br>・f≈1で勾配が消えにくく長期記憶できる</div>';}
+function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>系列長 <b>'+L+'</b></div><div>学習 <b>'+trainIter+'</b></div>'+(trainIter>40?'<div class="ok">正解率 <b>'+Math.round(acc*100)+'%</b></div>':'');}
+function renderLegend(){document.getElementById('legend').innerHTML='上=記憶セルの値（<i style="color:var(--accent)">最初=1</i> と <i style="color:var(--upd)">最初=0</i>）　下=ゲートの開き（濃い＝開）';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key,Tr=traces();let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：RNN は昔を忘れる</h3><div class="desc">素朴な <a href="rnn.html">RNN</a> は毎時刻 隠れ状態に行列を掛けて tanh で潰すため、系列が長いと<b>遠い過去の情報が消えて</b>いきます（<a href="vanishing.html">勾配消失</a>）。ここでの課題は「<b>最初の値（1 か 0）を、'+(L-1)+' 個の邪魔な入力のあとで思い出す</b>」こと。途中はぜんぶ無関係なノイズなので、<b>最初の一瞬を長く覚えておく</b>力が要ります。</div>';}
+  else if(k==='gate'){h+='<h3>② ゲートの発想：弁で記憶を出し入れ</h3><div class="desc">LSTM は記憶専用の入れ物<b>セル状態 c</b> を持ち、その出し入れを 3 つの<b>ゲート（0〜1 の弁）</b>で制御します：<b>書く</b>（入力ゲート）・<b>保つ</b>（忘却ゲート）・<b>読む</b>（出力ゲート）。最初の値を<b>書いて</b>、邪魔な間は<b>保ち</b>、最後に<b>読む</b>——これができれば思い出せます。下段の 3 本のバーがゲートの開き具合。</div>';}
+  else if(k==='cell'){h+='<h3>③ 3 つのゲートとセル状態</h3><div class="eq">i,f,o = σ(W·x + U·h + b)　g = tanh(…)<br>c<sub>t</sub> = <b>f</b>⊙c<sub>t−1</sub> + <b>i</b>⊙g　（保つ＋書く）<br>h<sub>t</sub> = <b>o</b>⊙tanh(c<sub>t</sub>)　（読む）</div><div class="desc">セル状態は「<b>f で残し、i で足す</b>」だけの更新。<b>忘却ゲート f≈1 なら情報はほぼ素通り</b>＝消えない記憶の高速道路です。だから昔の値も保てます。いまは学習前なのでゲートはまだ無意味（バーは仮の 0.5）。</div>';}
+  else if(k==='train'){h+='<h3>④ 学習：記憶が二手に分かれて保たれる</h3><div class="desc">「⏵ 学習」で訓練します。上のグラフに注目：<b>同じ邪魔入力</b>でも、最初が <span style="color:var(--accent);font-weight:700">1</span> か <span style="color:var(--upd);font-weight:700">0</span> かで<b>セルの値が信号の瞬間に分かれ、最後まで保たれます</b>（＝記憶）。<b>忘却ゲート（保つ）が大きく開く</b>のがポイント。正解率 約 '+Math.round(acc*100)+'%（学習 '+trainIter+'）。</div>';}
+  else{h+='<h3>⑤ 結果：長期依存に強い</h3><div class="desc">忘却ゲートを開いて<b>セルに情報を保つ</b>ことで、LSTM は素朴な RNN が苦手な<b>長期の依存</b>を扱えます（最初=1 と 0 の予測が末尾でくっきり分かれる＝正解率 約 '+Math.round(acc*100)+'%）。ゲートを 2 つに簡略化した <b>GRU</b> も同系。さらに長距離・並列に強い <a href="transformer.html">Transformer</a>／<a href="attention.html">自己注意</a> が後継として主流に。</div><div class="eq"><b>要点</b><br>・セル状態＝記憶専用の通り道（情報の高速道路）<br>・3ゲート(書く/保つ/読む)で記憶を出し入れ<br>・忘却ゲート≈1 で勾配が消えず長期記憶できる</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 学習';}
