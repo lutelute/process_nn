@@ -4,35 +4,38 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ニューラルネットの学習過程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0c1016;
-    --panel:#11161f;
-    --panel-2:#0e131b;
-    --line:#1d2735;
-    --grid:#172230;
-    --text:#e7edf5;
-    --muted:#8595a8;
-    --faint:#46566b;
+    --bg:#faf8f1;
+    --panel:#ffffff;
+    --panel-2:#fffdf6;
+    --line:#dcd8cc;
+    --grid:#e7e3d8;
+    --text:#1a1a17;
+    --muted:#52504a;
+    --faint:#928f84;
     --true:#cdb784;     /* 真の関数 (parchment) */
-    --dot:#d4a36a;      /* 教師データ */
-    --pred:#39e0c4;     /* NN予測 (teal) */
-    --pred-soft:rgba(57,224,196,0.16);
-    --loss:#f0b03a;     /* 損失 */
-    --pos:#39e0c4;      /* 正の重み */
-    --neg:#f06f7e;      /* 負の重み */
-    --node:#2b3a4d;
-    --accent:#39e0c4;
-    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
-    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --dot:#b3812f;      /* 教師データ */
+    --pred:#1f9e8a;     /* NN予測 (teal) */
+    --pred-soft:rgba(31,158,138,0.16);
+    --loss:#c2891b;     /* 損失 */
+    --pos:#1f9e8a;      /* 正の重み */
+    --neg:#cf4f5f;      /* 負の重み */
+    --node:#d8d3c7;
+    --accent:#1f9e8a; --ink:#1a1a17; --ink-2:#52504a; --ink-3:#928f84; --rule:#dcd8cc;
+    --mincho:"Noto Sans JP","Hiragino Sans",sans-serif;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);
     -webkit-font-smoothing:antialiased;}
   .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 40px;}
   header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
-    flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+    flex-wrap:wrap;border-bottom:1px solid var(--ink);padding-bottom:16px;margin-bottom:18px;}
   h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0;letter-spacing:.04em;}
   .sub{color:var(--muted);font-size:12.5px;margin-top:6px;letter-spacing:.03em;}
   .readout{display:flex;gap:26px;font-family:var(--mono);}
@@ -42,7 +45,7 @@
   .readout .v.loss{color:var(--loss);}
 
   .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:3px;overflow:hidden;}
   .card .cap{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
     padding:10px 14px 0;}
   .canvas-host{position:relative;width:100%;}
@@ -57,13 +60,13 @@
   .swatch{width:16px;height:0;border-top-width:3px;border-top-style:solid;border-radius:2px;}
   .dotmark{width:9px;height:9px;border-radius:50%;}
 
-  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:3px;
     padding:16px;margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 20px;}
   .field{display:flex;flex-direction:column;gap:7px;min-width:0;}
   .field label{font-size:11.5px;color:var(--muted);letter-spacing:.04em;}
   .field .val{font-family:var(--mono);color:var(--text);font-size:12px;}
   select{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
-    border-radius:8px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;
+    border-radius:2px;padding:9px 10px;font-family:var(--gothic);font-size:13px;outline:none;
     appearance:none;cursor:pointer;
     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
     background-position:calc(100% - 16px) 53%,calc(100% - 11px) 53%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}
@@ -72,11 +75,11 @@
 
   .buttons{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;
     border-top:1px solid var(--line);padding-top:16px;}
-  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:10px 18px;
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:2px;padding:10px 18px;
     border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;
     transition:border-color .15s,background .15s;}
   button:hover{border-color:var(--faint);}
-  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
   button.primary:hover{filter:brightness(1.08);}
   .note{grid-column:1/-1;color:var(--faint);font-size:11px;letter-spacing:.02em;}
 
@@ -112,7 +115,7 @@
   <section style="margin-bottom:24px;">
     <style>
       .mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;margin-bottom:4px;}
-      .mapcard{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s;}
+      .mapcard{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:12px 14px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s;}
       .mapcard:hover{border-color:var(--accent);transform:translateY(-2px);}
       .mapcard .t{font-size:14px;font-weight:600;margin-bottom:3px;}
       .mapcard .d{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1;}
@@ -121,17 +124,17 @@
       .mapcard.branchCard{border-style:dashed;}
       .dep{font-size:10.5px;color:var(--faint);margin-top:8px;padding-top:6px;border-top:1px dashed var(--line);line-height:1.5;}
       .dep b{color:var(--muted);font-weight:600;}
-      .mapsec{display:flex;align-items:baseline;gap:10px;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
-      .mapsec .num{font-family:var(--mono);font-size:12px;color:#06231f;background:var(--accent);border-radius:6px;padding:2px 8px;font-weight:700;}
+      .mapsec{display:flex;align-items:baseline;gap:10px;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--ink);flex-wrap:wrap;}
+      .mapsec .num{font-family:var(--mono);font-size:12px;color:#fff;background:var(--ink);border-radius:2px;padding:2px 8px;font-weight:700;}
       .mapsec .ttl{font-family:var(--mincho);font-size:15.5px;letter-spacing:.04em;color:var(--text);}
       .mapsec .badge{font-family:var(--gothic);font-size:11px;color:var(--muted);letter-spacing:.02em;}
       .mapsec.opt .num{background:var(--upd);}
       .roadintro{color:var(--muted);font-size:12.5px;margin-bottom:14px;line-height:1.7;}
-      .spine{background:linear-gradient(180deg,#121a24,#0f141d);border:1px solid var(--line);border-radius:12px;padding:14px 15px;margin-bottom:6px;}
+      .spine{background:linear-gradient(180deg,#f3f1ea,#faf8f1);border:1px solid var(--line);border-radius:3px;padding:14px 15px;margin-bottom:6px;}
       .spine .slbl{font-size:11.5px;color:var(--muted);margin-bottom:9px;}
       .spine .slbl b{color:var(--accent);}
       .spineflow{display:flex;flex-wrap:wrap;gap:7px 4px;align-items:center;}
-      .spineflow a{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 11px 5px 6px;color:var(--text);text-decoration:none;font-size:12px;transition:.15s;}
+      .spineflow a{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:5px 11px 5px 6px;color:var(--text);text-decoration:none;font-size:12px;transition:.15s;}
       .spineflow a:hover{border-color:var(--accent);}
       .spineflow a b{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:var(--accent);color:#06231f;border-radius:50%;font-family:var(--mono);font-size:10.5px;font-weight:700;}
       .spineflow i{color:var(--faint);font-style:normal;font-size:11px;}

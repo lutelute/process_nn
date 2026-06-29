@@ -6,10 +6,10 @@
 <title>GPT-2 を立体で見る — 動くインフォグラフ（3D）</title>
 <style>
   :root{
-    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
-    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
-    --attn:#39e0c4; --mlp:#d4a36a;
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --attn:#1f9e8a; --mlp:#b3812f;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -25,16 +25,16 @@
   .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
   .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
   .stp:last-child{border-right:none;}
-  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
   .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
-  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
   .stp.active{background:var(--panel);}
   .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
   .stp.active .t{color:var(--text);font-weight:600;}
   .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
   .body{display:grid;grid-template-columns:1.35fr 1fr;}
   .vis{padding:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
-  canvas{display:block;width:100%;height:auto;border-radius:10px;background:radial-gradient(130% 130% at 50% 25%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:radial-gradient(130% 130% at 50% 25%, #fffdf6 0%, #f2efe6 100%);cursor:grab;}
   canvas:active{cursor:grabbing;}
   .legend{font-size:11.5px;color:var(--faint);margin-top:8px;align-self:flex-start;display:flex;gap:14px;flex-wrap:wrap;}
   .legend span{display:inline-flex;align-items:center;gap:6px;} .sq{width:10px;height:10px;border-radius:2px;}
@@ -55,6 +55,7 @@
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
   @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 <div class="wrap">
@@ -103,18 +104,18 @@ function cuboid(out,cx,cy,cz,sx,sy,sz,faceCol,edgeCol){const x0=cx-sx/2,x1=cx+sx
 function draw(){ctx.clearRect(0,0,CW,CH);const out={quads:[],edges:[],labels:[]};const yStep=1.3;const yOf=l=>l*yStep;const expand=(stg>=2);
   for(let t=0;t<Tk;t++){const x=(t-(Tk-1)/2)*0.5;cuboid(out,x,-1.3,0,0.36,0.36,0.36,'rgba(133,149,168,0.18)','rgba(133,149,168,0.7)');}
   out.labels.push({p:[0,-1.9,0],t:'トークン列 ('+Tk+')',col:getCSS('--muted'),font:'12px'});
-  out.edges.push({a:[0,-0.6,0],b:[0,yOf(13)+0.4,0],col:stg>=1?'rgba(57,224,196,0.85)':'rgba(57,224,196,0.4)',w:stg>=1?4:2.5});
-  cuboid(out,0,yOf(0),0,4.4,0.5,2.4,'rgba(57,224,196,0.08)','rgba(57,224,196,0.5)');
+  out.edges.push({a:[0,-0.6,0],b:[0,yOf(13)+0.4,0],col:stg>=1?'rgba(31,158,138,0.85)':'rgba(31,158,138,0.4)',w:stg>=1?4:2.5});
+  cuboid(out,0,yOf(0),0,4.4,0.5,2.4,'rgba(31,158,138,0.08)','rgba(31,158,138,0.5)');
   out.labels.push({p:[2.6,yOf(0),0],t:'埋め込み wte+wpe',col:getCSS('--accent'),font:'11px',align:'left'});
   for(let l=0;l<NL;l++){const y=yOf(l+1);const sel=(l===selBlk)&&expand;
-    const fc=sel?'rgba(57,224,196,0.10)':'rgba(120,140,165,0.05)';const ec=sel?'rgba(57,224,196,0.7)':'rgba(90,108,130,0.45)';
+    const fc=sel?'rgba(31,158,138,0.10)':'rgba(120,140,165,0.05)';const ec=sel?'rgba(31,158,138,0.7)':'rgba(90,108,130,0.45)';
     cuboid(out,0,y,0,4.4,0.62,2.4,fc,ec);
     out.labels.push({p:[-2.55,y,0],t:'Block '+l,col:sel?getCSS('--accent'):getCSS('--faint'),font:sel?'12px':'10px',align:'right'});
-    if(sel){for(let h=0;h<NH;h++){const hx=(h-(NH-1)/2)*0.32;cuboid(out,hx,y-0.02,1.0,0.26,0.34,0.34,'rgba(57,224,196,0.30)','rgba(57,224,196,0.85)');}
+    if(sel){for(let h=0;h<NH;h++){const hx=(h-(NH-1)/2)*0.32;cuboid(out,hx,y-0.02,1.0,0.26,0.34,0.34,'rgba(31,158,138,0.30)','rgba(31,158,138,0.85)');}
       out.labels.push({p:[0,y+0.55,1.05],t:'自己注意 12 ヘッド',col:getCSS('--attn'),font:'11px'});
-      cuboid(out,0,y+0.02,-0.95,3.4,0.34,0.5,'rgba(212,163,106,0.28)','rgba(212,163,106,0.85)');
+      cuboid(out,0,y+0.02,-0.95,3.4,0.34,0.5,'rgba(179,129,47,0.28)','rgba(179,129,47,0.85)');
       out.labels.push({p:[0,y+0.5,-1.0],t:'MLP 768→3072→768',col:getCSS('--mlp'),font:'11px'});}}
-  cuboid(out,0,yOf(13),0,4.4,0.5,2.4,stg>=3?'rgba(240,176,58,0.16)':'rgba(240,176,58,0.06)','rgba(240,176,58,0.6)');
+  cuboid(out,0,yOf(13),0,4.4,0.5,2.4,stg>=3?'rgba(194,137,27,0.16)':'rgba(194,137,27,0.06)','rgba(194,137,27,0.6)');
   out.labels.push({p:[2.6,yOf(13),0],t:'ln_f → lm_head → logits[50257]',col:getCSS('--loss'),font:'11px',align:'left'});
   for(const q of out.quads){let cx=0,cy=0,cz=0;for(const p of q.c){cx+=p[0];cy+=p[1];cz+=p[2];}q.d=Lib3D.project([cx/4,cy/4,cz/4],cam).depth;}
   out.quads.sort((a,b)=>a.d-b.d);

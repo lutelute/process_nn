@@ -6,10 +6,10 @@
 <title>単語埋め込み（word2vec）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
-    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
-    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
-    --g0:#39e0c4; --g1:#d4a36a; --g2:#c9a6ff;
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --g0:#1f9e8a; --g1:#b3812f; --g2:#6f54c4;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -25,9 +25,9 @@
   .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
   .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
   .stp:last-child{border-right:none;}
-  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
   .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
-  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
   .stp.active{background:var(--panel);}
   .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
   .stp.active .t{color:var(--text);font-weight:600;}
@@ -55,6 +55,7 @@
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
   @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 <div class="wrap">
@@ -113,7 +114,7 @@ const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv
 function bounds(){let mn=1e9,mx=-1e9;for(const e of E){mn=Math.min(mn,e[0],e[1]);mx=Math.max(mx,e[0],e[1]);}const c=(mn+mx)/2,r=Math.max(0.4,(mx-mn)/2)*1.18;return[c,r];}
 function gcol(w){const g=GROUP[w];return g===undefined?'rgba(120,135,155,0.55)':getCSS(['--g0','--g1','--g2'][g]);}
 function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);const[c,r]=bounds();const px=x=>CW/2+(x-c)/r*(CW/2-30),py=y=>CH/2-(y-c)/r*(CH/2-30);
-  if(opt.simWord){const i=stoi[opt.simWord];const nn=nearest(opt.simWord,3).map(o=>o.j);for(const j of nn){ctx.strokeStyle='rgba(240,176,58,0.5)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px(E[i][0]),py(E[i][1]));ctx.lineTo(px(E[j][0]),py(E[j][1]));ctx.stroke();}}
+  if(opt.simWord){const i=stoi[opt.simWord];const nn=nearest(opt.simWord,3).map(o=>o.j);for(const j of nn){ctx.strokeStyle='rgba(194,137,27,0.5)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px(E[i][0]),py(E[i][1]));ctx.lineTo(px(E[j][0]),py(E[j][1]));ctx.stroke();}}
   for(let i=0;i<V;i++){const w=vocab[i],isCtx=GROUP[w]===undefined;ctx.beginPath();ctx.arc(px(E[i][0]),py(E[i][1]),isCtx?2.4:4,0,7);ctx.fillStyle=gcol(w);ctx.globalAlpha=isCtx?0.5:1;ctx.fill();ctx.globalAlpha=1;
     if(!isCtx||opt.allLabels){ctx.fillStyle=isCtx?'rgba(150,165,185,0.7)':gcol(w);ctx.font=(isCtx?'9px ':'11px ')+getCSS('--mono');ctx.textAlign='left';ctx.fillText(w,px(E[i][0])+5,py(E[i][1])+3);}}
 }

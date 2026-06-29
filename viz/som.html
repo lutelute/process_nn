@@ -6,9 +6,9 @@
 <title>自己組織化マップ（SOM）を理解する — 動くインフォグラフ</title>
 <style>
   :root{
-    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
-    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -24,9 +24,9 @@
   .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
   .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
   .stp:last-child{border-right:none;}
-  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
   .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
-  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
   .stp.active{background:var(--panel);}
   .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
   .stp.active .t{color:var(--text);font-weight:600;}
@@ -54,6 +54,7 @@
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
   @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 <div class="wrap">
@@ -107,15 +108,15 @@ function step1(){const x=data[(rng()*data.length)|0],b=bmu(x);const frac=Math.mi
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
 const LO=-1.35,HI=1.35,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
-function drawData(){ctx.fillStyle='rgba(212,163,106,0.45)';for(let i=0;i<data.length;i+=2){ctx.beginPath();ctx.arc(px(data[i][0]),py(data[i][1]),1.7,0,7);ctx.fill();}}
-function drawMesh(){ctx.strokeStyle='rgba(57,224,196,0.55)';ctx.lineWidth=1;for(let i=0;i<NODES;i++){const cx=gx(i),cy=gy(i);if(cx<G-1){const j=i+1;ctx.beginPath();ctx.moveTo(px(W[i][0]),py(W[i][1]));ctx.lineTo(px(W[j][0]),py(W[j][1]));ctx.stroke();}if(cy<G-1){const j=i+G;ctx.beginPath();ctx.moveTo(px(W[i][0]),py(W[i][1]));ctx.lineTo(px(W[j][0]),py(W[j][1]));ctx.stroke();}}
+function drawData(){ctx.fillStyle='rgba(179,129,47,0.45)';for(let i=0;i<data.length;i+=2){ctx.beginPath();ctx.arc(px(data[i][0]),py(data[i][1]),1.7,0,7);ctx.fill();}}
+function drawMesh(){ctx.strokeStyle='rgba(31,158,138,0.55)';ctx.lineWidth=1;for(let i=0;i<NODES;i++){const cx=gx(i),cy=gy(i);if(cx<G-1){const j=i+1;ctx.beginPath();ctx.moveTo(px(W[i][0]),py(W[i][1]));ctx.lineTo(px(W[j][0]),py(W[j][1]));ctx.stroke();}if(cy<G-1){const j=i+G;ctx.beginPath();ctx.moveTo(px(W[i][0]),py(W[i][1]));ctx.lineTo(px(W[j][0]),py(W[j][1]));ctx.stroke();}}
   for(let i=0;i<NODES;i++){ctx.beginPath();ctx.arc(px(W[i][0]),py(W[i][1]),2.4,0,7);ctx.fillStyle='#7ef0dd';ctx.fill();}}
 let bmuDemo=null;
 function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);if(opt.data!==false)drawData();if(opt.mesh)drawMesh();
   if(opt.bmu&&bmuDemo){const x=bmuDemo.x,b=bmuDemo.b,bxg=gx(b),byg=gy(b);
     // neighbors highlighted
-    ctx.strokeStyle='rgba(201,166,255,0.6)';ctx.lineWidth=1.5;for(let i=0;i<NODES;i++){const dd=(gx(i)-bxg)**2+(gy(i)-byg)**2;if(dd>0&&dd<=2){ctx.beginPath();ctx.arc(px(W[i][0]),py(W[i][1]),5,0,7);ctx.stroke();}}
-    ctx.strokeStyle='rgba(240,176,58,0.9)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(px(x[0]),py(x[1]));ctx.lineTo(px(W[b][0]),py(W[b][1]));ctx.stroke();
+    ctx.strokeStyle='rgba(111,84,196,0.6)';ctx.lineWidth=1.5;for(let i=0;i<NODES;i++){const dd=(gx(i)-bxg)**2+(gy(i)-byg)**2;if(dd>0&&dd<=2){ctx.beginPath();ctx.arc(px(W[i][0]),py(W[i][1]),5,0,7);ctx.stroke();}}
+    ctx.strokeStyle='rgba(194,137,27,0.9)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(px(x[0]),py(x[1]));ctx.lineTo(px(W[b][0]),py(W[b][1]));ctx.stroke();
     ctx.fillStyle=getCSS('--loss');ctx.beginPath();ctx.arc(px(x[0]),py(x[1]),4,0,7);ctx.fill();
     ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.4;ctx.beginPath();ctx.arc(px(W[b][0]),py(W[b][1]),6,0,7);ctx.stroke();}
   if(opt.qe&&qeHist.length>1){const w=104,h=40,x0=CW-w-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.7)';ctx.fillRect(x0,y0,w,h);let hi=Math.max(...qeHist),lo=Math.min(...qeHist);if(hi-lo<1e-6)hi=lo+1e-6;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<qeHist.length;i++){const X=x0+4+(w-8)*i/(qeHist.length-1),Y=y0+4+(h-8)*(qeHist[i]-lo)/(hi-lo);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('誤差↓',x0+4,y0+h-4);}}

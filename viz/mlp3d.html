@@ -6,9 +6,9 @@
 <title>MLP を立体で見る — 動くインフォグラフ（3D）</title>
 <style>
   :root{
-    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
-    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a; --upd:#c9a6ff;
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --pos:#1f9e8a; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
     --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
     --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -24,16 +24,16 @@
   .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
   .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
   .stp:last-child{border-right:none;}
-  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#1b2433;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
   .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
-  .stp.done .n{background:#1b3a36;color:var(--accent);border-color:#2c5a52;} .stp.done .t{color:var(--muted);}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
   .stp.active{background:var(--panel);}
   .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
   .stp.active .t{color:var(--text);font-weight:600;}
   .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
   .body{display:grid;grid-template-columns:1.45fr 1fr;}
   .vis{padding:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
-  canvas{display:block;width:100%;height:auto;border-radius:10px;background:radial-gradient(130% 130% at 50% 30%, #0e131b 0%, #0a0d12 100%);cursor:grab;}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:radial-gradient(130% 130% at 50% 30%, #fffdf6 0%, #f2efe6 100%);cursor:grab;}
   canvas:active{cursor:grabbing;}
   .legend{font-size:11.5px;color:var(--faint);margin-top:8px;align-self:flex-start;display:flex;gap:14px;flex-wrap:wrap;}
   .legend span{display:inline-flex;align-items:center;gap:6px;} .dotmark{width:9px;height:9px;border-radius:50%;}
@@ -56,6 +56,7 @@
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
   @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
 </style>
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 <div class="wrap">
@@ -128,24 +129,24 @@ function layout(){POS=[];const L=sizes.length;const zSpan=6.0;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
 const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:70,dist:18,yaw:-0.62,pitch:0.3});
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.5));if(t>=0)return`rgba(57,224,196,${(0.2+0.8*t)*al})`;return`rgba(240,111,126,${(0.2+0.8*(-t))*al})`;}
+function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.5));if(t>=0)return`rgba(31,158,138,${(0.2+0.8*t)*al})`;return`rgba(207,79,95,${(0.2+0.8*(-t))*al})`;}
 let litUpTo=0,curTrans=-1,prog=0,running=false;
 function draw(){ctx.clearRect(0,0,CW,CH);const L=sizes.length;
   for(let l=1;l<L;l++){let mx=1e-9;for(const row of W[l])for(const v of row)mx=Math.max(mx,Math.abs(v));
     for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const wv=W[l][j][k],m=Math.abs(wv)/mx;
-      Lib3D.line(ctx,POS[l-1][k],POS[l][j],cam,wv>=0?`rgba(57,224,196,${0.02+0.08*m})`:`rgba(240,111,126,${0.02+0.08*m})`,0.4+0.8*m);}}
+      Lib3D.line(ctx,POS[l-1][k],POS[l][j],cam,wv>=0?`rgba(31,158,138,${0.02+0.08*m})`:`rgba(207,79,95,${0.02+0.08*m})`,0.4+0.8*m);}}
   if(running&&curTrans>=0&&curTrans<L-1){const l=curTrans+1,prev=acts[l-1];let mc=1e-9;for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++)mc=Math.max(mc,Math.abs(W[l][j][k]*prev[k]));
     const ease=prog<0.5?2*prog*prog:1-Math.pow(-2*prog+2,2)/2;
     for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const c=W[l][j][k]*prev[k],m=Math.abs(c)/mc;if(m<0.06)continue;
       const a=POS[l-1][k],b=POS[l][j];const p=[a[0]+(b[0]-a[0])*ease,a[1]+(b[1]-a[1])*ease,a[2]+(b[2]-a[2])*ease];
       const pr=Lib3D.project(p,cam);const f=cam.dist/(cam.dist-pr.depth);ctx.beginPath();ctx.arc(pr.x,pr.y,(1+2.4*m)*f,0,7);
-      ctx.fillStyle=c>=0?`rgba(57,224,196,${0.3+0.6*m})`:`rgba(240,111,126,${0.3+0.6*m})`;ctx.fill();}}
+      ctx.fillStyle=c>=0?`rgba(31,158,138,${0.3+0.6*m})`:`rgba(207,79,95,${0.3+0.6*m})`;ctx.fill();}}
   const nodes=[];for(let l=0;l<L;l++){const lit=l<=litUpTo;for(let n=0;n<sizes[l];n++){const pr=Lib3D.project(POS[l][n],cam);nodes.push({pr,lit,v:acts[l]?acts[l][n]:0,l});}}
   nodes.sort((a,b)=>a.pr.depth-b.pr.depth);
   for(const nd of nodes){const f=cam.dist/(cam.dist-nd.pr.depth);const r=(nd.l===0||nd.l===L-1?6:5)*f;
     ctx.beginPath();ctx.arc(nd.pr.x,nd.pr.y,r,0,7);
-    if(nd.lit){ctx.fillStyle=actColor(nd.v,1);ctx.shadowColor=actColor(nd.v,0.9);ctx.shadowBlur=8*Math.min(1,Math.abs(nd.v));ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1;ctx.strokeStyle='rgba(231,237,245,0.3)';ctx.stroke();}
-    else{ctx.fillStyle='#2b3a4d';ctx.fill();}}
+    if(nd.lit){ctx.fillStyle=actColor(nd.v,1);ctx.shadowColor=actColor(nd.v,0.9);ctx.shadowBlur=8*Math.min(1,Math.abs(nd.v));ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1;ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.stroke();}
+    else{ctx.fillStyle='#d8d3c7';ctx.fill();}}
   ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';
   const names=['入力',...Array(L-2).fill('隠れ層'),'出力'];
   for(let l=0;l<L;l++){const c=POS[l][0];const pr=Lib3D.project([c[0],c[1]+1.7,c[2]],cam);ctx.fillText(names[l]||'隠れ層',pr.x,pr.y);}
