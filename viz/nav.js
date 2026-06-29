@@ -52,6 +52,7 @@
     { href: 'attention.html',   label: '自己注意' },
     { href: 'transformer.html', label: 'Transformer' },
     { href: '../gpt2/',         label: 'GPT-2' },
+    { href: 'rag.html',         label: 'RAG' },
     { href: 'kmeans.html',      label: 'k-means' },
     { href: 'gmm.html',         label: 'GMM' },
     { href: 'dbscan.html',      label: 'DBSCAN' },

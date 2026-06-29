@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG（検索拡張生成）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --ink:#1a1a17; --ink-2:#52504a; --ink-3:#928f84; --rule:#dcd8cc;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 30px 64px;}
+  .nav{font-family:var(--mono);font-size:11px;letter-spacing:.03em;line-height:2.0;color:var(--ink-3);margin-bottom:22px;}
+  .nav a{color:var(--ink-2);text-decoration:none;} .nav a:hover{color:var(--ink);text-decoration:underline;}
+  h1{font-family:var(--gothic);font-weight:700;font-size:21px;letter-spacing:.04em;color:var(--ink);margin:0;padding-bottom:11px;border-bottom:1px solid var(--ink);}
+  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:780px;margin:15px 0 22px;}
+  .lead b{color:var(--ink);font-weight:700;}
+  .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--ink);}
+  .stp{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 6px;cursor:pointer;position:relative;border-right:1px dashed var(--rule);}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:20px;height:20px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;background:transparent;color:var(--ink-3);border:1px solid var(--ink-3);}
+  .stp .t{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-3);}
+  .stp.done .n{color:var(--ink);border-color:var(--ink);} .stp.done .t{color:var(--ink-2);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .stp.active .t{color:var(--ink);font-weight:700;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px dashed var(--rule);}
+  canvas{display:block;width:100%;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;}
+  .mini{display:flex;gap:16px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:10px;flex-wrap:wrap;}
+  .mini b{color:var(--ink);font-weight:700;}
+  .legend{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:7px;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:10px;font-family:var(--mono);letter-spacing:.18em;color:var(--ink-3);border:1px solid var(--ink-3);border-radius:2px;padding:2px 8px;margin-bottom:11px;text-transform:uppercase;}
+  .explain h3{font-family:var(--gothic);font-weight:700;font-size:16px;margin:0 0 9px;color:var(--ink);}
+  .eq{font-family:var(--mono);font-size:12.5px;background:#fff;border:1px solid var(--ink);border-radius:2px;border-left:3px solid var(--accent);padding:10px 13px;margin:9px 0;line-height:1.8;color:var(--ink);}
+  .desc{font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .desc b{color:var(--ink);font-weight:700;}
+  .rank{margin:8px 0;font-family:var(--mono);font-size:11.5px;}
+  .rrow{display:flex;align-items:center;gap:8px;margin:3px 0;}
+  .rrow .nm{width:96px;color:var(--ink);} .rrow .bar{height:11px;background:var(--accent);border-radius:1px;}
+  .rrow .sc{color:var(--ink-3);font-size:10.5px;} .rrow.top .nm{font-weight:700;}
+  .ans{font-family:var(--gothic);font-size:12.5px;background:#fff;border:1px solid var(--ink);border-radius:2px;padding:11px 13px;margin:8px 0;line-height:1.8;color:var(--ink);}
+  .ans .cite{font-family:var(--mono);font-size:10.5px;color:var(--accent);}
+  .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:12.5px;border-radius:2px;padding:8px 14px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:.12s;}
+  button:hover:not(:disabled){background:var(--panel-2);} button:disabled{opacity:.35;cursor:default;}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .bar .spacer{flex:1;}
+  select{background:#fff;color:var(--ink);border:1px solid var(--ink);border-radius:2px;padding:7px 9px;font-family:var(--gothic);font-size:12px;cursor:pointer;}
+  details{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
+  summary{padding:12px 15px;cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--ink-2);} summary:hover{color:var(--ink);}
+  .det{padding:0 15px 15px;font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px dashed var(--rule);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>RAG（検索拡張生成）を理解する</h1>
+  <div class="lead">大規模言語モデルは<b>学習時の知識しか持たず</b>、知らないことを<b>もっともらしく間違える</b>（幻覚）。RAG は質問に関係する<b>文書を外部から検索（Retrieval）</b>して文脈に足し、それを根拠に<b>回答を生成（Generation）</b>する仕組み。検索は<b>意味ベクトルのコサイン類似度</b>で行います。下の流れを「次へ」で追ってください。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="380" height="360"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="qSel"></select>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：埋め込み・チャンク・なぜ効くか・限界</summary>
+    <div class="det">実際の RAG は、文書を適度な大きさに分けた<b>チャンク</b>を埋め込みモデル（<a href="word2vec.html">単語埋め込み</a>の発展形・文埋め込み）で<b>ベクトル化</b>し、ベクトルDB に保存します。質問も同じ空間にベクトル化し、<b>コサイン類似度</b>（または内積）で上位 k 件を取得（近似最近傍探索 ANN を使うことも）。取得文を<b>プロンプトに連結</b>して LLM に渡し、<b>出典つき</b>で答えさせます。<b>利点</b>：再学習せず<b>最新・社内知識</b>を扱え、<b>幻覚が減り</b>、出典で<b>検証可能</b>。<b>限界</b>：検索が外すと答えも外す、チャンク設計や埋め込み品質に依存。ここでは検索（意味ベクトルのコサイン類似）を実際に計算し、生成部分は取得文からの組み立てに簡略化しています。本物の言語モデルは <a href="../gpt2/">GPT-2</a> ページで。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const DIM=['画像','系列・言語','分類','クラスタ','次元圧縮','生成','強化'];
+// 知識ベース（各手法ページを文書として）: v=概念ベクトル, c=色カテゴリ
+const DOCS=[
+  {n:'CNN',h:'cnn.html',v:[1,0,0.5,0,0,0,0],t:'画像認識に強い。フィルタで局所特徴を捉える。',col:'#c2891b'},
+  {n:'RNN',h:'rnn.html',v:[0.1,0.9,0.2,0,0,0,0],t:'系列・時系列を扱い、前の状態を記憶する。',col:'#c2891b'},
+  {n:'Transformer',h:'transformer.html',v:[0,1,0.2,0,0,0.3,0],t:'自己注意で文全体の関係を捉える。GPTの土台。',col:'#6f54c4'},
+  {n:'決定木',h:'dtree.html',v:[0,0,1,0,0,0,0],t:'if-elseの分岐で分類。解釈しやすい。',col:'#2f6fae'},
+  {n:'SVM',h:'svm.html',v:[0,0,1,0,0,0,0],t:'最大マージンで2クラスを分ける分類器。',col:'#2f6fae'},
+  {n:'k-means',h:'kmeans.html',v:[0,0,0,1,0.2,0,0],t:'教師なしでデータをクラスタに分ける。',col:'#4e9a4e'},
+  {n:'PCA',h:'pca.html',v:[0,0,0,0.2,1,0,0],t:'次元削減。分散最大の方向に射影。',col:'#cf4f5f'},
+  {n:'VAE',h:'vae.html',v:[0,0,0,0,0.4,1,0],t:'新しいデータを生成する生成モデル。',col:'#cf4f5f'},
+  {n:'Q学習',h:'qlearning.html',v:[0,0,0,0,0,0,1],t:'報酬から試行錯誤で方策を学ぶ強化学習。',col:'#9a6a3a'},
+];
+const QUERIES=[
+  {t:'画像を分類したい',v:[1,0,0.6,0,0,0,0]},
+  {t:'時系列・文章を扱いたい',v:[0,1,0.2,0,0,0,0]},
+  {t:'ラベルなしでグループ分けしたい',v:[0,0,0,1,0.2,0,0]},
+  {t:'新しいデータを生成したい',v:[0,0,0,0,0.3,1,0]},
+  {t:'次元を減らして可視化したい',v:[0,0,0,0.2,1,0,0]},
+];
+let qi=0, K=2;
+function cos(a,b){let d=0,na=0,nb=0;for(let i=0;i<a.length;i++){d+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i];}return d/(Math.sqrt(na*nb)+1e-9);}
+function ranked(){const q=QUERIES[qi];return DOCS.map((d,i)=>({i,n:d.n,s:cos(q.v,d.v)})).sort((a,b)=>b.s-a.s);}
+
+// 2D配置: DOCベクトルをPCA(べき乗反復)で2次元へ。クエリも同じ射影。
+let W1,W2,mean;
+function pca(){const X=DOCS.map(d=>d.v.slice());const m=DIM.map((_,j)=>X.reduce((s,r)=>s+r[j],0)/X.length);mean=m;
+  const C=X.map(r=>r.map((v,j)=>v-m[j]));const n=DIM.length;const cov=Array.from({length:n},()=>new Array(n).fill(0));
+  for(const r of C)for(let a=0;a<n;a++)for(let b=0;b<n;b++)cov[a][b]+=r[a]*r[b];
+  function pc(prev){let v=DIM.map((_,i)=>Math.sin(i+1+(prev?9:0)));for(let it=0;it<120;it++){let u=new Array(n).fill(0);for(let a=0;a<n;a++)for(let b=0;b<n;b++)u[a]+=cov[a][b]*v[b];if(prev){const dp=u.reduce((s,x,i)=>s+x*prev[i],0);for(let i=0;i<n;i++)u[i]-=dp*prev[i];}let nm=Math.hypot(...u)||1;v=u.map(x=>x/nm);}return v;}
+  W1=pc(null);W2=pc(W1);}
+pca();
+function proj(v){const c=v.map((x,j)=>x-mean[j]);return{x:c.reduce((s,x,i)=>s+x*W1[i],0),y:c.reduce((s,x,i)=>s+x*W2[i],0)};}
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+let bounds;
+function computeBounds(){let xs=[],ys=[];for(const d of DOCS){const p=proj(d.v);xs.push(p.x);ys.push(p.y);}for(const q of QUERIES){const p=proj(q.v);xs.push(p.x);ys.push(p.y);}
+  bounds={x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};}
+computeBounds();
+function px(p){const m=46;return{x:m+(p.x-bounds.x0)/(bounds.x1-bounds.x0+1e-9)*(CW-2*m),y:CH-m-(p.y-bounds.y0)/(bounds.y1-bounds.y0+1e-9)*(CH-2*m)};}
+function drawSpace(showQuery,showLinks){ctx.clearRect(0,0,CW,CH);
+  // grid
+  ctx.strokeStyle='rgba(150,143,127,0.16)';ctx.lineWidth=1;for(let g=0;g<=6;g++){const x=46+(CW-92)*g/6,y=46+(CH-92)*g/6;ctx.beginPath();ctx.moveTo(x,40);ctx.lineTo(x,CH-30);ctx.stroke();ctx.beginPath();ctx.moveTo(40,y);ctx.lineTo(CW-14,y);ctx.stroke();}
+  const r=ranked();const topSet=new Set(r.slice(0,K).map(o=>o.i));const q=QUERIES[qi];const qp=px(proj(q.v));
+  if(showLinks){for(let t=0;t<K;t++){const d=px(proj(DOCS[r[t].i].v));ctx.strokeStyle='rgba(31,158,138,'+(0.7-t*0.18)+')';ctx.lineWidth=2-t*0.4;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(qp.x,qp.y);ctx.lineTo(d.x,d.y);ctx.stroke();ctx.setLineDash([]);}}
+  for(let i=0;i<DOCS.length;i++){const d=DOCS[i],p=px(proj(d.v)),top=showLinks&&topSet.has(i);
+    ctx.beginPath();ctx.arc(p.x,p.y,top?6.5:5,0,7);ctx.fillStyle=d.col;ctx.fill();if(top){ctx.lineWidth=2;ctx.strokeStyle=getCSS('--ink');ctx.stroke();}
+    ctx.fillStyle=top?getCSS('--ink'):'rgba(26,26,23,0.8)';ctx.font=(top?'700 ':'')+'10.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(d.n,p.x+8,p.y);}
+  if(showQuery){ctx.save();ctx.translate(qp.x,qp.y);ctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,rr=i%2?4.5:10;ctx[i?'lineTo':'moveTo'](Math.cos(a)*rr,-Math.sin(a)*rr);}ctx.closePath();ctx.fillStyle=getCSS('--loss');ctx.fill();ctx.lineWidth=1.4;ctx.strokeStyle=getCSS('--ink');ctx.stroke();ctx.restore();
+    ctx.fillStyle=getCSS('--loss');ctx.font='700 10.5px '+getCSS('--gothic');ctx.fillText('質問',qp.x+12,qp.y-9);}
+  ctx.fillStyle=getCSS('--ink-3');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('意味ベクトル空間（PCAで2次元化）',CW/2,CH-10);}
+function drawDocs(){ctx.clearRect(0,0,CW,CH);ctx.textAlign='left';ctx.textBaseline='alphabetic';let y=34;
+  ctx.fillStyle=getCSS('--ink-3');ctx.font='10px '+getCSS('--mono');ctx.fillText('知識ベース（文書 → 意味ベクトル）',16,20);
+  for(const d of DOCS){ctx.fillStyle=d.col;ctx.beginPath();ctx.arc(22,y-4,4,0,7);ctx.fill();
+    ctx.fillStyle=getCSS('--ink');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText(d.n,32,y);
+    // mini vector bars
+    const bx=150;for(let j=0;j<DIM.length;j++){const h=d.v[j]*16;ctx.fillStyle='rgba(31,158,138,0.7)';ctx.fillRect(bx+j*16,y-h,11,h);}
+    ctx.fillStyle=getCSS('--ink-2');ctx.font='9px '+getCSS('--gothic');ctx.fillText(d.t.slice(0,16),32,y+12);y+=38;}}
+
+const STEPS=[{key:'prob',t:'問題'},{key:'embed',t:'埋め込み'},{key:'retrieve',t:'検索'},{key:'answer',t:'回答生成'},{key:'res',t:'結果'}];
+let stepIdx=0;
+function draw(){const k=STEPS[stepIdx].key;if(k==='embed')drawDocs();else if(k==='retrieve')drawSpace(true,true);else if(k==='answer'||k==='res')drawSpace(true,true);else drawSpace(false,false);}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=document.getElementById('mini'),r=ranked();m.innerHTML='<div>文書 <b>'+DOCS.length+'</b></div><div>取得 top-<b>'+K+'</b></div>'+(stepIdx>=2?'<div>最類似 <b>'+r[0].n+'</b>('+r[0].s.toFixed(2)+')</div>':'');}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='embed')?'横棒=各文書の意味ベクトル(概念の強さ)':(k==='prob')?'点=文書(知識), 色=分野':'★=質問, 点=文書, 破線=取得した上位k件';}
+function rankHTML(){const r=ranked();const mx=r[0].s||1;return '<div class="rank">'+r.map((o,idx)=>'<div class="rrow '+(idx<K?'top':'')+'"><span class="nm">'+(idx<K?'★ ':'')+o.n+'</span><span class="bar" style="width:'+(o.s/mx*90+6)+'px;background:'+(idx<K?'var(--accent)':'rgba(146,143,132,0.6)')+'"></span><span class="sc">'+o.s.toFixed(2)+'</span></div>').join('')+'</div>';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key,r=ranked(),q=QUERIES[qi];let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：LLMは外部知識を持たない</h3><div class="desc">言語モデルは<b>学習時点の知識</b>しか持たず、社内文書や最新情報は知りません。知らないことを<b>もっともらしく間違える</b>（幻覚）。そこで質問に関係する文書を<b>検索して与え</b>、それを根拠に答えさせます。右下で質問を選べます。</div>';}
+  else if(k==='embed'){h+='<h3>② 知識を意味ベクトルに</h3><div class="eq">各文書 → 埋め込み → 意味ベクトル</div><div class="desc">知識ベースの各文書を、意味を表す<b>ベクトル</b>に変換しておきます（左：横棒＝各概念の強さ）。似た内容の文書は<b>近いベクトル</b>になります。実際は文埋め込みモデルでベクトル化し<b>ベクトルDB</b>に保存します。</div>';}
+  else if(k==='retrieve'){h+='<h3>③ 検索：コサイン類似で上位k件</h3><div class="eq">類似度 = cos(質問, 文書) = (q·d)/(‖q‖‖d‖)</div><div class="desc">質問「<b>'+q.t+'</b>」を同じ空間のベクトルにし（★）、各文書との<b>コサイン類似度</b>を計算して<b>上位 '+K+' 件</b>を取得（破線）。今の最類似は <b>'+r[0].n+'</b>。</div>'+rankHTML();}
+  else if(k==='answer'){const tops=r.slice(0,K).map(o=>DOCS[o.i]);h+='<h3>④ 文脈を足して回答</h3><div class="desc">取得した文書を<b>文脈（context）</b>としてプロンプトに足し、それを根拠に回答を組み立てます：</div><div class="ans">「'+q.t+'」なら <b>'+tops[0].n+'</b> が適しています。'+tops[0].t+(tops[1]?' （'+tops[1].n+'も関連）':'')+'<br><span class="cite">▸ 出典: '+tops.map(d=>d.n).join(', ')+'</span></div><div class="desc">回答が<b>取得文に基づく</b>ので、根拠（出典）を示せて<b>検証可能</b>。学習データに無い知識でも答えられます。</div>';}
+  else{h+='<h3>⑤ 結果：正確・最新・出典つき</h3><div class="desc">RAG は<b>再学習せず</b>に外部知識（最新・社内文書）を扱え、回答が文書に基づくので<b>幻覚が減り</b>、<b>出典で検証</b>できます。検索が外すと答えも外すので、<b>埋め込み品質とチャンク設計</b>が肝心。</div><div class="eq"><b>要点</b><br>・知識を意味ベクトルにして保存<br>・質問とコサイン類似で上位k件を検索<br>・取得文を文脈に足して出典つきで生成</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>goStep(0);
+const qSel=document.getElementById('qSel');qSel.innerHTML=QUERIES.map((q,i)=>'<option value="'+i+'">質問: '+q.t+'</option>').join('');
+qSel.onchange=e=>{qi=+e.target.value;renderAll();draw();};
+renderAll();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
