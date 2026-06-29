@@ -47,6 +47,7 @@
     { href: 'naivebayes.html',  label: 'ナイーブベイズ' },
     { href: 'cnn.html',         label: 'CNN' },
     { href: 'rnn.html',         label: 'RNN' },
+    { href: 'lstm.html',        label: 'LSTM' },
     { href: 'word2vec.html',    label: '単語埋め込み' },
     { href: 'positional.html',  label: '位置エンコーディング' },
     { href: 'attention.html',   label: '自己注意' },

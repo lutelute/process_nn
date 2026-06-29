@@ -201,6 +201,7 @@
     <div class="mapgrid">
       <a class="mapcard spineCard" href="viz/cnn.html"><div class="tag">画像・畳み込み</div><div class="t">CNN</div><div class="d">フィルタで画像を走査し特徴マップへ。🎓 フィルタ自体も学習で獲得。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>次:</b> 自己注意</div></a>
       <a class="mapcard spineCard" href="viz/rnn.html"><div class="tag">時系列・記憶</div><div class="t">RNN</div><div class="d">同じセルを使い回し、隠れ状態 h に過去を記憶。次の値を予測・生成。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>次:</b> 自己注意</div></a>
+      <a class="mapcard" href="viz/lstm.html"><div class="tag">時系列・長期記憶</div><div class="t">LSTM（長短期記憶）</div><div class="d">セル状態と3ゲート（入力・忘却・出力）で情報を長く保持。RNNの勾配消失を緩和。記憶タスクを実学習。</div><div class="dep"><b>前提:</b> RNN・勾配消失 ／ <b>次:</b> 自己注意</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 5</span><span class="ttl">Attention と言語モデル</span><span class="badge">系列を一度に見る → Transformer → GPT。</span></div>
