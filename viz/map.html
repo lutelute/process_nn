@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手法マップ（全手法の俯瞰）— 動くインフォグラフ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84; --accent:#1f9e8a;
+    --ink:#1a1a17; --ink-2:#52504a; --ink-3:#928f84; --rule:#dcd8cc;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 30px 64px;}
+  .nav{font-family:var(--mono);font-size:11px;letter-spacing:.03em;line-height:2.0;color:var(--ink-3);margin-bottom:22px;}
+  .nav a{color:var(--ink-2);text-decoration:none;} .nav a:hover{color:var(--ink);text-decoration:underline;}
+  h1{font-family:var(--gothic);font-weight:700;font-size:21px;letter-spacing:.04em;color:var(--ink);margin:0;padding-bottom:11px;border-bottom:1px solid var(--ink);}
+  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:780px;margin:15px 0 22px;}
+  .lead b{color:var(--ink);font-weight:700;}
+  .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden;}
+  .maphost{position:relative;}
+  canvas{display:block;width:100%;height:auto;background:#fffdf6;cursor:crosshair;}
+  .axis{position:absolute;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;pointer-events:none;}
+  .axis.x{bottom:8px;right:14px;} .axis.x2{bottom:8px;left:14px;}
+  .axis.y{top:10px;left:12px;} .axis.y2{bottom:30px;left:12px;}
+  .bar{display:flex;align-items:center;gap:14px;padding:11px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
+  .legend{display:flex;gap:8px 16px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);}
+  .legend b{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;letter-spacing:.02em;}
+  .legend .sw{width:11px;height:11px;border-radius:2px;border:1px solid rgba(0,0,0,.2);}
+  .legend b.off{opacity:.32;}
+  .hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-left:auto;}
+  details{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
+  summary{padding:12px 15px;cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--ink-2);} summary:hover{color:var(--ink);}
+  .det{padding:0 15px 15px;font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .det a{color:var(--accent);}
+  @media print{@page{size:A4 landscape;margin:10mm;}html,body{background:#fff;}.stage{border-color:#000;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>手法マップ（全手法の俯瞰）</h1>
+  <div class="lead">このサイトの<b>全手法</b>を、性質（教師あり/なし・ニューラルか・深さ・生成的か 等）で<b>2 次元に配置</b>した地図。近い手法ほど近くに、<b>カテゴリごとに色とグループ</b>で囲んで俯瞰できます。<b>横＝教師なし←→教師あり／最適化</b>、<b>縦＝古典的←→深層・言語</b>がだいたいの向き。点に乗ると詳細、<b>クリックでそのページへ</b>。</div>
+
+  <div class="stage">
+    <div class="maphost">
+      <canvas id="cv" width="980" height="620"></canvas>
+      <span class="axis x">教師あり・最適化 →</span>
+      <span class="axis x2">← 教師なし</span>
+      <span class="axis y">↑ 深層・言語</span>
+      <span class="axis y2">↓ 古典的</span>
+    </div>
+    <div class="bar">
+      <div class="legend" id="legend"></div>
+      <span class="hint">点=手法 / 枠=カテゴリ / クリックで開く</span>
+    </div>
+  </div>
+
+  <details>
+    <summary>この地図の作り方・見方</summary>
+    <div class="det">各手法に「教師あり度・ニューラルか・層の深さ・生成的か・系列を扱うか・確率的か・非線形か・構造を見るか」などの<b>属性</b>を与え、それを 2 次元に配置しています（似た属性＝近い位置）。配置は読みやすさのため属性ベースの座標＋<b>重なり回避（反発）</b>で整えています。色は主カテゴリ。これは <a href="pca.html">PCA</a>・<a href="tsne.html">t-SNE</a>・<a href="kmeans.html">クラスタリング</a> がやっている「高次元の関係を 2 次元で俯瞰する」ことの、<b>手法そのものを対象にした版</b>です。凡例のカテゴリ名をクリックすると絞り込めます。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const CATS={
+  unsup:{label:'教師なし',color:'#4e9a4e'},
+  dimred:{label:'次元削減・表現',color:'#cf4f5f'},
+  nnbasic:{label:'NN基礎・訓練',color:'#1f9e8a'},
+  supervised:{label:'教師あり分類',color:'#2f6fae'},
+  imgseq:{label:'画像・系列',color:'#c2891b'},
+  lang:{label:'言語モデル',color:'#6f54c4'},
+  opt:{label:'最適化',color:'#7a776e'},
+  rl:{label:'強化学習',color:'#9a6a3a'},
+};
+// n:表示名, h:リンク, c:カテゴリ, x,y:0..1 の概念座標(横=教師なし→教師あり/最適化, 縦=古典→深層)
+const M=[
+  {n:'勾配降下',h:'gradient.html',c:'opt',x:0.80,y:0.45},
+  {n:'遺伝的AL',h:'ga.html',c:'opt',x:0.91,y:0.53},
+  {n:'Q学習',h:'qlearning.html',c:'rl',x:0.89,y:0.30},
+  {n:'k-means',h:'kmeans.html',c:'unsup',x:0.15,y:0.30},
+  {n:'GMM',h:'gmm.html',c:'unsup',x:0.23,y:0.21},
+  {n:'DBSCAN',h:'dbscan.html',c:'unsup',x:0.10,y:0.19},
+  {n:'SOM',h:'som.html',c:'unsup',x:0.21,y:0.41},
+  {n:'Hopfield',h:'hopfield.html',c:'unsup',x:0.10,y:0.47},
+  {n:'PCA',h:'pca.html',c:'dimred',x:0.15,y:0.62},
+  {n:'t-SNE',h:'tsne.html',c:'dimred',x:0.25,y:0.69},
+  {n:'オートエンコーダ',h:'autoencoder.html',c:'dimred',x:0.17,y:0.79},
+  {n:'VAE',h:'vae.html',c:'dimred',x:0.27,y:0.82},
+  {n:'信号の流れ',h:'index.html',c:'nnbasic',x:0.44,y:0.46},
+  {n:'パーセプトロン',h:'perceptron.html',c:'nnbasic',x:0.37,y:0.35},
+  {n:'線形回帰',h:'linreg.html',c:'nnbasic',x:0.34,y:0.23},
+  {n:'ロジスティック回帰',h:'logreg.html',c:'nnbasic',x:0.41,y:0.29},
+  {n:'誤差逆伝播',h:'backprop.html',c:'nnbasic',x:0.48,y:0.52},
+  {n:'正則化',h:'reg.html',c:'nnbasic',x:0.40,y:0.60},
+  {n:'ドロップアウト',h:'dropout.html',c:'nnbasic',x:0.50,y:0.64},
+  {n:'勾配消失',h:'vanishing.html',c:'nnbasic',x:0.56,y:0.58},
+  {n:'バッチ正規化',h:'batchnorm.html',c:'nnbasic',x:0.58,y:0.66},
+  {n:'決定境界',h:'classify.html',c:'supervised',x:0.50,y:0.37},
+  {n:'数字認識',h:'digit.html',c:'supervised',x:0.58,y:0.45},
+  {n:'評価指標',h:'metrics.html',c:'supervised',x:0.45,y:0.18},
+  {n:'決定木',h:'dtree.html',c:'supervised',x:0.61,y:0.23},
+  {n:'ランダムフォレスト',h:'forest.html',c:'supervised',x:0.67,y:0.29},
+  {n:'勾配ブースティング',h:'boosting.html',c:'supervised',x:0.69,y:0.37},
+  {n:'kNN',h:'knn.html',c:'supervised',x:0.56,y:0.16},
+  {n:'SVM',h:'svm.html',c:'supervised',x:0.63,y:0.14},
+  {n:'ナイーブベイズ',h:'naivebayes.html',c:'supervised',x:0.50,y:0.10},
+  {n:'CNN',h:'cnn.html',c:'imgseq',x:0.62,y:0.56},
+  {n:'RNN',h:'rnn.html',c:'imgseq',x:0.70,y:0.63},
+  {n:'単語埋め込み',h:'word2vec.html',c:'lang',x:0.74,y:0.70},
+  {n:'位置エンコーディング',h:'positional.html',c:'lang',x:0.81,y:0.66},
+  {n:'自己注意',h:'attention.html',c:'lang',x:0.83,y:0.77},
+  {n:'Transformer',h:'transformer.html',c:'lang',x:0.89,y:0.81},
+  {n:'GPT-2',h:'../gpt2/',c:'lang',x:0.93,y:0.88},
+];
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PAD=58;
+function toPx(m){return{x:PAD+m.x*(CW-2*PAD), y:CH-PAD-m.y*(CH-2*PAD)};}
+// 初期座標→重なり回避(反発)で整える
+M.forEach(m=>{const p=toPx(m);m.px=p.x;m.py=p.y;});
+function relax(){for(let it=0;it<140;it++){for(let i=0;i<M.length;i++)for(let j=i+1;j<M.length;j++){const a=M[i],b=M[j];let dx=b.px-a.px,dy=b.py-a.py;let d=Math.hypot(dx,dy)||0.01;const min=(a.c===b.c)?34:46;if(d<min){const f=(min-d)/d*0.5;dx*=f;dy*=f;a.px-=dx;a.py-=dy;b.px+=dx;b.py+=dy;}}
+  for(const m of M){m.px=Math.max(PAD-8,Math.min(CW-PAD+8,m.px));m.py=Math.max(PAD-6,Math.min(CH-PAD+6,m.py));}}}
+relax();
+
+function hull(pts){if(pts.length<3)return pts.slice();const p=pts.slice().sort((a,b)=>a.x-b.x||a.y-b.y);const cr=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);const lo=[];for(const q of p){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}const up=[];for(let i=p.length-1;i>=0;i--){const q=p[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q);}lo.pop();up.pop();return lo.concat(up);}
+function expand(poly,m){const cx=poly.reduce((s,p)=>s+p.x,0)/poly.length,cy=poly.reduce((s,p)=>s+p.y,0)/poly.length;return poly.map(p=>{const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy)||1;return{x:p.x+dx/d*m,y:p.y+dy/d*m};});}
+function hex2rgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+
+let hover=-1,off={};
+function draw(){ctx.clearRect(0,0,CW,CH);
+  // カテゴリのグループ枠（凸包を膨らませて塗り）
+  for(const k in CATS){if(off[k])continue;const pts=M.filter(m=>m.c===k).map(m=>({x:m.px,y:m.py}));if(!pts.length)continue;const[r,g,b]=hex2rgb(CATS[k].color);
+    let poly;if(pts.length>=3)poly=expand(hull(pts),26);else{const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;poly=[];for(let a=0;a<12;a++){poly.push({x:cx+Math.cos(a/12*6.283)*40,y:cy+Math.sin(a/12*6.283)*40});}}
+    ctx.beginPath();poly.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();
+    ctx.fillStyle=`rgba(${r},${g},${b},0.07)`;ctx.fill();ctx.strokeStyle=`rgba(${r},${g},${b},0.5)`;ctx.setLineDash([4,4]);ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
+    // カテゴリラベル(枠の上部)
+    let topx=poly[0].x,topy=poly[0].y;for(const p of poly)if(p.y<topy){topy=p.y;topx=p.x;}ctx.fillStyle=`rgba(${r},${g},${b},0.95)`;ctx.font='600 10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(CATS[k].label,topx,topy-5);}
+  // ノード
+  for(let i=0;i<M.length;i++){const m=M[i];if(off[m.c])continue;const[r,g,b]=hex2rgb(CATS[m.c].color);const hl=(i===hover);
+    ctx.beginPath();ctx.arc(m.px,m.py,hl?6.5:4.5,0,7);ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fill();
+    if(hl){ctx.lineWidth=2;ctx.strokeStyle=getCSS('--ink');ctx.stroke();}
+    ctx.fillStyle=hl?getCSS('--ink'):'rgba(26,26,23,0.82)';ctx.font=(hl?'700 ':'')+'10.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';
+    const lx=m.px+8;ctx.fillText(m.n,lx,m.py);}
+  // hover ツールチップ(カテゴリ)
+  if(hover>=0){const m=M[hover];ctx.fillStyle=getCSS('--ink-3');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('▸ '+CATS[m.c].label+' / クリックで開く',16,CH-14);}
+}
+function renderLegend(){const el=document.getElementById('legend');el.innerHTML=Object.keys(CATS).map(k=>'<b data-k="'+k+'" class="'+(off[k]?'off':'')+'"><span class="sw" style="background:'+CATS[k].color+'"></span>'+CATS[k].label+'</b>').join('');
+  el.querySelectorAll('b').forEach(b=>b.onclick=()=>{const k=b.dataset.k;off[k]=!off[k];renderLegend();draw();});}
+function pick(mx,my){let best=-1,bd=18*18;for(let i=0;i<M.length;i++){const m=M[i];if(off[m.c])continue;const d=(m.px-mx)**2+(m.py-my)**2;if(d<bd){bd=d;best=i;}}return best;}
+function evt(e){const r=cv.getBoundingClientRect(),sx=CW/r.width,sy=CH/r.height;return{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};}
+cv.addEventListener('mousemove',e=>{const p=evt(e);const h=pick(p.x,p.y);cv.style.cursor=h>=0?'pointer':'crosshair';if(h!==hover){hover=h;draw();}});
+cv.addEventListener('mouseleave',()=>{if(hover!==-1){hover=-1;draw();}});
+cv.addEventListener('click',e=>{const p=evt(e);const h=pick(p.x,p.y);if(h>=0)location.href=M[h].h;});
+renderLegend();draw();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

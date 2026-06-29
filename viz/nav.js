@@ -24,6 +24,7 @@
 
   const pages = [
     // ロードマップ順（基礎→応用）。トップの「学習ロードマップ」と同じ並び。
+    { href: 'map.html',         label: '手法マップ' },
     { href: 'gradient.html',    label: '勾配降下' },
     { href: 'ga.html',          label: '遺伝的AL' },
     { href: 'index.html',       label: '信号の流れ' },
