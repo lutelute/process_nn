@@ -141,6 +141,17 @@
       .spineflow a b{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:var(--accent);color:#06231f;border-radius:50%;font-family:var(--mono);font-size:10.5px;font-weight:700;}
       .spineflow i{color:var(--faint);font-style:normal;font-size:11px;}
       .branchnote{font-size:11px;color:var(--faint);margin:-2px 0 8px;}
+      /* カテゴリ別カタログは既定で畳む。既定は背骨(推奨順路)＋デモだけ見せ、認知負荷を下げる */
+      .catwrap{margin:8px 0 4px;border:1px solid var(--line);border-radius:3px;background:var(--panel-2);}
+      .catwrap>summary{cursor:pointer;padding:14px 16px;font-size:13px;color:var(--muted);letter-spacing:.02em;list-style:none;}
+      .catwrap>summary::-webkit-details-marker{display:none;}
+      .catwrap>summary::before{content:"▸ ";color:var(--accent);font-weight:700;}
+      .catwrap[open]>summary::before{content:"▾ ";}
+      .catwrap>summary b{color:var(--accent);font-weight:700;}
+      .catwrap>summary:hover{color:var(--text);}
+      .catwrap[open]>summary{border-bottom:1px solid var(--line);}
+      .catbody{padding:2px 16px 14px;}
+      .catbody .mapsec:first-child{margin-top:14px;}
     </style>
     <div style="font-family:var(--mincho);font-size:18px;letter-spacing:.04em;margin:2px 0 4px;">学習ロードマップ</div>
     <div class="roadintro">下の <b style="color:var(--accent)">推奨順路</b>（背骨）に沿って番号順に進むのが基本ルート。各カテゴリは<b>前提 → 応用</b>の順に並び、カードの下部に「前提／次」を表示しています。点線のカードは寄り道（別アプローチ・発展）。</div>
@@ -161,6 +172,9 @@
       </div>
     </div>
 
+    <details class="catwrap">
+    <summary>📂 <b>カテゴリ別に全手法を見る</b>（基礎 → 応用 ＋ 立体で見る 3D 構造）— 上の推奨順路だけ辿るなら開かなくて OK</summary>
+    <div class="catbody">
     <div class="mapsec"><span class="num">STEP 1</span><span class="ttl">数学・最適化の基礎</span><span class="badge">学習＝損失を小さくすること。その土台。</span></div>
     <div class="mapgrid">
       <a class="mapcard spineCard" href="viz/gradient.html"><div class="tag">最適化</div><div class="t">勾配降下法</div><div class="d">損失の地形を、傾き（勾配）の逆向きに下って最小へ。SGD/Momentum/Adam を比較。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> 誤差逆伝播</div></a>
@@ -248,6 +262,8 @@
       <a class="mapcard branchCard" href="viz/attention3d.html"><div class="tag">Attention・3D</div><div class="t">Attention を立体で見る</div><div class="d">本物の注目を 3D 弧で、ヘッドを奥行きに分離。</div><div class="dep"><b>関連:</b> 自己注意・Transformer</div></a>
       <a class="mapcard branchCard" href="viz/gpt3d.html"><div class="tag">GPT・3D</div><div class="t">GPT-2 を立体で見る</div><div class="d">12 層 × 12 ヘッドの構造を 3D で俯瞰、ブロック内部を展開。</div><div class="dep"><b>関連:</b> GPT-2</div></a>
     </div>
+    </div>
+    </details>
   </section>
 
   <div class="grid" id="demo">
