@@ -22,6 +22,28 @@
     (document.head || document.documentElement).appendChild(s);
   })();
 
+  // ===== アクセシビリティ底上げ（全ビューア一括） =====
+  // nav.js は全 48 ページが読み込む唯一の共有 JS。ここで横断的に最低ラインを底上げする
+  // （theme.css 未読込の 7 ページにも、後勝ちの注入 style で確実に届く）。
+  (function injectA11yStyles(){
+    if (document.getElementById('a11yfmt')) return;
+    const css =
+      // ① 二次テキストのコントラスト：旧 #928f84 は背景 #faf8f1 上で約 3.0:1（AA 未満）。
+      //    暖色味を残したまま約 5:1 まで暗色化して通常テキスト AA(4.5:1) を満たす。
+      ':root{--faint:#6e6a60;--ink-3:#6e6a60;}'
+      // ② キーボードフォーカスを可視化（マウス操作では出さない）。
+      + ':focus-visible{outline:2px solid var(--accent,#1f9e8a);outline-offset:2px;border-radius:2px;}'
+      + '.stp:focus-visible{outline-offset:-2px;}'
+      // ③ 前庭障害への配慮：CSS のアニメ/トランジションを抑制（canvas 内 rAF は JS 側フラグで各自対応）。
+      + '@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}}';
+    const s = document.createElement('style');
+    s.id = 'a11yfmt'; s.textContent = css;
+    (document.head || document.documentElement).appendChild(s);
+  })();
+  // canvas 内の requestAnimationFrame 駆動アニメは CSS では止まらないため、各ビューアが参照できる判定を公開。
+  try { window.__prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (e) { window.__prefersReducedMotion = false; }
+
   const pages = [
     // ロードマップ順（基礎→応用）。トップの「学習ロードマップ」と同じ並び。
     { href: 'map.html',         label: '手法マップ' },
@@ -94,6 +116,48 @@
     el.innerHTML = items.join(sep);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
-  else render();
+  // ===== DOM 強化：canvas を画像として読み上げ可能に＋ステッパーをキーボード操作可能に =====
+  function enhanceA11y() {
+    // ① 主役の <canvas> に代替テキスト。描画には一切影響しない（属性付与のみ）。
+    const title = ((document.querySelector('h1') || {}).textContent || document.title || '可視化').trim();
+    document.querySelectorAll('canvas').forEach(function (cv) {
+      if (!cv.getAttribute('role')) cv.setAttribute('role', 'img');
+      if (!cv.getAttribute('aria-label')) cv.setAttribute('aria-label', title + ' — 図（Canvas による可視化）');
+    });
+
+    // ② div 製ステッパーを role=tablist/tab 化し、Enter/Space/矢印で操作可能に。
+    //    renderStepper が innerHTML を作り直す／class だけ差し替えるページの両方に追従する。
+    function decorate(stepper) {
+      if (stepper.getAttribute('role') !== 'tablist') stepper.setAttribute('role', 'tablist');
+      stepper.querySelectorAll('.stp').forEach(function (stp) {
+        stp.setAttribute('role', 'tab');
+        if (stp.getAttribute('tabindex') === null) stp.setAttribute('tabindex', '0');
+        stp.setAttribute('aria-selected', stp.classList.contains('active') ? 'true' : 'false'); // 状態は毎回同期
+        if (stp.dataset.a11y) return;            // キーボードハンドラは一度だけ付与（冪等）
+        stp.dataset.a11y = '1';
+        stp.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); stp.click(); }
+          else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const list = Array.prototype.slice.call(stepper.querySelectorAll('.stp'));
+            const next = list[list.indexOf(stp) + (e.key === 'ArrowRight' ? 1 : -1)];
+            if (next) next.focus();
+          }
+        });
+      });
+    }
+    document.querySelectorAll('.stepper').forEach(function (stepper) {
+      decorate(stepper);
+      // childList=innerHTML 作り直し / class 変更=active 切替 の両方を監視。
+      // 付与するのは role/aria-selected/tabindex/data-* のみ（class は書かない）→ 自己再発火しない。
+      try {
+        new MutationObserver(function () { decorate(stepper); })
+          .observe(stepper, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+      } catch (e) { /* 古い環境では監視なしでも初期装飾は効く */ }
+    });
+  }
+
+  function init() { render(); enhanceA11y(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
