@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>対照学習（自己教師あり）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --ink:#1a1a17; --ink-2:#52504a; --ink-3:#928f84; --rule:#dcd8cc;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 30px 64px;}
+  .nav{font-family:var(--mono);font-size:11px;letter-spacing:.03em;line-height:2.0;color:var(--ink-3);margin-bottom:22px;}
+  .nav a{color:var(--ink-2);text-decoration:none;} .nav a:hover{color:var(--ink);text-decoration:underline;}
+  h1{font-family:var(--gothic);font-weight:700;font-size:21px;letter-spacing:.04em;color:var(--ink);margin:0;padding-bottom:11px;border-bottom:1px solid var(--ink);}
+  .lead{font-family:var(--gothic);color:var(--ink-2);font-size:13px;line-height:1.75;max-width:790px;margin:15px 0 22px;}
+  .lead b{color:var(--ink);font-weight:700;}
+  .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--ink);}
+  .stp{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 6px;cursor:pointer;position:relative;border-right:1px dashed var(--rule);}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:20px;height:20px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;background:transparent;color:var(--ink-3);border:1px solid var(--ink-3);}
+  .stp .t{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-3);}
+  .stp.done .n{color:var(--ink);border-color:var(--ink);} .stp.done .t{color:var(--ink-2);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .stp.active .t{color:var(--ink);font-weight:700;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px dashed var(--rule);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:390px;height:auto;border:1px solid var(--rule);border-radius:2px;background:#fffdf6;}
+  .mini{display:flex;gap:14px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--ink);font-weight:700;} .mini .ok b{color:var(--accent);}
+  .legend{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:7px;align-self:flex-start;line-height:1.7;}
+  .legend i{font-style:normal;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:10px;font-family:var(--mono);letter-spacing:.18em;color:var(--ink-3);border:1px solid var(--ink-3);border-radius:2px;padding:2px 8px;margin-bottom:11px;text-transform:uppercase;}
+  .explain h3{font-family:var(--gothic);font-weight:700;font-size:16px;margin:0 0 9px;color:var(--ink);}
+  .eq{font-family:var(--mono);font-size:12px;background:#fff;border:1px solid var(--ink);border-radius:2px;border-left:3px solid var(--accent);padding:10px 13px;margin:9px 0;line-height:1.85;color:var(--ink);}
+  .desc{font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .desc b{color:var(--ink);font-weight:700;}
+  .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--ink);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:12.5px;border-radius:2px;padding:8px 14px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:.12s;}
+  button:hover:not(:disabled){background:var(--panel-2);} button:disabled{opacity:.35;cursor:default;}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;}
+  .bar .spacer{flex:1;}
+  details{margin-top:14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
+  summary{padding:12px 15px;cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--ink-2);} summary:hover{color:var(--ink);}
+  .det{padding:0 15px 15px;font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);} .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px dashed var(--rule);}.stp .t{display:none;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>対照学習（自己教師あり）を理解する</h1>
+  <div class="lead"><b>ラベルが無くても</b>、データから「良い表現（埋め込み）」を学べる——それが<b>自己教師あり学習</b>。<b>対照学習</b>はその代表で、考え方はシンプル：<b>同じものの別バージョン（正例）は近く</b>に、<b>違うもの（負例）は遠く</b>になるよう埋め込みを学ぶ。すると、教えていないのに<b>似たデータが自然に集まり</b>ます。下では「入力空間」と「学習される埋め込み空間」を並べて見ます（SimCLR・CLIP の核）。</div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="390" height="300"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 学習</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+    </div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：InfoNCE・なぜラベル無しで効くか・SimCLR/CLIP</summary>
+    <div class="det"><b>正例ペア</b>は「同じデータに別々の<b>データ拡張</b>（切り抜き・色変え・ノイズ等）をかけた 2 つのビュー」。これらは中身が同じなので<b>近く</b>に、バッチ内の<b>他のデータ（負例）</b>は<b>遠く</b>に、と引き寄せ・押しのけます。損失は <b>InfoNCE / NT-Xent</b>：<b>−log( exp(sim⁺/τ) / Σ exp(sim/τ) )</b>。sim はコサイン類似度、τ は温度。これは「正例を、たくさんの負例の中から当てる分類」と同じ形。<b>なぜラベル無しで効くか</b>：拡張で変わらない本質（=そのデータの中身）を捉えるよう強制され、結果として<b>意味的に似たものが近い</b>表現になります。教えていない 3 つのクラスタが埋め込み上で分かれるのがその証拠。<b>SimCLR</b>（画像）、<b>CLIP</b>（画像とテキストの正例ペア）が代表。学んだ表現は少量ラベルでの分類などに<b>転用（事前学習）</b>できます。関連：<a href="autoencoder.html">オートエンコーダ</a>・<a href="word2vec.html">単語埋め込み</a>・<a href="tsne.html">t-SNE</a>。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+let seed=42;function mul(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
+function randn(){let u=0,v=0;while(u===0)u=mul();while(v===0)v=mul();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const CEN=[[-2.2,-1.3],[2.2,-1.3],[0,2.2]],CSTD=0.34,COL=['#1f9e8a','#cf4f5f','#6f54c4'],AUG=0.4,TAU=0.3;
+function sample(){const c=Math.floor(mul()*3);return{x:[CEN[c][0]+randn()*CSTD,CEN[c][1]+randn()*CSTD],c};}
+function aug(x){return[x[0]+randn()*AUG,x[1]+randn()*AUG];}
+const S=[2,32,32,2];
+function mlp(){const W=[null],B=[null];for(let l=1;l<S.length;l++){const nI=S[l-1],nO=S[l],sc=Math.sqrt(2/nI),Wl=[];for(let j=0;j<nO;j++){const r=new Float64Array(nI);for(let k=0;k<nI;k++)r[k]=randn()*sc;Wl.push(r);}W[l]=Wl;B[l]=new Float64Array(nO);}return{W,B,m:opt(),v:opt(),t:0};}
+function opt(){const W=[null],B=[null];for(let l=1;l<S.length;l++){W[l]=Array.from({length:S[l]},()=>new Float64Array(S[l-1]));B[l]=new Float64Array(S[l]);}return{W,B};}
+const rl=z=>z>0?z:0.1*z,drl=z=>z>0?1:0.1;
+function fwd(M,x){const a=[x.slice()],zs=[null];for(let l=1;l<S.length;l++){const z=new Float64Array(S[l]),al=new Float64Array(S[l]);for(let j=0;j<S[l];j++){let s=M.B[l][j];for(let k=0;k<S[l-1];k++)s+=M.W[l][j][k]*a[l-1][k];z[j]=s;al[j]=(l===S.length-1)?s:rl(s);}zs.push(z);a.push(al);}
+  const o=a[S.length-1],n=Math.hypot(o[0],o[1])+1e-9;return{a,zs,e:[o[0]/n,o[1]/n],n};}
+function emb(M,x){return fwd(M,x).e;}
+function bpFromE(M,fc,de){const n=fc.n,e=fc.e,dot=de[0]*e[0]+de[1]*e[1],dpre=[(de[0]-e[0]*dot)/n,(de[1]-e[1]*dot)/n];let d=dpre;const G=opt();
+  for(let l=S.length-1;l>=1;l--){const ap=fc.a[l-1];for(let j=0;j<S[l];j++){G.B[l][j]+=d[j];for(let k=0;k<S[l-1];k++)G.W[l][j][k]+=d[j]*ap[k];}const dp=new Float64Array(S[l-1]);for(let k=0;k<S[l-1];k++){let s=0;for(let j=0;j<S[l];j++)s+=M.W[l][j][k]*d[j];dp[k]=(l>1)?s*drl(fc.zs[l-1][k]):s;}d=dp;}return G;}
+function addG(A,B){for(let l=1;l<S.length;l++)for(let j=0;j<S[l];j++){A.B[l][j]+=B.B[l][j];for(let k=0;k<S[l-1];k++)A.W[l][j][k]+=B.W[l][j][k];}}
+function adam(M,G,lr,sc){const b1=.9,b2=.999;M.t++;const bc1=1-Math.pow(b1,M.t),bc2=1-Math.pow(b2,M.t);for(let l=1;l<S.length;l++)for(let j=0;j<S[l];j++){let gb=G.B[l][j]*sc;M.m.B[l][j]=b1*M.m.B[l][j]+(1-b1)*gb;M.v.B[l][j]=b2*M.v.B[l][j]+(1-b2)*gb*gb;M.B[l][j]-=lr*(M.m.B[l][j]/bc1)/(Math.sqrt(M.v.B[l][j]/bc2)+1e-8);for(let k=0;k<S[l-1];k++){let gw=G.W[l][j][k]*sc;M.m.W[l][j][k]=b1*M.m.W[l][j][k]+(1-b1)*gw;M.v.W[l][j][k]=b2*M.v.W[l][j][k]+(1-b2)*gw*gw;M.W[l][j][k]-=lr*(M.m.W[l][j][k]/bc1)/(Math.sqrt(M.v.W[l][j][k]/bc2)+1e-8);}}}
+let M,DISP,anchor,iter,lossHist;
+function reset(){seed=42;M=mlp();DISP=[];for(let i=0;i<72;i++)DISP.push(sample());
+  // 強調用アンカー（クラスタ0の1点）と、その2つの拡張ビュー
+  const a=DISP.find(p=>p.c===0)||DISP[0];anchor={x:a.x,v1:aug(a.x),v2:aug(a.x),negs:[DISP.find(p=>p.c===1),DISP.find(p=>p.c===2)].filter(Boolean)};
+  iter=0;lossHist=[];}
+function trainStep(){const B=32,views=[],fcs=[];for(let b=0;b<B;b++){const s=sample();views.push(aug(s.x));views.push(aug(s.x));}
+  for(const v of views)fcs.push(fwd(M,v));const E=fcs.map(f=>f.e),N=2*B;let loss=0;
+  const grads=Array.from({length:N},()=>[0,0]);
+  for(let i=0;i<N;i++){const pos=i^1,sim=new Float64Array(N);let mx=-1e9;for(let j=0;j<N;j++){if(j===i){sim[j]=-1e9;continue;}sim[j]=(E[i][0]*E[j][0]+E[i][1]*E[j][1])/TAU;mx=Math.max(mx,sim[j]);}
+    let den=0;for(let j=0;j<N;j++)if(j!==i)den+=Math.exp(sim[j]-mx);loss+=-(sim[pos]-mx-Math.log(den));
+    for(let j=0;j<N;j++){if(j===i)continue;const sm=Math.exp(sim[j]-mx)/den,coef=(sm-(j===pos?1:0))/TAU;grads[i][0]+=coef*E[j][0];grads[i][1]+=coef*E[j][1];grads[j][0]+=coef*E[i][0];grads[j][1]+=coef*E[i][1];}}
+  const Gt=opt();for(let i=0;i<N;i++)addG(Gt,bpFromE(M,fcs[i],grads[i]));adam(M,Gt,0.003,1/N);
+  iter++;lossHist.push(loss/N);if(lossHist.length>240)lossHist.shift();}
+function purity(){const pts=DISP.map(p=>emb(M,p.x));let cent=[pts[0],pts[24],pts[48]].map(p=>p.slice());
+  for(let it=0;it<20;it++){const as=pts.map(p=>{let bi=0,bd=1e9;for(let c=0;c<3;c++){const d=(p[0]-cent[c][0])**2+(p[1]-cent[c][1])**2;if(d<bd){bd=d;bi=c;}}return bi;});for(let c=0;c<3;c++){let sx=0,sy=0,n=0;for(let i=0;i<pts.length;i++)if(as[i]===c){sx+=pts[i][0];sy+=pts[i][1];n++;}if(n){cent[c]=[sx/n,sy/n];}}}
+  const as=pts.map(p=>{let bi=0,bd=1e9;for(let c=0;c<3;c++){const d=(p[0]-cent[c][0])**2+(p[1]-cent[c][1])**2;if(d<bd){bd=d;bi=c;}}return bi;});
+  let ok=0;for(let kc=0;kc<3;kc++){const cnt=[0,0,0];for(let i=0;i<DISP.length;i++)if(as[i]===kc)cnt[DISP[i].c]++;ok+=Math.max(...cnt);}return ok/DISP.length;}
+reset();
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const LX=10,LW=170,RX=210,RW=170,PT=30,PB=14,PH=CH-PT-PB;
+function ix(x){return LX+(x+3.4)/6.8*LW;}function iy(y){return PT+PH-(y+3.4)/6.8*PH;}
+const ecx=RX+RW/2,ecy=PT+PH/2,er=Math.min(RW,PH)/2-6;
+function ex(e){return ecx+e[0]*er;}function ey(e){return ecy-e[1]*er;}
+function panel(x,w,title){ctx.strokeStyle='rgba(150,143,127,0.4)';ctx.lineWidth=1;ctx.strokeRect(x+.5,PT+.5,w,PH);ctx.fillStyle=getCSS('--ink-2');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(title,x+w/2,PT-10);}
+function draw(showPair){ctx.clearRect(0,0,CW,CH);
+  panel(LX,LW,'入力空間（生データ）');panel(RX,RW,'埋め込み空間（学習される）');
+  // 埋め込み空間の単位円
+  ctx.strokeStyle='rgba(150,143,127,0.3)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.arc(ecx,ecy,er,0,7);ctx.stroke();ctx.setLineDash([]);
+  // 点
+  for(const p of DISP){ctx.fillStyle=COL[p.c];ctx.globalAlpha=.85;ctx.beginPath();ctx.arc(ix(p.x[0]),iy(p.x[1]),2.6,0,7);ctx.fill();const e=emb(M,p.x);ctx.beginPath();ctx.arc(ex(e),ey(e),2.6,0,7);ctx.fill();ctx.globalAlpha=1;}
+  if(showPair){
+    // 入力空間: アンカーの2拡張ビューを正例として線で結ぶ
+    const a=anchor;ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(ix(a.v1[0]),iy(a.v1[1]));ctx.lineTo(ix(a.v2[0]),iy(a.v2[1]));ctx.stroke();
+    for(const v of [a.v1,a.v2]){ctx.beginPath();ctx.arc(ix(v[0]),iy(v[1]),4,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=getCSS('--accent');ctx.stroke();}
+    ctx.fillStyle=getCSS('--accent');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('正例(近づける)',ix(a.v1[0])+5,iy(a.v1[1])-6);
+    // 負例への押しのけ（破線）
+    for(const ng of a.negs){ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(ix(a.x[0]),iy(a.x[1]));ctx.lineTo(ix(ng.x[0]),iy(ng.x[1]));ctx.stroke();ctx.setLineDash([]);}
+    // 埋め込み空間でも正例ペアを結ぶ
+    const e1=emb(M,a.v1),e2=emb(M,a.v2);ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(ex(e1),ey(e1));ctx.lineTo(ex(e2),ey(e2));ctx.stroke();
+    for(const e of [e1,e2]){ctx.beginPath();ctx.arc(ex(e),ey(e),4,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=getCSS('--accent');ctx.stroke();}
+  }
+}
+
+const STEPS=[{key:'prob',t:'問題'},{key:'pair',t:'正例と負例'},{key:'loss',t:'対照損失'},{key:'learn',t:'学習'},{key:'res',t:'結果'}];
+let stepIdx=0,auto=false;
+function drawStep(){draw(STEPS[stepIdx].key==='pair'||STEPS[stepIdx].key==='loss');}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
+function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>点 <b>'+DISP.length+'</b></div><div>学習 <b>'+iter+'</b></div>'+(lossHist.length?'<div>損失 <b>'+lossHist[lossHist.length-1].toFixed(2)+'</b></div>':'')+(iter>30?'<div class="ok">クラスタ純度 <b>'+Math.round(purity()*100)+'%</b></div>':'');}
+function renderLegend(){document.getElementById('legend').innerHTML='左=入力 / 右=埋め込み（点線円＝表現の単位円）　<i style="color:var(--accent)">●</i><i style="color:var(--neg)">●</i><i style="color:var(--upd)">●</i> 色＝本当のクラスタ（<b>学習には使わない</b>）';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：ラベル無しで良い表現を</h3><div class="desc">手元のデータには 3 つのまとまり（クラスタ）がありますが、<b>どれがどの種類かの正解（ラベル）は与えられません</b>。それでも「似たものが近い」<b>良い埋め込み</b>を学びたい——これが<b>自己教師あり学習</b>。色は説明用で、<b>学習には一切使いません</b>。右の埋め込みは学習前なのでまだバラバラです。</div>';}
+  else if(k==='pair'){h+='<h3>② 正例と負例をつくる</h3><div class="desc">正解ラベルの代わりに、<b>データ拡張</b>で「答え」を自分で作ります。<b>同じ点</b>に少し違うノイズをかけた<b>2 つのビュー</b>＝<b style="color:var(--accent)">正例</b>（中身は同じ→近づけたい、左右の<span style="color:var(--accent)">緑線</span>）。<b>他の点</b>は<b style="color:var(--neg)">負例</b>（違うもの→遠ざけたい、<span style="color:var(--neg)">赤の破線</span>）。これならラベル不要です。</div>';}
+  else if(k==='loss'){h+='<h3>③ 対照損失（InfoNCE）</h3><div class="eq">損失 = −log　exp(sim⁺/τ) ⁄ Σ exp(sim/τ)</div><div class="desc">埋め込みの近さは<b>コサイン類似度 sim</b>（単位円上の近さ）。この損失は、<b style="color:var(--accent)">正例の類似 sim⁺ を大きく</b>、<b style="color:var(--neg)">負例の類似を小さく</b>します（τ＝温度）。要は「たくさんの負例の中から正例を当てる」分類。これを下げるよう埋め込みを更新します。</div>';}
+  else if(k==='learn'){h+='<h3>④ 学習：埋め込みが構造化</h3><div class="desc">「⏵ 学習」で訓練します。正例を寄せ・負例を離すうちに、<b>右の埋め込み空間で同じ色が自然に集まり</b>、違う色が離れていきます。<b>ラベルを使っていない</b>のに 3 クラスタが分かれるのがポイント。学習 '+iter+'・クラスタ純度 約 '+(iter>30?Math.round(purity()*100):'—')+'%。</div>';}
+  else{h+='<h3>⑤ 結果：ラベル無しで構造を発見</h3><div class="desc">教えていないのに、似たデータが埋め込み上で<b>クラスタに分かれました</b>（純度 約 '+Math.round(purity()*100)+'%）。この表現は、あとで<b>少量のラベル</b>で分類器を付けるだけで高精度に——＝<b>事前学習</b>。<b>SimCLR</b>（画像）や <b>CLIP</b>（画像とテキストの正例ペア）が代表例です。</div><div class="eq"><b>要点</b><br>・正例＝同じものの別ビュー（拡張）→近づける<br>・負例＝他のデータ→遠ざける（InfoNCE）<br>・ラベル無しで意味的な表現を獲得（自己教師あり）</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 学習';}
+function frame(){if(!auto)return;for(let i=0;i<3;i++)trainStep();renderMini();renderExplain();drawStep();
+  if(iter>=1500){stopAuto();renderAll();drawStep();return;}requestAnimationFrame(frame);}
+function startAuto(){if(auto)return;auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(frame);}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;const k=STEPS[i].key;if(k!=='learn')stopAuto();renderAll();drawStep();if(k==='learn'&&iter<1500)startAuto();}
+document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(STEPS[stepIdx].key!=='learn')goStep(3);else startAuto();}};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();reset();goStep(0);};
+renderAll();drawStep();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

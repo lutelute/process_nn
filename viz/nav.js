@@ -62,6 +62,7 @@
     { href: 'pca.html',         label: 'PCA' },
     { href: 'tsne.html',        label: 't-SNE' },
     { href: 'autoencoder.html', label: 'オートエンコーダ' },
+    { href: 'contrastive.html', label: '対照学習' },
     { href: 'vae.html',         label: 'VAE' },
     { href: 'gan.html',         label: 'GAN' },
     { href: 'diffusion.html',   label: '拡散モデル' },
