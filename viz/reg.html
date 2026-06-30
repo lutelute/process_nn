@@ -64,6 +64,10 @@
   <h1>正則化（過学習と汎化）を理解する</h1>
   <div class="lead">表現力の高いモデル（高次多項式）は訓練データを<b>丸暗記</b>して暴れ、新しいデータに弱くなる＝<b>過学習</b>。損失に<b>「重みを大きくしすぎない」罰（正則化項 λΣw²）</b>を足すと、なめらかで汎化する解に導ける。機械学習で最も重要な概念の一つ。下の流れを「次へ」で追ってください。</div>
 
+  <div class="prereq">
+    <span class="tag">前提</span><a href="backprop.html">逆伝播</a>で訓練誤差は下げられる <b>→</b> でも下げきると新データに弱くなる＝<b>過学習</b>。それを抑えるのがこのページ。<span class="tag" style="margin-left:8px;">仲間</span><a href="dropout.html">ドロップアウト</a>・<a href="batchnorm.html">バッチ正規化</a>も過学習・安定化の工夫。
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">
@@ -83,6 +87,14 @@
       <label>λ <input type="range" id="lam" min="0" max="100" step="1" value="55"></label>
       <select id="fnSel"><option value="sin">正弦</option><option value="cubic">3次曲線</option></select>
     </div>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>正則化すれば精度（訓練誤差）が上がる</div>
+    <div class="row"><span class="o">✓</span>訓練誤差はむしろ<b>上がる</b>。下げたいのは<b>テスト誤差</b>＝未知データへの強さで、狙いは暗記の防止。</div>
+    <div class="row"><span class="x">✗</span>λ は大きいほど安全</div>
+    <div class="row"><span class="o">✓</span>大きすぎると<b>過小学習</b>で鈍る。テスト誤差は <b>U 字</b>で、谷が最適 λ。</div>
   </div>
 
   <details>
@@ -131,6 +143,7 @@ function ucurve(){const w2=120,h=70,x0=CW-w2-12,y0=12;ctx.fillStyle='rgba(12,16,
   ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('誤差 vs λ→',x0+5,y0+9);ctx.fillStyle=getCSS('--accent');ctx.fillText('訓練',x0+5,y0+h-3);ctx.fillStyle=getCSS('--neg');ctx.fillText('テスト',x0+34,y0+h-3);}
 function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);axes();
   curve(trueFn,'rgba(133,149,168,0.5)',1.5,[5,4]);
+  if(opt.compare){const w0=ridge(lamFromSlider(2));curve(x=>polyEval(w0,x),'rgba(207,79,95,0.6)',1.8,[4,3]);}
   if(opt.fit)curve(x=>polyEval(w,x),getCSS('--accent'),2.4);
   pts(trX,trY,getCSS('--warm'),3.6);
   if(opt.test)pts(teX,teY,'rgba(207,79,95,0.5)',2);
@@ -139,16 +152,16 @@ function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);axes();
 const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'over',t:'過学習',c:'var(--neg)'},{key:'pen',t:'正則化項',c:'var(--upd)'},{key:'lam',t:'λを調整',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
 let stepIdx=0;
 function refit(){lambda=lamFromSlider(+document.getElementById('lam').value);w=ridge(lambda);}
-function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='lam'||k==='res')draw({fit:true,test:true,ucurve:true});else draw({fit:true});}
+function draw_(){const k=STEPS[stepIdx].key;if(k==='prob')draw({});else if(k==='lam')draw({fit:true,test:true,ucurve:true});else if(k==='res')draw({fit:true,test:true,ucurve:true,compare:true});else draw({fit:true});}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
 function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='prob'){m.innerHTML='<div>訓練点 <b>'+trX.length+'</b></div><div>次数 <b>'+D+'</b></div>';return;}m.innerHTML='<div>λ <b>'+lambda.toExponential(1)+'</b></div><div class="tr">訓練誤差 <b>'+mse(w,trX,trY).toFixed(3)+'</b></div><div class="te">テスト誤差 <b>'+mse(w,teX,teY).toFixed(3)+'</b></div>';}
-function renderLegend(){document.getElementById('legend').textContent='灰破線=真の関数, 橙●=訓練データ, 青=学習した多項式'+((STEPS[stepIdx].key==='lam'||STEPS[stepIdx].key==='res')?', 赤○=テストデータ':'');}
+function renderLegend(){const k=STEPS[stepIdx].key;let t='灰破線=真の関数, 橙●=訓練データ, 緑=学習した多項式';if(k==='lam'||k==='res')t+=', 赤○=テストデータ';if(k==='res')t+=', 赤破線=罰なし(過学習)';document.getElementById('legend').textContent=t;}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：滑らかな関数を当てる</h3><div class="desc">灰破線が<b>真の関数</b>、橙●はそこから取った<b>ノイズ入りの訓練データ</b>（'+trX.length+'点）。これを '+D+' 次の多項式で当てはめます。表現力が高いほど何でも描けますが…？ 右下で真の関数を変えられます。</div>';}
   else if(k==='over'){h+='<h3>② 過学習（暗記）</h3><div class="eq curr">罰なし（λ≈0）で誤差だけを最小化</div><div class="desc">正則化なしだと、多項式は<b>全ての訓練点をぴったり通ろうと暴れます</b>（青線）。訓練誤差はほぼ 0 でも、点と点の間で真の関数から大きく外れ、<b>新しいデータに弱い</b>＝過学習。訓練誤差 '+mse(w,trX,trY).toFixed(3)+' / テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div>';}
   else if(k==='pen'){h+='<h3>③ 正則化項を足す</h3><div class="eq curr">損失 = Σ(誤差)² + λ·Σ wⱼ²　（L2 / Ridge）</div><div class="desc">損失に「<b>重みの二乗和</b>」の罰を加えます。大きな重み＝急なうねりにペナルティが付くので、解が<b>なめらか</b>になり真の関数に近づく。λ がその強さ（閉じた式 w=(XᵀX+λI)⁻¹Xᵀy で一発）。</div>';}
   else if(k==='lam'){h+='<h3>④ λ を調整する</h3><div class="desc"><b>λ を自動で動かしています</b>（右上の誤差カーブの縦線が左右に往復）。<b>小さい λ</b>＝過学習（青線がうねうね）、<b>大きい λ</b>＝過小学習（真っ直ぐ＝鈍い）。テスト誤差（赤）が <b>U 字</b>を描き、谷＝<b>最適な λ</b>が存在するのが動きで分かります。スライダーを触れば手動に切替。今 λ='+lambda.toExponential(1)+'。</div>';}
-  else{const bl=bestLambda();h+='<h3>⑤ 結果：ちょうど良い複雑さ</h3><div class="desc">テスト誤差が最小になる λ（≈'+bl.toExponential(1)+'）あたりで、青線が<b>真の関数（灰破線）にほぼ一致</b>。暗記でも鈍感でもない「ちょうど良い複雑さ」が汎化につながります。現在 λ='+lambda.toExponential(1)+'・テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・高表現力モデルは過学習しやすい<br>・λΣw² で重みを抑え滑らかに<br>・テスト誤差は U 字、最小点が最適 λ</div>';}
+  else{const bl=bestLambda();h+='<h3>⑤ 結果：ちょうど良い複雑さ</h3><div class="desc">テスト誤差が最小になる λ（≈'+bl.toExponential(1)+'）あたりで、緑線が<b>真の関数（灰破線）にほぼ一致</b>。<b>赤破線＝さっきの「罰なし」</b>と重ねると、同じ訓練点でも暴れ方がまるで違うのが一目で分かります。暗記でも鈍感でもない「ちょうど良い複雑さ」が汎化につながります。現在 λ='+lambda.toExponential(1)+'・テスト誤差 '+mse(w,teX,teY).toFixed(3)+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・高表現力モデルは過学習しやすい<br>・λΣw² で重みを抑え滑らかに<br>・テスト誤差は U 字、最小点が最適 λ</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 let auto=false,autoDir=1;
