@@ -184,6 +184,7 @@ function draw_(){const k=STEPS[stepIdx].key;
   else{ctx.clearRect(0,0,CW,CH);drawBoundary();}}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
 function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
+  if(k==='prob'){m.innerHTML='<div>訓練点 <b>'+trX.length+'</b></div><div>隠れ層 <b>20×20</b></div><div>落とす率 <b>'+(pdrop*100)+'%</b></div>';return;}
   if(k==='drop'){const kept=demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0;m.innerHTML='<div>落とす率 <b>'+(pdrop*100)+'%</b></div><div>稼働中 <b>'+kept+'/'+(SZ[1]+SZ[2])+'</b></div>';return;}
   if(k==='why'){m.innerHTML='<div>サブネットの例 <b>3</b> 通り</div><div>実際は <b>2^40</b> 通り近く</div>';return;}
   if(k==='res'){if(cmpGap){const gap0=Math.round((cmpGap.g0.tr-cmpGap.g0.te)*100),gapc=Math.round((cmpGap.gc.tr-cmpGap.gc.te)*100);m.innerHTML='<div>過学習差 落とさない <b style="color:var(--neg)">'+gap0+'</b></div><div>p='+(cmpGap.p*100)+'% <b style="color:var(--accent)">'+gapc+'</b></div>';}return;}
