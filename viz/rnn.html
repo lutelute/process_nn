@@ -134,17 +134,38 @@ function drawSeries(predUpTo,free){
 function drawHidden(upTo){const top=CH-PB+18,h=PB-26,cw=(CW-PL-PR)/T;
   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('隠れ状態 h（各時刻 × '+H+'ユニット）',PL,CH-PB+12);
   const{hs}=forward();for(let t=0;t<T;t++){if(upTo>=0&&t>upTo)break;for(let i=0;i<H;i++){const v=hs[t+1][i];const t2=Math.max(-1,Math.min(1,v));ctx.fillStyle=t2>=0?`rgba(31,158,138,${0.12+0.8*t2})`:`rgba(207,79,95,${0.12+0.8*-t2})`;ctx.fillRect(PL+t*cw,top+i*(h/H),cw-0.5,h/H-0.5);}}}
-function drawCell(){ctx.clearRect(0,0,CW,CH);const cx=CW/2,cy=CH/2-10;
-  // box
-  ctx.fillStyle='#16222e';ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(cx-70,cy-46,140,92,12);ctx.fill();ctx.stroke();
-  ctx.fillStyle=getCSS('--text');ctx.font='14px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('RNN セル',cx,cy-18);ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--mono');ctx.fillText('h = tanh(Wx·x',cx,cy+4);ctx.fillText('+ Wh·h₋₁ + b)',cx,cy+22);
-  // input arrow
-  ctx.strokeStyle=getCSS('--warm');ctx.fillStyle=getCSS('--warm');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx-150,cy);ctx.lineTo(cx-72,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-72,cy);ctx.lineTo(cx-80,cy-5);ctx.lineTo(cx-80,cy+5);ctx.fill();ctx.textAlign='center';ctx.fillText('入力 xₜ',cx-120,cy-10);
-  // output arrow
-  ctx.strokeStyle=getCSS('--accent');ctx.fillStyle=getCSS('--accent');ctx.beginPath();ctx.moveTo(cx+70,cy);ctx.lineTo(cx+150,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx+150,cy);ctx.lineTo(cx+142,cy-5);ctx.lineTo(cx+142,cy+5);ctx.fill();ctx.fillText('予測 yₜ',cx+120,cy-10);
-  // recurrence loop
-  ctx.strokeStyle=getCSS('--upd');ctx.fillStyle=getCSS('--upd');ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(cx+40,cy+46);ctx.bezierCurveTo(cx+40,cy+96,cx-40,cy+96,cx-40,cy+46);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-40,cy+46);ctx.lineTo(cx-45,cy+55);ctx.lineTo(cx-35,cy+55);ctx.fill();
-  ctx.font='12px '+getCSS('--gothic');ctx.fillText('記憶 h を次の時刻へ',cx,cy+90);
+function drawCell(){ctx.clearRect(0,0,CW,CH);const F=forward(),hs=F.hs,ys=F.ys,t=Math.min(4,T-1);
+  const xv=series[t],hp=hs[t],hc=hs[t+1],yv=ys[t];const cx=CW/2,cy=CH/2+2,bw=120,bh=64;
+  ctx.textBaseline='alphabetic';ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('1 ステップ分の計算（同じセルを毎時刻くり返す。t='+t+' の例）',CW/2,16);
+  // メモリをバーで描く
+  function mem(mx,my,vec,label){const w=58,n=vec.length,rh=Math.max(3.5,Math.min(8,84/n));
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(label,mx,my-5);
+    for(let i=0;i<n;i++){const v=Math.max(-1,Math.min(1,vec[i])),y0=my+i*(rh+1);ctx.fillStyle='rgba(146,143,132,0.13)';ctx.fillRect(mx-w/2,y0,w,rh);ctx.fillStyle=v>=0?'rgba(31,158,138,0.85)':'rgba(207,79,95,0.85)';ctx.fillRect(mx,y0,v*(w/2),rh);}
+    ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(mx,my-1);ctx.lineTo(mx,my+n*(rh+1));ctx.stroke();return my+n*(rh+1);}
+  // セル本体
+  ctx.fillStyle='#fffdf6';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(cx-bw/2,cy-bh/2,bw,bh,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('RNN セル',cx,cy-14);
+  ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--mono');ctx.fillText('h=tanh(Wx·x',cx,cy+2);ctx.fillText('+Wh·h₋₁+b)',cx,cy+15);
+  const lx=72,rx=CW-78;
+  // 入力 xₜ
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('入力',lx,cy-50);
+  ctx.fillStyle=getCSS('--warm');ctx.font='bold 13px '+getCSS('--mono');ctx.fillText('xₜ='+xv.toFixed(2),lx,cy-36);
+  ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(lx+38,cy-40);ctx.lineTo(cx-bw/2-3,cy-14);ctx.stroke();
+  // 前の記憶 hₜ₋₁
+  mem(lx,cy-12,hp,'前の記憶 hₜ₋₁');
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(lx+32,cy+6);ctx.lineTo(cx-bw/2-3,cy+6);ctx.stroke();
+  // 新しい記憶 hₜ
+  mem(rx,cy-48,hc,'新しい記憶 hₜ');
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+bw/2+3,cy-12);ctx.lineTo(rx-32,cy-22);ctx.stroke();
+  // 予測 yₜ
+  ctx.fillStyle=getCSS('--accent');ctx.font='bold 13px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('yₜ='+yv.toFixed(2),rx,cy+44);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('予測',rx,cy+58);
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+bw/2+3,cy+10);ctx.lineTo(rx-32,cy+38);ctx.stroke();
+  // 再帰ループ（hₜ → 次の時刻の hₜ₋₁）
+  const ly=CH-20;ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(rx,cy+8+hc.length*0);ctx.bezierCurveTo(rx,ly,lx,ly,lx,cy+8+hp.length*4.5+8);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();ctx.moveTo(lx,cy+8+hp.length*4.5+8);ctx.lineTo(lx-4,cy+8+hp.length*4.5+16);ctx.lineTo(lx+4,cy+8+hp.length*4.5+16);ctx.fill();
+  ctx.fillStyle=getCSS('--upd');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('この hₜ が次の時刻の hₜ₋₁ に（記憶を持ち越す）',CW/2,ly+4);
 }
 
 const STEPS=[{key:'seq',t:'問題',c:'var(--accent)'},{key:'cell',t:'セル',c:'var(--upd)'},{key:'time',t:'時間展開',c:'var(--accent)'},{key:'learn',t:'学習(BPTT)',c:'var(--loss)'},{key:'gen',t:'結果',c:'var(--accent)'}];
@@ -161,7 +182,7 @@ function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].k
 function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').innerHTML=k==='cell'?'':'<span><i class="sw" style="border-top-color:var(--true)"></i>正解の系列</span><span><i class="sw" style="border-top-color:var(--accent)"></i>1ステップ予測</span>'+(k==='gen'?'<span><i class="sw" style="border-top-color:var(--neg);border-top-style:dashed"></i>自由走行(生成)</span>':'');}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='seq'){h+='<h3>① 問題：次の値を予測</h3><div class="desc">時間とともに変わる<b>系列</b>（正解＝薄い線）。各時刻で「<b>次の値</b>」を当てるのが課題。過去の流れを覚えていないと当てられません。右下で系列を変えられます。</div>';}
-  else if(k==='cell'){h+='<h3>② セル：記憶を持つ</h3><div class="eq curr">hₜ = tanh(Wx·xₜ + Wh·hₜ₋₁ + b)<br>yₜ = Wy·hₜ</div><div class="desc">RNN は<b>1 つのセルを毎時刻使い回す</b>。鍵は隠れ状態 <b style="color:var(--upd)">h</b>＝「これまでの要約（記憶）」。今の入力 xₜ と<b>前の記憶 hₜ₋₁</b>から新しい hₜ を作り、そこから予測 yₜ を出します。</div>';}
+  else if(k==='cell'){h+='<h3>② セル：記憶を持つ</h3><div class="eq curr">hₜ = tanh(Wx·xₜ + Wh·hₜ₋₁ + b)<br>yₜ = Wy·hₜ</div><div class="desc"><b>左の図</b>が 1 ステップ分です。<b>入力 xₜ</b>（1 つの数）と<b>前の記憶 hₜ₋₁</b>（緑赤のバー＝隠れ状態）をセルに入れ、<b>新しい記憶 hₜ</b> を作り、そこから<b>予測 yₜ</b> を出します。鍵は、この <b style="color:var(--upd)">hₜ がそのまま次の時刻の hₜ₋₁ になる</b>こと＝過去を記憶として持ち越せる。<b>セルは 1 つだけ</b>を毎時刻くり返します。</div>';}
   else if(k==='time'){h+='<h3>③ 時間展開：h が流れる</h3><div class="eq curr">x₀→h₀→x₁→h₁→ … 同じセルを順に適用</div><div class="desc">系列を 1 ステップずつ入れていくと、隠れ状態 h（下のヒートマップ）が更新され、各時刻の予測 yₜ（teal）が出ます。h が過去を運ぶので、波の「続き」を予想できます。時刻 t='+cursor+'。</div>';}
   else if(k==='learn'){h+='<h3>④ 学習：BPTT</h3><div class="eq curr">損失 = Σ (yₜ − 次の正解)²　→ 時間をさかのぼり逆伝播</div><div class="desc">1 ステップ先予測の誤差を、<b>時間方向に逆伝播</b>（BPTT）して Wx・Wh・Wy を更新。予測（teal）が正解（薄線）に重なっていきます。予測誤差 <b style="color:var(--loss)">'+(lastLoss!=null?lastLoss.toExponential(1):'—')+'</b>（epoch '+epoch+'）。</div>';}
   else{h+='<h3>⑤ 結果：予測と自由走行</h3><div class="desc">学習後、1 ステップ予測（teal）は正解にほぼ一致。さらに<b style="color:var(--neg)">自由走行</b>（赤破線）＝途中から自分の予測を次の入力に戻して続けると、波形を<b>生成</b>できます（縦線より右）。文章生成 GPT と同じ「自己回帰」の原理。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・同じセルを使い回し、h に過去を記憶<br>・BPTT で時間方向に学習<br>・自分の出力を入力に戻して系列を生成</div>';}
