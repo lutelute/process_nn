@@ -130,7 +130,8 @@ function draw(){ctx.clearRect(0,0,CW,CH);const quads=[];const Xin=-3.4,Xconv=0.1
   lab('入力 16×16',Xin,0,-1.55);
   if(stg>=1)lab((stg>=2?'ReLU ':'畳み込み ')+'14×14×6',Xconv,zc(NF-1),-1.5);
   if(stg>=3)lab('プール 7×7×6',Xpool,zc(NF-1),-1.0);
-  if(stg>=1){ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');ctx.textAlign='right';for(let k=0;k<NF;k++){const p=Lib3D.project([Xconv-1.15,1.05,zc(k)],cam);ctx.fillText(FILTERS[k].n,p.x,p.y);}}
+  // チャンネル＝フィルタの凡例（3D内だと重なるので左上に一覧）
+  if(stg>=1){const lx=12;let ly=18;ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--ink-3');ctx.fillText('奥行きの '+NF+' 枚 ＝ '+NF+' 種のフィルタ:',lx,ly);ctx.fillStyle=getCSS('--ink-2');for(let k=0;k<NF;k++)ctx.fillText('  '+(k+1)+'. '+FILTERS[k].n,lx,ly+13+k*12.5);}
 }
 let spin=false;
 function loop(){if(!spin)return;cam.yaw+=0.006;draw();requestAnimationFrame(loop);}
