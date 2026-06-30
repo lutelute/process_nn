@@ -34,7 +34,7 @@
   .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
   .body{display:grid;grid-template-columns:1fr 1fr;}
   .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
-  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  canvas{display:block;width:100%;max-width:420px;height:auto;border-radius:10px;background:var(--panel-2);}
   .mini{display:flex;gap:16px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
   .mini b{color:var(--text);font-weight:600;} .mini .tr b{color:var(--warm);} .mini .te b{color:var(--accent);}
   .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
@@ -44,6 +44,9 @@
   .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
   .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
   .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .quiz{background:var(--panel-2);border:1px dashed var(--upd);border-radius:9px;padding:10px 12px;margin:8px 0;font-size:12.5px;color:var(--muted);}
+  .quiz b{color:var(--upd);} .quiz .opt{display:inline-flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
+  .quiz button{font-size:12px;padding:5px 11px;border-radius:7px;}
   .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
   button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
   button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
@@ -63,11 +66,15 @@
   <h1>ドロップアウトを理解する</h1>
   <div class="lead">ニューラルネットの<b>過学習を防ぐ訓練テクニック</b>。学習中、隠れニューロンを<b>毎回ランダムに一定割合だけ「落とす」（0 にする）</b>。特定の組合せに頼れなくなり（共適応の抑制）、実質<b>多数のサブネットの平均</b>を学ぶことになって、汎化が良くなる。下の流れを「次へ」で追ってください。</div>
 
+  <div class="prereq">
+    <span class="tag">前提</span><a href="reg.html">L2正則化</a>は<b>重み</b>を罰して過学習を抑える <b>→</b> ドロップアウトは別のやり方で<b>ネットの構造</b>に効く（毎回かたちを変える）。<span class="tag" style="margin-left:8px;">仲間</span><a href="batchnorm.html">バッチ正規化</a>・データ拡張も汎化・安定化の工夫。
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">
       <div class="vis">
-        <canvas id="cv" width="360" height="360"></canvas>
+        <canvas id="cv" width="440" height="360"></canvas>
         <div class="mini" id="mini"></div>
         <div class="legend" id="legend"></div>
       </div>
@@ -81,6 +88,14 @@
       <span class="spacer"></span>
       <select id="pSel"><option value="0">落とさない(0%)</option><option value="0.3">30%落とす</option><option value="0.5" selected>50%落とす</option></select>
     </div>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>推論（本番）でもニューロンを落とす</div>
+    <div class="row"><span class="o">✓</span>落とすのは<b>学習中だけ</b>。推論は<b>全素子</b>を使う（学習時に 1/(1−p) 倍してあるので調整不要）。</div>
+    <div class="row"><span class="x">✗</span>落とす率 p は高いほど正則化が効いて安心</div>
+    <div class="row"><span class="o">✓</span>高すぎ（p大）や小さいネットでは<b>逆効果</b>。情報が壊れて学習自体が進まない。</div>
   </div>
 
   <details>
@@ -99,7 +114,7 @@ let W,B,mW,vW,mB,vB,tA,trX=[],trY=[],teX=[],teY=[],epoch=0,pdrop=0.5,curMask=[nu
 function mk(a,b,s){return Array.from({length:b},()=>Array.from({length:a},()=>randn()*s));}
 function build(){W=[null];B=[null];mW=[null];vW=[null];mB=[null];vB=[null];for(let l=1;l<=L;l++){const s=Math.sqrt(2/SZ[l-1]);W[l]=mk(SZ[l-1],SZ[l],s);B[l]=new Array(SZ[l]).fill(0);mW[l]=mk(SZ[l-1],SZ[l],0);vW[l]=mk(SZ[l-1],SZ[l],0);mB[l]=new Array(SZ[l]).fill(0);vB[l]=new Array(SZ[l]).fill(0);}tA=0;epoch=0;}
 function genMoons(n,noise){const X=[],Y=[];for(let i=0;i<n;i++){const t=Math.PI*rng();let x,y,c;if(i%2===0){x=(Math.cos(t)-0.45)*0.9+randn()*0.12;y=(Math.sin(t)-0.2)*0.9+randn()*0.12;c=0;}else{x=(Math.cos(t+Math.PI)+0.45)*0.9+randn()*0.12;y=(Math.sin(t+Math.PI)+0.2)*0.9+randn()*0.12;c=1;}if(rng()<noise)c=1-c;X.push([x,y]);Y.push(c);}return{X,Y};}
-function genData(){const a=genMoons(50,0.18);trX=a.X;trY=a.Y;const b=genMoons(300,0);teX=b.X;teY=b.Y;}
+function genData(){const a=genMoons(34,0.22);trX=a.X;trY=a.Y;const b=genMoons(300,0);teX=b.X;teY=b.Y;}
 function fwd(x,train){let a=[x];const masks=[null];for(let l=1;l<=L;l++){const z=B[l].map((b,j)=>b+W[l][j].reduce((s,w,k)=>s+w*a[l-1][k],0));let al=l===L?z:z.map(relu);let mask=null;if(l<L&&train&&pdrop>0){mask=al.map(()=>rng()<pdrop?0:1/(1-pdrop));al=al.map((v,j)=>v*mask[j]);}masks.push(mask);a.push(al);}return{a,masks};}
 function sm(o){const m=Math.max(o[0],o[1]),e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
 function trainStep(){const dW=[null],dB=[null];for(let l=1;l<=L;l++){dW[l]=mk(SZ[l-1],SZ[l],0).map(r=>r.map(()=>0));dB[l]=new Array(SZ[l]).fill(0);}let lastMask=[null,null,null];
@@ -110,51 +125,115 @@ function trainStep(){const dW=[null],dB=[null];for(let l=1;l<=L;l++){dW[l]=mk(SZ
 function pred(x){return sm(fwd(x,false).a[L]);}
 function acc(X,Y){let ok=0;for(let i=0;i<X.length;i++)if((pred(X[i])[1]>pred(X[i])[0]?1:0)===Y[i])ok++;return ok/X.length;}
 
+// === 結果ステップの視覚対比：落とさない(p=0)と現在pを同条件で学習し、重みのスナップショットも保存 ===
+function snap(){return{W:W.map(l=>l?l.map(r=>r.slice()):null),B:B.map(l=>l?l.slice():null)};}
+function rest(s){W=s.W.map(l=>l?l.map(r=>r.slice()):null);B=s.B.map(l=>l?l.slice():null);}
+let cmpGap=null;
+function computeGapCompare(){const saveP=pdrop;
+  pdrop=0;build();while(epoch<600)trainStep();const g0={tr:acc(trX,trY),te:acc(teX,teY)},s0=snap();
+  pdrop=saveP;build();while(epoch<600)trainStep();const gc={tr:acc(trX,trY),te:acc(teX,teY)},sc=snap();
+  rest(sc);cmpGap={g0,gc,p:saveP,s0,sc};}
+
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
 const LO=-1.3,HI=1.3,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
-function drawBoundary(){const G=52,cw=(CW-28)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=LO+(c+0.5)/G*(HI-LO),yy=HI-(r+0.5)/G*(HI-LO);const p=pred([xx,yy]);ctx.fillStyle=p[1]>p[0]?'rgba(179,129,47,0.14)':'rgba(31,158,138,0.14)';ctx.fillRect(14+c*cw,14+r*cw,cw+1,cw+1);}
+// 全画面の決定境界（問題・学習ステップ用）
+function drawBoundary(){const G=56,cw=(CW-28)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=LO+(c+0.5)/G*(HI-LO),yy=HI-(r+0.5)/G*(HI-LO);const p=pred([xx,yy]);ctx.fillStyle=p[1]>p[0]?'rgba(179,129,47,0.14)':'rgba(31,158,138,0.14)';ctx.fillRect(14+c*cw,14+r*cw,cw+1,cw+1);}
   for(let i=0;i<trX.length;i++){ctx.beginPath();ctx.arc(px(trX[i][0]),py(trX[i][1]),3.4,0,7);ctx.fillStyle=trY[i]?getCSS('--c1'):getCSS('--c0');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
-function drawNet(mask){const cols=[{n:2,x:46},{n:SZ[1],x:140},{n:SZ[2],x:234},{n:2,x:324}];const ya=(n,i)=>30+(CH-60)*(n===1?0.5:i/(n-1));
-  // connections
-  for(let c=0;c<cols.length-1;c++){const A=cols[c],Bc=cols[c+1];for(let i=0;i<A.n;i++)for(let j=0;j<Bc.n;j++){const di=(c>0&&mask[c]&&mask[c][i]===0),dj=(c+1<3&&mask[c+1]&&mask[c+1][j]===0);ctx.strokeStyle=(di||dj)?'rgba(70,86,107,0.06)':'rgba(31,158,138,0.07)';ctx.beginPath();ctx.moveTo(A.x,ya(A.n,i));ctx.lineTo(Bc.x,ya(Bc.n,j));ctx.stroke();}}
+// 矩形内に決定境界＋訓練点（結果ステップの左右2枚対比用）。現在のW,Bで描く
+function drawBoundaryRect(x0,y0,w,h){const G=40,cwx=w/G,cwy=h/G;
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=LO+(c+0.5)/G*(HI-LO),yy=HI-(r+0.5)/G*(HI-LO);const p=pred([xx,yy]);ctx.fillStyle=p[1]>p[0]?'rgba(179,129,47,0.20)':'rgba(31,158,138,0.20)';ctx.fillRect(x0+c*cwx,y0+r*cwy,cwx+1,cwy+1);}
+  const lx=xx=>x0+w*(xx-LO)/(HI-LO),ly=yy=>y0+h*(HI-yy)/(HI-LO);
+  for(let i=0;i<trX.length;i++){ctx.beginPath();ctx.arc(lx(trX[i][0]),ly(trX[i][1]),2.6,0,7);ctx.fillStyle=trY[i]?getCSS('--c1'):getCSS('--c0');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.55)';ctx.stroke();}
+  ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);}
+// 結果：左=落とさない（過学習でガタガタ）, 右=p%（滑らか）を並べて視覚対比
+function drawResCompare(){ctx.clearRect(0,0,CW,CH);const g=cmpGap;if(!g){drawBoundary();return;}
+  const pad=10,w=(CW-pad*3)/2,h=280,y=24;
+  rest(g.s0);drawBoundaryRect(pad,y,w,h);
+  rest(g.sc);drawBoundaryRect(pad*2+w,y,w,h);
+  rest(g.sc);
+  ctx.textAlign='center';ctx.fillStyle=getCSS('--text');ctx.font='bold 12px '+getCSS('--gothic');
+  ctx.fillText('落とさない (p=0)',pad+w/2,16);ctx.fillText('p='+(g.p*100)+'% 落とす',pad*2+w+w/2,16);
+  const gap0=Math.round((g.g0.tr-g.g0.te)*100),gapc=Math.round((g.gc.tr-g.gc.te)*100);
+  ctx.font='10.5px '+getCSS('--mono');
+  ctx.fillStyle=getCSS('--neg');ctx.fillText('テスト '+(g.g0.te*100).toFixed(0)+'%  過学習差 '+gap0,pad+w/2,y+h+16);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('テスト '+(g.gc.te*100).toFixed(0)+'%  過学習差 '+gapc,pad*2+w+w/2,y+h+16);}
+// ネット図（落とす様子）
+function drawNet(mask){const cols=[{n:2,x:60},{n:SZ[1],x:175},{n:SZ[2],x:285},{n:2,x:392}];const ya=(n,i)=>30+(CH-60)*(n===1?0.5:i/(n-1));
+  for(let c=0;c<cols.length-1;c++){const A=cols[c],Bc=cols[c+1];for(let i=0;i<A.n;i++)for(let j=0;j<Bc.n;j++){const di=(c>0&&mask[c]&&mask[c][i]===0),dj=(c+1<3&&mask[c+1]&&mask[c+1][j]===0);ctx.strokeStyle=(di||dj)?'rgba(70,86,107,0.05)':'rgba(31,158,138,0.07)';ctx.beginPath();ctx.moveTo(A.x,ya(A.n,i));ctx.lineTo(Bc.x,ya(Bc.n,j));ctx.stroke();}}
   for(let c=0;c<cols.length;c++){const col=cols[c];for(let i=0;i<col.n;i++){const dropped=(c>0&&c<3&&mask[c]&&mask[c][i]===0);ctx.beginPath();ctx.arc(col.x,ya(col.n,i),c===0||c===3?5:3.6,0,7);if(dropped){ctx.fillStyle='#d8d3c7';ctx.fill();ctx.strokeStyle='rgba(207,79,95,0.5)';ctx.lineWidth=1;ctx.stroke();}else{ctx.fillStyle=c===3?getCSS('--warm'):getCSS('--accent');ctx.fill();}}}
-  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('入力',46,CH-8);ctx.fillText('隠れ層',187,CH-8);ctx.fillText('出力',324,CH-8);}
-function genDemoMask(){demoMask=[null,null,null];for(let l=1;l<=2;l++)demoMask[l]=Array.from({length:SZ[l]},()=>rng()<pdrop?0:1);}
-
-const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'drop',t:'ランダムに落とす',c:'var(--neg)'},{key:'why',t:'なぜ効く',c:'var(--upd)'},{key:'learn',t:'学習',c:'var(--loss)'},{key:'res',t:'結果',c:'var(--accent)'}];
-let stepIdx=0,anim=false,auto=false;
-function draw_(){const k=STEPS[stepIdx].key;if(k==='drop'||k==='why')drawNetClear(demoMask);else{ctx.clearRect(0,0,CW,CH);drawBoundary();}}
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('入力',60,CH-8);ctx.fillText('隠れ層',230,CH-8);ctx.fillText('出力',392,CH-8);}
 function drawNetClear(mask){ctx.clearRect(0,0,CW,CH);drawNet(mask);}
+// 3つの異なるサブネット（マスク）を小さく並べる（アンサンブルの直感）
+function drawSubnets(masks){ctx.clearRect(0,0,CW,CH);const cellW=CW/3;
+  for(let s=0;s<3;s++){const ox=s*cellW;const cols=[{n:2,x:ox+24},{n:SZ[1],x:ox+cellW*0.42},{n:SZ[2],x:ox+cellW*0.7},{n:2,x:ox+cellW-22}];const ya=(n,i)=>40+(CH-90)*(n===1?0.5:i/(n-1));const mask=masks[s];
+    for(let c=0;c<cols.length-1;c++){const A=cols[c],Bc=cols[c+1];for(let i=0;i<A.n;i++)for(let j=0;j<Bc.n;j++){const di=(c>0&&mask[c]&&mask[c][i]===0),dj=(c+1<3&&mask[c+1]&&mask[c+1][j]===0);ctx.strokeStyle=(di||dj)?'rgba(70,86,107,0.04)':'rgba(31,158,138,0.06)';ctx.beginPath();ctx.moveTo(A.x,ya(A.n,i));ctx.lineTo(Bc.x,ya(Bc.n,j));ctx.stroke();}}
+    for(let c=0;c<cols.length;c++){const col=cols[c];for(let i=0;i<col.n;i++){const dropped=(c>0&&c<3&&mask[c]&&mask[c][i]===0);ctx.beginPath();ctx.arc(col.x,ya(col.n,i),c===0||c===3?3.5:2.4,0,7);if(dropped){ctx.fillStyle='#e0dccf';ctx.fill();}else{ctx.fillStyle=c===3?getCSS('--warm'):getCSS('--accent');ctx.fill();}}}
+    ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('サブネット '+(s+1),ox+cellW/2,CH-12);}
+  ctx.fillStyle=getCSS('--text');ctx.font='11.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('毎ステップ別のかたち → 全部の平均を学ぶ（≒アンサンブル）',CW/2,20);}
+
+function genDemoMask(){demoMask=[null,null,null];for(let l=1;l<=2;l++)demoMask[l]=Array.from({length:SZ[l]},()=>rng()<pdrop?0:1);}
+function gen3Subnets(){const out=[];for(let s=0;s<3;s++){const m=[null,null,null];for(let l=1;l<=2;l++)m[l]=Array.from({length:SZ[l]},()=>rng()<(pdrop>0?pdrop:0.5)?0:1);out.push(m);}return out;}
+let subnets=gen3Subnets();
+
+const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'drop',t:'ランダムに落とす',c:'var(--neg)'},{key:'why',t:'なぜ効く',c:'var(--upd)'},{key:'learn',t:'学習',c:'var(--loss)'},{key:'res',t:'結果（対比）',c:'var(--accent)'}];
+let stepIdx=0,anim=false,auto=false,guessed=false;
+function draw_(){const k=STEPS[stepIdx].key;
+  if(k==='drop')drawNetClear(demoMask);
+  else if(k==='why')drawSubnets(subnets);
+  else if(k==='res')drawResCompare();
+  else{ctx.clearRect(0,0,CW,CH);drawBoundary();}}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
-function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='drop'||k==='why'){const kept=demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0;m.innerHTML='<div>落とす率 <b>'+(pdrop*100)+'%</b></div><div>稼働中 <b>'+kept+'/'+(SZ[1]+SZ[2])+'</b></div>';return;}m.innerHTML='<div>epoch <b>'+epoch+'</b></div><div>落とす率 <b>'+(pdrop*100)+'%</b></div><div class="tr">訓練 <b>'+(acc(trX,trY)*100).toFixed(0)+'%</b></div><div class="te">テスト <b>'+(acc(teX,teY)*100).toFixed(0)+'%</b></div>';}
-function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='drop'||k==='why')?'緑/橙=稼働ニューロン, 灰(赤枠)=今回落とされた素子':'背景=決定境界, ●=訓練データ(ノイズ18%)';}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
+  if(k==='drop'){const kept=demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0;m.innerHTML='<div>落とす率 <b>'+(pdrop*100)+'%</b></div><div>稼働中 <b>'+kept+'/'+(SZ[1]+SZ[2])+'</b></div>';return;}
+  if(k==='why'){m.innerHTML='<div>サブネットの例 <b>3</b> 通り</div><div>実際は <b>2^40</b> 通り近く</div>';return;}
+  if(k==='res'){if(cmpGap){const gap0=Math.round((cmpGap.g0.tr-cmpGap.g0.te)*100),gapc=Math.round((cmpGap.gc.tr-cmpGap.gc.te)*100);m.innerHTML='<div>過学習差 落とさない <b style="color:var(--neg)">'+gap0+'</b></div><div>p='+(cmpGap.p*100)+'% <b style="color:var(--accent)">'+gapc+'</b></div>';}return;}
+  m.innerHTML='<div>epoch <b>'+epoch+'</b></div><div>落とす率 <b>'+(pdrop*100)+'%</b></div><div class="tr">訓練 <b>'+(acc(trX,trY)*100).toFixed(0)+'%</b></div><div class="te">テスト <b>'+(acc(teX,teY)*100).toFixed(0)+'%</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;const el=document.getElementById('legend');
+  if(k==='drop')el.textContent='緑/橙=稼働ニューロン, 灰(赤枠)=今回落とされた素子';
+  else if(k==='why')el.textContent='緑/橙=稼働, 灰=落ちた素子。3つは同じネットの別サンプル';
+  else if(k==='res')el.textContent='背景=決定境界, ●=訓練データ(ノイズ22%)。左右で形を見比べて';
+  else el.textContent='背景=決定境界, ●=訓練データ(ノイズ22%)';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① 問題：過学習</h3><div class="desc">幅の広いニューラルネットは表現力が高く、<b>少なくノイズのある訓練データ</b>を丸暗記してしまいがち（訓練は完璧でもテストで失敗＝過学習）。重みを罰する <a href="reg.html">L2 正則化</a>とは別の、ネットの<b>構造</b>に効く対策がドロップアウト。右下で落とす率を変えられます。</div>';}
-  else if(k==='drop'){h+='<h3>② ランダムに落とす</h3><div class="eq curr">各ステップ、隠れ素子を確率 p で 0 にする</div><div class="desc">学習の<b>毎ステップ</b>、隠れニューロンを<b>ランダムに p='+(pdrop*100)+'% だけ無効化</b>（灰・赤枠）。毎回ネットの形が変わります。残った素子は 1/(1−p) 倍にスケール（逆ドロップアウト）。今 '+(demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0)+' 素子が稼働中。</div>';}
-  else if(k==='why'){h+='<h3>③ なぜ効くのか</h3><div class="eq curr">≒ 多数のサブネットを平均（共有重み）</div><div class="desc">毎回違う部分ネットで学ぶので、ある素子が「<b>隣の特定の素子が必ずいる</b>」前提で働けない＝<b>共適応の抑制</b>。各素子が単独でも役立つ頑健な特徴を学びます。これは<b>指数的な数のサブネットのアンサンブル</b>を学ぶのに近く、強い正則化になります。</div>';}
-  else if(k==='learn'){h+='<h3>④ 学習：汎化を確認</h3><div class="eq curr">ドロップアウトつきで学習 → テスト精度で評価</div><div class="desc">落とす率 '+(pdrop*100)+'% で学習。<b>訓練</b>精度と<b>テスト</b>精度の差（過学習ギャップ）に注目。p=0 だと訓練がほぼ満点でもテストが低い＝過学習。p>0 だと訓練は下がってもテストが改善しやすい。epoch '+epoch+'・訓練 '+(acc(trX,trY)*100).toFixed(0)+'%・テスト '+(acc(teX,teY)*100).toFixed(0)+'%。</div>';}
-  else{h+='<h3>⑤ 結果と推論時</h3><div class="desc">境界がなめらかになり、<b>テスト精度が改善</b>（訓練 '+(acc(trX,trY)*100).toFixed(0)+'% / テスト '+(acc(teX,teY)*100).toFixed(0)+'%）。<b>推論時はドロップアウトを切り、全ニューロンを使います</b>（学習時にスケール済みなのでそのままでOK）。右下で落とす率 0% と比べると過学習ギャップの違いが分かります。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・訓練時だけ素子をランダムに落とす<br>・共適応を抑え≒サブネットの集合を学習<br>・推論は全素子（汎化が向上）</div>';}
+  if(k==='prob'){h+='<h3>① 問題：暗記してしまう</h3><div class="desc">2 つの三日月（moons）を分類します。隠れ層 20×20 と<b>表現力は過剰</b>、訓練データは <b>34 点・ラベルに 22% のノイズ</b>つき。この広いネットを普通に学習させると…</div>'
+    +'<div class="quiz"><b>予想してみて：</b> 落とさず学習すると、訓練精度とテスト精度はどうなる？'
+    +'<div class="opt"><button onclick="reveal(0)">両方とも高い</button><button onclick="reveal(1)">訓練だけ高い</button><button onclick="reveal(2)">両方とも低い</button></div>'
+    +'<div id="ans" style="margin-top:8px;"></div></div>';}
+  else if(k==='drop'){h+='<h3>② ランダムに落とす</h3><div class="eq curr">各ステップ、隠れ素子を確率 p で 0 にする</div><div class="desc">学習の<b>毎ステップ</b>、隠れニューロンを<b>ランダムに p='+(pdrop*100)+'% 無効化</b>（灰・赤枠）。毎回ネットの形が変わります。残った素子は <b>1/(1−p) 倍</b>にスケール（逆ドロップアウト＝合計の大きさを保つ）。今 '+(demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0)+' 素子が稼働中。</div>';}
+  else if(k==='why'){h+='<h3>③ なぜ効くのか：共適応の抑制</h3><div class="desc">素子 A が「<b>隣の B が必ず火を吹く</b>」前提でサボると、B が落ちた瞬間に A も無力に。だから各素子は<b>「相棒任せ」をやめ、単独でも役立つ特徴</b>を学びます（＝共適応の抑制）。</div>'
+    +'<div class="eq curr">毎回違うサブネット → 重み共有で全部を同時に鍛える</div>'
+    +'<div class="desc">下の 3 つは同じネットの別サンプル。実際は <b>2^(隠れ素子数) 通り</b>に近いサブネットを訓練し、推論ではそれらを<b>平均</b>したように振る舞う＝<b>巨大なアンサンブル</b>。これが強い正則化の正体です。</div>';}
+  else if(k==='learn'){h+='<h3>④ 学習：過学習ギャップに注目</h3><div class="eq curr">ドロップアウトつきで学習 → 訓練とテストの差を見る</div><div class="desc">落とす率 '+(pdrop*100)+'% で学習中。<b>訓練</b>と<b>テスト</b>の差＝<b>過学習ギャップ</b>に注目。p=0 なら訓練がほぼ満点でもテストは伸びず差が開く。p>0 だと訓練は少し下がっても<b>テストが食らいつく</b>。epoch '+epoch+'・訓練 '+(acc(trX,trY)*100).toFixed(0)+'%・テスト '+(acc(teX,teY)*100).toFixed(0)+'%。</div>';}
+  else{const g=cmpGap;let lead='';if(g){const gap0=Math.round((g.g0.tr-g.g0.te)*100),gapc=Math.round((g.gc.tr-g.gc.te)*100);lead='<div class="desc"><b>同じデータ・同じ学習量</b>で、左が「落とさない」右が「p='+(g.p*100)+'%」。左は訓練点を無理に囲って<b>境界がギザギザ＝過学習</b>（テスト '+(g.g0.te*100).toFixed(0)+'%・差 '+gap0+'）。右は<b>なめらかで三日月に沿う</b>（テスト '+(g.gc.te*100).toFixed(0)+'%・差 '+gapc+'）。<b>同じ点でも形がまるで違う</b>のが一目で分かります。</div>';}
+    h+='<h3>⑤ 結果：境界の形で見る</h3>'+lead+'<div class="desc" style="margin-top:6px;"><b>推論時はドロップアウトを切り、全ニューロンを使います</b>（学習時にスケール済みなのでそのままで OK）。右下で落とす率を変えて再比較できます。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・訓練時だけ素子をランダムに落とす<br>・共適応を抑え ≒ サブネットの集合を学習<br>・推論は全素子（境界が滑らか＝汎化）</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+// ① 予想の答え合わせ：p=0 で学習して実際の訓練/テスト精度を見せる
+window.reveal=function(choice){const ansEl=document.getElementById('ans');if(!ansEl)return;
+  const saveP=pdrop;pdrop=0;build();while(epoch<600)trainStep();const tr=acc(trX,trY),te=acc(teX,teY);pdrop=saveP;
+  const correct=1;const msg=['','',''];
+  const verdict=choice===correct?'<b style="color:var(--accent)">正解！</b>':'<b style="color:var(--neg)">惜しい</b>';
+  ansEl.innerHTML=verdict+' 落とさず学習すると <b>訓練 '+(tr*100).toFixed(0)+'%</b> ・ <b>テスト '+(te*100).toFixed(0)+'%</b>。訓練だけ高くテストが低い＝<b>暗記（過学習）</b>。これをドロップアウトで防ぎます。「次へ」でしくみを。';
+  guessed=true;};
 
 function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
 function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
   if(k==='prob'){build();}
-  else if(k==='drop'||k==='why'){genDemoMask();maskAnim();}
+  else if(k==='drop'){genDemoMask();maskAnim();}
+  else if(k==='why'){subnets=gen3Subnets();subnetAnim();}
   else if(k==='learn'){build();runLearn();}
-  else if(k==='res'){if(epoch<300){build();while(epoch<300)trainStep();}}
+  else if(k==='res'){computeGapCompare();}
   renderAll();draw_();}
-let maskT=0;
-function maskAnim(){anim=true;let last=0;function go(ts){if(!anim||(STEPS[stepIdx].key!=='drop'&&STEPS[stepIdx].key!=='why'))return;if(ts-last>500){genDemoMask();draw_();renderMini();renderExplain();last=ts;}requestAnimationFrame(go);}requestAnimationFrame(go);}
-function runLearn(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='learn')return;for(let s=0;s<3;s++)trainStep();draw_();renderMini();renderExplain();if(epoch>=300){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
-let autoT=null;
-function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;const k=STEPS[stepIdx].key;if(k==='learn'&&anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,(k==='drop'||k==='why')?1700:(k==='learn'?500:1200));};requestAnimationFrame(wait);}else stopAuto();}
-function reset(){stopAuto();anim=false;seed=2020+(Math.floor(rng()*900));pdrop=+document.getElementById('pSel').value;genData();build();stepIdx=0;genDemoMask();renderAll();draw_();}
+function maskAnim(){anim=true;let last=0;function go(ts){if(!anim||STEPS[stepIdx].key!=='drop')return;if(ts-last>500){genDemoMask();draw_();renderMini();renderExplain();last=ts;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+function subnetAnim(){anim=true;let last=0;function go(ts){if(!anim||STEPS[stepIdx].key!=='why')return;if(ts-last>900){subnets=gen3Subnets();draw_();last=ts;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runLearn(){anim=true;function go(){if(!anim||STEPS[stepIdx].key!=='learn')return;for(let s=0;s<4;s++)trainStep();draw_();renderMini();renderExplain();if(epoch>=600){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;const k=STEPS[stepIdx].key;if(k==='learn'&&anim){requestAnimationFrame(wait);}else setTimeout(autoTick,(k==='drop'||k==='why')?1900:(k==='learn'?400:1600));};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=2020+(Math.floor(rng()*900));pdrop=+document.getElementById('pSel').value;genData();build();stepIdx=0;guessed=false;genDemoMask();renderAll();draw_();}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
-document.getElementById('pSel').onchange=()=>{pdrop=+document.getElementById('pSel').value;const k=STEPS[stepIdx].key;if(k==='learn'||k==='res'){build();if(k==='res'){while(epoch<300)trainStep();}else runLearn();}renderAll();draw_();};
+document.getElementById('pSel').onchange=()=>{pdrop=+document.getElementById('pSel').value;const k=STEPS[stepIdx].key;if(k==='res'){computeGapCompare();}else if(k==='learn'){build();runLearn();}renderAll();draw_();};
 genData();build();pdrop=0.5;genDemoMask();renderAll();draw_();
 </script>
 <script src="nav.js"></script>
