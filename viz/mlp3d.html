@@ -103,7 +103,7 @@ function randn(){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math
 function actFn(n,z){if(n==='tanh')return Math.tanh(z);if(n==='relu')return z>0?z:0;return 1/(1+Math.exp(-z));}
 const FLOWSPD=0.02;
 const depthSel=document.getElementById('depthSel'),actSel=document.getElementById('actSel');
-let sizes=[9,16,16,2], W=[], B=[], acts=[], POS=[], input=[];
+let sizes=[9,16,16,2], W=[], B=[], acts=[], POS=[], input=[], SHEET=[];
 let mW=[],vW=[],mB=[],vB=[],tAdam=0,trainSteps=0,learning=false;
 function buildNet(){W=[null];B=[null];for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const s=(actSel.value==='relu')?Math.sqrt(2/nIn):Math.sqrt(1/nIn);const Wl=[];for(let j=0;j<nOut;j++){const r=new Float32Array(nIn);for(let k=0;k<nIn;k++)r[k]=randn()*s*1.3;Wl.push(r);}W[l]=Wl;B[l]=new Float32Array(nOut);}initOpt();trainSteps=0;}
 function initOpt(){mW=[null];vW=[null];mB=[null];vB=[null];tAdam=0;for(let l=1;l<sizes.length;l++){const nIn=sizes[l-1],nOut=sizes[l];const m=[],v=[];for(let j=0;j<nOut;j++){m.push(new Float32Array(nIn));v.push(new Float32Array(nIn));}mW[l]=m;vW[l]=v;mB[l]=new Float32Array(nOut);vB[l]=new Float32Array(nOut);}}
@@ -122,9 +122,16 @@ function evalAcc(){let ok=0;const n=60,L=sizes.length-1;let s2=rng;for(let i=0;i
 function learnLoop(){if(!learning)return;for(let i=0;i<3;i++)trainStep(0.02);forward();draw();renderExplain();if(trainSteps>=2400){learning=false;renderAll();}else requestAnimationFrame(learnLoop);}
 function newInput(){input=[];for(let i=0;i<sizes[0];i++)input.push(randn()*0.8);}
 function forward(){acts=[Float32Array.from(input)];const L=sizes.length-1;for(let l=1;l<=L;l++){const nOut=sizes[l],nIn=sizes[l-1],a=new Float32Array(nOut),prev=acts[l-1];for(let j=0;j<nOut;j++){let s=B[l][j];const Wj=W[l][j];for(let k=0;k<nIn;k++)s+=Wj[k]*prev[k];a[j]=(l===L)?s:actFn(actSel.value,s);}acts.push(a);}}
-function layout(){POS=[];const L=sizes.length;const zSpan=6.0;
+function layout(){POS=[];SHEET=[];const L=sizes.length;const zSpan=6.0;
   for(let l=0;l<L;l++){const n=sizes[l];const cols=Math.ceil(Math.sqrt(n)),rows=Math.ceil(n/cols);const gap=2.4/Math.max(cols,rows);const col=[];
-    for(let k=0;k<n;k++){const c=k%cols,r=Math.floor(k/cols);const x=(c-(cols-1)/2)*gap,y=(r-(rows-1)/2)*gap,z=(l/(L-1)-0.5)*zSpan;col.push([x,y,z]);}POS.push(col);}}
+    for(let k=0;k<n;k++){const c=k%cols,r=Math.floor(k/cols);const x=(c-(cols-1)/2)*gap,y=(r-(rows-1)/2)*gap,z=(l/(L-1)-0.5)*zSpan;col.push([x,y,z]);}POS.push(col);
+    SHEET.push({xE:(cols-1)/2*gap+gap*0.75,yE:(rows-1)/2*gap+gap*0.75,z:(l/(L-1)-0.5)*zSpan});}}
+// 各層を半透明のシート面として描く（層構造を読みやすく）。現在流れている層は強調。
+function drawSheets(){const L=sizes.length,order=[];for(let l=0;l<L;l++)order.push({l,d:Lib3D.project([0,0,SHEET[l].z],cam).depth});order.sort((a,b)=>a.d-b.d);
+  for(const o of order){const l=o.l,s=SHEET[l],cn=[[-s.xE,-s.yE,s.z],[s.xE,-s.yE,s.z],[s.xE,s.yE,s.z],[-s.xE,s.yE,s.z]].map(p=>Lib3D.project(p,cam));
+    const cur=running?(l===curTrans+1):(litUpTo===l&&litUpTo<L-1);
+    ctx.beginPath();ctx.moveTo(cn[0].x,cn[0].y);for(let i=1;i<4;i++)ctx.lineTo(cn[i].x,cn[i].y);ctx.closePath();
+    ctx.fillStyle=cur?'rgba(31,158,138,0.10)':'rgba(146,143,132,0.06)';ctx.fill();ctx.strokeStyle=cur?'rgba(31,158,138,0.5)':'rgba(150,143,127,0.32)';ctx.lineWidth=cur?1.6:1;ctx.stroke();}}
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');const CW=cv.width,CH=cv.height;
 const cam=Lib3D.camera({cx:CW/2,cy:CH/2,scale:70,dist:18,yaw:-0.62,pitch:0.3});
@@ -132,6 +139,7 @@ function getCSS(v){return getComputedStyle(document.documentElement).getProperty
 function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.5));if(t>=0)return`rgba(31,158,138,${(0.2+0.8*t)*al})`;return`rgba(207,79,95,${(0.2+0.8*(-t))*al})`;}
 let litUpTo=0,curTrans=-1,prog=0,running=false;
 function draw(){ctx.clearRect(0,0,CW,CH);const L=sizes.length;
+  drawSheets();
   for(let l=1;l<L;l++){let mx=1e-9;for(const row of W[l])for(const v of row)mx=Math.max(mx,Math.abs(v));
     for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const wv=W[l][j][k],m=Math.abs(wv)/mx;
       Lib3D.line(ctx,POS[l-1][k],POS[l][j],cam,wv>=0?`rgba(31,158,138,${0.02+0.08*m})`:`rgba(207,79,95,${0.02+0.08*m})`,0.4+0.8*m);}}
@@ -147,9 +155,13 @@ function draw(){ctx.clearRect(0,0,CW,CH);const L=sizes.length;
     ctx.beginPath();ctx.arc(nd.pr.x,nd.pr.y,r,0,7);
     if(nd.lit){ctx.fillStyle=actColor(nd.v,1);ctx.shadowColor=actColor(nd.v,0.9);ctx.shadowBlur=8*Math.min(1,Math.abs(nd.v));ctx.fill();ctx.shadowBlur=0;ctx.lineWidth=1;ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.stroke();}
     else{ctx.fillStyle='#d8d3c7';ctx.fill();}}
-  ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';
-  const names=['入力',...Array(L-2).fill('隠れ層'),'出力'];
-  for(let l=0;l<L;l++){const c=POS[l][0];const pr=Lib3D.project([c[0],c[1]+1.7,c[2]],cam);ctx.fillText(names[l]||'隠れ層',pr.x,pr.y);}
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  for(let l=0;l<L;l++){const s=SHEET[l];const pr=Lib3D.project([0,s.yE+0.55,s.z],cam);
+    const nm=(l===0?'入力':l===L-1?'出力':'隠れ層'+l)+' ('+sizes[l]+')';
+    const cur=running?(l===curTrans+1):(litUpTo===l&&litUpTo<L-1);
+    ctx.fillStyle=cur?getCSS('--accent'):getCSS('--ink-3');ctx.font=(cur?'700 ':'')+'11px '+getCSS('--gothic');ctx.fillText(nm,pr.x,pr.y);}
+  // 流れの向きヒント
+  ctx.fillStyle=getCSS('--ink-3');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('奥行き＝層（入力→出力）／ドラッグで回転',10,CH-10);
 }
 function startFlow(){litUpTo=0;curTrans=0;prog=0;running=true;requestAnimationFrame(frame);}
 function frame(){if(!running)return;prog+=FLOWSPD;
