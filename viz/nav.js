@@ -67,7 +67,8 @@
       + '.nav .navcat-items a{color:var(--ink-2,#52504a);text-decoration:none;white-space:nowrap;}'
       + '.nav .navcat-items a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
       + '.nav .navcat-items .cur{color:var(--ink,#1a1a17);font-weight:700;white-space:nowrap;}'
-      + '.nav .navcat-items .sep{color:var(--faint,#6e6a60);margin:0 2px;}';
+      + '.nav .navcat-items .sep{color:var(--faint,#6e6a60);margin:0 2px;}'
+      + '.nav .navcat-n{color:var(--faint,#6e6a60);font-weight:400;letter-spacing:0;}';
     const s = document.createElement('style');
     s.id = 'navfmt'; s.textContent = css;
     (document.head || document.documentElement).appendChild(s);
@@ -155,9 +156,11 @@
       if (p.href === cur) return '<b class="cur">' + p.label + '</b>';
       return '<a href="' + p.href + '">' + p.label + '</a>';
     }).join(' <span class="sep">·</span> ');
+    // 矢印と件数は別 <span>。畳んだ状態でも「基礎·6 訓練·4 …」と各領域の規模＝全体の骨格が読める。
     return '<span class="navcat-wrap">'
       + '<button type="button" class="navcat" aria-expanded="' + (open ? 'true' : 'false') + '">'
-      +   (open ? '▾ ' : '▸ ') + cat.name
+      +   '<span class="navcat-arw">' + (open ? '▾' : '▸') + '</span> ' + cat.name
+      +   '<span class="navcat-n">·' + cat.items.length + '</span>'
       + '</button>'
       + '<span class="navcat-items"' + (open ? '' : ' hidden') + '> ' + items + '</span>'
       + '</span>';
@@ -187,9 +190,10 @@
         const btn = e.target && e.target.closest ? e.target.closest('.navcat') : null;
         if (!btn || !el.contains(btn)) return;
         const items = btn.parentNode.querySelector('.navcat-items');
+        const arw = btn.querySelector('.navcat-arw');
         const open = btn.getAttribute('aria-expanded') === 'true';
         btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-        btn.textContent = (open ? '▸ ' : '▾ ') + btn.textContent.slice(2); // 先頭の "▸ "/"▾ " を差し替え
+        if (arw) arw.textContent = open ? '▸' : '▾';                    // 矢印だけ差し替え（件数 span は温存）
         if (items) { if (open) items.setAttribute('hidden', ''); else items.removeAttribute('hidden'); }
       });
     }
