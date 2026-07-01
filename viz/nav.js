@@ -1,5 +1,8 @@
-// viz/ 共有ナビゲーション — 各ページの .nav / .back を同一の完全ナビに統一する。
-// 各ビューアは <script src="nav.js"></script> を読み込むだけ。現在ページを強調表示。
+// viz/ 共有ナビゲーション — 各ページ上部の .nav を「カテゴリで畳む」方式に統一する。
+// 各ビューアは <script src="nav.js"></script> を読み込むだけ。現在ページのカテゴリだけ展開し、
+// 他カテゴリは名前だけ表示（クリックでその場に展開・再読込なし）。カテゴリ分けはトップ index.html の
+// STEP 分類に一致させ、「トップは推奨順路に絞れているのにナビだけ49個をベタ列で全展開」という
+// 矛盾を解消する。nav.js は全 48 ページが読み込む唯一の共有 JS＝ここ 1 ファイルで全ページに効く。
 (function () {
   // ===== 数式の見た目を全ビューア一括で改善（教科書品質） =====
   // 各ビューアの inline `.eq{font-family:mono}` を body .eq の詳細度で上書きし、
@@ -24,7 +27,7 @@
 
   // ===== アクセシビリティ底上げ（全ビューア一括） =====
   // nav.js は全 48 ページが読み込む唯一の共有 JS。ここで横断的に最低ラインを底上げする
-  // （theme.css 未読込の 7 ページにも、後勝ちの注入 style で確実に届く）。
+  // （inline <style>/theme.css より後勝ちの注入で、どのページにも確実に届く）。
   (function injectA11yStyles(){
     if (document.getElementById('a11yfmt')) return;
     const css =
@@ -44,76 +47,152 @@
   try { window.__prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   catch (e) { window.__prefersReducedMotion = false; }
 
-  const pages = [
-    // ロードマップ順（基礎→応用）。トップの「学習ロードマップ」と同じ並び。
-    { href: 'map.html',         label: '手法マップ' },
-    { href: 'gradient.html',    label: '勾配降下' },
-    { href: 'ga.html',          label: '遺伝的AL' },
-    { href: 'index.html',       label: '信号の流れ' },
-    { href: 'perceptron.html',  label: 'パーセプトロン' },
-    { href: 'linreg.html',      label: '線形回帰' },
-    { href: 'backprop.html',    label: '逆伝播' },
-    { href: 'reg.html',         label: '正則化' },
-    { href: 'dropout.html',     label: 'ドロップアウト' },
-    { href: 'vanishing.html',   label: '勾配消失' },
-    { href: 'batchnorm.html',   label: 'バッチ正規化' },
-    { href: 'logreg.html',      label: 'ロジスティック回帰' },
-    { href: 'classify.html',    label: '決定境界' },
-    { href: 'digit.html',       label: '数字認識' },
-    { href: 'metrics.html',     label: '評価指標' },
-    { href: 'dtree.html',       label: '決定木' },
-    { href: 'forest.html',      label: 'ランダムフォレスト' },
-    { href: 'boosting.html',    label: '勾配ブースティング' },
-    { href: 'knn.html',         label: 'kNN' },
-    { href: 'svm.html',         label: 'SVM' },
-    { href: 'naivebayes.html',  label: 'ナイーブベイズ' },
-    { href: 'cnn.html',         label: 'CNN' },
-    { href: 'rnn.html',         label: 'RNN' },
-    { href: 'lstm.html',        label: 'LSTM' },
-    { href: 'word2vec.html',    label: '単語埋め込み' },
-    { href: 'positional.html',  label: '位置エンコーディング' },
-    { href: 'attention.html',   label: '自己注意' },
-    { href: 'transformer.html', label: 'Transformer' },
-    { href: '../gpt2/',         label: 'GPT-2' },
-    { href: 'rag.html',         label: 'RAG' },
-    { href: 'kmeans.html',      label: 'k-means' },
-    { href: 'gmm.html',         label: 'GMM' },
-    { href: 'dbscan.html',      label: 'DBSCAN' },
-    { href: 'som.html',         label: 'SOM' },
-    { href: 'hopfield.html',    label: 'Hopfield' },
-    { href: 'pca.html',         label: 'PCA' },
-    { href: 'tsne.html',        label: 't-SNE' },
-    { href: 'autoencoder.html', label: 'オートエンコーダ' },
-    { href: 'contrastive.html', label: '対照学習' },
-    { href: 'vae.html',         label: 'VAE' },
-    { href: 'gan.html',         label: 'GAN' },
-    { href: 'diffusion.html',   label: '拡散モデル' },
-    { href: 'qlearning.html',   label: 'Q学習' },
-    { href: 'dqn.html',         label: 'DQN' },
-    { href: 'mlp3d.html',       label: 'MLP(3D)' },
-    { href: 'cnn3d.html',       label: 'CNN(3D)' },
-    { href: 'rnn3d.html',       label: 'RNN(3D)' },
-    { href: 'attention3d.html', label: 'Attention(3D)' },
-    { href: 'gpt3d.html',       label: 'GPT(3D)' },
+  // ===== ナビ（カテゴリ折りたたみ）の見た目 =====
+  // どのページでも成立するよう、色は var(--x, フォールバック) で受ける（theme.css 非読込でも壊れない）。
+  // 後勝ち（head 末尾に append）で inline <style>/theme.css の .nav も上書きする。
+  (function injectNavStyles(){
+    if (document.getElementById('navfmt')) return;
+    const css =
+      '.nav{font-size:11px;line-height:2.0;letter-spacing:.03em;}'
+      + '.nav .navhead{margin-bottom:5px;}'
+      + '.nav .navhead a,.nav .navhead b{margin-right:16px;font-weight:600;text-decoration:none;color:var(--ink-2,#52504a);}'
+      + '.nav .navhead a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
+      + '.nav .navhead b{color:var(--ink,#1a1a17);}'
+      + '.nav .navcat-wrap{margin-right:14px;}'
+      + '.nav button.navcat{font-family:inherit;font-size:11px;letter-spacing:.03em;color:var(--ink-2,#52504a);background:none;border:0;padding:0;margin:0 2px 0 0;cursor:pointer;white-space:nowrap;}'
+      + '.nav button.navcat:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
+      + '.nav button.navcat[aria-expanded="true"]{color:var(--ink,#1a1a17);font-weight:700;}'
+      + '.nav .navcat-items{color:var(--faint,#6e6a60);}'
+      + '.nav .navcat-items[hidden]{display:none;}'
+      + '.nav .navcat-items a{color:var(--ink-2,#52504a);text-decoration:none;white-space:nowrap;}'
+      + '.nav .navcat-items a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
+      + '.nav .navcat-items .cur{color:var(--ink,#1a1a17);font-weight:700;white-space:nowrap;}'
+      + '.nav .navcat-items .sep{color:var(--faint,#6e6a60);margin:0 2px;}';
+    const s = document.createElement('style');
+    s.id = 'navfmt'; s.textContent = css;
+    (document.head || document.documentElement).appendChild(s);
+  })();
+
+  // カテゴリ定義。トップ index.html の STEP 分類（STEP1〜8＋3D 補足）に一致させている。
+  // 各カテゴリ内は「前提 → 応用」の順。手法マップ(map.html)と地図(../)は常時表示のヘッダに置く。
+  const cats = [
+    { name: '基礎', items: [
+      { href: 'gradient.html',    label: '勾配降下' },
+      { href: 'ga.html',          label: '遺伝的AL' },
+      { href: 'index.html',       label: '信号の流れ' },
+      { href: 'perceptron.html',  label: 'パーセプトロン' },
+      { href: 'linreg.html',      label: '線形回帰' },
+      { href: 'backprop.html',    label: '逆伝播' },
+    ]},
+    { name: '訓練・正則化', items: [
+      { href: 'reg.html',         label: '正則化' },
+      { href: 'dropout.html',     label: 'ドロップアウト' },
+      { href: 'vanishing.html',   label: '勾配消失' },
+      { href: 'batchnorm.html',   label: 'バッチ正規化' },
+    ]},
+    { name: '分類', items: [
+      { href: 'logreg.html',      label: 'ロジスティック回帰' },
+      { href: 'classify.html',    label: '決定境界' },
+      { href: 'digit.html',       label: '数字認識' },
+      { href: 'metrics.html',     label: '評価指標' },
+    ]},
+    { name: '木・カーネル', items: [
+      { href: 'dtree.html',       label: '決定木' },
+      { href: 'forest.html',      label: 'ランダムフォレスト' },
+      { href: 'boosting.html',    label: '勾配ブースティング' },
+      { href: 'knn.html',         label: 'kNN' },
+      { href: 'svm.html',         label: 'SVM' },
+      { href: 'naivebayes.html',  label: 'ナイーブベイズ' },
+    ]},
+    { name: '画像・系列', items: [
+      { href: 'cnn.html',         label: 'CNN' },
+      { href: 'rnn.html',         label: 'RNN' },
+      { href: 'lstm.html',        label: 'LSTM' },
+    ]},
+    { name: '言語', items: [
+      { href: 'word2vec.html',    label: '単語埋め込み' },
+      { href: 'positional.html',  label: '位置エンコーディング' },
+      { href: 'attention.html',   label: '自己注意' },
+      { href: 'transformer.html', label: 'Transformer' },
+      { href: '../gpt2/',         label: 'GPT-2' },
+      { href: 'rag.html',         label: 'RAG' },
+    ]},
+    { name: 'クラスタ', items: [
+      { href: 'kmeans.html',      label: 'k-means' },
+      { href: 'gmm.html',         label: 'GMM' },
+      { href: 'dbscan.html',      label: 'DBSCAN' },
+      { href: 'som.html',         label: 'SOM' },
+      { href: 'hopfield.html',    label: 'Hopfield' },
+    ]},
+    { name: '次元・生成', items: [
+      { href: 'pca.html',         label: 'PCA' },
+      { href: 'tsne.html',        label: 't-SNE' },
+      { href: 'autoencoder.html', label: 'オートエンコーダ' },
+      { href: 'contrastive.html', label: '対照学習' },
+      { href: 'vae.html',         label: 'VAE' },
+      { href: 'gan.html',         label: 'GAN' },
+      { href: 'diffusion.html',   label: '拡散モデル' },
+    ]},
+    { name: '強化', items: [
+      { href: 'qlearning.html',   label: 'Q学習' },
+      { href: 'dqn.html',         label: 'DQN' },
+    ]},
+    { name: '3D構造', items: [
+      { href: 'mlp3d.html',       label: 'MLP(3D)' },
+      { href: 'cnn3d.html',       label: 'CNN(3D)' },
+      { href: 'rnn3d.html',       label: 'RNN(3D)' },
+      { href: 'attention3d.html', label: 'Attention(3D)' },
+      { href: 'gpt3d.html',       label: 'GPT(3D)' },
+    ]},
   ];
+
   let cur = location.pathname.split('/').pop();
   if (cur === '') cur = 'index.html';
+
+  // 1カテゴリを描画。open=true でその場に項目を展開（現在ページのカテゴリは既定 open）。
+  function buildCat(cat, open) {
+    const items = cat.items.map(function (p) {
+      if (p.href === cur) return '<b class="cur">' + p.label + '</b>';
+      return '<a href="' + p.href + '">' + p.label + '</a>';
+    }).join(' <span class="sep">·</span> ');
+    return '<span class="navcat-wrap">'
+      + '<button type="button" class="navcat" aria-expanded="' + (open ? 'true' : 'false') + '">'
+      +   (open ? '▾ ' : '▸ ') + cat.name
+      + '</button>'
+      + '<span class="navcat-items"' + (open ? '' : ' hidden') + '> ' + items + '</span>'
+      + '</span>';
+  }
 
   function render() {
     const el = document.querySelector('.nav, .back');
     if (!el) return;
-    const faint = getComputedStyle(document.documentElement).getPropertyValue('--faint').trim() || '#46566b';
-    const text = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#e7edf5';
-    // 区切りの前後に半角空白を入れて改行機会を作る（狭い画面で ASCII ラベル連結が
-    // 折り返せず横はみ出すのを防ぐ）。各ラベルは nowrap で内部分割しない。
-    const sep = ' <span style="color:' + faint + ';margin:0 3px;">·</span> ';
-    const items = pages.map(function (p) {
-      if (p.href === cur) return '<span style="color:' + text + ';font-weight:600;white-space:nowrap;">' + p.label + '</span>';
-      return '<a href="' + p.href + '" style="white-space:nowrap;">' + p.label + '</a>';
+    // 現在ページが属するカテゴリを特定（無ければ = map.html 等は全カテゴリ畳んだまま）。
+    let curCat = -1;
+    cats.forEach(function (c, i) {
+      if (c.items.some(function (p) { return p.href === cur; })) curCat = i;
     });
-    // 末尾に「← 地図（トップ）」
-    items.push('<a href="../" style="white-space:nowrap;">← 地図</a>');
-    el.innerHTML = items.join(sep);
+    const head = '<div class="navhead">'
+      + '<a href="../">▲ 地図（トップ）</a>'
+      + (cur === 'map.html' ? '<b>手法マップ</b>' : '<a href="map.html">手法マップ</a>')
+      + '</div>';
+    const body = '<div class="navcats">'
+      + cats.map(function (c, i) { return buildCat(c, i === curCat); }).join('')
+      + '</div>';
+    el.innerHTML = head + body;
+
+    // カテゴリ名クリックでその場に展開/収納（イベント委譲・1回だけ束縛）。
+    if (!el.dataset.navbound) {
+      el.dataset.navbound = '1';
+      el.addEventListener('click', function (e) {
+        const btn = e.target && e.target.closest ? e.target.closest('.navcat') : null;
+        if (!btn || !el.contains(btn)) return;
+        const items = btn.parentNode.querySelector('.navcat-items');
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        btn.textContent = (open ? '▸ ' : '▾ ') + btn.textContent.slice(2); // 先頭の "▸ "/"▾ " を差し替え
+        if (items) { if (open) items.setAttribute('hidden', ''); else items.removeAttribute('hidden'); }
+      });
+    }
   }
 
   // ===== DOM 強化：canvas を画像として読み上げ可能に＋ステッパーをキーボード操作可能に =====
