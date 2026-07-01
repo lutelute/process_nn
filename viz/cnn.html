@@ -82,7 +82,7 @@
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
       <select id="kernelSel" title="畳み込みで使うフィルタの種類（ステップ②③に効く）"><option value="0">フィルタ: 縦エッジ</option><option value="1">フィルタ: 横エッジ</option><option value="2">フィルタ: ぼかし</option><option value="3">フィルタ: シャープ</option><option value="4">フィルタ: emboss</option><option value="5">フィルタ: 学習で獲得</option></select>
-      <select id="shapeSel"><option value="0">入力: ＋ 十字</option><option value="1">入力: × バツ</option><option value="2">入力: □ 四角</option><option value="3">入力: ／ 斜め</option><option value="4">入力: T 字</option></select>
+      <select id="shapeSel"><option value="0">入力: ＋ 十字</option><option value="1">入力: × バツ</option><option value="2">入力: □ 四角</option><option value="3">入力: ／ 斜め</option><option value="4">入力: T 字</option><option value="circle">入力: ○ 丸（学習外）</option><option value="draw">入力: ✎ 自分で描く</option></select>
     </div>
   </div>
 
@@ -107,6 +107,10 @@ function genShape(c,jx,jy){const im=new Float64Array(N*N);const set=(r,cc)=>{r+=
   else if(c===3){for(let i=lo;i<=hi;i++)set(i,i);}
   else{for(let i=lo;i<=hi;i++)set(lo,i);for(let i=lo;i<=hi;i++)set(i,mid);}
   return im;}
+
+/* ○ 丸（学習した5形状に無い"学習外"の入力。直感確認用） */
+function genCircle(){const im=new Float64Array(N*N),cx=(N-1)/2,cy=(N-1)/2,r=2.6;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){if(Math.abs(Math.hypot(x-cx,y-cy)-r)<0.75)im[y*N+x]=1;}return im;}
 
 /* ===== CNN: 4 filters 3x3 → ReLU → 2x2maxpool → dense → softmax5 ===== */
 let Wf,bf,Wd,bd,mW,vW,mB,vB,tA;
@@ -167,12 +171,14 @@ const STEPS=[
   {key:'learn',t:'学習',     c:'var(--accent)'},
 ];
 let stepIdx=0,curC=0,input=null,res=null,wIdx=0,anim=false,auto=false;
+let inputKind='shape';const drawnImage=new Float64Array(N*N);  // 'shape'|'circle'|'draw'。draw はクリックで編集
 
-function recompute(){input=genShape(curC);res=fwd(input);demo=demoConv(input);}
+function recompute(){input=(inputKind==='draw')?drawnImage.slice():(inputKind==='circle')?genCircle():genShape(curC);res=fwd(input);demo=demoConv(input);}
 
-function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
+function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);cv.style.cursor=(k==='in'&&inputKind==='draw')?'pointer':'default';
   if(k==='in'){const s=30,x0=(CW-N*s)/2,y0=24;gridBox(input,N,x0,y0,s,1,'入力画像 ('+N+'×'+N+')');
-    ctx.fillStyle=getCSS('--text');ctx.font='15px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('これは何の形？ → CNN が分類する',CW/2,y0+N*s+40);}
+    ctx.fillStyle=getCSS('--text');ctx.font='15px '+getCSS('--gothic');ctx.textAlign='center';
+    ctx.fillText(inputKind==='draw'?'マスをクリックして描く → CNN が分類':'これは何の形？ → CNN が分類する',CW/2,y0+N*s+40);}
   else if(k==='conv'){const s=20,x0=14,y0=40;gridBox(input,N,x0,y0,s,1,'入力');
     // window highlight
     const wr=Math.floor(wIdx/CONV),wc=wIdx%CONV;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.4;ctx.strokeRect(x0+wc*s,y0+wr*s,K*s,K*s);
@@ -205,18 +211,19 @@ function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
 /* ===== mini / legend / explain ===== */
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
 function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
-  if(k==='cls'){let am=0;for(let c=1;c<NC;c++)if(res.pr[c]>res.pr[am])am=c;m.innerHTML='<div>判定 <b>'+SHN[am]+'</b>（'+(res.pr[am]*100).toFixed(0)+'%）</div><div>正解 <b>'+SHN[curC]+'</b></div>';}
+  if(k==='cls'){let am=0;for(let c=1;c<NC;c++)if(res.pr[c]>res.pr[am])am=c;m.innerHTML='<div>判定 <b>'+SHN[am]+'</b>（'+(res.pr[am]*100).toFixed(0)+'%）</div>'+(inputKind==='shape'?'<div>正解 <b>'+SHN[curC]+'</b></div>':'<div>（学習外の入力）</div>');}
   else if(k==='learn')m.innerHTML='<div>分類精度 <b>'+Math.round(lcAcc*100)+'%</b></div><div>epoch <b>'+lcEp+'</b></div>';
   else if(k==='conv'){const wr=Math.floor(wIdx/CONV),wc=wIdx%CONV;m.innerHTML='<div>カーネル <b>'+KERNELS[kIdx].name+'</b></div><div>窓 ('+wr+','+wc+')</div><div>積和 <b>'+demo.cm[wIdx].toFixed(2)+'</b></div>';}
   else m.innerHTML='';}
 function renderLegend(){document.getElementById('legend').innerHTML='<span><i class="sw" style="background:var(--accent)"></i>正の値</span><span><i class="sw" style="background:var(--neg)"></i>負の値</span><span><i class="sw" style="background:var(--loss)"></i>注目している窓</span>';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='in'){h+='<h3>① 問題：画像を分類する</h3><div class="desc">'+N+'×'+N+' の白黒画像（今は「<b>'+SHN[curC]+'</b>」）。CNN はこれを、フィルタで<b>特徴</b>に変換してから 5 種類に分類します。右下のセレクトで形を変えられます。</div>';}
+  if(k==='in'){const lb=inputKind==='draw'?'自分で描いた形':inputKind==='circle'?'○ 丸（学習外）':'「'+SHN[curC]+'」';
+    h+='<h3>① 問題：画像を分類する</h3><div class="desc">'+N+'×'+N+' の白黒画像（今は<b>'+lb+'</b>）。CNN はこれをフィルタで<b>特徴</b>に変換して 5 種類に分類します。右下で<b>入力</b>と<b>フィルタ</b>を切り替え、'+(inputKind==='draw'?'<b>マスをクリックして自由に描けます</b>':'○丸や「自分で描く」も試せます')+'。</div>';}
   else if(k==='conv'){
     h+='<h3>② 畳み込み：フィルタを滑らせる</h3><div class="eq curr">特徴 = Σ(窓の画素 × フィルタ係数)<br>今の窓 → <span class="res">'+demo.cm[wIdx].toFixed(2)+'</span></div><div class="desc">3×3 の<b>フィルタ</b>を画像の上で 1 マスずつ滑らせ、重なった 9 画素と係数を掛けて足す（<b>積和</b>）。その値が特徴マップの 1 マス。<br>いまのフィルタ＝<b>'+KERNELS[kIdx].name+'</b>：'+KHINT[kIdx]+'。<b>右下の「フィルタ」セレクタで種類を変える</b>と、同じ画像でも<b>光る場所（拾う特徴）が変わる</b>のが分かります。</div>';}
   else if(k==='pool'){h+='<h3>③ ReLU と プーリング</h3><div class="eq curr">ReLU: 負の値 → 0<br>最大プール: 2×2 ごとに最大値だけ残す</div><div class="desc"><b>ReLU</b> で負を捨て（特徴の「ある所」だけ残す）、<b>最大プーリング</b>で 2×2 を 1 マスに圧縮（'+CONV+'×'+CONV+' → '+POOL+'×'+POOL+'）。情報を要約し、位置の小さなズレに強くなります。</div>';}
-  else if(k==='cls'){let am=0;for(let c=1;c<NC;c++)if(res.pr[c]>res.pr[am])am=c;
-    h+='<h3>④ 分類：特徴から答えへ</h3><div class="eq curr">4 つのフィルタの特徴をまとめ → 各クラスの点数 → softmax で確率</div><div class="desc">左の <b>4 枚は学習で獲得したフィルタ</b>の特徴（②の手動フィルタとは別。分類にはこの 4 枚を使う）。1 列に並べ、全結合層で 5 クラスの点数にし、softmax で確率に。最も高い <b style="color:'+(am===curC?'var(--accent)':'var(--neg)')+'">'+SHN[am]+'</b>('+(res.pr[am]*100).toFixed(0)+'%) が判定です'+(am===curC?'（正解）':'（不正解）')+'。</div>';}
+  else if(k==='cls'){let am=0;for(let c=1;c<NC;c++)if(res.pr[c]>res.pr[am])am=c;const novel=inputKind!=='shape';const col=novel?'var(--warm)':(am===curC?'var(--accent)':'var(--neg)');
+    h+='<h3>④ 分類：特徴から答えへ</h3><div class="eq curr">4 つのフィルタの特徴をまとめ → 各クラスの点数 → softmax で確率</div><div class="desc">左の <b>4 枚は学習で獲得したフィルタ</b>の特徴（②の手動フィルタとは別。分類にはこの 4 枚を使う）。1 列に並べ、全結合層で 5 クラスの点数にし、softmax で確率に。最も高い <b style="color:'+col+'">'+SHN[am]+'</b>('+(res.pr[am]*100).toFixed(0)+'%) が判定'+(novel?'。ただし<b>この入力には正解ラベルが無い</b>（学習は 5 形状）ので、判定は「最も近い形」の推定です':(am===curC?'（正解）':'（不正解）'))+'。</div>';}
   else{h+='<h3>⑤ 学習：フィルタは「与える」のでなく「育つ」</h3><div class="desc">最初フィルタは<b>ランダムな模様</b>。5 形状を正しく分類できるよう、誤差逆伝播でフィルタ係数を更新すると、エッジなどを捉える<b>特徴検出器</b>へ育ちます（上で変化中）。②で手で選んだ<b>縦エッジ・ぼかし</b>のような検出器を、CNN は<b>データから自分で獲得</b>する — これが「手設計しない」CNN の強み。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・畳み込み＝フィルタの積和で特徴マップ<br>・ReLU＋プールで要約・位置ズレに強く<br>・フィルタは学習で獲得（エッジ→部品→物体）</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
@@ -239,8 +246,18 @@ document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.leng
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
 document.getElementById('resetBtn').onclick=()=>{stopAuto();goStep(0);};
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
-document.getElementById('shapeSel').onchange=e=>{curC=+e.target.value;recompute();if(STEPS[stepIdx].key==='conv'){wIdx=0;animConv();}else draw();renderAll();};
+document.getElementById('shapeSel').onchange=e=>{const v=e.target.value;
+  if(v==='circle')inputKind='circle';
+  else if(v==='draw'){inputKind='draw';if(input)drawnImage.set(input);}   // 今の形から編集開始
+  else{inputKind='shape';curC=+v;}
+  recompute();if(STEPS[stepIdx].key==='conv'){wIdx=0;animConv();}else draw();renderAll();};
 document.getElementById('kernelSel').onchange=e=>{kIdx=+e.target.value;recompute();if(STEPS[stepIdx].key==='conv'){wIdx=0;animConv();}else draw();renderAll();};
+// お絵かき：問題ステップで「自分で描く」時、8×8 のマスをクリックして 0/1 をトグル。
+cv.addEventListener('click',e=>{if(inputKind!=='draw'||STEPS[stepIdx].key!=='in')return;
+  const rect=cv.getBoundingClientRect(),s=30,x0=(CW-N*s)/2,y0=24;
+  const px=(e.clientX-rect.left)*(CW/rect.width),py=(e.clientY-rect.top)*(CH/rect.height);
+  const c=Math.floor((px-x0)/s),r=Math.floor((py-y0)/s);
+  if(r>=0&&r<N&&c>=0&&c<N){drawnImage[r*N+c]=drawnImage[r*N+c]?0:1;recompute();draw();renderAll();}});
 
 trainFull();recompute();renderAll();draw();
 </script>
