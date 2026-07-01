@@ -53,22 +53,27 @@
   (function injectNavStyles(){
     if (document.getElementById('navfmt')) return;
     const css =
-      '.nav{font-size:11px;line-height:2.0;letter-spacing:.03em;}'
-      + '.nav .navhead{margin-bottom:5px;}'
+      '.nav{font-size:11px;line-height:1.7;letter-spacing:.03em;}'
+      + '.nav .navhead{margin-bottom:8px;}'
       + '.nav .navhead a,.nav .navhead b{margin-right:16px;font-weight:600;text-decoration:none;color:var(--ink-2,#52504a);}'
       + '.nav .navhead a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
       + '.nav .navhead b{color:var(--ink,#1a1a17);}'
-      + '.nav .navcat-wrap{margin-right:14px;}'
-      + '.nav button.navcat{font-family:inherit;font-size:11px;letter-spacing:.03em;color:var(--ink-2,#52504a);background:none;border:0;padding:0;margin:0 2px 0 0;cursor:pointer;white-space:nowrap;}'
-      + '.nav button.navcat:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
-      + '.nav button.navcat[aria-expanded="true"]{color:var(--ink,#1a1a17);font-weight:700;}'
-      + '.nav .navcat-items{color:var(--faint,#6e6a60);}'
-      + '.nav .navcat-items[hidden]{display:none;}'
-      + '.nav .navcat-items a{color:var(--ink-2,#52504a);text-decoration:none;white-space:nowrap;}'
-      + '.nav .navcat-items a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
-      + '.nav .navcat-items .cur{color:var(--ink,#1a1a17);font-weight:700;white-space:nowrap;}'
-      + '.nav .navcat-items .sep{color:var(--faint,#6e6a60);margin:0 2px;}'
-      + '.nav .navcat-n{color:var(--faint,#6e6a60);font-weight:400;letter-spacing:0;}';
+      // 上段＝均一な分野タイル列（領域マップ）。各タイル＝枠付きの1領域。折り返し可。
+      + '.nav .navcats{display:flex;flex-wrap:wrap;gap:5px;}'
+      + '.nav button.navcat{font-family:inherit;font-size:11px;letter-spacing:.03em;color:var(--ink-2,#52504a);background:var(--panel,#fff);border:1px solid var(--rule,#dcd8cc);border-radius:2px;padding:3px 9px;cursor:pointer;white-space:nowrap;}'
+      + '.nav button.navcat:hover{color:var(--ink,#1a1a17);border-color:var(--ink-3,#928f84);}'
+      + '.nav button.navcat[aria-selected="true"]{color:var(--ink,#1a1a17);font-weight:700;border-color:var(--ink,#1a1a17);background:var(--panel-2,#f2efe6);}'  // 表示中
+      + '.nav button.navcat.cur{box-shadow:inset 3px 0 0 var(--accent,#1f9e8a);padding-left:11px;}'  // いまここ（左に細アクセント）
+      + '.nav .navcat-n{color:var(--faint,#6e6a60);font-weight:400;letter-spacing:0;margin-left:1px;}'
+      // 下段＝選択中分野の手法パネル。1px罫線で上段と分ける。
+      + '.nav .navpanel{margin-top:7px;padding-top:6px;border-top:1px solid var(--rule,#dcd8cc);white-space:normal;color:var(--faint,#6e6a60);}'
+      + '.nav .navpanel-cat{color:var(--ink,#1a1a17);font-weight:700;}'
+      + '.nav .navpanel-arw{color:var(--ink-3,#928f84);margin:0 7px 0 4px;}'
+      + '.nav .navpanel-hint{color:var(--faint,#6e6a60);font-style:italic;}'
+      + '.nav .navpanel a{color:var(--ink-2,#52504a);text-decoration:none;white-space:nowrap;}'
+      + '.nav .navpanel a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
+      + '.nav .navpanel .cur{color:var(--ink,#1a1a17);font-weight:700;white-space:nowrap;}'
+      + '.nav .navpanel .sep{color:var(--faint,#6e6a60);margin:0 2px;}';
     const s = document.createElement('style');
     s.id = 'navfmt'; s.textContent = css;
     (document.head || document.documentElement).appendChild(s);
@@ -150,26 +155,31 @@
   let cur = location.pathname.split('/').pop();
   if (cur === '') cur = 'index.html';
 
-  // 1カテゴリを描画。open=true でその場に項目を展開（現在ページのカテゴリは既定 open）。
-  function buildCat(cat, open) {
-    const items = cat.items.map(function (p) {
+  // 分野タイル（タブ）1個。active=下パネルに手法を表示中／isCur=現在ページの分野（常時「いまここ」印）。
+  function tileHtml(cat, i, active, isCur) {
+    return '<button type="button" class="navcat' + (isCur ? ' cur' : '') + '" role="tab" data-i="' + i + '"'
+      + ' aria-selected="' + (active ? 'true' : 'false') + '" tabindex="' + (active ? '0' : '-1') + '">'
+      + cat.name + '<span class="navcat-n">·' + cat.items.length + '</span>'
+      + '</button>';
+  }
+  // 1分野の手法リスト（現在ページは太字・非リンク）。
+  function catItemsHtml(cat) {
+    return cat.items.map(function (p) {
       if (p.href === cur) return '<b class="cur">' + p.label + '</b>';
       return '<a href="' + p.href + '">' + p.label + '</a>';
     }).join(' <span class="sep">·</span> ');
-    // 矢印と件数は別 <span>。畳んだ状態でも「基礎·6 訓練·4 …」と各領域の規模＝全体の骨格が読める。
-    return '<span class="navcat-wrap">'
-      + '<button type="button" class="navcat" aria-expanded="' + (open ? 'true' : 'false') + '">'
-      +   '<span class="navcat-arw">' + (open ? '▾' : '▸') + '</span> ' + cat.name
-      +   '<span class="navcat-n">·' + cat.items.length + '</span>'
-      + '</button>'
-      + '<span class="navcat-items"' + (open ? '' : ' hidden') + '> ' + items + '</span>'
-      + '</span>';
+  }
+  // タイル下のパネル：選択中の分野名＋手法一覧。
+  function panelHtml(idx) {
+    if (idx < 0) return '<span class="navpanel-hint">分野を選ぶと手法が並びます。</span>';
+    return '<span class="navpanel-cat">' + cats[idx].name + '</span>'
+      + '<span class="navpanel-arw">›</span> ' + catItemsHtml(cats[idx]);
   }
 
   function render() {
     const el = document.querySelector('.nav, .back');
     if (!el) return;
-    // 現在ページが属するカテゴリを特定（無ければ = map.html 等は全カテゴリ畳んだまま）。
+    // 現在ページが属する分野を特定（無ければ = map.html 等はパネル空）。
     let curCat = -1;
     cats.forEach(function (c, i) {
       if (c.items.some(function (p) { return p.href === cur; })) curCat = i;
@@ -178,23 +188,34 @@
       + '<a href="../">▲ 地図（トップ）</a>'
       + (cur === 'map.html' ? '<b>手法マップ</b>' : '<a href="map.html">手法マップ</a>')
       + '</div>';
-    const body = '<div class="navcats">'
-      + cats.map(function (c, i) { return buildCat(c, i === curCat); }).join('')
-      + '</div>';
+    // 上＝均一な分野タイル列（領域マップ）／下＝選択中分野の手法パネル。構造を上下に分ける。
+    const tiles = cats.map(function (c, i) { return tileHtml(c, i, i === curCat, i === curCat); }).join('');
+    const body = '<div class="navcats" role="tablist" aria-label="分野">' + tiles + '</div>'
+      + '<div class="navpanel">' + panelHtml(curCat) + '</div>';
     el.innerHTML = head + body;
 
-    // カテゴリ名クリックでその場に展開/収納（イベント委譲・1回だけ束縛）。
+    // タイルのクリック／←→キーで、下パネルにその分野の手法を表示（イベント委譲・1回だけ束縛）。
     if (!el.dataset.navbound) {
       el.dataset.navbound = '1';
+      var activate = function (btn, focus) {
+        el.querySelectorAll('.navcat').forEach(function (b) { b.setAttribute('aria-selected', 'false'); b.setAttribute('tabindex', '-1'); });
+        btn.setAttribute('aria-selected', 'true'); btn.setAttribute('tabindex', '0');
+        var panel = el.querySelector('.navpanel');
+        if (panel) panel.innerHTML = panelHtml(+btn.getAttribute('data-i'));
+        if (focus) btn.focus();
+      };
       el.addEventListener('click', function (e) {
-        const btn = e.target && e.target.closest ? e.target.closest('.navcat') : null;
+        var btn = e.target && e.target.closest ? e.target.closest('.navcat') : null;
+        if (btn && el.contains(btn)) activate(btn, false);
+      });
+      el.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        var btn = e.target && e.target.closest ? e.target.closest('.navcat') : null;
         if (!btn || !el.contains(btn)) return;
-        const items = btn.parentNode.querySelector('.navcat-items');
-        const arw = btn.querySelector('.navcat-arw');
-        const open = btn.getAttribute('aria-expanded') === 'true';
-        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-        if (arw) arw.textContent = open ? '▸' : '▾';                    // 矢印だけ差し替え（件数 span は温存）
-        if (items) { if (open) items.setAttribute('hidden', ''); else items.removeAttribute('hidden'); }
+        e.preventDefault();
+        var list = Array.prototype.slice.call(el.querySelectorAll('.navcat'));
+        var next = list[list.indexOf(btn) + (e.key === 'ArrowRight' ? 1 : -1)];
+        if (next) activate(next, true);
       });
     }
   }
