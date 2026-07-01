@@ -78,6 +78,8 @@
       <button id="autoBtn">⏵ 学習</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
+      <select id="dataSel" title="データの配置（難しさが変わる）"><option value="三角配置">データ: 三角配置</option><option value="近い3つ">データ: 近い3つ(難)</option><option value="一直線">データ: 一直線</option></select>
+      <select id="tauSel" title="温度τ（小=鋭く分ける / 大=緩やか）"><option value="0.1">温度τ: 0.1(鋭い)</option><option value="0.3" selected>温度τ: 0.3</option><option value="0.7">温度τ: 0.7(緩い)</option></select>
     </div>
   </div>
 
@@ -92,7 +94,10 @@
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 let seed=42;function mul(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
 function randn(){let u=0,v=0;while(u===0)u=mul();while(v===0)v=mul();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-const CEN=[[-2.2,-1.3],[2.2,-1.3],[0,2.2]],CSTD=0.34,COL=['#1f9e8a','#cf4f5f','#6f54c4'],AUG=0.4,TAU=0.3;
+const COL=['#1f9e8a','#cf4f5f','#6f54c4'],AUG=0.4;
+// データ配置（例題）と温度τ（種類）。CEN/CSTD/TAU は切替で差し替え。
+const DATAS={'三角配置':{cen:[[-2.2,-1.3],[2.2,-1.3],[0,2.2]],std:0.34},'近い3つ':{cen:[[-1.15,-0.7],[1.15,-0.7],[0,1.15]],std:0.34},'一直線':{cen:[[-2.4,0],[0,0],[2.4,0]],std:0.30}};
+let dataKind='三角配置',CEN=DATAS['三角配置'].cen,CSTD=DATAS['三角配置'].std,TAU=0.3;
 function sample(){const c=Math.floor(mul()*3);return{x:[CEN[c][0]+randn()*CSTD,CEN[c][1]+randn()*CSTD],c};}
 function aug(x){return[x[0]+randn()*AUG,x[1]+randn()*AUG];}
 const S=[2,32,32,2];
@@ -154,12 +159,12 @@ const STEPS=[{key:'prob',t:'問題'},{key:'pair',t:'正例と負例'},{key:'loss
 let stepIdx=0,auto=false;
 function drawStep(){draw(STEPS[stepIdx].key==='pair'||STEPS[stepIdx].key==='loss');}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
-function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>点 <b>'+DISP.length+'</b></div><div>学習 <b>'+iter+'</b></div>'+(lossHist.length?'<div>損失 <b>'+lossHist[lossHist.length-1].toFixed(2)+'</b></div>':'')+(iter>30?'<div class="ok">クラスタ純度 <b>'+Math.round(purity()*100)+'%</b></div>':'');}
+function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>データ <b>'+dataKind+'</b></div><div>温度τ <b>'+TAU+'</b></div><div>学習 <b>'+iter+'</b></div>'+(iter>30?'<div class="ok">クラスタ純度 <b>'+Math.round(purity()*100)+'%</b></div>':'');}
 function renderLegend(){document.getElementById('legend').innerHTML='左=入力 / 右=埋め込み（点線円＝表現の単位円）　<i style="color:var(--accent)">●</i><i style="color:var(--neg)">●</i><i style="color:var(--upd)">●</i> 色＝本当のクラスタ（<b>学習には使わない</b>）';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① 問題：ラベル無しで良い表現を</h3><div class="desc">手元のデータには 3 つのまとまり（クラスタ）がありますが、<b>どれがどの種類かの正解（ラベル）は与えられません</b>。それでも「似たものが近い」<b>良い埋め込み</b>を学びたい——これが<b>自己教師あり学習</b>。色は説明用で、<b>学習には一切使いません</b>。右の埋め込みは学習前なのでまだバラバラです。</div>';}
+  if(k==='prob'){h+='<h3>① 問題：ラベル無しで良い表現を</h3><div class="desc">手元のデータには 3 つのまとまり（クラスタ）がありますが、<b>どれがどの種類かの正解（ラベル）は与えられません</b>。それでも「似たものが近い」<b>良い埋め込み</b>を学びたい——これが<b>自己教師あり学習</b>。色は説明用で、<b>学習には一切使いません</b>。右の埋め込みは学習前なのでまだバラバラです。右下で<b>データの配置</b>と<b>温度τ</b>を切り替えられます。</div>';}
   else if(k==='pair'){h+='<h3>② 正例と負例をつくる</h3><div class="desc">正解ラベルの代わりに、<b>データ拡張</b>で「答え」を自分で作ります。<b>同じ点</b>に少し違うノイズをかけた<b>2 つのビュー</b>＝<b style="color:var(--accent)">正例</b>（中身は同じ→近づけたい、左右の<span style="color:var(--accent)">緑線</span>）。<b>他の点</b>は<b style="color:var(--neg)">負例</b>（違うもの→遠ざけたい、<span style="color:var(--neg)">赤の破線</span>）。これならラベル不要です。</div>';}
-  else if(k==='loss'){h+='<h3>③ 対照損失（InfoNCE）</h3><div class="eq">損失 = −log　exp(sim⁺/τ) ⁄ Σ exp(sim/τ)</div><div class="desc">埋め込みの近さは<b>コサイン類似度 sim</b>（単位円上の近さ）。この損失は、<b style="color:var(--accent)">正例の類似 sim⁺ を大きく</b>、<b style="color:var(--neg)">負例の類似を小さく</b>します（τ＝温度）。要は「たくさんの負例の中から正例を当てる」分類。これを下げるよう埋め込みを更新します。</div>';}
+  else if(k==='loss'){h+='<h3>③ 対照損失（InfoNCE）</h3><div class="eq">損失 = −log　exp(sim⁺/τ) ⁄ Σ exp(sim/τ)</div><div class="desc">埋め込みの近さは<b>コサイン類似度 sim</b>（単位円上の近さ）。この損失は、<b style="color:var(--accent)">正例の類似 sim⁺ を大きく</b>、<b style="color:var(--neg)">負例の類似を小さく</b>します（τ＝温度）。要は「たくさんの負例の中から正例を当てる」分類。これを下げるよう埋め込みを更新します。いま<b>τ='+TAU+'</b>：<b>小さいτは差を強調して鋭く分け</b>（クラスタが締まる）、大きいτは緩やか。右下で切り替えて純度の違いを。</div>';}
   else if(k==='learn'){h+='<h3>④ 学習：埋め込みが構造化</h3><div class="desc">「⏵ 学習」で訓練します。正例を寄せ・負例を離すうちに、<b>右の埋め込み空間で同じ色が自然に集まり</b>、違う色が離れていきます。<b>ラベルを使っていない</b>のに 3 クラスタが分かれるのがポイント。学習 '+iter+'・クラスタ純度 約 '+(iter>30?Math.round(purity()*100):'—')+'%。</div>';}
   else{h+='<h3>⑤ 結果：ラベル無しで構造を発見</h3><div class="desc">教えていないのに、似たデータが埋め込み上で<b>クラスタに分かれました</b>（純度 約 '+Math.round(purity()*100)+'%）。この表現は、あとで<b>少量のラベル</b>で分類器を付けるだけで高精度に——＝<b>事前学習</b>。<b>SimCLR</b>（画像）や <b>CLIP</b>（画像とテキストの正例ペア）が代表例です。</div><div class="eq"><b>要点</b><br>・正例＝同じものの別ビュー（拡張）→近づける<br>・負例＝他のデータ→遠ざける（InfoNCE）<br>・ラベル無しで意味的な表現を獲得（自己教師あり）</div>';}
   el.innerHTML=h;}
@@ -173,6 +178,8 @@ document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(STEPS[stepIdx].key!=='learn')goStep(3);else startAuto();}};
 document.getElementById('resetBtn').onclick=()=>{stopAuto();reset();goStep(0);};
+document.getElementById('dataSel').onchange=e=>{dataKind=e.target.value;CEN=DATAS[dataKind].cen;CSTD=DATAS[dataKind].std;stopAuto();reset();goStep(3);};   // 切替で学習へ→即対比
+document.getElementById('tauSel').onchange=e=>{TAU=+e.target.value;stopAuto();reset();goStep(3);};
 renderAll();drawStep();
 </script>
 <script src="nav.js"></script>
