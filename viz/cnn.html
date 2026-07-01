@@ -81,6 +81,7 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
+      <select id="kernelSel" title="畳み込みで使うフィルタの種類（ステップ②③に効く）"><option value="0">フィルタ: 縦エッジ</option><option value="1">フィルタ: 横エッジ</option><option value="2">フィルタ: ぼかし</option><option value="3">フィルタ: シャープ</option><option value="4">フィルタ: emboss</option><option value="5">フィルタ: 学習で獲得</option></select>
       <select id="shapeSel"><option value="0">入力: ＋ 十字</option><option value="1">入力: × バツ</option><option value="2">入力: □ 四角</option><option value="3">入力: ／ 斜め</option><option value="4">入力: T 字</option></select>
     </div>
   </div>
@@ -129,6 +130,25 @@ function trainStep(lr){const B=20,FEAT=POOL*POOL*NF;let ok=0;const gWf=Wf.map(()
 function evalAcc(){let ok=0;for(let t=0;t<40;t++){const c=t%NC,im=genShape(c,(rng()*3|0)-1,(rng()*3|0)-1),{pr}=fwd(im);let am=0;for(let k=1;k<NC;k++)if(pr[k]>pr[am])am=k;if(am===c)ok++;}return ok/40;}
 function trainFull(){initCNN();for(let e=0;e<400;e++)trainStep(0.02);}
 
+/* ===== カーネルの種類パレット（畳み込みの直感）＝ステップ2/3のデモに使う。
+   分類(ステップ4)は学習済みCNNのまま。ここは「フィルタ＝特徴検出器」を体感する枠。 ===== */
+const KERNELS=[
+  {name:'縦エッジ', k:[-1,0,1,-2,0,2,-1,0,1]},
+  {name:'横エッジ', k:[-1,-2,-1,0,0,0,1,2,1]},
+  {name:'ぼかし',   k:[1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9,1/9]},
+  {name:'シャープ', k:[0,-1,0,-1,5,-1,0,-1,0]},
+  {name:'emboss',   k:[-2,-1,0,-1,1,1,0,1,2]},
+  {name:'学習で獲得',k:null},   // null → 学習済みフィルタ0(Wf[0])を使う
+];
+const KHINT=['縦線（左右の明暗差）を検出','横線（上下の明暗差）を検出','近所と平均してなめらかに','中心を強調して輪郭くっきり','斜めの段差を浮き彫り','データから育った検出器'];
+let kIdx=0;
+function demoK(){return KERNELS[kIdx].k||Wf[0];}
+function demoConv(im){const ker=demoK(),cm=new Float64Array(CONV*CONV),rm=new Float64Array(CONV*CONV);
+  for(let y=0;y<CONV;y++)for(let x=0;x<CONV;x++){let s=0;for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)s+=im[(y+dy)*N+(x+dx)]*ker[dy*K+dx];cm[y*CONV+x]=s;rm[y*CONV+x]=s>0?s:0;}
+  const pm=new Float64Array(POOL*POOL);for(let y=0;y<POOL;y++)for(let x=0;x<POOL;x++){let mv=-1e9;for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){const idx=(2*y+dy)*CONV+(2*x+dx);if(rm[idx]>mv)mv=rm[idx];}pm[y*POOL+x]=mv;}
+  return{cm,rm,pm};}
+let demo=null;
+
 /* ===== 描画ヘルパ ===== */
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
 function cellCol(v,mx){const t=Math.max(-1,Math.min(1,v/(mx||1)));return t>=0?`rgba(31,158,138,${0.10+0.85*t})`:`rgba(207,79,95,${0.10+0.85*-t})`;}
@@ -148,7 +168,7 @@ const STEPS=[
 ];
 let stepIdx=0,curC=0,input=null,res=null,wIdx=0,anim=false,auto=false;
 
-function recompute(){input=genShape(curC);res=fwd(input);}
+function recompute(){input=genShape(curC);res=fwd(input);demo=demoConv(input);}
 
 function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
   if(k==='in'){const s=30,x0=(CW-N*s)/2,y0=24;gridBox(input,N,x0,y0,s,1,'入力画像 ('+N+'×'+N+')');
@@ -156,16 +176,16 @@ function draw(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
   else if(k==='conv'){const s=20,x0=14,y0=40;gridBox(input,N,x0,y0,s,1,'入力');
     // window highlight
     const wr=Math.floor(wIdx/CONV),wc=wIdx%CONV;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.4;ctx.strokeRect(x0+wc*s,y0+wr*s,K*s,K*s);
-    // filter
-    const fx=x0+N*s+26,fy=y0+30,fs=22;gridBox(Wf[0],K,fx,fy,fs,maxAbs(Wf[0]),'フィルタ0');
+    // filter（種類パレットで選んだカーネル）
+    const fx=x0+N*s+26,fy=y0+30,fs=22;gridBox(demoK(),K,fx,fy,fs,maxAbs(demoK()),KERNELS[kIdx].name);
     arrow(fx+K*fs+6,fy+K*fs/2);
-    // conv map
-    const cx=fx+K*fs+30,cy=y0,cs=20;const cm=res.conv[0],mx=maxAbs(cm);
+    // conv map（選択カーネルでの特徴マップ）
+    const cx=fx+K*fs+30,cy=y0,cs=20;const cm=demo.cm,mx=maxAbs(cm);
     for(let r=0;r<CONV;r++)for(let c=0;c<CONV;c++){const filled=(r*CONV+c)<=wIdx;ctx.fillStyle=filled?cellCol(cm[r*CONV+c],mx):'#ffffff';ctx.fillRect(cx+c*cs,cy+r*cs,cs-1,cs-1);}
     ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('特徴マップ ('+CONV+'×'+CONV+')',cx+CONV*cs/2,cy+CONV*cs+12);
     // current pos marker on conv
     ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2;ctx.strokeRect(cx+wc*cs,cy+wr*cs,cs,cs);}
-  else if(k==='pool'){const s=22,y0=46;const cm=res.conv[0],rm=res.relu[0],pm=res.pool[0],mx=maxAbs(cm);
+  else if(k==='pool'){const s=22,y0=46;const cm=demo.cm,rm=demo.rm,pm=demo.pm,mx=maxAbs(cm);
     gridBox(cm,CONV,14,y0,s,mx,'畳み込み');arrow(14+CONV*s+4,y0+CONV*s/2);
     gridBox(rm,CONV,14+CONV*s+24,y0,s,mx,'ReLU(負→0)');arrow(14+2*CONV*s+28,y0+CONV*s/2);
     const px=14+2*CONV*s+52,ps=30;gridBox(pm,POOL,px,y0+14,ps,mx,'最大プール('+POOL+'×'+POOL+')');}
@@ -187,17 +207,17 @@ function renderStepper(){const el=document.getElementById('stepper');el.innerHTM
 function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
   if(k==='cls'){let am=0;for(let c=1;c<NC;c++)if(res.pr[c]>res.pr[am])am=c;m.innerHTML='<div>判定 <b>'+SHN[am]+'</b>（'+(res.pr[am]*100).toFixed(0)+'%）</div><div>正解 <b>'+SHN[curC]+'</b></div>';}
   else if(k==='learn')m.innerHTML='<div>分類精度 <b>'+Math.round(lcAcc*100)+'%</b></div><div>epoch <b>'+lcEp+'</b></div>';
-  else if(k==='conv'){const wr=Math.floor(wIdx/CONV),wc=wIdx%CONV;m.innerHTML='<div>窓 ('+wr+','+wc+')</div><div>積和 <b>'+res.conv[0][wIdx].toFixed(2)+'</b></div>';}
+  else if(k==='conv'){const wr=Math.floor(wIdx/CONV),wc=wIdx%CONV;m.innerHTML='<div>カーネル <b>'+KERNELS[kIdx].name+'</b></div><div>窓 ('+wr+','+wc+')</div><div>積和 <b>'+demo.cm[wIdx].toFixed(2)+'</b></div>';}
   else m.innerHTML='';}
 function renderLegend(){document.getElementById('legend').innerHTML='<span><i class="sw" style="background:var(--accent)"></i>正の値</span><span><i class="sw" style="background:var(--neg)"></i>負の値</span><span><i class="sw" style="background:var(--loss)"></i>注目している窓</span>';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='in'){h+='<h3>① 問題：画像を分類する</h3><div class="desc">'+N+'×'+N+' の白黒画像（今は「<b>'+SHN[curC]+'</b>」）。CNN はこれを、フィルタで<b>特徴</b>に変換してから 5 種類に分類します。右下のセレクトで形を変えられます。</div>';}
-  else if(k==='conv'){const wr=Math.floor(wIdx/CONV),wc=wIdx%CONV;let terms='';let s=bf[0];for(let dy=0;dy<K;dy++)for(let dx=0;dx<K;dx++)s+=input[(wr+dy)*N+(wc+dx)]*Wf[0][dy*K+dx];
-    h+='<h3>② 畳み込み：フィルタを滑らせる</h3><div class="eq curr">特徴 = Σ(窓の画素 × フィルタ係数) + b<br>今の窓 → <span class="res">'+res.conv[0][wIdx].toFixed(2)+'</span></div><div class="desc">3×3 の<b>フィルタ</b>を画像の上で 1 マスずつ滑らせ、重なった 9 画素とフィルタ係数を掛けて足す（<b>積和</b>）。その値が特徴マップの 1 マス。窓が黄色、右に特徴マップが埋まっていきます。</div>';}
+  else if(k==='conv'){
+    h+='<h3>② 畳み込み：フィルタを滑らせる</h3><div class="eq curr">特徴 = Σ(窓の画素 × フィルタ係数)<br>今の窓 → <span class="res">'+demo.cm[wIdx].toFixed(2)+'</span></div><div class="desc">3×3 の<b>フィルタ</b>を画像の上で 1 マスずつ滑らせ、重なった 9 画素と係数を掛けて足す（<b>積和</b>）。その値が特徴マップの 1 マス。<br>いまのフィルタ＝<b>'+KERNELS[kIdx].name+'</b>：'+KHINT[kIdx]+'。<b>右下の「フィルタ」セレクタで種類を変える</b>と、同じ画像でも<b>光る場所（拾う特徴）が変わる</b>のが分かります。</div>';}
   else if(k==='pool'){h+='<h3>③ ReLU と プーリング</h3><div class="eq curr">ReLU: 負の値 → 0<br>最大プール: 2×2 ごとに最大値だけ残す</div><div class="desc"><b>ReLU</b> で負を捨て（特徴の「ある所」だけ残す）、<b>最大プーリング</b>で 2×2 を 1 マスに圧縮（'+CONV+'×'+CONV+' → '+POOL+'×'+POOL+'）。情報を要約し、位置の小さなズレに強くなります。</div>';}
   else if(k==='cls'){let am=0;for(let c=1;c<NC;c++)if(res.pr[c]>res.pr[am])am=c;
-    h+='<h3>④ 分類：特徴から答えへ</h3><div class="eq curr">4 つのフィルタの特徴をまとめ → 各クラスの点数 → softmax で確率</div><div class="desc">4 枚の特徴マップ（左）を 1 列に並べ、全結合層で 5 クラスの点数にし、softmax で確率に。最も高い <b style="color:'+(am===curC?'var(--accent)':'var(--neg)')+'">'+SHN[am]+'</b>('+(res.pr[am]*100).toFixed(0)+'%) が判定です'+(am===curC?'（正解）':'（不正解）')+'。</div>';}
-  else{h+='<h3>⑤ 学習：フィルタは「与える」のでなく「育つ」</h3><div class="desc">最初フィルタは<b>ランダムな模様</b>。5 形状を正しく分類できるよう、誤差逆伝播でフィルタ係数を更新すると、エッジなどを捉える<b>特徴検出器</b>へ育ちます（上で変化中）。手設計でなく、データから役立つ特徴を自分で見つけるのが CNN の強み。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・畳み込み＝フィルタの積和で特徴マップ<br>・ReLU＋プールで要約・位置ズレに強く<br>・フィルタは学習で獲得（エッジ→部品→物体）</div>';}
+    h+='<h3>④ 分類：特徴から答えへ</h3><div class="eq curr">4 つのフィルタの特徴をまとめ → 各クラスの点数 → softmax で確率</div><div class="desc">左の <b>4 枚は学習で獲得したフィルタ</b>の特徴（②の手動フィルタとは別。分類にはこの 4 枚を使う）。1 列に並べ、全結合層で 5 クラスの点数にし、softmax で確率に。最も高い <b style="color:'+(am===curC?'var(--accent)':'var(--neg)')+'">'+SHN[am]+'</b>('+(res.pr[am]*100).toFixed(0)+'%) が判定です'+(am===curC?'（正解）':'（不正解）')+'。</div>';}
+  else{h+='<h3>⑤ 学習：フィルタは「与える」のでなく「育つ」</h3><div class="desc">最初フィルタは<b>ランダムな模様</b>。5 形状を正しく分類できるよう、誤差逆伝播でフィルタ係数を更新すると、エッジなどを捉える<b>特徴検出器</b>へ育ちます（上で変化中）。②で手で選んだ<b>縦エッジ・ぼかし</b>のような検出器を、CNN は<b>データから自分で獲得</b>する — これが「手設計しない」CNN の強み。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・畳み込み＝フィルタの積和で特徴マップ<br>・ReLU＋プールで要約・位置ズレに強く<br>・フィルタは学習で獲得（エッジ→部品→物体）</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 
@@ -220,6 +240,7 @@ document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(s
 document.getElementById('resetBtn').onclick=()=>{stopAuto();goStep(0);};
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
 document.getElementById('shapeSel').onchange=e=>{curC=+e.target.value;recompute();if(STEPS[stepIdx].key==='conv'){wIdx=0;animConv();}else draw();renderAll();};
+document.getElementById('kernelSel').onchange=e=>{kIdx=+e.target.value;recompute();if(STEPS[stepIdx].key==='conv'){wIdx=0;animConv();}else draw();renderAll();};
 
 trainFull();recompute();renderAll();draw();
 </script>
