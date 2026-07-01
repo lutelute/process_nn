@@ -6,13 +6,15 @@
 <title>GPT-2 の生成過程と内部構造</title>
 <style>
   :root{
-    --bg:#0c1016; --panel:#11161f; --panel-2:#0e131b; --line:#1d2735; --grid:#172230;
-    --text:#e7edf5; --muted:#8595a8; --faint:#46566b;
-    --accent:#39e0c4; --accent-soft:rgba(57,224,196,0.16);
-    --warm:#d4a36a; --pos:#39e0c4; --neg:#f06f7e; --loss:#f0b03a;
-    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
-    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    /* クリーム/ノート配色（viz/theme.css と一致）。theme.css 読込で上書き＝補強されるが、
+       ここ自体もクリームにして単独でも（theme.css 欠落時も）破綻しないようにする。 */
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#6e6a60;
+    --accent:#1f9e8a; --accent-soft:rgba(31,158,138,0.12);
+    --warm:#b3812f; --pos:#1f9e8a; --neg:#cf4f5f; --loss:#c2891b;
+    --mincho:"Noto Sans JP","Hiragino Sans",sans-serif;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);line-height:1.6;}
@@ -34,7 +36,7 @@
   .row>div{flex:1;min-width:120px;}
   select,input[type=number]{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:13px;}
   button{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:9px 14px;font-size:13px;font-family:var(--gothic);cursor:pointer;transition:.15s;}
-  button:hover:not(:disabled){background:var(--accent);color:#04221d;}
+  button:hover:not(:disabled){background:var(--panel-2);color:var(--ink,#1a1a17);}
   button:disabled{opacity:.4;cursor:not-allowed;}
   button.ghost{background:transparent;color:var(--muted);border-color:var(--line);}
   button.ghost:hover:not(:disabled){border-color:var(--muted);color:var(--text);background:transparent;}
@@ -66,7 +68,15 @@
   .flex2{display:flex;gap:18px;flex-wrap:wrap;}
   .flex2>div{flex:1;min-width:280px;}
   .kbd{font-family:var(--mono);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11px;}
+  /* ノート風に角を締める：theme.css が触らない gpt2 独自要素の border-radius を 2–3px に統一。 */
+  .panel,.panel.sub2{border-radius:3px;}
+  textarea,input[type=text],input[type=number]{border-radius:2px;}
+  .gen-out,.chip,.kbd,#narrGPT{border-radius:2px;}
 </style>
+<!-- 共通テーマ（クリーム紙・ノート風）。inline <style> の後に読み込み、:root 変数と共通セレクタを
+     上書きして 48 ビューア＋トップと配色を統一する。gpt2 独自クラスは per-property カスケードで
+     cream 変数を引き継ぐ（canvas 内の描画色だけは下の <script> で明色地用に調整）。 -->
+<link rel="stylesheet" href="../viz/theme.css">
 </head>
 <body>
 <div class="wrap">
@@ -143,7 +153,7 @@
       <button id="resetBtn" class="ghost">↺ リセット</button>
     </div>
     <div id="genStatus" class="status"></div>
-    <div id="narrGPT" style="margin-top:10px;padding:10px 13px;background:var(--panel-2,#171c26);border:1px solid var(--line,#2a3340);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#e7edf5);">重みを読み込み「▶ 生成」すると、各ステップで「次の単語」の予測と内部（注意・各層の寄与・MLP 発火）を実況します。</div>
+    <div id="narrGPT" style="margin-top:10px;padding:10px 13px;background:var(--panel-2,#f2efe6);border:1px solid var(--line,#dcd8cc);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#1a1a17);">重みを読み込み「▶ 生成」すると、各ステップで「次の単語」の予測と内部（注意・各層の寄与・MLP 発火）を実況します。</div>
     <h3 style="margin-top:16px;">出力</h3>
     <div id="genOut" class="gen-out"><span class="muted">プロンプトから生成が始まります</span></div>
 
@@ -366,6 +376,12 @@ function buildAttnTokenList(){
   genTokens.forEach((id,i)=>{ s+='<span class="muted">'+i+':</span> '+escapeHtml(showTok(id))+'  '; });
   el.innerHTML=s;
 }
+// 注目の強さ a∈[0,1] を「淡いクリーム→濃いティール」に写す（明るい紙の上で 0=淡・1=濃）。
+// 0→(255,253,246)=紙 / 1→(31,158,138)=--accent。ダーク時代の「0=黒で消える」を明色地用に反転。
+function heat(a){ const t=Math.pow(Math.max(0,Math.min(1,a)),0.7);
+  return `rgb(${Math.round(255-t*224)},${Math.round(253-t*95)},${Math.round(246-t*108)})`; }
+const MASK='#f4f1e8'; // 因果マスク（未来位置）＝ごく淡いクリーム
+
 function drawAttention(){
   if(!lastForward||!lastForward.attn) return;
   const L=+$('attnLayer').value|0, Hh=+$('attnHead').value|0, T=lastForward.T;
@@ -373,9 +389,7 @@ function drawAttention(){
   const cv=$('attnCanvas'), ctx=cv.getContext('2d'); const W=cv.width, Hpx=cv.height;
   ctx.clearRect(0,0,W,Hpx); const cell=Math.floor(Math.min(W,Hpx)/Math.max(T,1));
   for(let i=0;i<T;i++) for(let j=0;j<T;j++){
-    const a = j<=i ? mat[Hh*T*T + i*T + j] : 0;
-    const c = Math.round(255*Math.pow(a,0.7));
-    ctx.fillStyle = j<=i ? `rgb(${Math.round(c*0.22)},${Math.round(c*0.88)},${Math.round(c*0.78)})` : '#0e131b';
+    ctx.fillStyle = j<=i ? heat(mat[Hh*T*T + i*T + j]) : MASK;
     ctx.fillRect(j*cell, i*cell, cell-0.5, cell-0.5);
   }
 }
@@ -385,10 +399,10 @@ function drawResid(norms){
   if(!norms) return;
   const cv=$('residCanvas'), ctx=cv.getContext('2d'); const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
   const n=norms.length, pad=28; const max=Math.max(...norms), min=Math.min(...norms);
-  ctx.strokeStyle='#39e0c4'; ctx.lineWidth=2; ctx.beginPath();
+  ctx.strokeStyle='#1f9e8a'; ctx.lineWidth=2; ctx.beginPath();
   norms.forEach((v,i)=>{ const x=pad+(W-2*pad)*i/(n-1); const y=H-20-(H-40)*(v-min)/(max-min+1e-9); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
   ctx.stroke();
-  ctx.fillStyle='#8595a8'; ctx.font='10px monospace';
+  ctx.fillStyle='#6e6a60'; ctx.font='10px monospace';
   ctx.fillText('‖h‖ '+min.toFixed(1)+'→'+max.toFixed(1), 4, 12);
   ctx.fillText('embed', pad-10, H-6); ctx.fillText('層'+(n-1), W-pad-10, H-6);
 }
@@ -400,22 +414,22 @@ function drawHeads(){
   const cols=6, rows=Math.ceil(H/cols), cellW=W/cols, cellH=Hpx/rows, sz=Math.min(cellW,cellH)-20;
   for(let head=0;head<H;head++){
     const r=Math.floor(head/cols), c=head%cols, ox=c*cellW+(cellW-sz)/2, oy=r*cellH+14, cs=sz/Math.max(T,1);
-    for(let i=0;i<T;i++)for(let j=0;j<T;j++){ const a=j<=i?mat[head*T*T+i*T+j]:0; const cc=Math.round(255*Math.pow(a,0.7));
-      ctx.fillStyle=j<=i?`rgb(${Math.round(cc*0.22)},${Math.round(cc*0.88)},${Math.round(cc*0.78)})`:'#0e131b';
+    for(let i=0;i<T;i++)for(let j=0;j<T;j++){
+      ctx.fillStyle=j<=i?heat(mat[head*T*T+i*T+j]):MASK;
       ctx.fillRect(ox+j*cs, oy+i*cs, Math.max(1,cs-0.3), Math.max(1,cs-0.3)); }
-    ctx.fillStyle='#8595a8'; ctx.font='9px monospace'; ctx.textAlign='center'; ctx.fillText('層'+L+' H'+head, ox+sz/2, oy-3);
+    ctx.fillStyle='#6e6a60'; ctx.font='9px monospace'; ctx.textAlign='center'; ctx.fillText('層'+L+' H'+head, ox+sz/2, oy-3);
   }
 }
 function drawContrib(){
   const a=lastForward&&lastForward.attnContrib, m=lastForward&&lastForward.mlpContrib; if(!a||!m) return;
   const cv=$('contribCanvas'), ctx=cv.getContext('2d'), W=cv.width, H=cv.height; ctx.clearRect(0,0,W,H);
   const n=a.length, pad=24, mx=Math.max(...a,...m,1e-6), bw=(W-2*pad)/n;
-  ctx.fillStyle='rgba(57,224,196,0.9)'; ctx.font='10px monospace'; ctx.textAlign='left'; ctx.fillText('■ 注意',pad,12);
-  ctx.fillStyle='rgba(212,163,106,0.95)'; ctx.fillText('■ MLP',pad+50,12);
+  ctx.fillStyle='rgba(31,158,138,0.95)'; ctx.font='10px monospace'; ctx.textAlign='left'; ctx.fillText('■ 注意',pad,12);
+  ctx.fillStyle='rgba(179,129,47,0.98)'; ctx.fillText('■ MLP',pad+50,12);
   for(let i=0;i<n;i++){ const x=pad+i*bw, ha=(H-2*pad)*a[i]/mx, hm=(H-2*pad)*m[i]/mx;
-    ctx.fillStyle='rgba(57,224,196,0.8)'; ctx.fillRect(x+bw*0.12,H-pad-ha,bw*0.34,ha);
-    ctx.fillStyle='rgba(212,163,106,0.85)'; ctx.fillRect(x+bw*0.52,H-pad-hm,bw*0.34,hm); }
-  ctx.fillStyle='#8595a8'; ctx.font='9px monospace'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(31,158,138,0.85)'; ctx.fillRect(x+bw*0.12,H-pad-ha,bw*0.34,ha);
+    ctx.fillStyle='rgba(179,129,47,0.9)'; ctx.fillRect(x+bw*0.52,H-pad-hm,bw*0.34,hm); }
+  ctx.fillStyle='#6e6a60'; ctx.font='9px monospace'; ctx.textAlign='center';
   for(let i=0;i<n;i++) ctx.fillText(i, pad+i*bw+bw/2, H-pad+11);
   ctx.textAlign='left'; ctx.fillText('層 →', 2, H-pad+11);
 }
@@ -425,7 +439,7 @@ function drawMlp(){
   const cv=$('mlpCanvas'), ctx=cv.getContext('2d'), W=cv.width, H=cv.height; ctx.clearRect(0,0,W,H);
   const cols=64, rows=Math.ceil(a.length/cols), cw=W/cols, ch=H/rows; let mx=1e-6; for(const v of a) mx=Math.max(mx,Math.abs(v));
   for(let k=0;k<a.length;k++){ const r=Math.floor(k/cols),c=k%cols,t=Math.max(-1,Math.min(1,a[k]/mx));
-    ctx.fillStyle=t>=0?`rgba(57,224,196,${0.06+0.94*t})`:`rgba(240,111,126,${0.06+0.94*(-t)})`;
+    ctx.fillStyle=t>=0?`rgba(31,158,138,${0.06+0.94*t})`:`rgba(207,79,95,${0.06+0.94*(-t)})`;
     ctx.fillRect(c*cw,r*ch,cw+0.5,ch+0.5); }
 }
 function clearCanvas(id){ const cv=$(id); cv.getContext('2d').clearRect(0,0,cv.width,cv.height); }
