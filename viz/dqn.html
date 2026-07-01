@@ -77,6 +77,8 @@
       <button id="autoBtn">⏵ 学習</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
+      <select id="envSel" title="迷路の種類"><option value="回廊">迷路: 回廊</option><option value="オープン">迷路: オープン</option><option value="2部屋">迷路: 2部屋</option></select>
+      <select id="stabSel" title="安定化技（外すと不安定になる対比）"><option value="both">安定化: 両方 on</option><option value="noreplay">経験再生 なし</option><option value="notarget">ターゲット網 なし</option><option value="none">両方 なし(素朴)</option></select>
     </div>
   </div>
 
@@ -91,7 +93,11 @@
 let seed=7;function mul(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
 function randn(){let u=0,v=0;while(u===0)u=mul();while(v===0)v=mul();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-const N=7, GOAL=[6,6], WALL=new Set(['3,1','3,2','3,3','3,4']);
+const N=7;
+// 迷路パレット（例題）と安定化技のトグル（種類）。
+const MAZES={'回廊':{walls:['3,1','3,2','3,3','3,4'],goal:[6,6]},'オープン':{walls:[],goal:[6,6]},'2部屋':{walls:['3,0','3,1','3,2','3,4','3,5','3,6'],goal:[6,6]}};
+let envKind='回廊',WALL=new Set(MAZES['回廊'].walls),GOAL=MAZES['回廊'].goal.slice();
+let useReplay=true,useTarget=true;   // 経験再生 / ターゲット網（外すと不安定になる対比）
 const A=[[0,1],[0,-1],[1,0],[-1,0]], AR=['↑','↓','→','←']; // y+ is up in grid coords
 const feat=(x,y)=>[x/(N-1),y/(N-1)];
 function step(x,y,a){let nx=x+A[a][0],ny=y+A[a][1];if(nx<0||nx>=N||ny<0||ny>=N||WALL.has(nx+','+ny)){nx=x;ny=y;}const done=(nx===GOAL[0]&&ny===GOAL[1]);return{nx,ny,r:done?1:-0.02,done};}
@@ -116,8 +122,11 @@ function trainBatch(batch,lr,gamma){const L=sizes.length-1;const dW=[null],dB=[n
 let epStep=0;
 function envTick(){let[x,y]=agent;const f=feat(x,y);let a;if(mul()<eps)a=Math.floor(mul()*4);else a=greedy(Q,x,y);
   const{nx,ny,r,done}=step(x,y,a);buf.push({s:f,a,r,ns:feat(nx,ny),done});if(buf.length>4000)buf.shift();agent=[nx,ny];steps++;epStep++;
-  if(buf.length>=64){const b=[];for(let i=0;i<32;i++)b.push(buf[Math.floor(mul()*buf.length)]);trainBatch(b,0.005,0.95);}
-  if(steps%200===0)Tnet=copyNet(Q);
+  if(buf.length>=64){const b=[];
+    if(useReplay){for(let i=0;i<32;i++)b.push(buf[Math.floor(mul()*buf.length)]);}        // ランダム抽出＝相関を崩す
+    else{for(let i=Math.max(0,buf.length-32);i<buf.length;i++)b.push(buf[i]);}              // 直近の連続遷移＝強い相関で不安定
+    trainBatch(b,0.005,0.95);}
+  if(!useTarget||steps%200===0)Tnet=copyNet(Q);   // ターゲット網なし＝毎回コピー＝教師が動いて不安定
   if(done||epStep>=80){agent=[0,0];epStep=0;episodes++;eps=Math.max(0.08,eps*0.985);}}
 function evalReach(){let s=0,t=0;for(let sx=0;sx<N;sx++)for(let sy=0;sy<N;sy++){if((sx===GOAL[0]&&sy===GOAL[1])||WALL.has(sx+','+sy))continue;t++;let x=sx,y=sy;for(let k=0;k<60;k++){const a=greedy(Q,x,y);const r=step(x,y,a);x=r.nx;y=r.ny;if(r.done){s++;break;}}}return s/t;}
 
@@ -140,14 +149,14 @@ const STEPS=[{key:'prob',t:'問題'},{key:'qnet',t:'ニューラルQ'},{key:'rep
 let stepIdx=0,auto=false;
 function drawStep(){const k=STEPS[stepIdx].key;draw(k!=='prob', k==='replay'||k==='train');}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{goStep(+d.dataset.i);});}
-function renderMini(){const m=document.getElementById('mini');m.innerHTML='<div>状態 <b>'+(N*N)+'</b></div><div>episode <b>'+episodes+'</b></div><div>ε <b>'+eps.toFixed(2)+'</b></div>'+(episodes>2?'<div class="ok">到達率 <b>'+Math.round(reach*100)+'%</b></div>':'');}
+function renderMini(){const m=document.getElementById('mini');const stab=(useReplay&&useTarget)?'両方':(!useReplay&&!useTarget?'なし':(useReplay?'再生のみ':'標的のみ'));m.innerHTML='<div>迷路 <b>'+envKind+'</b></div><div>安定化 <b>'+stab+'</b></div><div>episode <b>'+episodes+'</b></div>'+(episodes>2?'<div class="'+(reach>0.7?'ok':'')+'">到達率 <b>'+Math.round(reach*100)+'%</b></div>':'');}
 function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='prob')?'灰=壁, ★=ゴール':'色=各マスの価値 maxQ(濃い=高), 矢印=方策, 紫●=エージェント';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：表（Qテーブル）が爆発する</h3><div class="desc"><a href="qlearning.html">Q学習</a>は「状態×行動」ごとに価値を<b>表で記憶</b>します。でも状態が多い・連続だと表が巨大になり持てません（画面なら何百万通り）。そこで価値を<b>関数で近似</b>します。グリッドの灰は壁、★はゴール。左下から★まで最短で行く方策を学びたい。</div>';}
   else if(k==='qnet'){h+='<h3>② 価値をニューラルネットで近似</h3><div class="eq">状態 (x,y) → NN → [Q↑, Q↓, Q→, Q←]</div><div class="desc">マスの<b>座標 (x,y) を入力</b>に、ニューラルネット（2→24→24→4）が<b>各行動の価値 Q</b> を出力します。表のように 1 マスずつ覚えるのでなく、<b>近い状態は近い価値</b>と汎化できるのが利点。各マスの色は今の maxQ（学習前はほぼ均一）。</div>';}
   else if(k==='replay'){h+='<h3>③ 経験再生 ＋ ε-貪欲</h3><div class="eq">遷移 (s,a,r,s′) をバッファに貯め → ランダムに取り出して学習</div><div class="desc"><b>ε-貪欲</b>：確率 ε で<b>ランダムに探索</b>、それ以外は今の最善手（探索と活用の両立）。集めた遷移を<b>経験バッファ</b>に貯め、<b>ランダムサンプル</b>して学習＝直近経験の<b>時間的相関を崩し</b>て安定化。紫●が動いて経験を集めます。</div>';}
-  else if(k==='train'){h+='<h3>④ 学習：価値地形と方策が定まる</h3><div class="eq">損失 = (Q(s,a) − [r + γ·maxₐ′Q(s′,a′)])²</div><div class="desc">「⏵ 学習」で訓練が走ります。TD 誤差で Q を更新すると、<b>ゴールに近いほど価値が高い</b>地形（色）ができ、各マスの<b>方策矢印</b>がゴールへ向きます。episode '+episodes+'・到達率 約 '+Math.round(reach*100)+'%。ターゲット網で教師を安定化（折りたたみ参照）。</div>';}
-  else{h+='<h3>⑤ 結果：表形式Q学習の深層版</h3><div class="desc">ニューラルQが価値を<b>関数で近似</b>するので、状態が大きくても（連続でも）方策を学べます（DQN は Atari をピクセルから学習しました）。<b>経験再生</b>と<b>ターゲット網</b>が安定学習の鍵。到達率 約 '+Math.round(reach*100)+'%。</div><div class="eq"><b>要点</b><br>・Qを表でなくNNで近似→大きな状態でも<br>・経験再生で相関を崩す/ε貪欲で探索<br>・ターゲット網でTD学習を安定化</div>';}
+  else if(k==='train'){const stabOn=useReplay&&useTarget;h+='<h3>④ 学習：'+(stabOn?'価値地形と方策が定まる':'安定化を外すと暴れる')+'</h3><div class="eq">損失 = (Q(s,a) − [r + γ·maxₐ′Q(s′,a′)])²</div><div class="desc">「⏵ 学習」で訓練が走ります。TD 誤差で Q を更新すると、<b>ゴールに近いほど価値が高い</b>地形（色）と<b>方策矢印</b>ができます。episode '+episodes+'・到達率 約 <b>'+Math.round(reach*100)+'%</b>。'+(stabOn?'いまは<b>経験再生＋ターゲット網</b>の両方 on で安定。右下で外すと学習が乱れます。':'いまは<b>'+(!useReplay&&!useTarget?'両方オフ（素朴）':(!useReplay?'経験再生オフ':'ターゲット網オフ'))+'</b>。'+(!useReplay?'直近の相関した経験で更新し':'教師が毎回動き')+'、到達率が伸び悩む/振動しがち。<b>両方 on に戻す</b>と安定します。')+'</div>';}
+  else{const stabOn=useReplay&&useTarget;h+='<h3>⑤ 結果：表形式Q学習の深層版</h3><div class="desc">ニューラルQが価値を<b>関数で近似</b>するので、状態が大きくても（連続でも）方策を学べます（DQN は Atari をピクセルから学習）。到達率 約 <b>'+Math.round(reach*100)+'%</b>。'+(stabOn?'<b>経験再生</b>と<b>ターゲット網</b>が安定学習の鍵——右下で片方でも外すと到達率が落ちるのを確かめられます。':'いまは安定化技を外した状態。到達率が下がる/振動するのが分かります。<b>両方 on</b> と比べてみて。')+'</div><div class="eq"><b>要点</b><br>・Qを表でなくNNで近似→大きな状態でも<br>・経験再生で相関を崩す/ε貪欲で探索<br>・ターゲット網でTD学習を安定化</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 学習';}
@@ -159,6 +168,8 @@ document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(STEPS[stepIdx].key!=='train')goStep(3);else startAuto();}};
 document.getElementById('resetBtn').onclick=()=>{stopAuto();reset();goStep(0);};
+document.getElementById('envSel').onchange=e=>{envKind=e.target.value;WALL=new Set(MAZES[envKind].walls);GOAL=MAZES[envKind].goal.slice();stopAuto();reset();goStep(3);};
+document.getElementById('stabSel').onchange=e=>{const v=e.target.value;useReplay=(v!=='noreplay'&&v!=='none');useTarget=(v!=='notarget'&&v!=='none');stopAuto();reset();goStep(3);};   // 切替で学習ステップへ→即対比
 renderAll();drawStep();
 </script>
 <script src="nav.js"></script>
