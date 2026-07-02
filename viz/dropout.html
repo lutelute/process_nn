@@ -205,8 +205,8 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
     +'<div class="quiz"><b>予想してみて：</b> 落とさず学習すると、訓練精度とテスト精度はどうなる？'
     +'<div class="opt"><button onclick="reveal(0)">両方とも高い</button><button onclick="reveal(1)">訓練だけ高い</button><button onclick="reveal(2)">両方とも低い</button></div>'
     +'<div id="ans" style="margin-top:8px;"></div></div>';}
-  else if(k==='drop'){h+='<h3>② ランダムに落とす</h3><div class="eq curr">各ステップ、隠れ素子を確率 p で 0 にする</div><div class="desc">学習の<b>毎ステップ</b>、隠れニューロンを<b>ランダムに p='+(pdrop*100)+'% 無効化</b>（灰・赤枠）。毎回ネットの形が変わります。残った素子は <b>1/(1−p) 倍</b>にスケール（逆ドロップアウト＝合計の大きさを保つ）。今 '+(demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0)+' 素子が稼働中。</div>';}
-  else if(k==='why'){h+='<h3>③ なぜ効くのか：共適応の抑制</h3><div class="desc">素子 A が「<b>隣の B が必ず火を吹く</b>」前提でサボると、B が落ちた瞬間に A も無力に。だから各素子は<b>「相棒任せ」をやめ、単独でも役立つ特徴</b>を学びます（＝共適応の抑制）。</div>'
+  else if(k==='drop'){h+='<h3>② ランダムに休ませる</h3><div class="eq curr">各ステップ、隠れ素子を確率 p で 0 にする</div><div class="desc">学習の<b>毎ステップ</b>、隠れニューロンを<b>ランダムに p='+(pdrop*100)+'% 休ませます</b>（灰・赤枠）——<b>毎回メンバーの違うチームで練習する</b>ようなもの。残った素子の出力は <b>1/(1−p) 倍</b>に増幅します（休んだ分、残りが声を張って合計の大きさを保つ）。今 '+(demoMask[1]?demoMask[1].filter(v=>v).length+demoMask[2].filter(v=>v).length:0)+' 素子が稼働中。</div>';}
+  else if(k==='why'){h+='<h3>③ なぜ効くのか：エース頼みの禁止</h3><div class="desc">メンバー固定のチームでは、素子 A は「<b>エース B が必ず決めてくれる</b>」前提でサボれます。ところが<b>B が休む日がある</b>と、A も自力で動くしかない。毎回ランダムに休ませることで、全素子が<b>「相棒任せ」をやめ、単独でも役立つ特徴</b>を学びます（＝共適応の抑制）。</div>'
     +'<div class="eq curr">毎回違うサブネット → 重み共有で全部を同時に鍛える</div>'
     +'<div class="desc">下の 3 つは同じネットの別サンプル。実際は <b>2^(隠れ素子数) 通り</b>に近いサブネットを訓練し、推論ではそれらを<b>平均</b>したように振る舞う＝<b>巨大なアンサンブル</b>。これが強い正則化の正体です。</div>';}
   else if(k==='learn'){h+='<h3>④ 学習：過学習ギャップに注目</h3><div class="eq curr">ドロップアウトつきで学習 → 訓練とテストの差を見る</div><div class="desc">落とす率 '+(pdrop*100)+'% で学習中。<b>訓練</b>と<b>テスト</b>の差＝<b>過学習ギャップ</b>に注目。p=0 なら訓練がほぼ満点でもテストは伸びず差が開く。p>0 だと訓練は少し下がっても<b>テストが食らいつく</b>。epoch '+epoch+'・訓練 '+(acc(trX,trY)*100).toFixed(0)+'%・テスト '+(acc(teX,teY)*100).toFixed(0)+'%。</div>';}

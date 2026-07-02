@@ -247,19 +247,19 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
   else if(k==='loss'){h+='<h3>② 損失：どれだけ外れたか</h3>'
     +'<div class="eq curr">L = ½(ŷ − y)² = ½('+f2(c.out)+' − '+f2(c.y)+')² = <span class="res">'+c.loss.toFixed(3)+'</span></div>'
     +'<div class="eq">出力の誤差 δ<sub>out</sub> = ŷ − y = <span class="num">'+f2(c.dOut)+'</span></div>'
-    +'<div class="desc">予測 ŷ と正解 y のズレを二乗で測ったのが損失 <b>L</b>。この δ<sub>out</sub> が逆伝播の<b>出発点</b>になります。</div>';}
+    +'<div class="desc">予測 ŷ と正解 y のズレを二乗で測ったのが損失 <b>L</b>。δ<sub>out</sub> の符号と大きさは<b>「どちらへ・どれだけ外したか」</b>——'+(c.dOut>0?'正＝予測が大きすぎた':'負＝予測が小さすぎた')+'。この 1 個の数字を出発点に、<b>誰のせいで外れたのか</b>を各重みへ遡って配っていきます。</div>';}
   else if(k==='bwd'){let rows='';for(let j=0;j<H;j++)rows+='<tr><td>h'+(j+1)+'</td><td>'+f2(W[2][0][j])+'</td><td>'+f2(1-c.a1[j]*c.a1[j])+'</td><td>'+f2(c.d1[j])+'</td></tr>';
-    h+='<h3>③ 逆伝播：δ を左へ配る</h3>'
+    h+='<h3>③ 逆伝播：誤りの「責任」を左へ配る</h3>'
     +'<div class="eq curr">δ<sub>j</sub> = δ<sub>out</sub> · w′<sub>j</sub> · (1 − a<sub>j</sub>²)　（連鎖律）</div>'
     +'<table><tr><th>隠れ</th><th>w′</th><th>1−a²</th><th>δ<sub>j</sub></th></tr>'+rows+'</table>'
-    +'<div class="desc">出力の誤差 δ<sub>out</sub>='+f2(c.dOut)+' に「次の重み」と「活性化の傾き 1−a²」を掛けて各ノードへ配分。各重みの勾配は <b>∂L/∂w = δ × 入力</b> で出ます。<br><span style="color:var(--faint)">↓ 下の「もっと詳しく」で連鎖律を分解。</span></div>';}
+    +'<div class="desc">δ は各ニューロンの<b>「誤りへの責任の大きさ」</b>。出力の誤差 δ<sub>out</sub>='+f2(c.dOut)+' に「出力への影響力（次の重み w′）」と「通りやすさ（活性化の傾き 1−a²）」を掛けて配分します——<b>影響力が大きく・よく通したニューロンほど責任が重い</b>。各重みの直し量は <b>∂L/∂w = δ × 入力</b> で出ます。<br><span style="color:var(--faint)">↓ 下の「もっと詳しく」で連鎖律を分解。</span></div>';}
   else if(k==='upd'){let ex='';for(let j=0;j<2;j++)ex+='w<sub>'+(j+1)+'</sub>: '+f2(W[1][j][0])+' − η·('+f2(c.dW1[j])+')<br>';
     h+='<h3>④ 更新：勾配の逆向きに直す</h3>'
     +'<div class="eq curr">w ← w − η · <span class="frac"><span>∂L</span><span>∂w</span></span><br>'+ex+'</div>'
     +'<div class="desc">各重みを勾配の<b>逆向き</b>に学習率 η だけ動かす。勾配が大きい結線ほど大きく動きます（<span style="color:var(--upd)">紫の光</span>）。これで 1 サイクル完了。次は損失が少し下がります。</div>';}
   else{h+='<h3>⑤ 繰り返す ＝ 学習</h3>'
-    +'<div class="desc">①〜④の 1 サイクルでは重みがほんの少し動くだけ。全サンプルに対して<b>何百回</b>繰り返すと、予測（teal）が目標に重なり、損失が下がります。左でリアルタイムに進行中。</div>'
-    +'<div class="eq" style="margin-top:12px;"><b>要点</b><br>・勾配 ∂L/∂w ＝ その重みの「誤差への責任」<br>・δ を使い回すから 1 回の逆流で全勾配が出る<br>・順伝播→損失→逆伝播→更新 の繰り返しで学習</div>';}
+    +'<div class="desc">①〜④の 1 サイクルでは重みがほんの少し動くだけ。全サンプルに対して<b>何百回</b>繰り返すと、予測（teal）が目標に重なり、損失が下がります。左でリアルタイムに進行中。　そして<b>この同じ 4 拍子（順伝播→損失→逆伝播→更新）を、GPT の訓練も回しています</b>——規模が 1 億倍でも、拍子は変わりません。</div>'
+    +'<div class="eq" style="margin-top:12px;"><b>要点</b><br>・勾配 ∂L/∂w ＝ その重みの「誤差への責任」<br>・δ を使い回すから 1 回の逆流で全勾配が出る<br>・順伝播→損失→逆伝播→更新 の繰り返しで学習<br>・<b>PyTorch の loss.backward() の中身がこれ</b></div>';}
   el.innerHTML=h;
 }
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
