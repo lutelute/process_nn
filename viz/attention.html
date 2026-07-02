@@ -94,6 +94,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>「どこに注目するか」は設計者が決めたルール</div>
+    <div class="row"><span class="o">✓</span>注目のしかたを決める Wq・Wk・Wv は<b>学習で獲得</b>される。何を見るべきかはルールでなく<b>データから自分で学ぶ</b>——これが目的別の注意が育つ理由。</div>
+    <div class="row"><span class="x">✗</span>各トークンは最も関連する 1 語だけを見る</div>
+    <div class="row"><span class="o">✓</span>softmax の<b>重み付き平均</b>で全トークンから少しずつ情報を集める。「1 個を選ぶ」ではなく<b>「配合を決める」</b>——だから微分でき、学習できる。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：なぜ √d で割る？ マルチヘッドとは？</summary>
     <div class="det">スコア Q·K は次元 d が大きいほど値が大きくなり、softmax が極端になりがち。<b>√d で割る</b>と分布が安定します。また実際は Q/K/V を複数組に分けて並列に注意を計算し（<b>マルチヘッド</b>）、別々の関係（語順・係り受け・共参照など）を同時に捉えます。さらに Wq・Wk・Wv は<b>学習</b>で獲得され、意味のある注目に育ちます（本物は「Transformer 学習」「Attention(3D)」「GPT-2」ページで）。</div>

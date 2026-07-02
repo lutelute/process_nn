@@ -83,6 +83,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>LSTM は RNN とは別系統の仕組み</div>
+    <div class="row"><span class="o">✓</span>LSTM は <b>RNN の一種</b>。「前の状態を次へ回す」骨格は同じで、<b>セル状態＋ゲートという記憶の配管</b>を足した改良版が LSTM。</div>
+    <div class="row"><span class="x">✗</span>ゲートは開くか閉じるかの 2 値スイッチ</div>
+    <div class="row"><span class="o">✓</span>σ の出力は <b>0〜1 の連続値の蛇口</b>で「どれだけ通すか」を調整する。連続だから勾配が流れ、<b>開き具合そのものを学習できる</b>。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：式・なぜ長期記憶できるか・GRU/Transformer</summary>
     <div class="det">各時刻、入力 x<sub>t</sub> と前の隠れ状態 h<sub>t−1</sub> から 3 つの<b>ゲート</b>（0〜1）と候補 g を作ります：<b>i</b>=σ(…)（入力＝どれだけ書くか）、<b>f</b>=σ(…)（忘却＝どれだけ残すか）、<b>o</b>=σ(…)（出力＝どれだけ読むか）、<b>g</b>=tanh(…)（書き込む内容）。<b>セル状態</b>は <b>c<sub>t</sub> = f⊙c<sub>t−1</sub> + i⊙g</b>、出力は <b>h<sub>t</sub> = o⊙tanh(c<sub>t</sub>)</b>。なぜ長期記憶できるか：忘却ゲート f≈1 のとき c はほぼ<b>そのまま素通り</b>（＋で更新）するので、勾配が掛け算で消えにくく、<b>遠い過去の情報が保たれる</b>（「定数誤差カルーセル」）。素朴な RNN は毎回行列を掛け tanh で潰すので勾配が消えやすい（<a href="vanishing.html">勾配消失</a>）。<b>GRU</b> はゲートを 2 つに簡略化した親戚。並列計算と超長距離の依存に強い <a href="transformer.html">Transformer</a>／<a href="attention.html">自己注意</a> が後継として主流になりました。学習は時間方向の逆伝播（BPTT）です。</div>

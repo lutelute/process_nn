@@ -75,10 +75,19 @@
     <div class="bar">
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
       <select id="posSel"></select>
     </div>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>Transformer は文を頭から順に読んでいる</div>
+    <div class="row"><span class="o">✓</span><a href="attention.html">自己注意</a>は全トークンを<b>同時に・対等に</b>見る。「順序」の情報は位置エンコーディングを<b>足して初めて</b>生まれる——無ければ語順シャッフルと区別できない。</div>
+    <div class="row"><span class="x">✗</span>位置なら 1, 2, 3… と番号をそのまま与えればいい</div>
+    <div class="row"><span class="o">✓</span>素の番号は長い文で値が<b>どこまでも大きくなり</b>学習が不安定。波長違いの sin/cos の組なら<b>値は常に ±1 に収まり</b>、各位置は一意で、相対位置も扱いやすい。</div>
   </div>
 
   <details>
@@ -131,10 +140,21 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll();draw();}
 function fillPos(){const sel=document.getElementById('posSel');sel.innerHTML='';for(let p=2;p<P-2;p+=2)sel.innerHTML+='<option value="'+p+'"'+(p===selPos?' selected':'')+'>位置 '+p+' を選択</option>';}
-document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
-document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
-document.getElementById('resetBtn').onclick=()=>goStep(0);
-document.getElementById('posSel').onchange=e=>{selPos=+e.target.value;renderAll();draw();};
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();goStep(0);};
+document.getElementById('posSel').onchange=e=>{stopAuto();selPos=+e.target.value;renderAll();draw();};
+
+// ⏵ 自動 — 選択位置を 0→P−1→0 と往復スイープし、内積の山（相対位置）が選択位置と一緒に動くのを流し見できる
+let auto=false,autoP=0,autoDir=1,autoAcc=0;
+function stopAuto(){if(!auto)return;auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function autoTick(){if(!auto)return;autoAcc+=0.06;
+  if(autoAcc>=1){autoAcc=0;autoP+=autoDir;if(autoP>=P-1){autoP=P-1;autoDir=-1;}else if(autoP<=0){autoP=0;autoDir=1;}
+    selPos=autoP;renderMini();renderExplain();draw();}
+  requestAnimationFrame(autoTick);}
+function startAuto(){if(auto)return;auto=true;autoP=selPos;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(autoTick);}
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(stepIdx<3)goStep(4);startAuto();}};
+
 fillPos();renderAll();draw();
 </script>
 <script src="nav.js"></script>

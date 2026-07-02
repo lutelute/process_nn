@@ -83,6 +83,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>単語の「意味」を辞書のように定義して教えている</div>
+    <div class="row"><span class="o">✓</span>教えるのは<b>周辺語の予測だけ</b>。意味は誰も教えていないのに、同じ文脈で使われる語が勝手に近づく——<b>意味が座標として浮かび上がる</b>のがこの手法の驚き。</div>
+    <div class="row"><span class="x">✗</span>king − man + woman ≈ queen は組み込まれた機能</div>
+    <div class="row"><span class="o">✓</span>学習の<b>副産物</b>。「性別」「王族らしさ」のような意味の軸が空間の方向として揃ったときに起きる現象で、<b>いつでも成立するわけではない</b>。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：skip-gram と CBOW・次元・GPT との関係</summary>
     <div class="det"><b>skip-gram</b>：中心語から周辺語を予測（ここで使用）。<b>CBOW</b>：周辺語から中心語を予測。どちらも「分布仮説（語の意味は周りの語で決まる）」に基づきます。実際の word2vec は埋め込み次元が 50〜300 で、ここでは<b>見やすさのため 2 次元</b>に学習（普通は高次元を t-SNE 等で 2D に落として可視化）。学習後はベクトルの<b>足し算で類推</b>ができることがあり（king − man + woman ≈ queen）、意味が幾何に宿ります。<b>GPT / Transformer</b> もまず各トークンを埋め込みベクトルにしてから注意・MLP で処理します（<a href="../gpt2/">GPT-2</a>・<a href="attention.html">自己注意</a>）。文脈で変化する「文脈埋め込み」はその発展形。</div>

@@ -92,6 +92,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>文法や言葉のルールを教わって文を作っている</div>
+    <div class="row"><span class="o">✓</span>訓練の指示は<b>「次の文字を当てよ」だけ</b>。文法らしさ・言葉らしさは、loss を下げる過程で<b>勝手に染み込む</b>——ここで実際に目撃できる。</div>
+    <div class="row"><span class="x">✗</span>生成では文全体をあらかじめ計画している</div>
+    <div class="row"><span class="o">✓</span><b>1 トークン予測して足す</b>の繰り返しだけ。それでも破綻しにくいのは、毎回<b>自己注意が文脈全体を見直している</b>から。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：自己注意の式・残差ストリーム・logit lens・本物のGPT</summary>
     <div class="det">各位置のトークンは <b>Q（問い）K（鍵）V（値）</b> に変換され、<b>注目度 = softmax(QKᵀ/√d)</b> を下三角（因果マスク＝未来は見ない）で計算し、V を重み付き平均します。これを <b>残差ストリーム</b>に足し込み、さらに MLP を足して次の層へ。層を重ねるほど情報が積み上がります（残差ノルムが増える）。<b>logit lens</b>＝各層の途中の残差をそのまま出力に通した「その層なりの次文字予測」で、深い層ほど確信が増すのが見えます。これは <a href="positional.html">位置エンコーディング</a>＋<a href="attention.html">自己注意</a>を積んだもので、規模を上げ実データで学習したのが <a href="../gpt2/">GPT-2</a>。立体構造は <a href="gpt3d.html">GPT(3D)</a> へ。</div>
