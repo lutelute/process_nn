@@ -86,6 +86,37 @@
     (document.head || document.documentElement).appendChild(s);
   })();
 
+  // ===== 図と言葉の同期（説明の語 ⇔ 図の部位）=====
+  // 説明文に <span class="ref" data-hl="key">語</span> と書くと、ホバー/タップで
+  // document に 'hl' イベント（detail = key / null）が飛ぶ。対応するページは
+  //   document.addEventListener('hl', e => { HL = e.detail; 再描画(); })
+  // で受けて、draw 内で該当部位を強調する（window.__hlKey にも同じ値が入る）。
+  // 対応していないページでは .ref は単なる強調表示として無害に振る舞う。
+  (function injectRefSync(){
+    if (document.getElementById('reffmt')) return;
+    const css =
+      '.ref{border-bottom:1.5px dashed var(--accent,#1f9e8a);cursor:help;color:var(--ink,#1a1a17);font-weight:600;}'
+      + '.ref:hover,.ref.on{background:rgba(31,158,138,0.16);border-bottom-style:solid;}';
+    const s = document.createElement('style');
+    s.id = 'reffmt'; s.textContent = css;
+    (document.head || document.documentElement).appendChild(s);
+    window.__hlKey = null;
+    let lockEl = null; // タップ（クリック）で固定した .ref
+    function fire(key){ window.__hlKey = key || null;
+      try { document.dispatchEvent(new CustomEvent('hl', { detail: window.__hlKey })); } catch(e){} }
+    document.addEventListener('mouseover', function(e){
+      const r = e.target && e.target.closest ? e.target.closest('.ref') : null;
+      if (r && !lockEl) fire(r.dataset.hl); });
+    document.addEventListener('mouseout', function(e){
+      const r = e.target && e.target.closest ? e.target.closest('.ref') : null;
+      if (r && !lockEl) fire(null); });
+    document.addEventListener('click', function(e){
+      const r = e.target && e.target.closest ? e.target.closest('.ref') : null;
+      if (!r) { if (lockEl) { lockEl.classList.remove('on'); lockEl = null; fire(null); } return; }
+      if (lockEl === r) { r.classList.remove('on'); lockEl = null; fire(null); }
+      else { if (lockEl) lockEl.classList.remove('on'); lockEl = r; r.classList.add('on'); fire(r.dataset.hl); } });
+  })();
+
   // カテゴリ定義。トップ index.html の STEP 分類（STEP1〜8＋3D 補足）に一致させている。
   // 各カテゴリ内は「前提 → 応用」の順。手法マップ(map.html)と地図(../)は常時表示のヘッダに置く。
   const cats = [

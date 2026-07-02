@@ -181,6 +181,9 @@ const STEPS=[
   {key:'learn',t:'学習',  c:'var(--accent)'},
 ];
 let si=0,cmp=null,stepIdx=0,prog=1,anim=false;
+// 説明の語 ⇔ 図の部位の同期（nav.js の .ref 機構から届く）
+let HL=null;
+document.addEventListener('hl',e=>{HL=e.detail;if(!anim)drawNet();});
 
 /* ===== ネット描画 ===== */
 const cv=document.getElementById('net'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
@@ -188,10 +191,14 @@ let POS=[];
 function layout(){POS=[];const padX=58,padY=30;for(let l=0;l<sizes.length;l++){const x=padX+(CW-2*padX)*l/(sizes.length-1);const cnt=sizes[l],col=[];for(let n=0;n<cnt;n++){const y=padY+(CH-2*padY)*(cnt===1?0.5:n/(cnt-1));col.push({x,y});}POS.push(col);}}
 function actColor(v,al){const t=Math.max(-1,Math.min(1,v/1.5));if(t>=0)return`rgba(31,158,138,${(0.2+0.8*t)*al})`;return`rgba(207,79,95,${(0.2+0.8*(-t))*al})`;}
 function drawNet(){const ph=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
+  // 説明の語をなぞると対応部位が光る（HL）: 非対象は薄く
+  const dim=key=>{ctx.globalAlpha=(HL&&HL!==key)?0.15:1;};
   for(let l=1;l<=L;l++){let mx=1e-9;for(const r of W[l])for(const v of r)mx=Math.max(mx,Math.abs(v));
+    dim(l===2?'wout':'__');
     for(let j=0;j<sizes[l];j++)for(let k=0;k<sizes[l-1];k++){const wv=W[l][j][k],m=Math.abs(wv)/mx;
-      ctx.strokeStyle=wv>=0?`rgba(31,158,138,${0.05+0.14*m})`:`rgba(207,79,95,${0.05+0.14*m})`;ctx.lineWidth=0.6+1.4*m;
+      ctx.strokeStyle=wv>=0?`rgba(31,158,138,${0.05+0.14*m+(HL==='wout'&&l===2?0.5:0)})`:`rgba(207,79,95,${0.05+0.14*m+(HL==='wout'&&l===2?0.5:0)})`;ctx.lineWidth=0.6+1.4*m+(HL==='wout'&&l===2?0.8:0);
       ctx.beginPath();ctx.moveTo(POS[l-1][k].x,POS[l-1][k].y);ctx.lineTo(POS[l][j].x,POS[l][j].y);ctx.stroke();}}
+  ctx.globalAlpha=1;
   if(cmp&&ph==='upd'){let mg=1e-9;for(let j=0;j<H;j++)mg=Math.max(mg,Math.abs(cmp.dW1[j]),Math.abs(cmp.dW2[j]));const puls=0.5+0.5*Math.sin(Date.now()/180);
     for(let j=0;j<H;j++){const m1=Math.abs(cmp.dW1[j])/mg,m2=Math.abs(cmp.dW2[j])/mg;
       ctx.strokeStyle=`rgba(111,84,196,${(0.25+0.65*m1)*puls})`;ctx.lineWidth=1+3*m1;ctx.beginPath();ctx.moveTo(POS[0][0].x,POS[0][0].y);ctx.lineTo(POS[1][j].x,POS[1][j].y);ctx.stroke();
@@ -203,11 +210,15 @@ function drawNet(){const ph=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
     for(let j=0;j<H;j++){const p1=POS[2][0],p0=POS[1][j];ctx.beginPath();ctx.arc(p1.x+(p0.x-p1.x)*e,p1.y+(p0.y-p1.y)*e,3.2,0,7);ctx.fillStyle=getCSS('--loss');ctx.shadowColor=getCSS('--loss');ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;}}
   const showAct=cmp&&(ph!=='fwd'||prog>0.4);
   for(let l=0;l<sizes.length;l++){const r=l===0||l===L?13:11;
-    for(let n=0;n<sizes[l];n++){const p=POS[l][n];ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
+    for(let n=0;n<sizes[l];n++){const p=POS[l][n];
+      dim(l===2?'dout':(l===1?'slope':'__'));
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);
       let v=l===0?(cmp?cmp.x:0):l===1?(cmp?cmp.a1[n]:0):(cmp?cmp.out:0);
-      if(showAct){ctx.fillStyle=actColor(v,1);ctx.shadowColor=actColor(v,.9);ctx.shadowBlur=10*Math.min(1,Math.abs(v));ctx.fill();ctx.shadowBlur=0;}else{ctx.fillStyle='#d8d3c7';ctx.fill();}
-      if(cmp&&(ph==='bwd'||ph==='upd')){let d=l===2?cmp.dOut:(l===1?cmp.d1[n]:0);if(l>0){const dm=Math.min(1,Math.abs(d)/(Math.max(Math.abs(cmp.dOut),0.01)*1.5));ctx.lineWidth=2.6;ctx.strokeStyle=`rgba(194,137,27,${0.25+0.7*dm})`;ctx.stroke();}}
+      if(HL==='slope'&&l===1){ctx.shadowColor=getCSS('--warm');ctx.shadowBlur=12;}
+      if(showAct){ctx.fillStyle=actColor(v,1);if(!(HL==='slope'&&l===1)){ctx.shadowColor=actColor(v,.9);ctx.shadowBlur=10*Math.min(1,Math.abs(v));}ctx.fill();ctx.shadowBlur=0;}else{ctx.fillStyle='#d8d3c7';ctx.fill();ctx.shadowBlur=0;}
+      if(cmp&&(ph==='bwd'||ph==='upd')){let d=l===2?cmp.dOut:(l===1?cmp.d1[n]:0);if(l>0){dim(l===2?'dout':'dj');const dm=Math.min(1,Math.abs(d)/(Math.max(Math.abs(cmp.dOut),0.01)*1.5));if(HL===(l===2?'dout':'dj')){ctx.shadowColor=getCSS('--loss');ctx.shadowBlur=13;}ctx.lineWidth=2.6+((HL==='dj'&&l===1)||(HL==='dout'&&l===2)?1:0);ctx.strokeStyle=`rgba(194,137,27,${0.25+0.7*dm})`;ctx.stroke();ctx.shadowBlur=0;dim(l===2?'dout':(l===1?'slope':'__'));}}
       ctx.lineWidth=1;ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.stroke();}}
+  ctx.globalAlpha=1;
   ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--mono');ctx.textAlign='center';
   ctx.fillText('入力 x',POS[0][0].x,CH-10);ctx.fillText('隠れ層 (tanh)',POS[1][2].x,CH-10);ctx.fillText('出力 ŷ',POS[2][0].x,CH-10);
   if(cmp){ctx.fillStyle=getCSS('--warm');ctx.textAlign='right';ctx.font='12px '+getCSS('--mono');ctx.fillText('x='+f2(cmp.x),POS[0][0].x-18,POS[0][0].y+4);
@@ -250,9 +261,9 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
     +'<div class="desc">予測 ŷ と正解 y のズレを二乗で測ったのが損失 <b>L</b>。δ<sub>out</sub> の符号と大きさは<b>「どちらへ・どれだけ外したか」</b>——'+(c.dOut>0?'正＝予測が大きすぎた':'負＝予測が小さすぎた')+'。この 1 個の数字を出発点に、<b>誰のせいで外れたのか</b>を各重みへ遡って配っていきます。</div>';}
   else if(k==='bwd'){let rows='';for(let j=0;j<H;j++)rows+='<tr><td>h'+(j+1)+'</td><td>'+f2(W[2][0][j])+'</td><td>'+f2(1-c.a1[j]*c.a1[j])+'</td><td>'+f2(c.d1[j])+'</td></tr>';
     h+='<h3>③ 逆伝播：誤りの「責任」を左へ配る</h3>'
-    +'<div class="eq curr">δ<sub>j</sub> = δ<sub>out</sub> · w′<sub>j</sub> · (1 − a<sub>j</sub>²)　（連鎖律）</div>'
+    +'<div class="eq curr"><span class="ref" data-hl="dj">δ<sub>j</sub></span> = <span class="ref" data-hl="dout">δ<sub>out</sub></span> · <span class="ref" data-hl="wout">w′<sub>j</sub></span> · <span class="ref" data-hl="slope">(1 − a<sub>j</sub>²)</span>　（連鎖律）</div>'
     +'<table><tr><th>隠れ</th><th>w′</th><th>1−a²</th><th>δ<sub>j</sub></th></tr>'+rows+'</table>'
-    +'<div class="desc">δ は各ニューロンの<b>「誤りへの責任の大きさ」</b>。出力の誤差 δ<sub>out</sub>='+f2(c.dOut)+' に「出力への影響力（次の重み w′）」と「通りやすさ（活性化の傾き 1−a²）」を掛けて配分します——<b>影響力が大きく・よく通したニューロンほど責任が重い</b>。各重みの直し量は <b>∂L/∂w = δ × 入力</b> で出ます。<br><span style="color:var(--faint)">↓ 下の「もっと詳しく」で連鎖律を分解。</span></div>';}
+    +'<div class="desc">δ は各ニューロンの<b>「誤りへの責任の大きさ」</b>。<span class="ref" data-hl="dout">出力の誤差 δ<sub>out</sub>='+f2(c.dOut)+'</span> に「<span class="ref" data-hl="wout">出力への影響力（次の重み w′）</span>」と「<span class="ref" data-hl="slope">通りやすさ（活性化の傾き 1−a²）</span>」を掛けて、<span class="ref" data-hl="dj">各ニューロンへ配分</span>します——<b>影響力が大きく・よく通したニューロンほど責任が重い</b>。各重みの直し量は <b>∂L/∂w = δ × 入力</b> で出ます。<br><span style="color:var(--faint)">式や説明の下線の語を<b>なぞる</b>と図の対応が光ります。↓ 連鎖律の分解は「もっと詳しく」。</span></div>';}
   else if(k==='upd'){let ex='';for(let j=0;j<2;j++)ex+='w<sub>'+(j+1)+'</sub>: '+f2(W[1][j][0])+' − η·('+f2(c.dW1[j])+')<br>';
     h+='<h3>④ 更新：勾配の逆向きに直す</h3>'
     +'<div class="eq curr">w ← w − η · <span class="frac"><span>∂L</span><span>∂w</span></span><br>'+ex+'</div>'

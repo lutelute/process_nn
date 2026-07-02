@@ -152,35 +152,44 @@ function chip(x,y,txt,col){ctx.font='bold 11px '+getCSS('--mono');const w=ctx.me
 function drawNeuron(stage){ctx.clearRect(0,0,CW,CH);
   const w=[W[1][0][0],W[1][0][1],W[1][0][2]],b=B[1][0];const prod=[w[0]*input[0],w[1]*input[1],w[2]*input[2]];const z=prod[0]+prod[1]+prod[2]+b;const a=actFn(actSel.value,z);
   const xin=66,xneu=246,yc=180,ys=[104,180,256];
+  // 説明の語をなぞると対応部位が光る: dim=非対象を薄く / glow=対象に光輪
+  const dim=key=>{ctx.globalAlpha=(HL&&HL!==key)?0.16:1;};
+  const glow=(key,col)=>{if(HL===key){ctx.shadowColor=col;ctx.shadowBlur=14;}};
+  const unglow=()=>{ctx.shadowBlur=0;};
   ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('1 個のニューロンの中身（ほかのニューロンも全部これの繰り返し）',CW/2,8);
-  for(let k=0;k<3;k++){const col=w[k]>=0?getCSS('--accent'):getCSS('--neg');ctx.strokeStyle=col;ctx.lineWidth=1.2+Math.min(4,Math.abs(w[k])*2.2);ctx.beginPath();ctx.moveTo(xin+22,ys[k]);ctx.lineTo(xneu-31,yc);ctx.stroke();}
+  dim('w');for(let k=0;k<3;k++){const col=w[k]>=0?getCSS('--accent'):getCSS('--neg');ctx.strokeStyle=col;ctx.lineWidth=1.2+Math.min(4,Math.abs(w[k])*2.2)+(HL==='w'?1.2:0);glow('w',col);ctx.beginPath();ctx.moveTo(xin+22,ys[k]);ctx.lineTo(xneu-31,yc);ctx.stroke();unglow();}
   for(let k=0;k<3;k++){const col=w[k]>=0?getCSS('--accent'):getCSS('--neg');const mx=xin+22+(xneu-31-xin-22)*0.52,my=ys[k]+(yc-ys[k])*0.52;chip(mx,my,'×'+w[k].toFixed(2),col);}
-  for(let k=0;k<3;k++){const v=input[k];ctx.beginPath();ctx.arc(xin,ys[k],21,0,7);ctx.fillStyle=actColor(v,1);ctx.fill();ctx.lineWidth=1.2;ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.stroke();ctx.fillStyle='#1a1a17';ctx.font='bold 12px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.toFixed(2),xin,ys[k]);ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.fillText('x'+(k+1),xin-32,ys[k]);}
+  dim('x');for(let k=0;k<3;k++){const v=input[k];glow('x',getCSS('--accent'));ctx.beginPath();ctx.arc(xin,ys[k],21,0,7);ctx.fillStyle=actColor(v,1);ctx.fill();unglow();ctx.lineWidth=1.2;ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.stroke();ctx.fillStyle='#1a1a17';ctx.font='bold 12px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.toFixed(2),xin,ys[k]);ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.fillText('x'+(k+1),xin-32,ys[k]);}
   // ニューロン本体
-  ctx.beginPath();ctx.arc(xneu,yc,33,0,7);ctx.fillStyle=(stage==='act')?actColor(a,1):'#fffdf6';ctx.fill();ctx.lineWidth=1.8;ctx.strokeStyle=getCSS('--text');ctx.stroke();
+  const zkey=(stage==='act')?'a':'z';
+  dim(zkey);glow(zkey,getCSS('--upd'));ctx.beginPath();ctx.arc(xneu,yc,33,0,7);ctx.fillStyle=(stage==='act')?actColor(a,1):'#fffdf6';ctx.fill();unglow();ctx.lineWidth=1.8;ctx.strokeStyle=getCSS('--text');ctx.stroke();
   ctx.fillStyle='#1a1a17';ctx.textAlign='center';ctx.textBaseline='middle';
   if(stage==='sum'){ctx.font='12px '+getCSS('--mono');ctx.fillText('z=',xneu,yc-9);ctx.font='bold 14px '+getCSS('--mono');ctx.fillStyle=getCSS('--upd');ctx.fillText(z.toFixed(2),xneu,yc+9);}
   else{ctx.font='12px '+getCSS('--mono');ctx.fillText('a=',xneu,yc-9);ctx.font='bold 14px '+getCSS('--mono');ctx.fillText(a.toFixed(2),xneu,yc+9);}
-  chip(xneu,yc+50,'バイアス b='+b.toFixed(2),getCSS('--muted'));
+  dim('b');glow('b',getCSS('--warm'));chip(xneu,yc+50,'バイアス b='+b.toFixed(2),getCSS('--muted'));unglow();
   if(stage==='sum'){
     const bx=338,by=104,lh=29;ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('掛けて、ぜんぶ足す：',bx,by-22);
-    const rows=[[input[0].toFixed(2)+' × '+w[0].toFixed(2),prod[0]],[input[1].toFixed(2)+' × '+w[1].toFixed(2),prod[1]],[input[2].toFixed(2)+' × '+w[2].toFixed(2),prod[2]],['バイアス b',b]];
-    for(let i=0;i<4;i++){const y=by+i*lh;ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(rows[i][0],bx,y);const val=rows[i][1];ctx.fillStyle=val>=0?getCSS('--accent'):getCSS('--neg');ctx.font='bold 12px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText((val>=0?'+':'−')+Math.abs(val).toFixed(2),bx+186,y);}
-    const sy=by+4*lh+2;ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx,sy-13);ctx.lineTo(bx+186,sy-13);ctx.stroke();
+    ctx.globalAlpha=1;ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('掛けて、ぜんぶ足す：',bx,by-22);
+    const rows=[[input[0].toFixed(2)+' × '+w[0].toFixed(2),prod[0],'w'],[input[1].toFixed(2)+' × '+w[1].toFixed(2),prod[1],'w'],[input[2].toFixed(2)+' × '+w[2].toFixed(2),prod[2],'w'],['バイアス b',b,'b']];
+    for(let i=0;i<4;i++){const y=by+i*lh;dim(rows[i][2]);ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(rows[i][0],bx,y);const val=rows[i][1];ctx.fillStyle=val>=0?getCSS('--accent'):getCSS('--neg');ctx.font='bold 12px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText((val>=0?'+':'−')+Math.abs(val).toFixed(2),bx+186,y);}
+    dim('z');const sy=by+4*lh+2;ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx,sy-13);ctx.lineTo(bx+186,sy-13);ctx.stroke();
     ctx.fillStyle=getCSS('--text');ctx.font='bold 13px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('z =',bx,sy+4);ctx.textAlign='right';ctx.fillStyle=getCSS('--upd');ctx.fillText(z.toFixed(2),bx+186,sy+4);
+    ctx.globalAlpha=1;
   } else {
     const bx=330,bw=212,by=78,bh=196,midx=bx+bw/2,mid=by+bh/2,Zmax=3;
-    ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx,mid);ctx.lineTo(bx+bw,mid);ctx.moveTo(midx,by);ctx.lineTo(midx,by+bh);ctx.stroke();
-    ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<=64;i++){const zz=-Zmax+2*Zmax*i/64,aa=actFn(actSel.value,zz),X=midx+zz/Zmax*(bw/2),Y=mid-Math.max(-1,Math.min(1,aa))*(bh/2-12);ctx[i?'lineTo':'moveTo'](X,Y);}ctx.stroke();
+    ctx.globalAlpha=1;ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx,mid);ctx.lineTo(bx+bw,mid);ctx.moveTo(midx,by);ctx.lineTo(midx,by+bh);ctx.stroke();
+    dim('a');glow('a',getCSS('--warm'));ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=2+(HL==='a'?1:0);ctx.beginPath();for(let i=0;i<=64;i++){const zz=-Zmax+2*Zmax*i/64,aa=actFn(actSel.value,zz),X=midx+zz/Zmax*(bw/2),Y=mid-Math.max(-1,Math.min(1,aa))*(bh/2-12);ctx[i?'lineTo':'moveTo'](X,Y);}ctx.stroke();unglow();ctx.globalAlpha=1;
     const px=midx+Math.max(-Zmax,Math.min(Zmax,z))/Zmax*(bw/2),py=mid-Math.max(-1,Math.min(1,a))*(bh/2-12);
-    ctx.strokeStyle='rgba(146,143,132,0.7)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(px,mid);ctx.lineTo(px,py);ctx.lineTo(midx,py);ctx.stroke();ctx.setLineDash([]);
+    dim('z');glow('z',getCSS('--upd'));ctx.strokeStyle='rgba(146,143,132,0.7)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(px,mid);ctx.lineTo(px,py);ctx.lineTo(midx,py);ctx.stroke();ctx.setLineDash([]);unglow();ctx.globalAlpha=1;
     ctx.beginPath();ctx.arc(px,py,4.5,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();
     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('z='+z.toFixed(2),px,mid+5);ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle=getCSS('--warm');ctx.fillText('a='+a.toFixed(2),midx+6,py-2);
     ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(actSel.value+'：まっすぐな和を −1〜1 に押し込める',bx+bw/2,by+bh+10);
   }
 }
 function redrawStep(){const k=STEPS[stepIdx].key;if(k==='sum')drawNeuron('sum');else if(k==='act')drawNeuron('act');else draw();}
+// 説明の語 ⇔ 図の部位の同期（nav.js の .ref 機構から届く）
+let HL=null;
+document.addEventListener('hl',e=>{HL=e.detail;const k=STEPS[stepIdx].key;if(k==='sum'||k==='act')redrawStep();});
 function startFlow(){litUpTo=0;curTrans=0;prog=0;running=true;requestAnimationFrame(frame);}
 function frame(){if(!running)return;prog+=0.022;if(prog>=1){prog=0;litUpTo=curTrans+1;curTrans++;if(curTrans>sizes.length-2){running=false;curTrans=-1;draw();renderMini();if(auto)setTimeout(autoTick,700);return;}}draw();requestAnimationFrame(frame);}
 
@@ -191,8 +200,8 @@ function renderStepper(){const el=document.getElementById('stepper');el.innerHTM
 function renderMini(){const m=document.getElementById('mini'),st=pred();m.innerHTML='<div>合計 <b>'+st.sum.toFixed(2)+'</b>('+(st.truth?'正':'負')+')</div><div>判定 <b>'+(st.predPos?'正':'負')+'</b>('+(st.conf*100).toFixed(0)+'%)</div>'+(trainSteps>0?'<div class="ok">正答率 <b>'+Math.round(evalAcc()*100)+'%</b>・step '+trainSteps+'</div>':'<div class="ng">未学習</div>');}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const st=pred();let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：入力→出力の計算</h3><div class="desc">左の<b>3 つの入力</b>から、ネットは右の<b>2 つの出力</b>を計算します。課題は「3 入力の<b>合計が正か負か</b>」を当てること。今の入力の合計 = <b>'+st.sum.toFixed(2)+'</b>（実際は '+(st.truth?'正':'負')+'）。各ニューロンが何をするのかを次から見ます。「🎲 入力」で値を変えられます。</div>';}
-  else if(k==='sum'){const z0=(()=>{let s=B[1][0];for(let k2=0;k2<sizes[0];k2++)s+=W[1][0][k2]*input[k2];return s;})();h+='<h3>② 重み付き和</h3><div class="eq curr">z = w₁x₁ + w₂x₂ + w₃x₃ + b</div><div class="desc"><b>左の図</b>がニューロン 1 個の中身です。前の層の値（x₁,x₂,x₃）に<b>重み w を掛けて</b>、ぜんぶ<b>足し</b>、最後に<b>バイアス b</b> を足す——これだけ。重み w が大きい入力ほど強く効きます。いまの例では <b>z = '+z0.toFixed(2)+'</b>。「🎲 入力」で数字を変えると追従します。</div>';}
-  else if(k==='act'){const z0=(()=>{let s=B[1][0];for(let k2=0;k2<sizes[0];k2++)s+=W[1][0][k2]*input[k2];return s;})();h+='<h3>③ 活性化関数</h3><div class="eq curr">a = '+actSel.value+'(z)　（非線形に変換）</div><div class="desc">和 z をそのまま使わず、<b>活性化関数</b>のカーブ（左）に通して a にします：<b>z = '+z0.toFixed(2)+' → a = '+actFn(actSel.value,z0).toFixed(2)+'</b>。大きすぎ・小さすぎを <b>−1〜1</b> に押し込めます。この<b>非線形</b>があるから層を重ねる意味が生まれます（理由は折りたたみ）。これがニューロンの出力＝次の層への入力。右下で関数を変えられます。</div>';}
+  else if(k==='sum'){const z0=(()=>{let s=B[1][0];for(let k2=0;k2<sizes[0];k2++)s+=W[1][0][k2]*input[k2];return s;})();h+='<h3>② 重み付き和</h3><div class="eq curr"><span class="ref" data-hl="z">z</span> = <span class="ref" data-hl="w">w₁</span><span class="ref" data-hl="x">x₁</span> + <span class="ref" data-hl="w">w₂</span><span class="ref" data-hl="x">x₂</span> + <span class="ref" data-hl="w">w₃</span><span class="ref" data-hl="x">x₃</span> + <span class="ref" data-hl="b">b</span></div><div class="desc"><b>左の図</b>がニューロン 1 個の中身です。<span class="ref" data-hl="x">前の層の値（x₁,x₂,x₃）</span>に<span class="ref" data-hl="w">重み w</span> を掛けて、ぜんぶ<span class="ref" data-hl="z">足し</span>、最後に<span class="ref" data-hl="b">バイアス b</span> を足す——これだけ。重み w が大きい入力ほど強く効きます。いまの例では <b>z = '+z0.toFixed(2)+'</b>。<span style="color:var(--faint)">式や説明の下線の語を<b>なぞる</b>と、図の対応する場所が光ります。</span></div>';}
+  else if(k==='act'){const z0=(()=>{let s=B[1][0];for(let k2=0;k2<sizes[0];k2++)s+=W[1][0][k2]*input[k2];return s;})();h+='<h3>③ 活性化関数</h3><div class="eq curr"><span class="ref" data-hl="a">a</span> = <span class="ref" data-hl="a">'+actSel.value+'</span>(<span class="ref" data-hl="z">z</span>)　（非線形に変換）</div><div class="desc">和 <span class="ref" data-hl="z">z</span> をそのまま使わず、<span class="ref" data-hl="a">活性化関数のカーブ</span>（右）に通して a にします：<b>z = '+z0.toFixed(2)+' → a = '+actFn(actSel.value,z0).toFixed(2)+'</b>。大きすぎ・小さすぎを <b>−1〜1</b> に押し込めます。この<b>非線形</b>があるから層を重ねる意味が生まれます（理由は折りたたみ）。これがニューロンの出力＝次の層への入力。右下で関数を変えられます。</div>';}
   else if(k==='flow'){h+='<h3>④ 信号を流す（順伝播）</h3><div class="eq curr">入力 → 隠れ層 → … → 出力　を 1 層ずつ</div><div class="desc">「重み付き和→活性化」を<b>層から層へ繰り返す</b>のが順伝播。粒（信号 w·a）が前の層から次の層へ流れ、各ニューロンが<b>活性値で発光</b>（緑=正/赤=負）。最後の出力までたどり着くと予測が出ます。判定 <b>'+(st.predPos?'正':'負')+'</b>。</div>';}
   else{h+='<h3>⑤ 学習で意味を持つ</h3><div class="eq curr">誤差逆伝播＋Adam で重み w を更新</div><div class="desc">最初の重みはランダム＝当てずっぽう。合計の符号を当てられるよう<b>重みを更新</b>すると、結線の色・太さが変わり、信号フローが「意味のある計算」になります。'+(trainSteps>0?'学習 <b>'+trainSteps+'</b> step・正答率 約 <b style="color:var(--accent)">'+Math.round(evalAcc()*100)+'%</b>。':'「次へ」で学習が走ります。')+'　<b>ここで見た「重み付き和→活性化→次の層へ」は、画像認識も ChatGPT も同じ</b>——違いは層の数とニューロンの数（と工夫）だけ。この 1 ページが全ての土台です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・各ニューロン＝重み付き和→活性化<br>・層を流れる＝順伝播で出力を計算<br>・重みは学習で決まる（最初はランダム）<br>・<b>この流れのまま巨大化したのが CNN・GPT</b></div>';}
   el.innerHTML=h;}
