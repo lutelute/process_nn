@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ニューラルネットの学習過程</title>
+<meta name="description" content="機械学習の40以上の手法を、学習の流れで並べた動くインフォグラフ集。各ページは1手法をブラウザ上で実際に学習させて理解できる。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="機械学習 学習ロードマップ — 動くインフォグラフ集">
+<meta property="og:description" content="信号の流れから GPT-2 まで、40以上の手法を実際に動かして理解する学習地図。">
+<meta property="og:url" content="https://lutelute.github.io/process_nn/">
+<meta property="og:image" content="https://lutelute.github.io/process_nn/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -490,6 +499,10 @@ const FUNCS=[
 const N_SAMPLE=80, N_PLOT=240;
 let net=null, data=null, epoch=0, lossHist=[], running=false, lastLoss=null;
 let netRedrawCtr=0;
+/* 開いた瞬間から学習が動く自動デモ。ユーザーが何か操作したら手動モードに移行 */
+let demoMode=true, demoPauseTimer=null;
+const DEMO_MAX_EPOCH=3600;
+function leaveDemo(){demoMode=false;if(demoPauseTimer){clearTimeout(demoPauseTimer);demoPauseTimer=null;}}
 
 function buildData(fnIdx,noise){
   const cfg=FUNCS[fnIdx];
@@ -715,6 +728,12 @@ function frame(){
   doSteps(+spdSlider.value);
   updateReadout();drawFit();drawLoss();
   if((netRedrawCtr++ %3)===0)drawNet();
+  if(demoMode&&epoch>=DEMO_MAX_EPOCH){
+    setRunning(false);
+    demoPauseTimer=setTimeout(()=>{demoPauseTimer=null;
+      if(!demoMode)return;resetNetOnly();setRunning(true);},1800);
+    return;
+  }
   requestAnimationFrame(frame);
 }
 function setRunning(on){
@@ -738,24 +757,30 @@ function updateSpdLabel(){document.getElementById('spdVal').textContent=spdSlide
 
 lrSlider.value=Math.log10(0.02);updateLrLabel();updateNoiseLabel();updateSpdLabel();
 
-fnSel.onchange=()=>{setRunning(false);rebuildAll(true);};
+fnSel.onchange=()=>{leaveDemo();setRunning(false);rebuildAll(true);};
 noiseSlider.oninput=()=>{updateNoiseLabel();};
-noiseSlider.onchange=()=>{setRunning(false);rebuildAll(true);};
-actSel.onchange=()=>{setRunning(false);resetNetOnly();};
-optSel.onchange=()=>{setRunning(false);lrSlider.value=Math.log10(optSel.value==='sgd'?0.1:0.02);
+noiseSlider.onchange=()=>{leaveDemo();setRunning(false);rebuildAll(true);};
+actSel.onchange=()=>{leaveDemo();setRunning(false);resetNetOnly();};
+optSel.onchange=()=>{leaveDemo();setRunning(false);lrSlider.value=Math.log10(optSel.value==='sgd'?0.1:0.02);
   updateLrLabel();resetNetOnly();};
-depthSel.onchange=()=>{setRunning(false);resetNetOnly();};
-widthSel.onchange=()=>{setRunning(false);resetNetOnly();};
-lrSlider.oninput=updateLrLabel;
+depthSel.onchange=()=>{leaveDemo();setRunning(false);resetNetOnly();};
+widthSel.onchange=()=>{leaveDemo();setRunning(false);resetNetOnly();};
+lrSlider.oninput=()=>{leaveDemo();updateLrLabel();};
 spdSlider.oninput=updateSpdLabel;
 
-document.getElementById('playBtn').onclick=()=>setRunning(!running);
-document.getElementById('stepBtn').onclick=()=>{setRunning(false);doSteps(1);updateReadout();drawAll();};
-document.getElementById('burstBtn').onclick=()=>{setRunning(false);doSteps(50);updateReadout();drawAll();};
-document.getElementById('resetBtn').onclick=()=>{setRunning(false);resetNetOnly();};
+document.getElementById('playBtn').onclick=()=>{leaveDemo();setRunning(!running);};
+document.getElementById('stepBtn').onclick=()=>{leaveDemo();setRunning(false);doSteps(1);updateReadout();drawAll();};
+document.getElementById('burstBtn').onclick=()=>{leaveDemo();setRunning(false);doSteps(50);updateReadout();drawAll();};
+document.getElementById('resetBtn').onclick=()=>{leaveDemo();setRunning(false);resetNetOnly();};
 
 /* ====================== 起動 ====================== */
-function start(){fit.resize();netv.resize();lossv.resize();rebuildAll(true);}
+let started=false;
+function start(){
+  if(started)return;started=true;
+  fit.resize();netv.resize();lossv.resize();rebuildAll(true);
+  // 開いた瞬間から学習デモをループ再生（OS設定で動きを減らす指定なら静止のまま）
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setRunning(true);
+}
 window.addEventListener('load',start);
 setTimeout(start,60);
 </script>
