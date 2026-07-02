@@ -79,11 +79,20 @@
     <div class="bar">
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
       <select id="kSel"><option value="1">k=1</option><option value="3" selected>k=3</option><option value="7">k=7</option><option value="15">k=15</option></select>
       <select id="dataSel"><option value="blobs">3クラスの塊</option><option value="moons">三日月</option><option value="spiral">渦巻き</option></select>
     </div>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>kNN も学習して境界を作っている</div>
+    <div class="row"><span class="o">✓</span>訓練フェーズは<b>無い</b>（事例を覚えるだけ）。背景に見える境界は、各地点で多数決した<b>結果を塗っただけ</b>で、モデルが線を持っているわけではない。</div>
+    <div class="row"><span class="x">✗</span>k は大きいほど正確</div>
+    <div class="row"><span class="o">✓</span>大きすぎると<b>多数派に飲まれて</b>細かい構造が消える（k=全点なら常に多数派クラス）。k=1 はノイズ 1 個に振り回される。ちょうど良さは検証で選ぶ。</div>
   </div>
 
   <details>
@@ -144,12 +153,22 @@ function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));stepIdx=i;renderAll(
 let dragging=false;
 function evPos(e){const r=cv.getBoundingClientRect(),sx=(e.touches?e.touches[0].clientX:e.clientX)-r.left,sy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;const sc=CW/r.width;return[sx*sc,sy*sc];}
 function setQ(e){const[sx,sy]=evPos(e);Q=[Math.max(LO,Math.min(HI,fromX(sx))),Math.max(LO,Math.min(HI,fromY(sy)))];renderMini();renderExplain();draw_();}
-cv.addEventListener('pointerdown',e=>{dragging=true;cv.setPointerCapture(e.pointerId);setQ(e);});
+cv.addEventListener('pointerdown',e=>{stopAuto();dragging=true;cv.setPointerCapture(e.pointerId);setQ(e);});
 cv.addEventListener('pointermove',e=>{if(dragging){e.preventDefault();setQ(e);}});
 cv.addEventListener('pointerup',()=>dragging=false);
+
+// ⏵ 自動 — ★が滑らかな軌道で動き続け、近傍・多数決・予測の変化を流し見できる（ドラッグの自動版）
+let auto=false,autoT=0;
+function stopAuto(){if(!auto)return;auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function autoTick(){if(!auto)return;autoT+=0.012;
+  Q=[0.95*Math.sin(autoT*0.9),0.8*Math.sin(autoT*1.4+1.2)];
+  renderMini();renderExplain();draw_();requestAnimationFrame(autoTick);}
+function startAuto(){if(auto)return;auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';requestAnimationFrame(autoTick);}
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();}else{if(stepIdx<2)goStep(3);startAuto();}};
+
 document.getElementById('nextBtn').onclick=()=>{if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{if(stepIdx>0)goStep(stepIdx-1);};
-document.getElementById('resetBtn').onclick=()=>{seed=11;genData();Q=[0.1,0.1];goStep(0);};
+document.getElementById('resetBtn').onclick=()=>{stopAuto();seed=11;genData();Q=[0.1,0.1];goStep(0);};
 document.getElementById('kSel').onchange=e=>{K=+e.target.value;renderAll();draw_();};
 document.getElementById('dataSel').onchange=()=>{genData();Q=[0.1,0.1];renderAll();draw_();};
 genData();renderAll();draw_();

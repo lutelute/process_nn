@@ -83,6 +83,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>「回帰」という名前だから数値を予測する手法</div>
+    <div class="row"><span class="o">✓</span>名前は回帰でも<b>中身は分類</b>。回帰しているのは「クラス 1 である確率」（の対数オッズ）で、それをしきい値で 0/1 に割っている。</div>
+    <div class="row"><span class="x">✗</span>シグモイドは 0.5 で分けるための関数</div>
+    <div class="row"><span class="o">✓</span>シグモイドの役目は wx+b（±∞ の値）を<b>確率（0〜1）へ変換</b>すること。0.5 で切るのは既定のしきい値に過ぎず、<a href="metrics.html">用途に応じて動かせる</a>。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：なぜMSEでなく交差エントロピー・NNとの関係・多クラス</summary>
     <div class="det">出力にシグモイドを使うと MSE は<b>非凸</b>になり勾配も飽和域で消えがち。<b>交差エントロピー</b>なら凸で、勾配が <b>(p − y)·x</b> と綺麗になり学習が安定します（確率モデルの最尤推定とも一致）。ロジスティック回帰は<b>「重み付き和 → シグモイド」だけの 1 ニューロン</b>で、これを多層に積み重ねたのがニューラルネット。入力が多次元なら境界は直線/超平面に、多クラスは<b>ソフトマックス回帰</b>に一般化されます（<a href="classify.html">決定境界(MLP)</a> 参照）。</div>

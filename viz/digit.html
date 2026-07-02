@@ -87,6 +87,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>ネットは数字の「形」を人間のように見て判断している</div>
+    <div class="row"><span class="o">✓</span>見ているのは<b>画素の重み付き和のパターン</b>。人間の「形の理解」とは別物なので、人間には同じに見える崩し方でも判断が変わることがある——だからこそ saliency で<b>根拠を覗く</b>価値がある。</div>
+    <div class="row"><span class="x">✗</span>認識率が高ければ、どんな書き方の数字にも強い</div>
+    <div class="row"><span class="o">✓</span>強いのは<b>学習データと似た範囲</b>だけ。大きな位置ずれや極端な形は苦手で、モデルはデータの範囲でしか賢くならない。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：saliency（根拠）はどう計算する？</summary>
     <div class="det">予測したクラスのスコアを、各入力画素で<b>微分</b>します（∂スコア/∂画素）。値が大きい画素ほど「そこを少し変えると判断が大きく変わる」＝<b>判断の根拠</b>。これを画像に赤く重ねたのが saliency マップ。学習データは 7 セグメント風の数字にノイズ・位置ずれを加えてブラウザ内で自動生成・学習しています。</div>
