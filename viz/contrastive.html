@@ -62,6 +62,12 @@
   <h1>対照学習（自己教師あり）を理解する</h1>
   <div class="lead"><b>ラベルが無くても</b>、データから「良い表現（埋め込み）」を学べる——それが<b>自己教師あり学習</b>。<b>対照学習</b>はその代表で、考え方はシンプル：<b>同じものの別バージョン（正例）は近く</b>に、<b>違うもの（負例）は遠く</b>になるよう埋め込みを学ぶ。すると、教えていないのに<b>似たデータが自然に集まり</b>ます。下では「入力空間」と「学習される埋め込み空間」を並べて見ます（SimCLR・CLIP の核）。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>ラベル付けは高くつく。<b>「ラベル無しで良い表現を学ぶ」現代の主戦力</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>「同じものは近く、違うものは遠く」だけで埋め込み空間を育てる自己教師あり学習。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>CLIP（画像×テキスト）・検索・ゼロショット分類の土台。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

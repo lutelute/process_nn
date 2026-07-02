@@ -62,6 +62,12 @@
   <h1>勾配消失問題（活性化関数と深さ）を理解する</h1>
   <div class="lead">層を深くするほど表現力は増すのに、昔の深いネットは<b>うまく学習できなかった</b>。逆伝播で勾配は各層の微分を<b>掛け算</b>していくため、微分が 1 より小さいと<b>入力側の層へ届く頃には指数的に消える</b>＝勾配消失。これを <b>ReLU</b> が大きく緩和し、深層学習を実用化した。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「深くすれば強いはず」が<b>長年できなかった理由</b>そのもの。これを知らないと ReLU も残差接続もただの呪文になる。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>誤差の信号が入力側に届く前に消えてしまう現象——と、その処方箋。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ReLU・He 初期化・残差接続・正規化…現代の標準装備は全部この対策から生まれた。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

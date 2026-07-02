@@ -54,6 +54,13 @@ button.primary:hover:not(:disabled){background:#000;}
 select{background:#fff;color:var(--ink);border:1px solid var(--ink);border-radius:2px;font-family:var(--mono);font-size:12px;}
 input[type=range]{accent-color:var(--accent);}
 label{color:var(--ink-2);}
+/* なぜ学ぶ・一言で言うと・どこで使われる — ページ冒頭の落とし込み3行。lead と stage の間に置く */
+.purpose{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:11px 16px;margin:0 0 18px;}
+.purpose .prow{font-family:var(--gothic);font-size:12.5px;line-height:1.75;color:var(--ink-2);display:flex;gap:10px;}
+.purpose .prow+.prow{margin-top:4px;}
+.purpose .pq{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--accent);border:1px solid currentColor;border-radius:2px;padding:1px 7px;white-space:nowrap;flex:none;align-self:flex-start;margin-top:3px;min-width:7.5em;text-align:center;}
+.purpose .prow b{color:var(--ink);}
+
 /* ⚠ よくある誤解 — 誤解(✗)→正しい理解(✓) の対比ブロック。reg/dropout 等の .myth 共通部品 */
 .myth{background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--warm);border-radius:2px;padding:13px 16px;margin:14px 0;}
 .myth-h{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--warm);font-weight:700;margin-bottom:8px;}

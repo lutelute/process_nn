@@ -61,6 +61,12 @@
   <h1>深層強化学習（DQN）を理解する</h1>
   <div class="lead"><a href="qlearning.html">Q学習</a>は各「状態×行動」の価値を<b>表（Qテーブル）</b>で覚えるが、状態が多い・連続だと表が爆発して持てない。<b>DQN</b>は、状態を入力に<b>各行動の価値 Q をニューラルネットで近似</b>し、<b>経験再生</b>と<b>ε-貪欲</b>で安定に学習する。下のグリッドで、座標を入力にした Q 網が<b>価値地形と方策</b>を学ぶ様子を見ます。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>Q の表は状態が増えると破綻する。<b>「NN で近似する」が深層強化学習を開いた</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>Q テーブルをニューラルネットに置き換え、2 つの安定化で動くようにした発明。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>Atari ゲームで人間超えした DeepMind の成果。ゲーム AI・制御。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

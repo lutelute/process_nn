@@ -66,6 +66,12 @@
   <h1>分類と「決定境界」を理解する</h1>
   <div class="lead">2 種類の点を分ける<b>境界</b>を、学習で見つける。各点の<b>クラス確率</b>を出し（softmax）、外れたら<b>誤差を逆伝播</b>して境界を動かす。隠れ層があると境界は<b>曲線</b>にもなる。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「学習で境界線が動いていく」を見ると、分類器の中で何が起きているかが<b>腹落ちする</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>2 クラスを分ける境界を、誤差から少しずつ動かして見つける様子の観察窓。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>スパム判定・不良品検出など、あらゆる「A か B か」の自動判定の原理。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

@@ -63,6 +63,12 @@
   <h1>単純パーセプトロンを理解する</h1>
   <div class="lead">1958 年の「学習する機械」。重み付き和の符号で 2 クラスを分け、<b>間違えた点だけ</b>を使って境界を動かす<b>誤り駆動の学習則</b>。線形分離できるデータなら必ず収束する（収束定理）一方、<b>XOR は解けず</b>、それが多層ニューラルネットへの道を開いた。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「機械が経験から学ぶ」の<b>最小の形</b>がここ。学習というものの一歩目。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>間違えるたびに境界線を少し動かす、1 ニューロンの分類器。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>現役の道具というより<b>全ニューラルネットの祖先</b>。その限界（XOR）が多層化＝深層学習を生んだ。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

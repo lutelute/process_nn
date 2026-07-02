@@ -89,6 +89,12 @@
   <h1>誤差逆伝播法を理解する</h1>
   <div class="lead">ニューラルネットが「学ぶ」中心の仕組み。<b>予測の誤差</b>を出力から入力へ逆向きに配り、各重みの勾配を求めて直す。下の流れを<b>「次へ」で 1 ステップずつ</b>、実際の数値で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>深いネットが学習できるのは<b>この仕組みのおかげ</b>。深層学習の心臓部。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>出力の誤差から「各重みをどちらへ直すか」を一括で求める計算法。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>PyTorch / TensorFlow の自動微分の中身。GPT の訓練も毎回これが回っている。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

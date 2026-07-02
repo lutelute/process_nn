@@ -62,6 +62,12 @@
   <h1>GMM（混合ガウス）を理解する</h1>
   <div class="lead">データを<b>複数のガウス分布の重ね合わせ</b>で表すモデル。k-means の「丸くハッキリ分ける」と違い、<b>楕円</b>の形と<b>所属確率（ソフト割当）</b>で柔らかく分ける。<b>EM 法</b>で学習します。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>クラスタ分けを白黒つけず<b>「何 % ずつ属す」で考える</b>——ソフトな割り当てという発想を学ぶ。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>データを複数のガウス分布の重ね合わせとして説明するモデル。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>話者認識・異常検知・楕円形クラスタ（k-means が苦手な形）。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

@@ -71,6 +71,12 @@
   <h1>勾配降下法を理解する</h1>
   <div class="lead">学習とは<b>損失を最小にする</b>こと。損失の地形を山と谷に見立て、<b>傾き（勾配）の逆向きに少しずつ下る</b>。下の流れを<b>「次へ」で 1 ステップずつ</b>、実際の数値で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>NN の学習はぜんぶ「損失の坂を下る」。<b>この 1 ページが以後の全ページの土台</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>傾き（勾配）の逆へ少しずつ進み、損失の谷を探す方法。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>深層学習の学習則そのもの。SGD / Adam は PyTorch の optimizer の中身。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

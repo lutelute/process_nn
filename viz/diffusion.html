@@ -63,6 +63,12 @@
   <h1>拡散モデル（DDPM）を理解する</h1>
   <div class="lead"><b>拡散モデル</b>は、いま画像生成（Stable Diffusion 等）の主役。考え方は意外と素直：本物のデータに<b>少しずつノイズを足して</b>完全なノイズにする「前進過程」を考え、その<b>逆＝ノイズを少しずつ取り除く</b>方法をニューラルネットに学ばせる。学習後は<b>ランダムなノイズから出発</b>して逆過程を回すと、本物そっくりのデータが<b>生成</b>される。下のグリッドで、ノイズの雲が本物の分布（8 つの山）へ<b>凝集していく</b>様子を見ます。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>Stable Diffusion・Midjourney・動画生成の中身。<b>現代生成 AI の主役</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>ノイズを少しずつ除去して、純ノイズから絵を掘り出す生成モデル。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>画像生成・動画生成・音声合成・分子設計。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

@@ -74,6 +74,12 @@
   <h1>自己注意（Self-Attention）を理解する</h1>
   <div class="lead">Transformer・GPT の心臓部。文の中で、各トークンが<b>他のどのトークンに注目すべきか</b>を自分で計算し、関連する情報を集める。<b>Q・K・V</b> と <b>softmax(QKᵀ/√d)·V</b> を、実際の数値で 1 ステップずつ追います。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>GPT の心臓部。<b>ここが分かれば現代 AI の中身が見える</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>各単語が「文中のどこを見るか」を自分で計算し、関連情報を集めて混ぜる仕組み。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ChatGPT・機械翻訳・画像生成——現代の生成 AI のほぼ全部。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

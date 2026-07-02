@@ -64,6 +64,12 @@
   <h1>RNN（再帰型ネット）を理解する</h1>
   <div class="lead">時系列を扱うネット。<b>同じセルを各時刻で使い回し</b>、<b>隠れ状態 h</b>に過去を記憶として運ぶ。1 ステップ先を予測するよう学習し、最後は自分の予測を入力に戻して波形を生成できる。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>時系列は「今」だけ見ても分からない。<b>記憶を持つ NN</b> の原点。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>前の状態を次へ引き継ぎながら系列を学ぶ NN。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>音声・文章・センサー系列の予測（古典）。LSTM / Transformer への前段。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

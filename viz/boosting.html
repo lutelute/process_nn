@@ -64,6 +64,12 @@
   <h1>勾配ブースティングを理解する</h1>
   <div class="lead">弱い学習器（浅い木）を<b>1 本ずつ順番に</b>足していくアンサンブル。各ステップで<b>「まだ外している分（残差）」を狙って</b>新しい木を当て、少しずつ（学習率）足し込む。ランダムフォレストの「並列・平均」に対し、こちらは<b>逐次・誤り修正</b>。XGBoost 等の中核。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>表形式データでは深層学習より強いことも多い、<b>実務最強クラス</b>の手法の原理。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>前の間違い（残差）を次の木に直させる、逐次改善のアンサンブル。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>XGBoost / LightGBM として、ランキング・需要予測・与信の現場で稼働中。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

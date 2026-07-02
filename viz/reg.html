@@ -68,6 +68,12 @@
     <span class="tag">前提</span><a href="backprop.html">逆伝播</a>で訓練誤差は下げられる <b>→</b> でも下げきると新データに弱くなる＝<b>過学習</b>。それを抑えるのがこのページ。<span class="tag" style="margin-left:8px;">仲間</span><a href="dropout.html">ドロップアウト</a>・<a href="batchnorm.html">バッチ正規化</a>も過学習・安定化の工夫。
   </div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>訓練で 100 点なのに本番で外す<b>「丸暗記（過学習）」が機械学習最大の敵</b>。その対策の基本形。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>「重みを大きくしすぎたら罰」で暗記を防ぎ、なめらかに汎化させる仕掛け。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ほぼ全ての実務モデル。Ridge / Lasso、深層学習の weight decay。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

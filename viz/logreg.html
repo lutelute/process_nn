@@ -63,6 +63,12 @@
   <h1>ロジスティック回帰を理解する</h1>
   <div class="lead">「はい/いいえ」を<b>確率</b>で予測する分類の基本。直線 wx+b を<b>シグモイド</b>で 0〜1 に押し込み、<b>交差エントロピー</b>を最小化して学習する。実は<b>シグモイド 1 個のニューロン</b>＝ニューラルネットの最小単位。線形回帰と NN をつなぐ橋。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「確率つきで答える分類」の最小形。<b>NN の出力層はこれの積み重ね</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>直線で分けて、シグモイドで「どれくらい自信があるか」を確率にする分類器。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>発症リスク予測・与信審査・クリック率予測。実務で今も現役の定番。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

@@ -62,6 +62,12 @@
   <h1>LSTM（長短期記憶）を理解する</h1>
   <div class="lead">素朴な <a href="rnn.html">RNN</a> は系列が長いと<b>昔の情報を忘れがち</b>（<a href="vanishing.html">勾配消失</a>）。<b>LSTM</b> は記憶専用の通り道<b>セル状態</b>と、情報を<b>書く・保つ・読む</b>を制御する<b>3 つのゲート</b>を持つ。下では「<b>最初の値を、たくさんの邪魔のあとで思い出す</b>」課題を解かせ、<b>同じ邪魔でも最初の値が 1 か 0 かでセルの値が二手に分かれ、最後まで保たれる</b>（だから思い出せる）様子を見ます。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「昔の情報を覚えておく」を機械にやらせる工夫の到達点。<b>Transformer 以前の言語 AI の主役</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>記憶専用の通り道（セル状態）と 3 つのゲートを持つ RNN。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>音声認識・センサー時系列・株価予測。軽量な時系列モデルとして今も現役。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

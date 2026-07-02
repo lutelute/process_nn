@@ -70,6 +70,12 @@
     <span class="tag">前提</span><a href="reg.html">L2正則化</a>は<b>重み</b>を罰して過学習を抑える <b>→</b> ドロップアウトは別のやり方で<b>ネットの構造</b>に効く（毎回かたちを変える）。<span class="tag" style="margin-left:8px;">仲間</span><a href="batchnorm.html">バッチ正規化</a>・データ拡張も汎化・安定化の工夫。
   </div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>大きな NN ほど丸暗記（過学習）しやすい。<b>深層学習の定番の暗記対策</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>学習中にニューロンをランダムに休ませ、特定の経路への依存を防ぐ技。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>画像・音声など多くの深層モデルの訓練（Transformer にも入っている）。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

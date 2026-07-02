@@ -64,6 +64,12 @@
   <h1>GAN（敵対的生成ネットワーク）を理解する</h1>
   <div class="lead"><b>生成モデル</b>は「本物そっくりの新しいデータ」を作る。GAN は 2 つのネットを<b>競わせて</b>これを学ぶ：<b>生成器 G</b> はノイズから偽データを作り、<b>識別器 D</b> は本物か偽物かを見分ける。G は D を<b>騙そう</b>とし、D は<b>見破ろう</b>とする — このいたちごっこ（min-max ゲーム）で、G は本物の分布に迫る。下のグリッドで、G の生成点が<b>本物の分布へ寄っていく</b>様子を見ます。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「本物そっくりを作る」を<b>競争で実現した</b>発明。生成 AI ブームの起点。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>作る側（生成器）と見破る側（識別器）を競わせて生成品質を上げる枠組み。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>画像生成・超解像・データ拡張。（現在の主流は拡散モデルだが、原理は必修）</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

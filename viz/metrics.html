@@ -65,6 +65,12 @@
   <h1>評価指標（混同行列・適合率・再現率）を理解する</h1>
   <div class="lead">分類器の良し悪しは<b>正答率（accuracy）だけでは測れない</b>。とくに陽性が少ない<b>不均衡データ</b>では「全部陰性」と答えるだけで高精度に見える。<b>混同行列</b>から<b>適合率・再現率・F1</b>を読み、<b>しきい値</b>でトレードオフを調整する——これが「測り方」の基本。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>モデルの「良さ」を正しく測れないと、<b>悪いモデルを良いと思い込む</b>——作るより先に測り方。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>正答率だけでは見えない失敗（見逃し・誤警報）を数える道具箱。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>医療診断・不正検知・検索など、クラスに偏りがある現場すべて。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

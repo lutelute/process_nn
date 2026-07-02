@@ -71,6 +71,12 @@
   <h1>RAG（検索拡張生成）を理解する</h1>
   <div class="lead">大規模言語モデルは<b>学習した知識しか持たず</b>、特定の文書（昔話・論文・契約書 等）の中身は知りません。知らないことを<b>もっともらしく間違える</b>（幻覚）。RAG は質問に関係する<b>文章を文書から検索（Retrieval）</b>し、それを根拠に<b>出典つきで回答（Generation）</b>する手法。下では実際に<b>文字バイグラムのコサイン類似度</b>で該当箇所を探します。右下で文書と質問を選べます。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>LLM は知らないことを<b>もっともらしく間違える</b>（幻覚）。実務投入のための最重要パッチ。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>質問に関係する文書を検索して、根拠つきで答えさせる仕組み。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>社内文書 QA・カスタマーサポート・検索連動チャット。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

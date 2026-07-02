@@ -63,6 +63,11 @@
   <h1>RNN を立体で見る（3D）</h1>
   <div class="lead">RNN は<b>同じセルを各時刻で使い回し</b>、隠れ状態 h を「記憶」として時間方向に運ぶ。時間展開した姿を立体で表示し、信号が時刻を超えて流れる様子と、BPTT による学習を観察。<b>ドラッグで回転・ホイールで拡大</b>。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「同じセルを時間方向に使い回す」重み共有は<b>展開図で見るのが一番</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>RNN を時間軸に展開して立体で見る観察窓。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

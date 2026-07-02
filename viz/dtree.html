@@ -63,6 +63,12 @@
   <h1>決定木（CART）を理解する</h1>
   <div class="lead">「<b>この軸がこの値より上か？</b>」という Yes/No の質問を重ねて分類する、NN とは全く違う学習。各分割で<b>最も purity（純度）が上がる質問</b>を選び、木を育てる。木の形がそのまま特徴空間の分割になる。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「なぜその予測になったか」を<b>人に説明できる</b>数少ない学習器。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>Yes/No の質問を重ねてデータを切り分ける、ルールの木。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>与信・診断支援など説明責任のある現場。勾配ブースティングの部品でもある。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

@@ -65,6 +65,12 @@
   <h1>Transformer の学習を理解する</h1>
   <div class="lead">GPT と同じ仕組みの<b>最小の decoder-only Transformer</b>（2層×2ヘッド・埋め込み32）を、文字列コーパスで<b>ブラウザで実際に学習</b>させる。「次の文字」を当てるよう訓練すると、<b>loss が下がり</b>・<b>自己注意</b>に構造が現れ・<b>生成</b>がコーパスらしくなる。下の流れを「次へ」で追ってください。<a href="../gpt2/">本物の GPT-2 はこちら</a>。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「次を当てるだけ」の訓練が言葉を生む——<b>GPT の学習をそのまま小さくして目撃できる</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>自己注意を積み重ねた「次トークン予測」モデル。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>GPT・Claude・Gemini など、大規模言語モデルの骨格そのもの。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">

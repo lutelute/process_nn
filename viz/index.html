@@ -64,6 +64,12 @@
   <h1>信号の流れ（順伝播）を理解する</h1>
   <div class="lead">ニューラルネットが入力から出力を計算する基本動作＝<b>順伝播</b>。各ニューロンは前の層からの値を<b>重み付きで足し</b>、<b>活性化関数</b>で変換して次へ送る。これが層を流れて出力になる。ここでは「3 入力の<b>合計の符号</b>を当てる」課題を実際に学習させながら見ます。下の流れを「次へ」で追ってください。</div>
 
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>すべてのニューラルネットは「入力が層を通って出力になる」この流れの上に載っている。ここが分からないと CNN も GPT も<b>魔法の箱のまま</b>。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>NN の中身は<b>「重み付き足し算 → 変換」の繰り返し</b>——その計算の正体。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>このあと学ぶ全手法（CNN・RNN・Transformer・GPT）の共通の土台。</span></div>
+  </div>
+
   <div class="stage">
     <div class="stepper" id="stepper"></div>
     <div class="body">
