@@ -83,6 +83,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>ラベルが無ければ何も学べないはず</div>
+    <div class="row"><span class="o">✓</span>「同じデータの別ビューは同じもの」という<b>関係そのものが教師</b>。データ拡張が実質のラベル生成器として働く——だから自己教師あり。</div>
+    <div class="row"><span class="x">✗</span>負例は不要で、正例を近づけるだけでいい</div>
+    <div class="row"><span class="o">✓</span>引き寄せだけなら<b>全点を 1 点に潰す「崩壊」が最適解</b>になってしまう。押しのける相手（負例、または BYOL 等の崩壊防止の工夫）が必須。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：InfoNCE・なぜラベル無しで効くか・SimCLR/CLIP</summary>
     <div class="det"><b>正例ペア</b>は「同じデータに別々の<b>データ拡張</b>（切り抜き・色変え・ノイズ等）をかけた 2 つのビュー」。これらは中身が同じなので<b>近く</b>に、バッチ内の<b>他のデータ（負例）</b>は<b>遠く</b>に、と引き寄せ・押しのけます。損失は <b>InfoNCE / NT-Xent</b>：<b>−log( exp(sim⁺/τ) / Σ exp(sim/τ) )</b>。sim はコサイン類似度、τ は温度。これは「正例を、たくさんの負例の中から当てる分類」と同じ形。<b>なぜラベル無しで効くか</b>：拡張で変わらない本質（=そのデータの中身）を捉えるよう強制され、結果として<b>意味的に似たものが近い</b>表現になります。教えていない 3 つのクラスタが埋め込み上で分かれるのがその証拠。<b>SimCLR</b>（画像）、<b>CLIP</b>（画像とテキストの正例ペア）が代表。学んだ表現は少量ラベルでの分類などに<b>転用（事前学習）</b>できます。関連：<a href="autoencoder.html">オートエンコーダ</a>・<a href="word2vec.html">単語埋め込み</a>・<a href="tsne.html">t-SNE</a>。</div>

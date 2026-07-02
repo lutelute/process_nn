@@ -85,6 +85,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>拡散モデル＝高級なノイズ除去フィルタ</div>
+    <div class="row"><span class="o">✓</span>フィルタは既存の画像を直すが、拡散は除去を何百回も重ねて<b>純ノイズから作品を掘り出す生成モデル</b>。1 回の除去でなく<b>反復こそが本体</b>。</div>
+    <div class="row"><span class="x">✗</span>生成が遅いのだから学習も遅くて不安定</div>
+    <div class="row"><span class="o">✓</span>学習は「ランダムな時刻 t のノイズ当て」という<b>普通の回帰</b>で安定（<a href="gan.html">GAN</a> のような競争がない）。遅いのは生成時の反復だけで、高速サンプラーや蒸留で縮められる。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：前進・逆過程の式・GANとの違い</summary>
     <div class="det"><b>前進過程</b>は本物 x₀ にノイズを足す決まった操作で、任意の時刻 t の状態を一発で書けます：<b>x<sub>t</sub> = √(ā<sub>t</sub>)·x₀ + √(1−ā<sub>t</sub>)·ε</b>（ε～N(0,I)、ā<sub>t</sub> は残る信号の割合で t が進むほど 0 へ）。ネットは「x<sub>t</sub> と時刻 t を見て、混ぜられた<b>ノイズ ε を当てる</b>」よう <b>‖ε − ε<sub>θ</sub>(x<sub>t</sub>,t)‖²</b> の二乗誤差で学習します（普通の回帰なので安定）。<b>逆過程（生成）</b>は x<sub>T</sub>～N(0,I) から、各 t で予測ノイズを少し引く操作を T 回くり返して x₀ に戻します。<b>GAN との違い</b>：<a href="gan.html">GAN</a> は識別器との敵対で不安定・モード崩壊しがちですが、拡散は<b>1 つの回帰損失</b>で<b>安定</b>に学習でき、多様性も保ちやすい。代わりに生成は T ステップ必要で遅め（高速化が研究テーマ）。時刻 t はサイン埋め込みで与えています。<a href="vae.html">VAE</a> とも比較を。</div>

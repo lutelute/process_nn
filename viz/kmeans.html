@@ -82,6 +82,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>k-means はいつも同じ「正解」に辿り着く</div>
+    <div class="row"><span class="o">✓</span>初期重心しだいで<b>別の局所最適</b>に落ちる（「↻ 最初から」で変わるのを確認できる）。実務では複数回走らせて最良を採る・k-means++ で初期化する。</div>
+    <div class="row"><span class="x">✗</span>クラスタ数 K はアルゴリズムが決めてくれる</div>
+    <div class="row"><span class="o">✓</span>K は<b>人間の入力</b>。しかも SSE は K を増やせば<b>必ず下がる</b>ので「下がった＝良い」は罠。下がり方が緩む<b>ひじ</b>で選ぶ。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：初期値依存と「正しい K」</summary>
     <div class="det">k-means は最初の重心位置によって、別の<b>局所最適</b>に収束することがあります（「最初から」で初期値が変わり、結果が変わるのを確認）。また K は人が決める必要があり、K を変えると慣性(SSE)は単調に下がるので、<b>下がり方が緩むひじ（エルボー）</b>を目安に選びます。距離だけで分けるため、細長い・入れ子のクラスタは苦手（その場合は GMM などが有効）。</div>

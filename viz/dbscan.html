@@ -87,6 +87,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>クラスタ数を決めなくていい＝パラメータ不要の全自動</div>
+    <div class="row"><span class="o">✓</span>K の代わりに <b>ε と minPts</b> を人が選ぶ。ε が少し違うだけで「全部ノイズ」⇄「全部 1 クラスタ」に振れる——調整の難しさが場所を変えただけ。</div>
+    <div class="row"><span class="x">✗</span>ノイズ判定された点は捨てられた失敗データ</div>
+    <div class="row"><span class="o">✓</span>「どの密集にも属さない」という<b>積極的な情報</b>。これを外れ値検出として使えるのが DBSCAN の強みで、k-means には無い出力。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：コア/境界/ノイズ・k-means との違い・ε の選び方</summary>
     <div class="det">点は 3 種類に分類されます。<b>コア点</b>＝半径 ε 内に minPts 個以上の仲間がいる（密集の中心）。<b>境界点</b>＝コアではないが、あるコア点の ε 内にある（クラスタの縁）。<b>ノイズ点</b>＝どちらでもない（外れ値）。クラスタは「コア点から密度的につながった点の集まり」。<b>k-means との違い</b>：k-means はクラスタ数 k を指定し球状を仮定するので三日月や同心円で破綻、外れ値にも弱い。DBSCAN は<b>数を自動決定・任意形状・ノイズ除去</b>ができる代わりに、密度が一様でないと苦手で、ε と minPts の調整が要ります。ε は「k 距離グラフの肘」で選ぶのが定石。</div>

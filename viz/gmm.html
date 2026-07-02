@@ -82,6 +82,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>GMM は k-means の上位互換だから常にこちらを使うべき</div>
+    <div class="row"><span class="o">✓</span>楕円の分だけ<b>パラメータが多く</b>、データが少ないと不安定で計算も重い。丸い塊なら<a href="kmeans.html">k-means</a>で十分——モデルの豊かさとデータ量は釣り合いが要る。</div>
+    <div class="row"><span class="x">✗</span>EM は最適解を保証するアルゴリズム</div>
+    <div class="row"><span class="o">✓</span>保証されるのは<b>尤度が下がらないこと</b>だけで、行き着く先は<b>局所最適</b>。初期値依存があるのは k-means と同じ。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：k-means との違い／対数尤度が必ず上がる理由</summary>
     <div class="det">k-means は「最も近い 1 つ」に割り当てる（ハード）＆等方的（丸）。GMM は各点が「各ガウスに何 % 属すか」（ソフト）＆<b>共分散</b>で楕円の向き・伸びを表せるので、傾いた/重なったクラスタに強い。EM は E ステップ（責任を計算）と M ステップ（その責任で分布を更新）を繰り返し、<b>対数尤度が単調に増加</b>して収束します（局所最適）。実は k-means は GMM の特殊な極限（分散→0・ハード割当）。</div>

@@ -82,6 +82,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>SOM は「重心がたくさんある k-means」</div>
+    <div class="row"><span class="o">✓</span>決定的な違いは<b>格子のトポロジー保持</b>。「格子で隣＝データでも似る」という制約が、ただの分割でなく<b>高次元の地図</b>を作る。</div>
+    <div class="row"><span class="x">✗</span>学習率と近傍の広さはずっと一定でよい</div>
+    <div class="row"><span class="o">✓</span>最初は<b>広く大きく</b>（全体の配置を整える）→ 後半は<b>狭く小さく</b>（細部を仕上げる）。この「冷却」こそが組織化のカギで、一定のままだと整わない。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：近傍関数・k-means との違い・用途</summary>
     <div class="det">SOM は「勝者だけ」でなく<b>格子上の近傍も一緒に動かす</b>のがミソ。近傍の重み h=exp(−格子距離²/2σ²) と学習率を時間とともに小さくし、最初は全体を大きく整え、後半で細部に適合。k-means は重心が独立に動くだけで「ノード同士の並び」は持ちませんが、SOM は<b>格子の隣接（トポロジー）を保つ</b>ので、高次元データを 2 次元の地図に並べて可視化する用途（特徴マップ）に使えます。</div>

@@ -82,6 +82,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>VAE はオートエンコーダにノイズを足しただけ</div>
+    <div class="row"><span class="o">✓</span>核心は KL 罰で潜在空間を <b>N(0,1) へ整える</b>こと。これで潜在に「穴」が無くなり、<b>どの z からでも生成できる</b>ようになる——ノイズは手段で目的ではない。</div>
+    <div class="row"><span class="x">✗</span>再構成が一番きれいな VAE が最良</div>
+    <div class="row"><span class="o">✓</span>再構成だけなら素の <a href="autoencoder.html">AE</a> が勝つ。VAE は<b>再構成 vs 潜在の整い（KL）のトレードオフ</b>で、生成の質はこのバランスが決める。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：再パラメータ化・KL・AE/GAN との違い</summary>
     <div class="det"><b>再パラメータ化トリック</b>：z = μ + σ·ε（ε～N(0,1)）と書くと、サンプリングを通して<b>勾配が流せる</b>（μ,σ を学習できる）。損失は<b>再構成誤差 ＋ β·KL(q(z|x)‖N(0,1))</b>。KL は各入力の潜在分布を標準正規へ引き寄せ、潜在空間に<b>穴のない連続な構造</b>を作る——これが生成のカギ。<b>素のオートエンコーダ</b>は潜在に穴があり、適当な z を復号すると破綻しがち。<b>GAN</b> は識別器との敵対で生成し鮮明だが学習が不安定。VAE は安定で潜在が解釈しやすい反面、出力がぼやけやすい。発展に画像生成の VQ-VAE や拡散モデルがあります。</div>

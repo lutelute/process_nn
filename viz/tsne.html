@@ -83,6 +83,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>図のクラスタ間の距離や塊の大きさもデータの性質</div>
+    <div class="row"><span class="o">✓</span>t-SNE が保つのは<b>局所の近さだけ</b>。クラスタ同士の距離・塊の大きさ・配置は<b>意味を持たない</b>——図の読み過ぎが t-SNE 最大の落とし穴。</div>
+    <div class="row"><span class="x">✗</span>perplexity は結果に影響しない飾りの設定</div>
+    <div class="row"><span class="o">✓</span><b>実効的な近傍数そのもの</b>で、変えると図の姿が激変する。1 つの設定の図だけで結論を出さず、複数試すのが作法。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：perplexity・距離の歪み・PCA との違い</summary>
     <div class="det">高次元の近さ P はガウス分布で測り、その幅は <b>perplexity</b>（実効的な近傍数）で決めます。低次元の近さ Q は<b>裾の重い t 分布</b>を使うのがミソで、これで点が混み合わず「クラスタを引き離す」効果が出ます（だから t-SNE）。<b>注意</b>：t-SNE は局所的な近さは保つが、<b>クラスタ間の距離やクラスタの大きさは意味を持たない</b>ので解釈に注意。PCA は分散最大方向への線形射影で大域的、t-SNE は非線形で局所的、と役割が違います。</div>

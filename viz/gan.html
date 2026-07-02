@@ -85,6 +85,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>G と D が両方どんどん強くなれば成功</div>
+    <div class="row"><span class="o">✓</span>目指すのは<b>競争の均衡</b>（D の正答が 0.5＝見分けられない）。どちらかが勝ち切ると学習が止まる——D 完勝なら G に勾配が届かない。</div>
+    <div class="row"><span class="x">✗</span>loss が下がっていれば良い生成になっている</div>
+    <div class="row"><span class="o">✓</span>GAN の loss は<b>相手あってのスコア</b>で額面通り読めない。<b>モード崩壊</b>は loss だけでは気づきにくく、生成の<b>多様性</b>を直接見る必要がある。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：min-max 目的・モード崩壊・VAE との違い</summary>
     <div class="det">GAN の目的関数は <b>min<sub>G</sub> max<sub>D</sub> E[log D(x)] + E[log(1−D(G(z)))]</b>。D はこれを<b>最大化</b>（本物に 1・偽物に 0 を出す）、G は<b>最小化</b>（D(G(z)) を 1 に近づけ騙す）。理想的には G がデータ分布に一致し D は 0.5（見分けられない）になります。<b>モード崩壊</b>：G が「D を騙せる一部のパターン」だけを量産し、データの<b>多様性を取りこぼす</b>失敗（8 個の山のうち数個しか作らない等）。学習は<b>不安定</b>になりがちで、安定化に instance noise・<a href="batchnorm.html">バッチ正規化</a>・勾配ペナルティ（WGAN-GP）などが使われます。<b><a href="vae.html">VAE</a> との違い</b>：VAE は尤度ベースで安定だがぼやけやすい、GAN は鋭い生成ができるが不安定。ここでは G[2-48-48-2]・D[2-48-48-1] を本物の勾配で敵対学習しています（生成は簡略な 2D）。本格的な画像生成は <a href="vae.html">VAE</a> や拡散モデルの系譜へ。</div>
