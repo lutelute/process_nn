@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  tokenizer:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,3 +14,5 @@ jobs:
           node-version: '20'
       - name: GPT-2 トークナイザの既知値・往復一致を検証
         run: node tools/verify.mjs
+      - name: 全 50 ページの静的健全性を検証（リンク切れ・インライン JS 構文）
+        run: node tools/check-pages.mjs

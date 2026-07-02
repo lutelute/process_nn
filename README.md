@@ -19,7 +19,7 @@
 2. **実況解説** — 「今この瞬間に何が起きているか」を日本語で常時表示
 3. **過程と結果の連動** — 学習で値・境界・構造が更新される様子、loss / 適応度などの推移を同時に見せる
 
-GPT-2 トークナイザは `node tools/verify.mjs` で既知値（`encode("Hello world") = [15496, 995]`）と往復一致を**自動検証**しています（GitHub Actions の CI で実行）。各ビューアの数値ロジックは開発時に Node で収束を、主要ページの実描画を Playwright（console エラー 0）で確認しています。
+**自動検証（GitHub Actions の CI で毎 push 実行）**: ① GPT-2 トークナイザ — `node tools/verify.mjs` で既知値（`encode("Hello world") = [15496, 995]`）と往復一致、② 全 50 ページの静的健全性 — `node tools/check-pages.mjs` でリンク切れ・インライン JS 構文をチェック。加えて実ブラウザでの実行時検証は `node tools/crawl-pages.mjs`（Playwright で全ページを開き console error / 未捕捉例外 / リクエスト失敗が 0 件であることを確認、ローカル実行用）。各ビューアの数値ロジックは開発時に Node で収束を確認しています。
 
 ---
 
