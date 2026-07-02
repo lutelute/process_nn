@@ -112,6 +112,14 @@
     <div id="tokIds" class="status" style="margin-top:8px;"></div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>GPT は言葉の意味を理解し、考えてから答えている</div>
+    <div class="row"><span class="o">✓</span>計算しているのは<b>「次のトークンの確率」だけ</b>。それを 1 個ずつ繰り返すと考えたように見える——下のビューアで、その 1 回 1 回の計算を実際に目撃できる。</div>
+    <div class="row"><span class="x">✗</span>モデルの中に文章や知識がそのまま保存されている</div>
+    <div class="row"><span class="o">✓</span>入っているのは <b>1.24 億個の重み（数値）だけ</b>。知識は重みのパターンに分散して埋め込まれ、forward の計算で毎回引き出される——検索ではなく<b>再構成</b>。</div>
+  </div>
+
   <!-- ============ 生成過程＋内部構造 ============ -->
   <h2>2. 生成過程と内部構造ビューア <span class="pill">要・重み読み込み</span></h2>
   <p class="lead small">
