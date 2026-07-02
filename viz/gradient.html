@@ -145,15 +145,20 @@ let cur='bowl',theta=F1.bowl.start,prevTheta=null,iterN=0,stepIdx=0,anim=false,a
 const c1=document.getElementById('c1d'),x1=c1.getContext('2d'),CW1=c1.width,CH1=c1.height;
 function P1(){const F=F1[cur],pad=38;return{xToP:t=>pad+(CW1-2*pad)*(t-F.lo)/(F.hi-F.lo),yToP:y=>CH1-26-(CH1-50)*(y-F.ylo)/(F.yhi-F.ylo)};}
 function draw1(showTan,showArrow){const F=F1[cur],{xToP,yToP}=P1();x1.clearRect(0,0,CW1,CH1);
+  // 説明の語をなぞると対応部位が光る（HL）: 非対象は薄く
+  const dim=key=>{x1.globalAlpha=(HL&&HL!==key)?0.18:1;};
   x1.strokeStyle=getCSS('--grid');x1.lineWidth=1;x1.beginPath();x1.moveTo(38,yToP(F.ylo));x1.lineTo(CW1-38,yToP(F.ylo));x1.stroke();
-  x1.strokeStyle=getCSS('--true');x1.lineWidth=2.2;x1.beginPath();for(let i=0;i<=120;i++){const t=F.lo+(F.hi-F.lo)*i/120;i?x1.lineTo(xToP(t),yToP(Math.min(F.yhi,F.f(t)))):x1.moveTo(xToP(t),yToP(Math.min(F.yhi,F.f(t))));}x1.stroke();
+  dim('loss');x1.strokeStyle=getCSS('--true');x1.lineWidth=2.2+(HL==='loss'?0.8:0);if(HL==='loss'){x1.shadowColor=getCSS('--true');x1.shadowBlur=10;}x1.beginPath();for(let i=0;i<=120;i++){const t=F.lo+(F.hi-F.lo)*i/120;i?x1.lineTo(xToP(t),yToP(Math.min(F.yhi,F.f(t)))):x1.moveTo(xToP(t),yToP(Math.min(F.yhi,F.f(t))));}x1.stroke();x1.shadowBlur=0;
   const g=F.d(theta),Lv=F.f(theta);
-  if(showTan){x1.strokeStyle=getCSS('--loss');x1.lineWidth=1.8;x1.setLineDash([5,4]);const dt=0.9;x1.beginPath();x1.moveTo(xToP(theta-dt),yToP(Lv-g*dt));x1.lineTo(xToP(theta+dt),yToP(Lv+g*dt));x1.stroke();x1.setLineDash([]);}
-  if(showArrow&&prevTheta!=null){x1.strokeStyle=getCSS('--accent');x1.globalAlpha=.5;x1.lineWidth=2;x1.beginPath();x1.moveTo(xToP(prevTheta),yToP(F.f(prevTheta)));x1.lineTo(xToP(theta),yToP(F.f(theta)));x1.stroke();x1.globalAlpha=1;}
-  const bx=xToP(theta),by=yToP(Lv);x1.beginPath();x1.arc(bx,by,8,0,7);x1.fillStyle=getCSS('--accent');x1.shadowColor=getCSS('--accent');x1.shadowBlur=12;x1.fill();x1.shadowBlur=0;
+  if(showTan){dim('grad');x1.strokeStyle=getCSS('--loss');x1.lineWidth=1.8+(HL==='grad'?1:0);if(HL==='grad'){x1.shadowColor=getCSS('--loss');x1.shadowBlur=12;}x1.setLineDash([5,4]);const dt=0.9;x1.beginPath();x1.moveTo(xToP(theta-dt),yToP(Lv-g*dt));x1.lineTo(xToP(theta+dt),yToP(Lv+g*dt));x1.stroke();x1.setLineDash([]);x1.shadowBlur=0;}
+  if(showArrow&&prevTheta!=null){dim('eta');x1.strokeStyle=getCSS('--accent');if(HL!=='eta')x1.globalAlpha=Math.min(x1.globalAlpha,.5);x1.lineWidth=2+(HL==='eta'?1.4:0);if(HL==='eta'){x1.shadowColor=getCSS('--accent');x1.shadowBlur=12;}x1.beginPath();x1.moveTo(xToP(prevTheta),yToP(F.f(prevTheta)));x1.lineTo(xToP(theta),yToP(F.f(theta)));x1.stroke();x1.shadowBlur=0;x1.globalAlpha=1;}
+  dim('theta');const bx=xToP(theta),by=yToP(Lv);x1.beginPath();x1.arc(bx,by,8+(HL==='theta'?1.5:0),0,7);x1.fillStyle=getCSS('--accent');x1.shadowColor=getCSS('--accent');x1.shadowBlur=HL==='theta'?18:12;x1.fill();x1.shadowBlur=0;
   x1.fillStyle=getCSS('--muted');x1.font='11px '+getCSS('--mono');x1.textAlign='center';x1.fillText('θ='+f2(theta),bx,by-14);
-  x1.fillStyle=getCSS('--faint');x1.fillText('θ',CW1-18,yToP(F.ylo)+15);
+  x1.globalAlpha=1;x1.fillStyle=getCSS('--faint');x1.fillText('θ',CW1-18,yToP(F.ylo)+15);
 }
+// 説明の語 ⇔ 図の部位の同期（nav.js の .ref 機構から届く）
+let HL=null;
+document.addEventListener('hl',e=>{HL=e.detail;const k=STEPS[stepIdx].key;if(k!=='smart'&&!anim)draw1(k!=='goal',k==='step'||k==='iter');});
 
 /* ===== 2D (step5) ===== */
 const c2=document.getElementById('c2d'),x2=c2.getContext('2d'),CW2=c2.width,CH2=c2.height;
@@ -206,9 +211,9 @@ function renderLegend(){const l=document.getElementById('legend'),k=STEPS[stepId
   else l.innerHTML='<span><i class="sw" style="background:var(--true)"></i>損失 L(θ)</span><span><i class="sw" style="background:var(--loss)"></i>接線=勾配</span><span><i class="sw" style="background:var(--accent)"></i>今の θ</span>';}
 function renderExplain(){const el=document.getElementById('explain'),F=F1[cur],k=STEPS[stepIdx].key,s=STEPS[stepIdx];el.style.setProperty('--c',s.c);
   const g=F.d(theta),nt=theta-F.eta*g;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='goal'){h+='<h3>① 問題：谷（最小）を探す</h3><div class="eq curr">θ ← θ − <span style="color:var(--loss)">η</span> · <span style="color:var(--accent)">∂L/∂θ</span></div><div class="desc">損失 L(θ) の地形の上にボール（今の θ='+f2(theta)+'）。目標はこの<b>谷の底＝損失が最小</b>の場所。たった上の 1 式を繰り返して下ります。</div>';}
-  else if(k==='grad'){h+='<h3>② 勾配を測る</h3><div class="eq curr"><span class="frac"><span>∂L</span><span>∂θ</span></span> = <span class="res">'+f3(g)+'</span></div><div class="desc">今の位置の<b>接線の傾き</b>（黄色の破線）。'+(g>0?'正＝右上がりなので、谷は<b>左</b>':'負＝右下がりなので、谷は<b>右</b>')+'。傾きが急なほど勾配が大きい。</div>';}
-  else if(k==='step'){h+='<h3>③ 逆向きに一歩</h3><div class="eq curr">θ ← '+f2(prevTheta!=null?prevTheta:F.start)+' − '+F.eta.toFixed(2)+'·('+f3(F.d(prevTheta!=null?prevTheta:F.start))+') = <span class="res">'+f2(theta)+'</span></div><div class="desc">勾配の<b>逆向き</b>に、学習率 η='+F.eta.toFixed(2)+' の歩幅だけ動いた。損失が '+F.f(prevTheta!=null?prevTheta:F.start).toFixed(3)+' → <b>'+F.f(theta).toFixed(3)+'</b> に下がっています。</div>';}
+  if(k==='goal'){h+='<h3>① 問題：谷（最小）を探す</h3><div class="eq curr"><span class="ref" data-hl="theta">θ</span> ← <span class="ref" data-hl="theta">θ</span> − <span style="color:var(--loss)">η</span> · <span style="color:var(--accent)">∂L/∂θ</span></div><div class="desc"><span class="ref" data-hl="loss">損失 L(θ) の地形</span>の上に<span class="ref" data-hl="theta">ボール（今の θ='+f2(theta)+'）</span>。目標はこの<b>谷の底＝損失が最小</b>の場所。たった上の 1 式を繰り返して下ります。<span style="color:var(--faint)">下線の語をなぞると図の対応が光ります。</span></div>';}
+  else if(k==='grad'){h+='<h3>② 勾配を測る</h3><div class="eq curr"><span class="ref" data-hl="grad"><span class="frac"><span>∂L</span><span>∂θ</span></span></span> = <span class="res">'+f3(g)+'</span></div><div class="desc"><span class="ref" data-hl="theta">今の位置</span>の<span class="ref" data-hl="grad">接線の傾き（黄色の破線）</span>。'+(g>0?'正＝右上がりなので、谷は<b>左</b>':'負＝右下がりなので、谷は<b>右</b>')+'。<span class="ref" data-hl="loss">地形</span>が急なほど勾配は大きい。</div>';}
+  else if(k==='step'){h+='<h3>③ 逆向きに一歩</h3><div class="eq curr"><span class="ref" data-hl="theta">θ</span> ← '+f2(prevTheta!=null?prevTheta:F.start)+' − <span class="ref" data-hl="eta">'+F.eta.toFixed(2)+'</span>·(<span class="ref" data-hl="grad">'+f3(F.d(prevTheta!=null?prevTheta:F.start))+'</span>) = <span class="res">'+f2(theta)+'</span></div><div class="desc"><span class="ref" data-hl="grad">勾配</span>の<b>逆向き</b>に、<span class="ref" data-hl="eta">学習率 η='+F.eta.toFixed(2)+' の歩幅（緑の線）</span>だけ動いた。損失が '+F.f(prevTheta!=null?prevTheta:F.start).toFixed(3)+' → <b>'+F.f(theta).toFixed(3)+'</b> に下がっています。</div>';}
   else if(k==='iter'){const conv=Math.abs(g)<0.02;h+='<h3>④ 繰り返して谷へ</h3><div class="eq curr">歩数 '+iterN+'　θ='+f2(theta)+'　傾き='+f3(g)+'</div><div class="desc">同じ 1 式をひたすら繰り返すと、傾きが緩む（谷に近づく）ほど歩幅も自然に小さくなり、'+(conv?'<b>傾き≈0 ＝ 谷の底に到達</b>（収束）。':'谷へ吸い込まれていきます。')+(cur==='well'?' ※二重谷では、出発点しだいで<b>手前の谷（局所最小）</b>に落ちることも。':'')+'</div>';}
   else{h+='<h3>⑤ 賢い下り方 — 細長い谷で競走</h3>'
     +'<div class="desc">この地形は<b>横は急な坂・縦はほぼ平ら</b>の細長い谷（等高線の間隔を見比べてください）。同じスタートから 3 つの下り方で ★ 谷底まで競走します。<b>差がつくのは平らな縦方向</b>——ここが本物の深層学習の地形にもよくある難所です。</div>'

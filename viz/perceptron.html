@@ -127,15 +127,22 @@ function epochPass(){let upd=0;for(let i=0;i<X.length;i++){if(Y[i]*score(i)<=0){
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
 const LO=-1.35,HI=1.35,px=x=>14+(CW-28)*(x-LO)/(HI-LO),py=y=>14+(CH-28)*(HI-y)/(HI-LO);
 const fromX=sx=>(sx-14)/(CW-28)*(HI-LO)+LO,fromY=sy=>HI-(sy-14)/(CH-28)*(HI-LO);
-function shade(){const G=44,cw=(CW-28)/G,ch=(CH-28)/G;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=fromX(14+(c+0.5)*cw),yy=fromY(14+(r+0.5)*ch);const s=w[0]*xx+w[1]*yy+b;ctx.fillStyle=s>=0?'rgba(31,158,138,0.08)':'rgba(179,129,47,0.08)';ctx.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}}
-function line(){const nw=Math.hypot(w[0],w[1]);if(nw<1e-6)return;ctx.strokeStyle=getCSS('--text');ctx.lineWidth=2;
+// 説明の語をなぞると対応部位が光る（HL）: 非対象は薄く
+const dimHL=key=>{ctx.globalAlpha=(HL&&HL!==key)?0.15:1;};
+function shade(){dimHL('region');const G=44,cw=(CW-28)/G,ch=(CH-28)/G;const boost=HL==='region'?2.6:1;for(let r=0;r<G;r++)for(let c=0;c<G;c++){const xx=fromX(14+(c+0.5)*cw),yy=fromY(14+(r+0.5)*ch);const s=w[0]*xx+w[1]*yy+b;ctx.fillStyle=s>=0?`rgba(31,158,138,${0.08*boost})`:`rgba(179,129,47,${0.08*boost})`;ctx.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}ctx.globalAlpha=1;}
+function line(){const nw=Math.hypot(w[0],w[1]);if(nw<1e-6)return;dimHL('line');ctx.strokeStyle=getCSS('--text');ctx.lineWidth=2+(HL==='line'?1.2:0);if(HL==='line'){ctx.shadowColor=getCSS('--accent');ctx.shadowBlur=12;}
   if(Math.abs(w[1])>=Math.abs(w[0])){const x0=LO,x1=HI,y0=-(w[0]*x0+b)/w[1],y1=-(w[0]*x1+b)/w[1];ctx.beginPath();ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));ctx.stroke();}
-  else{const y0=LO,y1=HI,x0=-(w[1]*y0+b)/w[0],x1=-(w[1]*y1+b)/w[0];ctx.beginPath();ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));ctx.stroke();}}
+  else{const y0=LO,y1=HI,x0=-(w[1]*y0+b)/w[0],x1=-(w[1]*y1+b)/w[0];ctx.beginPath();ctx.moveTo(px(x0),py(y0));ctx.lineTo(px(x1),py(y1));ctx.stroke();}
+  ctx.shadowBlur=0;ctx.globalAlpha=1;}
 function pts(markWrong,markUpd){for(let i=0;i<X.length;i++){const wrong=Y[i]*score(i)<=0;
-  if(markWrong&&wrong){ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),6.5,0,7);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6;ctx.stroke();}
-  if(markUpd&&i===lastUpd){ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),8.5,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2;ctx.stroke();}
-  ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),3.4,0,7);ctx.fillStyle=Y[i]>0?getCSS('--c1'):getCSS('--cm');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}}
+  if(markWrong&&wrong){dimHL('wrong');if(HL==='wrong'){ctx.shadowColor=getCSS('--neg');ctx.shadowBlur=10;}ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),6.5,0,7);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6+(HL==='wrong'?0.8:0);ctx.stroke();ctx.shadowBlur=0;}
+  if(markUpd&&i===lastUpd){dimHL('upd');if(HL==='upd'){ctx.shadowColor=getCSS('--upd');ctx.shadowBlur=12;}ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),8.5,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2+(HL==='upd'?1:0);ctx.stroke();ctx.shadowBlur=0;}
+  dimHL('pts');ctx.beginPath();ctx.arc(px(X[i][0]),py(X[i][1]),3.4,0,7);ctx.fillStyle=Y[i]>0?getCSS('--c1'):getCSS('--cm');ctx.fill();ctx.lineWidth=.5;ctx.strokeStyle='rgba(12,16,22,0.7)';ctx.stroke();}
+  ctx.globalAlpha=1;}
 function draw(opt){opt=opt||{};ctx.clearRect(0,0,CW,CH);if(opt.shade)shade();if(opt.line)line();pts(opt.wrong,opt.upd);}
+// 説明の語 ⇔ 図の部位の同期（nav.js の .ref 機構から届く）
+let HL=null;
+document.addEventListener('hl',e=>{HL=e.detail;if(!anim)draw_();});
 
 const STEPS=[{key:'prob',t:'問題',c:'var(--accent)'},{key:'thr',t:'しきい(符号)',c:'var(--upd)'},{key:'rule',t:'誤り駆動更新',c:'var(--neg)'},{key:'iter',t:'反復で収束',c:'var(--accent)'},{key:'res',t:'結果',c:'var(--loss)'}];
 let stepIdx=0,anim=false,auto=false;
@@ -145,8 +152,8 @@ function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].k
 function renderLegend(){document.getElementById('legend').textContent='青/橙=2クラス, 白線=境界, 背景=±の領域'+((STEPS[stepIdx].key==='rule')?', 赤丸=誤分類, 紫丸=更新に使う点':(STEPS[stepIdx].key==='iter'||STEPS[stepIdx].key==='res')?', 赤丸=まだ誤分類の点':'');}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const xor=document.getElementById('dataSel').value==='xor';let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：仕切り線を機械に引かせたい</h3><div class="desc">青(+1)と橙(−1)、2 種類の点があります。人間なら<b>仕切りの直線</b>を一目で引けますが、機械にやらせるには「<b>どう間違えたら・どう直すか</b>」の手順が要る。それを世界で最初に与えたのがパーセプトロン（1958）。いまはまだ<b>でたらめな線</b>です——ここから機械が自力で直していきます。</div>';}
-  else if(k==='thr'){h+='<h3>② 1 個のニューロン＝点数をつける係</h3><div class="eq curr">点数 = w·x + b　→　予測 = その符号（+なら青 / −なら橙）</div><div class="desc">ニューロンのやることは単純：入力の座標に重みを掛けて足した<b>「点数」</b>を出し、<b>プラスなら青、マイナスなら橙</b>と宣言する。背景の色分けがその宣言で、<b>白い線は「点数がちょうど 0 になる場所」</b>——つまり境界線の正体は<b>採点が 0 点の場所の集まり</b>です。重み w を変えると点数の付け方が変わり、線が動きます。</div>';}
-  else if(k==='rule'){h+='<h3>③ 間違えた点の方へ、線を引き寄せる</h3><div class="eq curr">間違えた点だけ：w ← w + η·y·x,　b ← b + η·y</div><div class="desc">正解している点は<b>何もしない</b>。<b>間違えた点（赤丸）</b>を 1 つ選び（紫丸）、<b>その点の点数が正しい符号へ近づく向き</b>に w を少し動かす——図では、境界線がその点を正しい側へ入れる方向にグイッと動きます。式の意味は「橙(y=−1)を青と間違えたら、その座標の分だけ w を減らせ」。<b>失敗した時だけ学ぶ</b>、が この機械の性格。誤分類 '+mistakes()+' 個。</div>';}
+  else if(k==='thr'){h+='<h3>② 1 個のニューロン＝点数をつける係</h3><div class="eq curr"><span class="ref" data-hl="line">点数 = w·x + b</span>　→　<span class="ref" data-hl="region">予測 = その符号（+なら青 / −なら橙）</span></div><div class="desc">ニューロンのやることは単純：入力の座標に重みを掛けて足した<b>「点数」</b>を出し、<span class="ref" data-hl="region">プラスなら青、マイナスなら橙と宣言する（背景の色分け）</span>。そして<span class="ref" data-hl="line">白い線は「点数がちょうど 0 になる場所」</span>——境界線の正体は<b>採点が 0 点の場所の集まり</b>です。重み w を変えると点数の付け方が変わり、線が動きます。<span style="color:var(--faint)">下線の語をなぞると図の対応が光ります。</span></div>';}
+  else if(k==='rule'){h+='<h3>③ 間違えた点の方へ、線を引き寄せる</h3><div class="eq curr">間違えた点だけ：w ← w + η·y·x,　b ← b + η·y</div><div class="desc">正解している点は<b>何もしない</b>。<span class="ref" data-hl="wrong">間違えた点（赤丸）</span>を 1 つ選び（<span class="ref" data-hl="upd">紫丸</span>）、<b>その点の点数が正しい符号へ近づく向き</b>に w を少し動かす——図では、<span class="ref" data-hl="line">境界線</span>がその点を正しい側へ入れる方向にグイッと動きます。式の意味は「橙(y=−1)を青と間違えたら、その座標の分だけ w を減らせ」。<b>失敗した時だけ学ぶ</b>、がこの機械の性格。誤分類 '+mistakes()+' 個。</div>';}
   else if(k==='iter'){h+='<h3>④ 繰り返すと、直す理由がなくなって止まる</h3><div class="eq curr">全点を巡回し、誤分類がなくなるまで更新</div><div class="desc">「間違い探し→線を引き寄せる」を繰り返すと、境界が回転しながら<b>間違いゼロ</b>へ向かいます。ゼロになった瞬間、<b>もう動かす理由が無い＝学習終了</b>。直線で分けられる配置なら<b>必ず有限回で終わる</b>ことが証明されています（収束定理）。epoch '+epoch+'・誤分類 '+mistakes()+'。</div>';}
   else{h+='<h3>⑤ 結果と限界</h3><div class="desc">'+(converged?'全点を正しく分ける直線に<b>収束</b>しました（epoch '+epoch+'）。線形分離可能なら必ずここに到達します。':'<b style="color:var(--neg)">収束しません</b>（誤分類 '+mistakes()+' が残り続ける）。')+(xor?' <b>XOR は 1 本の直線では絶対に分けられない</b>配置——これがパーセプトロンの限界として有名で、<b>多層化＋誤差逆伝播（MLP）</b>が必要になりました。':' 右下で「XOR」を選ぶと、直線では分けられず収束しない様子＝限界が見られます。')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・sign(w·x+b) の 1 ニューロン<br>・誤分類点だけで w←w+ηyx（誤り駆動）<br>・線形分離可なら収束／XORは不可→MLPへ</div>';}
   el.innerHTML=h;}
