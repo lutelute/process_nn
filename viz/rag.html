@@ -99,8 +99,11 @@
   </div>
 
   <div class="docsim" style="background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:13px 16px;margin:14px 0;">
-    <div style="font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);font-weight:700;margin-bottom:7px;">📚 実験：文書まるごとの類似度</div>
-    <div class="desc" style="margin-bottom:9px;">チャンク単位でなく<b>文書全体を 1 本のベクトル</b>にすると、<b>文書どうしの近さ</b>も測れます。<b>昔話どうし（桃太郎 × 浦島太郎）は言い回し</b>（むかし・ました・おじいさん…）<b>を共有して高く</b>、論文や規約とは低い——質問がどの文書の話かを選べるのも、検索サイトの「似た記事」も、この文書ベクトルの近さです。</div>
+    <div style="font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--accent);font-weight:700;margin-bottom:7px;">📚 実験：文書と文の類似マップ</div>
+    <div class="desc" style="margin-bottom:9px;">全 4 文書の<b>全文（28 チャンク）をベクトル化し、2 次元マップに配置</b>しました（似た文ほど近くに来る古典的 MDS——<a href="pca.html">PCA</a> の親戚）。<b>点＝文、色＝所属文書、薄い線＝似ている文どうし</b>。<b>昔話の文が「島」を作り</b>、論文・規約は別の島になるのが見えます。<b>点をなぞる</b>と、その文と「最も似ている文」が表示されます。</div>
+    <canvas id="docmap" width="640" height="360" style="width:100%;max-width:640px;"></canvas>
+    <div id="docmapInfo" class="desc" style="min-height:3em;margin:6px 0 10px;font-size:12.5px;color:var(--muted);">（マップの点をなぞると、ここに文と類似相手が表示されます）</div>
+    <div class="desc" style="margin-bottom:9px;"><b>文書まるごと</b>を 1 本のベクトルにした類似度行列。昔話どうし（桃太郎 × 浦島太郎）だけが高い:</div>
     <div id="docsimBody" style="overflow-x:auto;"></div>
   </div>
 
@@ -247,13 +250,15 @@ cs.onchange=e=>{ck=e.target.value;qi=0;buildIndex();fillQ();renderAll();};
 qs.onchange=e=>{qi=+e.target.value;renderAll();};
 fillQ();renderAll();
 
-// ===== 実験: 文書まるごとの類似度（4×4 の cos 行列）=====
-// 各コーパスの全文を 1 本のバイグラム TF ベクトルにし、文書間の cos を表にする。
-// 昔話どうしが高く・ジャンル違いは低い＝「文書の近さ」も同じ物差しで測れることの実証。
+// ===== 実験: 文書と文の類似マップ＋4×4 の cos 行列 =====
+// 全コーパスの全チャンクをバイグラム TF ベクトル化し、古典的 MDS（既存 mds() を流用）で
+// 2 次元に配置。点=文・色=文書・線=似ている文どうし。ホバーで実文と類似相手を表示。
 (function docSim(){
   const el=document.getElementById('docsimBody');if(!el)return;
   const keys=Object.keys(CORPORA);
   const SHORT={tale:'桃太郎',urashima:'浦島太郎',paper:'論文',legal:'規約'};
+  const DCOL={tale:'#1f9e8a',urashima:'#6f54c4',paper:'#b3812f',legal:'#cf4f5f'};
+  // --- 4×4 文書まるごと行列 ---
   const whole=keys.map(k=>bigrams(CORPORA[k].docs.join('')));
   const cell=(v,diag)=>{const bg=diag?'rgba(26,26,23,0.06)':'rgba(31,158,138,'+(v*0.55).toFixed(3)+')';
     return '<td style="border:1px solid var(--line);padding:6px 10px;text-align:center;font-family:var(--mono);font-size:12px;background:'+bg+';'+(diag?'color:var(--faint);':'')+(!diag&&v>=0.3?'font-weight:700;':'')+'">'+v.toFixed(2)+'</td>';};
@@ -263,6 +268,44 @@ fillQ();renderAll();
     for(let j=0;j<keys.length;j++)h+=cell(cos(whole[i],whole[j]),i===j);h+='</tr>';}
   h+='</table>';
   el.innerHTML=h;
+  // --- 全 28 チャンクの 2D マップ ---
+  const items=[];// {key,di(文書内番号),text,vec}
+  for(const k of keys)CORPORA[k].docs.forEach((t,i)=>items.push({key:k,di:i,text:t,vec:bigrams(t)}));
+  const XY=mds(items.map(o=>o.vec));
+  const mc=document.getElementById('docmap'),mx2=mc.getContext('2d'),MW=mc.width,MH=mc.height;
+  let mn=[1e9,1e9],mx=[-1e9,-1e9];for(const p of XY){for(let d=0;d<2;d++){mn[d]=Math.min(mn[d],p[d]);mx[d]=Math.max(mx[d],p[d]);}}
+  const PX=p=>34+(p[0]-mn[0])/((mx[0]-mn[0])||1)*(MW-68),PY=p=>26+(p[1]-mn[1])/((mx[1]-mn[1])||1)*(MH-64);
+  // 文どうしの類似（線用）を前計算
+  const simIJ=[];for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){const s=cos(items[i].vec,items[j].vec);if(s>0.22)simIJ.push([i,j,s]);}
+  function renderMap(hi){mx2.clearRect(0,0,MW,MH);
+    // 類似線（ホバー中はその点に接続する線だけ強調）
+    for(const[i,j,s]of simIJ){const on=hi==null||i===hi||j===hi;
+      mx2.strokeStyle='rgba(26,26,23,'+(on?(0.06+s*0.5):0.03).toFixed(3)+')';mx2.lineWidth=on&&hi!=null?1.6:1;
+      mx2.beginPath();mx2.moveTo(PX(XY[i]),PY(XY[i]));mx2.lineTo(PX(XY[j]),PY(XY[j]));mx2.stroke();}
+    // 文書の重心ラベル
+    for(const k of keys){const pts=items.map((o,i)=>o.key===k?XY[i]:null).filter(Boolean);
+      const cx=pts.reduce((s,p)=>s+PX(p),0)/pts.length,cy=pts.reduce((s,p)=>s+PY(p),0)/pts.length;
+      mx2.font='700 12px '+getCSS('--gothic');mx2.fillStyle=DCOL[k];mx2.textAlign='center';mx2.fillText(SHORT[k],cx,cy-14);}
+    // 文の点
+    items.forEach((o,i)=>{const X=PX(XY[i]),Y=PY(XY[i]);
+      mx2.beginPath();mx2.arc(X,Y,i===hi?6.5:4.2,0,7);mx2.fillStyle=DCOL[o.key];
+      if(i===hi){mx2.shadowColor=DCOL[o.key];mx2.shadowBlur=10;}
+      mx2.globalAlpha=hi==null||i===hi?1:0.45;mx2.fill();mx2.globalAlpha=1;mx2.shadowBlur=0;
+      mx2.lineWidth=1;mx2.strokeStyle='rgba(255,253,246,0.9)';mx2.stroke();});
+  }
+  renderMap(null);
+  const info=document.getElementById('docmapInfo');
+  let curHi=null;
+  mc.addEventListener('mousemove',e=>{const r=mc.getBoundingClientRect(),sx=(e.clientX-r.left)*MW/r.width,sy=(e.clientY-r.top)*MH/r.height;
+    let best=-1,bd=14;items.forEach((o,i)=>{const d=Math.hypot(PX(XY[i])-sx,PY(XY[i])-sy);if(d<bd){bd=d;best=i;}});
+    if(best===curHi)return;curHi=best<0?null:best;renderMap(curHi);
+    if(curHi==null){info.innerHTML='（マップの点をなぞると、ここに文と類似相手が表示されます）';return;}
+    const o=items[curHi];
+    const sims=items.map((p,i)=>({i,s:i===curHi?-1:cos(o.vec,p.vec)})).sort((a,b)=>b.s-a.s).slice(0,2);
+    info.innerHTML='<b style="color:'+DCOL[o.key]+'">'+SHORT[o.key]+'・文'+(o.di+1)+'</b>：'+o.text
+      +'<br><span style="color:var(--faint)">最も似ている文 → </span>'
+      +sims.map(x=>'<b style="color:'+DCOL[items[x.i].key]+'">'+SHORT[items[x.i].key]+'・文'+(items[x.i].di+1)+'</b>（'+x.s.toFixed(2)+'）'+items[x.i].text).join('<span style="color:var(--faint)"> ／ </span>');});
+  mc.addEventListener('mouseleave',()=>{curHi=null;renderMap(null);info.innerHTML='（マップの点をなぞると、ここに文と類似相手が表示されます）';});
 })();
 </script>
 <script src="nav.js"></script>
