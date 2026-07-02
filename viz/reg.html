@@ -133,7 +133,7 @@ const px=x=>26+(CW-38)*(x-LOx)/(HIx-LOx),py=y=>14+(CH-30)*(HIy-y)/(HIy-LOy);
 function axes(){ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px(LOx),py(0));ctx.lineTo(px(HIx),py(0));ctx.stroke();}
 function curve(fn,style,wd,dash){ctx.strokeStyle=style;ctx.lineWidth=wd||2;if(dash)ctx.setLineDash(dash);ctx.beginPath();for(let i=0;i<=160;i++){const x=LOx+(HIx-LOx)*i/160,y=fn(x);const yy=Math.max(LOy-1,Math.min(HIy+1,y));i?ctx.lineTo(px(x),py(yy)):ctx.moveTo(px(x),py(yy));}ctx.stroke();ctx.setLineDash([]);}
 function pts(Xs,Ys,col,r){for(let i=0;i<Xs.length;i++){ctx.beginPath();ctx.arc(px(Xs[i]),py(Ys[i]),r,0,7);ctx.fillStyle=col;ctx.fill();}}
-function ucurve(){const w2=120,h=70,x0=CW-w2-12,y0=12;ctx.fillStyle='rgba(12,16,22,0.8)';ctx.fillRect(x0,y0,w2,h);
+function ucurve(){const w2=120,h=70,x0=CW-w2-12,y0=12;ctx.fillStyle='rgba(255,253,246,0.94)';ctx.fillRect(x0,y0,w2,h);ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w2,h);
   const tr=[],te=[];for(let s=0;s<=100;s+=4){const W=ridge(lamFromSlider(s));tr.push(mse(W,trX,trY));te.push(mse(W,teX,teY));}
   const all=tr.concat(te),hi=Math.max(...all),lo=0;const X=s=>x0+6+(w2-12)*(s/100),Y=v=>y0+h-8-(h-16)*(v-lo)/(hi-lo+1e-9);
   ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;ctx.beginPath();tr.forEach((v,i)=>{const xx=X(i*4),yy=Y(v);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.stroke();

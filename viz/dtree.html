@@ -138,7 +138,7 @@ function drawTree(){let leaf=0;const tot=countLim(root,curDepth);
   ctx.strokeStyle='rgba(133,149,168,0.4)';ctx.lineWidth=1;(function edges(node){if(node.f===undefined||node.depth>=curDepth)return;for(const ch of[node.L,node.R]){ctx.beginPath();ctx.moveTo(X2(node._x),Y2(node._d));ctx.lineTo(X2(ch._x),Y2(ch._d));ctx.stroke();edges(ch);}})(root);
   (function nodes(node){const leafLike=(node.f===undefined||node.depth>=curDepth);const X0=X2(node._x),Y0=Y2(node._d);
     if(leafLike){ctx.fillStyle=CLS[node.pred];ctx.globalAlpha=0.9;ctx.fillRect(X0-8,Y0-8,16,16);ctx.globalAlpha=1;ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(X0-8,Y0-8,16,16);}
-    else{ctx.beginPath();ctx.arc(X0,Y0,11,0,7);ctx.fillStyle='#1b2535';ctx.fill();ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.3;ctx.stroke();ctx.fillStyle=getCSS('--text');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText((node.f===0?'x':'y')+'≤'+node.th.toFixed(2),X0,Y0-17);nodes(node.L);nodes(node.R);}})(root);
+    else{ctx.beginPath();ctx.arc(X0,Y0,11,0,7);ctx.fillStyle='#fffdf6';ctx.fill();ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.3;ctx.stroke();ctx.fillStyle=getCSS('--text');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText((node.f===0?'x':'y')+'≤'+node.th.toFixed(2),X0,Y0-17);nodes(node.L);nodes(node.R);}})(root);
 }
 function draw(showRegions){ctx.clearRect(0,0,CW,cv.height);drawSpace(showRegions);
   ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(10,TY0-4);ctx.lineTo(CW-10,TY0-4);ctx.stroke();
