@@ -150,25 +150,48 @@ const off2=document.createElement('canvas');off2.width=CW2;off2.height=CH2;const
 const R2=3,f2d=(x,y)=>0.5*x*x+0.05*y*y;
 function gr2(x,y){const h=1e-4;return[(f2d(x+h,y)-f2d(x-h,y))/(2*h),(f2d(x,y+h)-f2d(x,y-h))/(2*h)];}
 const P2x=x=>14+(CW2-28)*(x+R2)/(2*R2),P2y=y=>14+(CH2-28)*(R2-y)/(2*R2);
-function renderBG2(){const G=120,cw=(CW2-28)/G,ch=(CH2-28)/G;ox2.clearRect(0,0,CW2,CH2);let mn=1e9,mx=-1e9;const v=[];
+function renderBG2(){
+  // クリーム地の「地形図」— 谷底ほど白く、外周ほど淡い青緑。等高線の間隔が
+  // 「横（急）は密・縦（平ら）は疎」に見えることが、このステップの主役。
+  const G=120,cw=(CW2-28)/G,ch=(CH2-28)/G;
+  ox2.fillStyle='#fffdf6';ox2.fillRect(0,0,CW2,CH2);
+  let mn=1e9,mx=-1e9;const v=[];
   for(let r=0;r<G;r++){v.push([]);for(let c=0;c<G;c++){const x=(c+0.5)/G*2*R2-R2,y=R2-(r+0.5)/G*2*R2,val=f2d(x,y);v[r].push(val);mn=Math.min(mn,val);mx=Math.max(mx,val);}}
-  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const t=1-Math.pow((v[r][c]-mn)/(mx-mn+1e-9),0.42);ox2.fillStyle='rgb('+Math.round(10+t*36)+','+Math.round(18+t*150)+','+Math.round(28+t*135)+')';ox2.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}}
+  const LV=9,band=val=>Math.min(LV-1,Math.floor(Math.pow((val-mn)/(mx-mn+1e-9),0.55)*LV));
+  const bands=v.map(row=>row.map(band));
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const a=bands[r][c]/(LV-1);ox2.fillStyle='rgba(31,158,138,'+(0.04+0.28*a).toFixed(3)+')';ox2.fillRect(14+c*cw,14+r*ch,cw+1,ch+1);}
+  ox2.strokeStyle='rgba(26,96,86,0.30)';ox2.lineWidth=1;ox2.beginPath();
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    if(c+1<G&&bands[r][c]!==bands[r][c+1]){ox2.moveTo(14+(c+1)*cw,14+r*ch);ox2.lineTo(14+(c+1)*cw,14+(r+1)*ch);}
+    if(r+1<G&&bands[r][c]!==bands[r+1][c]){ox2.moveTo(14+c*cw,14+(r+1)*ch);ox2.lineTo(14+(c+1)*cw,14+(r+1)*ch);}
+  }ox2.stroke();
+  ox2.fillStyle='rgba(82,80,74,0.95)';ox2.font='11px '+getCSS('--mono');ox2.textAlign='center';
+  ox2.fillText('← 横＝急な坂（等高線が密）→',P2x(0),P2y(-2.72));
+  ox2.save();ox2.translate(P2x(2.72),P2y(0));ox2.rotate(-Math.PI/2);ox2.fillText('← 縦＝ほぼ平ら（疎）→',0,0);ox2.restore();}
 let opts=[],run2=false,it2=0;
-function resetOpts(){opts=[{k:'SGD',c:'--sgd',p:[-2.6,2.6],v:[0,0]},{k:'Momentum',c:'--mom',p:[-2.6,2.6],v:[0,0]},{k:'Adam',c:'--adam',p:[-2.6,2.6],m:[0,0],vv:[0,0],t:0}];opts.forEach(o=>o.hist=[[...o.p]]);it2=0;}
-function stepOpt(o){const lr=0.18,g=gr2(o.p[0],o.p[1]);if(o.k==='SGD'){o.p[0]-=lr*g[0];o.p[1]-=lr*g[1];}else if(o.k==='Momentum'){o.v[0]=0.9*o.v[0]-lr*g[0];o.v[1]=0.9*o.v[1]-lr*g[1];o.p[0]+=o.v[0];o.p[1]+=o.v[1];}else{o.t++;for(let i=0;i<2;i++){o.m[i]=0.9*o.m[i]+0.1*g[i];o.vv[i]=0.999*o.vv[i]+0.001*g[i]*g[i];o.p[i]-=0.25*(o.m[i]/(1-0.9**o.t))/(Math.sqrt(o.vv[i]/(1-0.999**o.t))+1e-8);}}o.hist.push([...o.p]);if(o.hist.length>300)o.hist.shift();}
+function resetOpts(){opts=[{k:'SGD',c:'--sgd',p:[-2.6,2.6],v:[0,0]},{k:'Momentum',c:'--mom',p:[-2.6,2.6],v:[0,0]},{k:'Adam',c:'--adam',p:[-2.6,2.6],m:[0,0],vv:[0,0],t:0}];opts.forEach(o=>{o.hist=[[...o.p]];o.steps=0;o.done=0;});it2=0;}
+function stepOpt(o){if(o.done)return;const lr=0.18,g=gr2(o.p[0],o.p[1]);if(o.k==='SGD'){o.p[0]-=lr*g[0];o.p[1]-=lr*g[1];}else if(o.k==='Momentum'){o.v[0]=0.9*o.v[0]-lr*g[0];o.v[1]=0.9*o.v[1]-lr*g[1];o.p[0]+=o.v[0];o.p[1]+=o.v[1];}else{o.t++;for(let i=0;i<2;i++){o.m[i]=0.9*o.m[i]+0.1*g[i];o.vv[i]=0.999*o.vv[i]+0.001*g[i]*g[i];o.p[i]-=0.25*(o.m[i]/(1-0.9**o.t))/(Math.sqrt(o.vv[i]/(1-0.999**o.t))+1e-8);}}
+  o.steps++;o.hist.push([...o.p]);if(o.hist.length>400)o.hist.shift();
+  if(Math.hypot(o.p[0],o.p[1])<0.09)o.done=o.steps;}
 function draw2(){x2.clearRect(0,0,CW2,CH2);x2.drawImage(off2,0,0);
-  for(const o of opts){x2.strokeStyle=getCSS(o.c);x2.lineWidth=2;x2.beginPath();o.hist.forEach((p,i)=>{i?x2.lineTo(P2x(p[0]),P2y(p[1])):x2.moveTo(P2x(p[0]),P2y(p[1]));});x2.stroke();x2.beginPath();x2.arc(P2x(o.p[0]),P2y(o.p[1]),5,0,7);x2.fillStyle=getCSS(o.c);x2.fill();}
-  x2.fillStyle=getCSS('--text');x2.font='15px sans-serif';x2.textAlign='center';x2.textBaseline='middle';x2.fillText('★',P2x(0),P2y(0));}
-function loop2(){if(!run2)return;for(let i=0;i<2;i++)opts.forEach(stepOpt);it2++;draw2();renderMini();if(it2>200){run2=false;}else requestAnimationFrame(loop2);}
+  const sx=P2x(-2.6),sy=P2y(2.6);
+  x2.beginPath();x2.arc(sx,sy,3.5,0,7);x2.fillStyle='rgba(82,80,74,0.75)';x2.fill();
+  x2.fillStyle='rgba(82,80,74,0.95)';x2.font='10.5px '+getCSS('--mono');x2.textAlign='left';x2.fillText('スタート',sx+8,sy+3);
+  for(const o of opts){x2.strokeStyle=getCSS(o.c);x2.lineWidth=2;x2.beginPath();o.hist.forEach((p,i)=>{i?x2.lineTo(P2x(p[0]),P2y(p[1])):x2.moveTo(P2x(p[0]),P2y(p[1]));});x2.stroke();x2.beginPath();x2.arc(P2x(o.p[0]),P2y(o.p[1]),5,0,7);x2.fillStyle=getCSS(o.c);x2.fill();x2.lineWidth=1.2;x2.strokeStyle='#fffdf6';x2.stroke();}
+  x2.fillStyle=getCSS('--text');x2.font='15px sans-serif';x2.textAlign='center';x2.textBaseline='middle';x2.fillText('★',P2x(0),P2y(0));
+  x2.font='10.5px '+getCSS('--mono');x2.textBaseline='alphabetic';x2.fillStyle='rgba(82,80,74,0.95)';x2.fillText('谷底（最小）',P2x(0),P2y(0)+18);}
+function loop2(){if(!run2)return;for(let i=0;i<2;i++)opts.forEach(stepOpt);it2++;draw2();renderMini();
+  if(opts.every(o=>o.done)||it2>400){run2=false;renderMini();}else requestAnimationFrame(loop2);}
 
 /* ===== ステッパー/mini/legend/説明 ===== */
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');
   el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
 function renderMini(){const m=document.getElementById('mini'),F=F1[cur],k=STEPS[stepIdx].key;
-  if(k==='smart'){m.innerHTML=opts.map(o=>'<div><span style="color:'+getCSS(o.c)+'">●</span> '+o.k+' 損失 <b>'+f2d(o.p[0],o.p[1]).toFixed(3)+'</b></div>').join('');return;}
+  if(k==='smart'){m.innerHTML=opts.map(o=>{const d=Math.hypot(o.p[0],o.p[1]);
+    return '<div><span style="color:'+getCSS(o.c)+'">●</span> '+o.k+' '+(o.done?'<b>🏁 '+o.done+' 歩でゴール</b>':'★まで <b>'+d.toFixed(2)+'</b>')+'</div>';}).join('');return;}
   m.innerHTML='<div>θ <b>'+f2(theta)+'</b></div><div class="loss">損失 L <b>'+F.f(theta).toFixed(3)+'</b></div><div>傾き ∂L/∂θ <b>'+f3(F.d(theta))+'</b></div><div>歩数 <b>'+iterN+'</b></div>';}
 function renderLegend(){const l=document.getElementById('legend'),k=STEPS[stepIdx].key;
-  if(k==='smart'){l.innerHTML='<span><i class="sw" style="background:var(--sgd)"></i>SGD</span><span><i class="sw" style="background:var(--mom)"></i>Momentum</span><span><i class="sw" style="background:var(--adam)"></i>Adam</span><span><i class="sw" style="background:var(--text)"></i>★最小</span>';}
+  if(k==='smart'){l.innerHTML='<span><i class="sw" style="background:var(--sgd)"></i>SGD（素朴）</span><span><i class="sw" style="background:var(--mom)"></i>Momentum（慣性）</span><span><i class="sw" style="background:var(--adam)"></i>Adam（軸ごと調整）</span><span>★=谷底</span>';}
   else l.innerHTML='<span><i class="sw" style="background:var(--true)"></i>損失 L(θ)</span><span><i class="sw" style="background:var(--loss)"></i>接線=勾配</span><span><i class="sw" style="background:var(--accent)"></i>今の θ</span>';}
 function renderExplain(){const el=document.getElementById('explain'),F=F1[cur],k=STEPS[stepIdx].key,s=STEPS[stepIdx];el.style.setProperty('--c',s.c);
   const g=F.d(theta),nt=theta-F.eta*g;let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
@@ -176,8 +199,15 @@ function renderExplain(){const el=document.getElementById('explain'),F=F1[cur],k
   else if(k==='grad'){h+='<h3>② 勾配を測る</h3><div class="eq curr"><span class="frac"><span>∂L</span><span>∂θ</span></span> = <span class="res">'+f3(g)+'</span></div><div class="desc">今の位置の<b>接線の傾き</b>（黄色の破線）。'+(g>0?'正＝右上がりなので、谷は<b>左</b>':'負＝右下がりなので、谷は<b>右</b>')+'。傾きが急なほど勾配が大きい。</div>';}
   else if(k==='step'){h+='<h3>③ 逆向きに一歩</h3><div class="eq curr">θ ← '+f2(prevTheta!=null?prevTheta:F.start)+' − '+F.eta.toFixed(2)+'·('+f3(F.d(prevTheta!=null?prevTheta:F.start))+') = <span class="res">'+f2(theta)+'</span></div><div class="desc">勾配の<b>逆向き</b>に、学習率 η='+F.eta.toFixed(2)+' の歩幅だけ動いた。損失が '+F.f(prevTheta!=null?prevTheta:F.start).toFixed(3)+' → <b>'+F.f(theta).toFixed(3)+'</b> に下がっています。</div>';}
   else if(k==='iter'){const conv=Math.abs(g)<0.02;h+='<h3>④ 繰り返して谷へ</h3><div class="eq curr">歩数 '+iterN+'　θ='+f2(theta)+'　傾き='+f3(g)+'</div><div class="desc">同じ 1 式をひたすら繰り返すと、傾きが緩む（谷に近づく）ほど歩幅も自然に小さくなり、'+(conv?'<b>傾き≈0 ＝ 谷の底に到達</b>（収束）。':'谷へ吸い込まれていきます。')+(cur==='well'?' ※二重谷では、出発点しだいで<b>手前の谷（局所最小）</b>に落ちることも。':'')+'</div>';}
-  else{h+='<h3>⑤ 賢い下り方（2 次元）</h3><div class="desc">重みが 2 つなら勾配はベクトル。素朴な <b style="color:var(--sgd)">SGD</b> は平らな方向で遅い。<b style="color:var(--mom)">Momentum</b> は慣性で加速、<b style="color:var(--adam)">Adam</b> は軸ごとに歩幅を自動調整して速く ★ へ。</div><div class="eq" style="margin-top:10px;"><b>要点</b><br>・勾配＝坂の傾き、逆向き（−）に進めば損失が減る<br>・η は歩幅：小さい＝遅い、大きすぎ＝発散（下の詳細）<br>・Momentum/Adam は勾配の履歴を使う工夫</div>';}
-  el.innerHTML=h;}
+  else{h+='<h3>⑤ 賢い下り方 — 細長い谷で競走</h3>'
+    +'<div class="desc">この地形は<b>横は急な坂・縦はほぼ平ら</b>の細長い谷（等高線の間隔を見比べてください）。同じスタートから 3 つの下り方で ★ 谷底まで競走します。<b>差がつくのは平らな縦方向</b>——ここが本物の深層学習の地形にもよくある難所です。</div>'
+    +'<div class="desc" style="margin-top:6px;">・<b style="color:var(--sgd)">SGD</b>：勾配のぶんだけ進む素朴な方法。急な横はすぐ降りるが、平らな縦は<b>勾配が小さい＝歩幅も小さい</b>ままで、なかなか届かない<br>'
+    +'・<b style="color:var(--mom)">Momentum</b>：同じ向きが続くと<b>慣性がたまって加速</b>する。平らな縦でも徐々に速く<br>'
+    +'・<b style="color:var(--adam)">Adam</b>：<b>軸ごとに</b>歩幅を自動調整——平らな縦ほど大股にして、ほぼ一直線に ★ へ</div>'
+    +'<div class="desc" style="margin-top:6px;">左下の 🏁 到達歩数が結果。<button id="race2" style="font-family:inherit;font-size:11.5px;padding:3px 10px;border-radius:2px;border:1px solid var(--ink);background:#fff;cursor:pointer;">▶ もう一度競走</button></div>'
+    +'<div class="eq" style="margin-top:10px;"><b>要点</b><br>・素朴な勾配だけでは<b>平らな方向で止まりかける</b><br>・Momentum / Adam は<b>勾配の履歴</b>でそれを乗り越える工夫<br>・η は歩幅：大きすぎると発散（下の「もっと詳しく」で実験）</div>';}
+  el.innerHTML=h;
+  const rb=el.querySelector('#race2');if(rb)rb.onclick=()=>goStep(4);}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
   document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);
   const k=STEPS[stepIdx].key;c1.style.display=(k==='smart')?'none':'block';c2.style.display=(k==='smart')?'block':'none';}
