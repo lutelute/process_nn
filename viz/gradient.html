@@ -92,6 +92,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>学習率は大きいほど速く学習が終わる</div>
+    <div class="row"><span class="o">✓</span>大きすぎると谷を<b>飛び越えて発散</b>する（下の「もっと詳しく」で 3 つの η を同時に試せる）。速さと安定の釣り合いを取るのが学習率調整。</div>
+    <div class="row"><span class="x">✗</span>Adam は常に SGD より良い</div>
+    <div class="row"><span class="o">✓</span>Adam は<b>速く降りる</b>が、問題によっては SGD＋Momentum の方が<b>良い解に落ち着く</b>こともある。万能の optimizer は無く、だから選択肢が残っている。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：学習率 η を変えるとどうなる？</summary>
     <div class="det">

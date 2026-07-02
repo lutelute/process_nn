@@ -86,6 +86,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>正答率 95% なら優秀なモデル</div>
+    <div class="row"><span class="o">✓</span>陽性が 5% しかない不均衡データなら<b>「全部陰性」と答えるだけで正答率 95%</b>。正答率は不均衡に弱く、何を見逃したかは適合率・再現率でしか見えない。</div>
+    <div class="row"><span class="x">✗</span>しきい値は 0.5 に固定するもの</div>
+    <div class="row"><span class="o">✓</span>用途で動かす。<b>見逃しが致命的</b>（病気の検査）なら下げ、<b>誤警報が高くつく</b>（スパム判定）なら上げる——適合率と再現率のトレードオフを選ぶ操作。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：F1とFβ・ROC/AUC・どの指標を使うか</summary>
     <div class="det"><b>適合率(precision)=TP/(TP+FP)</b>＝「陽性と予測したうち本当に陽性の割合」（誤検知を嫌う場面で重視：スパム判定で正常メールを消したくない等）。<b>再現率(recall)=TP/(TP+FN)</b>＝「本物の陽性を取りこぼさない割合」（見逃しを嫌う場面で重視：病気の検査・不正検知等）。両者はふつう<b>トレードオフ</b>で、<b>F1＝調和平均 2PR/(P+R)</b> がバランス指標。重視度を変えるなら <b>Fβ</b>。しきい値を動かすと (再現率, 適合率) の<b>PR曲線</b>、(偽陽性率, 再現率) の<b>ROC曲線</b>が描け、その下の面積 <b>AUC</b> はしきい値に依らない総合力。<b>不均衡</b>では accuracy より PR-AUC や F1 が有用。多クラスはクラスごとに出して平均（macro/micro）。</div>

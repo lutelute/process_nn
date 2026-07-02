@@ -118,6 +118,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>各重みを 1 個ずつ少し動かして、誤差の変化を測り直す（総当たり）</div>
+    <div class="row"><span class="o">✓</span>それだと<b>重みの数だけ順伝播のやり直し</b>が要る。逆伝播は出力から誤差を 1 回逆に流すだけで<b>全重みの勾配が同時に</b>求まる——深いネットが学習できるのはこの効率のおかげ。</div>
+    <div class="row"><span class="x">✗</span>誤差逆伝播＝学習アルゴリズムそのもの</div>
+    <div class="row"><span class="o">✓</span>逆伝播が出すのは<b>勾配（どちらへ動かすべきか）だけ</b>。実際に重みを動かすのは<a href="gradient.html">勾配降下</a>（SGD/Adam 等）の役目で、両者の分業で学習が成り立つ。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：なぜ「逆向き」なのか（連鎖律）</summary>
     <div class="det">

@@ -82,6 +82,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>バッチ正規化＝入力データの前処理の一種</div>
+    <div class="row"><span class="o">✓</span>前処理は<b>最初に 1 回だけ</b>。BN は<b>各層の途中の活性</b>を学習中ずっと正規化し続ける「層」で、深いネットの内部で効き続ける点が別物。</div>
+    <div class="row"><span class="x">✗</span>バッチサイズがいくつでも同じように効く</div>
+    <div class="row"><span class="o">✓</span>極小バッチでは μ・σ の推定が暴れて<b>逆効果</b>になりうる。バッチに依らない <b>Layer Norm</b> が Transformer で標準なのはこのため。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：γ/β・推論時の移動平均・なぜ効くか</summary>
     <div class="det">正規化 x̂=(x−μ_B)/√(σ²_B+ε) で平均 0・分散 1 にした後、<b>y=γ·x̂+β</b>（γ,β は学習する）で必要なら分布を戻せるので表現力を失いません。<b>推論時</b>はミニバッチがないので、訓練中に貯めた<b>移動平均の μ,σ</b> を使います。<b>なぜ効くか</b>：各層の入力が毎回似たスケールに保たれるので、<b>高い学習率</b>が使え、初期値に鈍感になり、勾配も流れやすい（<a href="vanishing.html">勾配消失</a>の緩和にも寄与）。副作用として<b>弱い正則化</b>効果もあり（バッチのノイズ）、<a href="dropout.html">ドロップアウト</a>を減らせることも。発展に Layer Norm（Transformer で標準）・Group Norm などがあります。</div>

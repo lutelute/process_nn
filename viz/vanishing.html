@@ -83,6 +83,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>層は深くするほど必ず賢くなる</div>
+    <div class="row"><span class="o">✓</span>sigmoid 時代は<b>深いほど学習不能</b>だった（入力側に勾配が届かない）。深さが力になるのは ReLU・初期化・残差接続という<b>土台があってこそ</b>。</div>
+    <div class="row"><span class="x">✗</span>ReLU にすれば勾配の問題は完全解決</div>
+    <div class="row"><span class="o">✓</span>負側は勾配 0 なので<b>「死んだ ReLU」</b>は起こりうるし、超深層は<b>残差接続</b>まで揃って初めて実用になった。ReLU は解決の第一歩。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：なぜ ReLU が効く・初期化・残差接続・勾配爆発</summary>
     <div class="det"><b>なぜ消えるか</b>：逆伝播の勾配 ∝ Π(各層の活性化の微分 × 重み)。sigmoid の微分は<b>最大 0.25</b>（飽和域でほぼ 0）、tanh は最大 1 でも飽和で 0。1 未満を何層も掛ければ指数的に 0 へ。<b>ReLU の微分は 0 か 1</b> なので、活性なら勾配をそのまま通し消えにくい（ただし「死んだ ReLU」問題はある→Leaky ReLU 等）。対策は他にも、適切な<b>初期化</b>（He/Xavier）、<b>バッチ正規化</b>、そして<b>残差接続（ResNet）</b>＝勾配の近道で、超深層を可能にしました。逆に微分や重みが大きいと<b>勾配爆発</b>（勾配クリッピングで対処）。RNN の長期依存が難しいのも同じ理由（<a href="rnn.html">RNN</a>→LSTM/GRU）。</div>
