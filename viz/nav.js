@@ -73,7 +73,13 @@
       + '.nav .navpanel a{color:var(--ink-2,#52504a);text-decoration:none;white-space:nowrap;}'
       + '.nav .navpanel a:hover{color:var(--ink,#1a1a17);text-decoration:underline;}'
       + '.nav .navpanel .cur{color:var(--ink,#1a1a17);font-weight:700;white-space:nowrap;}'
-      + '.nav .navpanel .sep{color:var(--faint,#6e6a60);margin:0 2px;}';
+      + '.nav .navpanel .sep{color:var(--faint,#6e6a60);margin:0 2px;}'
+      // ページ末尾の学習順路フッター（前後のテーマ）。ステップUIの「次へ」と区別する文言にする。
+      + '.navfoot{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:30px;padding-top:12px;border-top:1px solid var(--rule,#dcd8cc);font-size:12.5px;letter-spacing:.02em;}'
+      + '.navfoot a{text-decoration:none;}'
+      + '.navfoot .navfoot-prev{color:var(--ink-3,#6e6a60);}'
+      + '.navfoot .navfoot-next{color:var(--accent,#1f9e8a);font-weight:700;}'
+      + '.navfoot a:hover{text-decoration:underline;color:var(--ink,#1a1a17);}';
     const s = document.createElement('style');
     s.id = 'navfmt'; s.textContent = css;
     (document.head || document.documentElement).appendChild(s);
@@ -261,7 +267,27 @@
     });
   }
 
-  function init() { render(); enhanceA11y(); }
+  // ===== 学習順路フッター =====
+  // cats のフラット順＝「前提 → 応用」の学習順路（トップの推奨順路＋カテゴリ依存順と同じ並び）。
+  // 「読み終えたら次はどこへ」をページ下端で示す。ステップUIの「次へ」との混同を避けるため
+  // 文言は「次のテーマ」。map.html など順路に無いページには出さない。
+  function injectFooterNav() {
+    if (document.querySelector('.navfoot')) return;
+    const flat = [];
+    cats.forEach(function (c) { c.items.forEach(function (p) { flat.push(p); }); });
+    const idx = flat.map(function (p) { return p.href; }).indexOf(cur);
+    if (idx < 0) return;
+    const prev = flat[idx - 1], next = flat[idx + 1];
+    const el = document.createElement('div');
+    el.className = 'navfoot';
+    el.innerHTML =
+      (prev ? '<a class="navfoot-prev" href="' + prev.href + '">← 前のテーマ：' + prev.label + '</a>' : '<span></span>')
+      + (next ? '<a class="navfoot-next" href="' + next.href + '">次のテーマ：' + next.label + ' →</a>'
+              : '<a class="navfoot-next" href="../">🎉 全テーマ完走 — 地図に戻る →</a>');
+    (document.querySelector('.wrap') || document.body).appendChild(el);
+  }
+
+  function init() { render(); enhanceA11y(); injectFooterNav(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
