@@ -86,6 +86,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>各層は情報を変換して「置き換え」ていく</div>
+    <div class="row"><span class="o">✓</span>各ブロックは残差ストリームに<b>足し込む</b>（x = x + …）。元の情報を消さず積み上げるから、12 層重ねても壊れない——中央の柱がその通り道。</div>
+    <div class="row"><span class="x">✗</span>答えを作るのは最後の層だけ</div>
+    <div class="row"><span class="o">✓</span>途中の層の残差をそのまま読む（logit lens）と、<b>その層なりの予測が既にある</b>。答えは全ブロックの寄与の<b>積み上げ</b>で徐々に確信になっていく。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：残差ストリーム・Pre-LN・実データでの観察</summary>
     <div class="det">各ブロックは <b>x = x + Attn(LN₁(x))</b> → <b>x = x + MLP(LN₂(x))</b>（Pre-LN）。中央の柱＝<b>残差ストリーム</b>で、各ブロックが「注意の出力」と「MLP の出力」を<b>足し込んで</b>いきます（情報を消さず積み上げる）。注意は 12 ヘッドに分かれ系列内の別々の関係を見て、MLP は各位置を 768→3072→768 で非線形変換。最上部で最終 LayerNorm → lm_head（語彙 50257 への射影）→ 次トークンの確率。<b>実データでの attention・予測</b>は <a href="../gpt2/">GPT-2 推論</a> ページで観察できます。1 ブロックの注意の中身は <a href="attention3d.html">Attention(3D)</a> へ。</div>

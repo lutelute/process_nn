@@ -87,6 +87,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>展開図に並ぶセルは、それぞれ別のネットワーク</div>
+    <div class="row"><span class="o">✓</span>すべて<b>同じ重みのコピー</b>（重み共有）。時間方向に 1 つのセルを使い回しているだけで、学習するパラメータは 1 セット。</div>
+    <div class="row"><span class="x">✗</span>過去の情報は各時刻に保存されて残っている</div>
+    <div class="row"><span class="o">✓</span>次へ運ばれるのは<b>隠れ状態 h だけ</b>。過去は h に圧縮されて渡り、運ぶたびに薄まる——この弱点が <a href="lstm.html">LSTM</a> のゲートを生んだ。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：重み共有・BPTT・2D版との対応</summary>
     <div class="det">Elman RNN：hₜ = tanh(Wxh·xₜ + Whh·hₜ₋₁ + bₕ)、yₜ = Why·hₜ。<b>同じ重み（Wxh, Whh, Why）を全時刻で共有</b>し、隠れ状態 hₜ だけが時間方向に運ばれて「記憶」になります。立体では横軸を時刻 t として展開（同じセルのコピーが並ぶ）。学習は「1 ステップ先の値を予測」する誤差を<b>時間方向に逆伝播（BPTT）</b>して重みを更新。中身の式・自由走行生成は 2D 版 <a href="rnn.html">RNN</a> と同じ。色は活性値（緑=正/赤=負）。</div>

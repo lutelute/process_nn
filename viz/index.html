@@ -89,6 +89,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>層を増やしさえすれば賢くなる</div>
+    <div class="row"><span class="o">✓</span>活性化関数（非線形）が無ければ、何層重ねても全体は<b> 1 つの線形変換に潰れる</b>（行列の積はまた行列）。深さが意味を持つのは<b>非線形があってこそ</b>。</div>
+    <div class="row"><span class="x">✗</span>ニューロン 1 個 1 個が「○○係」と意味を分担している</div>
+    <div class="row"><span class="o">✓</span>知識は<b>重み全体に分散</b>して宿る。1 個を取り出して「これが猫係」とは普通言えない——だからこそ、流れ・活性を<b>可視化して眺める</b>価値がある。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：なぜ活性化関数が要るか・出力層・次の学習</summary>
     <div class="det">活性化関数がないと、いくら層を重ねても全体は<b>1 つの線形変換</b>にしかならず（行列の積はまた行列）、曲がった関係を表せません。<b>非線形</b>を挟むことで層を重ねた意味が出ます（tanh/ReLU/sigmoid）。出力層はここでは線形にして 2 つの値を出し、<b>softmax</b> で 2 クラスの確率にします。各結線の<b>重み w</b> こそがネットの「知識」で、最初はランダム＝当てずっぽう。それを <a href="backprop.html">誤差逆伝播</a>＋Adam で更新すると、合計の符号を当てられるようになります（このページの「次へ」最後で実演）。立体版は <a href="mlp3d.html">MLP(3D)</a> へ。</div>

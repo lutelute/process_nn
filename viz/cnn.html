@@ -86,6 +86,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>フィルタは人間が設計して与えるもの</div>
+    <div class="row"><span class="o">✓</span>昔の画像処理はそうだった。CNN は<b>フィルタ自体を学習で獲得</b>する（🎓 で実演）——「特徴の設計」を人間の手から外したのが深層学習の革命。</div>
+    <div class="row"><span class="x">✗</span>全画素を全結合でつなぐ方が情報を落とさず強い</div>
+    <div class="row"><span class="o">✓</span>画像は<b>近くの画素ほど関係が深い</b>。小さな窓＋重みの使い回し（共有）はこの性質を織り込んだ賢い節約で、パラメータが減る分<b>汎化にも有利</b>。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：プーリングと「位置のズレに強い」性質</summary>
     <div class="det">最大プーリングは 2×2 ごとに最大値だけ残す圧縮。これにより、特徴が少しズレても同じ出力になりやすく（<b>位置不変性</b>）、計算量も減る。畳み込み→プーリングを重ねるほど、エッジ→部品→物体と<b>抽象度</b>が上がっていくのが CNN の階層性。</div>

@@ -87,6 +87,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>注意の弧のパターンは設計者が決めた配線</div>
+    <div class="row"><span class="o">✓</span>学習前は<b>ぼんやり拡散</b>、学習が進むと特定位置への<b>集中が育つ</b>——このページで学習前後を見比べられる。注目のしかた自体が学習の産物。</div>
+    <div class="row"><span class="x">✗</span>どのヘッドも同じところを見ている</div>
+    <div class="row"><span class="o">✓</span>ヘッドごとに<b>別の関係を分担</b>する（直前を見る係・特定の文字を探す係など）。奥行き方向にヘッドを並べると分業が見える。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：自己注意・因果マスク・ヘッドの役割・2D版との対応</summary>
     <div class="det">構造は小型 decoder-only Transformer（3 層 × 4 ヘッド / 埋め込み 32）。各トークンは Query・Key・Value を持ち、注目度は softmax(QKᵀ/√d) で決まります（<a href="attention.html">自己注意(2D)</a> 参照）。<b>因果マスク</b>のため弧は必ず「過去（左）→現在（右）」のみ。弧の明るさ・高さ＝注目の強さ。学習前はぼんやり拡散、学習が進むと特定位置に集中し、<b>各ヘッドが別々のパターン</b>（直前を見る／特定文字を探す等）を学ぶ様子が奥行きで比較できます。全 12 層 × 12 ヘッドの本物 GPT-2 構造は <a href="gpt3d.html">GPT-2(3D)</a> へ。</div>

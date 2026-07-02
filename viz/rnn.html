@@ -84,6 +84,14 @@
     </div>
   </div>
 
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>系列も 1 点ずつ独立に予測すればいい</div>
+    <div class="row"><span class="o">✓</span>「今の値」だけでは次は決まらない（同じ高さでも<b>上りか下りかで答えが違う</b>）。過去の文脈を運ぶ<b>隠れ状態 h</b> があって初めて当てられる。</div>
+    <div class="row"><span class="x">✗</span>隠れ状態はただの中間出力</div>
+    <div class="row"><span class="o">✓</span>h は<b>過去の要約を次の時刻へ運ぶ記憶そのもの</b>。ただし運ぶたびに変換で薄まる——遠い過去が消える弱点が<a href="lstm.html">LSTM</a> を生んだ。</div>
+  </div>
+
   <details>
     <summary>もっと詳しく：BPTT（時間方向の逆伝播）と勾配消失</summary>
     <div class="det">学習は、展開した各時刻の誤差を<b>時間をさかのぼって</b>逆伝播する＝BPTT（Backpropagation Through Time）。ただし遠い過去へ勾配を伝えると掛け算が重なって<b>消失/爆発</b>しやすく、長期記憶が苦手。これを克服するのが LSTM / GRU（ゲートで記憶を制御）であり、さらに系列を一度に見る Attention/Transformer へとつながります。</div>
