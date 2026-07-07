@@ -175,6 +175,8 @@ function collectAll(){data=QXS.map(x=>({x,y:bbox(x)}));lastQ=data[data.length-1]
 function trainAll(){if(!net)net=makeNet();while(ep<TOTAL_EP){const l=trainEpoch(net,data.map(o=>o.x),data.map(o=>o.y),LR);ep++;if(ep%10===0)lossHist.push(l);}}
 function sensPeak(){let bx=0,bv=-1;for(let i=1;i<200;i++){const x=i/200,h=0.004;
   const g=Math.abs((fwd(net,x+h)-fwd(net,x-h))/(2*h));if(g>bv){bv=g;bx=x;}}return{x:bx,g:bv};}
+function innerOuterErr(){let se=0,cnt=0,mx=0;for(let i=0;i<=200;i++){const x=i/200,e=Math.abs(fwd(net,x)-bbox(x));
+  if(x>=QLO&&x<=QHI){se+=e*e;cnt++;}else mx=Math.max(mx,e);}return{rin:Math.sqrt(se/cnt),rout:mx};}
 
 /* ===== 描画 ===== */
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
@@ -277,9 +279,8 @@ function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].k
   if(k==='prob'){m.innerHTML='<div>問い合わせ <b>0</b> 回</div><div>1回のコスト <b>大</b>（実験/重い計算）</div>';return;}
   if(k==='query'){m.innerHTML='<div>問い合わせ <b>'+data.length+'</b> / '+NQ+' 回</div><div>範囲 <b>x∈['+QLO+', '+QHI+']</b></div>';return;}
   if(k==='mimic'){m.innerHTML='<div>学習 <b>'+ep+'</b> / '+TOTAL_EP+' ep</div><div class="best">loss <b>'+(lossHist.length?lossHist[lossHist.length-1].toExponential(1):'—')+'</b></div>';return;}
-  if(k==='trust'){let se=0,cnt=0,mx=0;for(let i=0;i<=200;i++){const x=i/200,e=Math.abs(fwd(net,x)-bbox(x));
-    if(x>=QLO&&x<=QHI){se+=e*e;cnt++;}else mx=Math.max(mx,e);}
-    m.innerHTML='<div class="best">内挿の誤差(RMSE) <b>'+Math.sqrt(se/cnt).toFixed(3)+'</b></div><div>外挿の最大誤差 <b style="color:var(--neg)">'+mx.toFixed(3)+'</b></div>';return;}
+  if(k==='trust'){const io=innerOuterErr();
+    m.innerHTML='<div class="best">内挿の誤差(RMSE) <b>'+io.rin.toFixed(3)+'</b></div><div>外挿の最大誤差 <b style="color:var(--neg)">'+io.rout.toFixed(3)+'</b></div>';return;}
   m.innerHTML='<div>本物 <b>1回=数時間</b></div><div class="best">替え玉 <b>数十万回/秒</b></div><div>微分 <b>可能</b></div>';}
 function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=
   k==='prob'?'黒い箱=中身の見えないシステム。y の正体も応答の形も不明':
@@ -289,11 +290,11 @@ function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('lege
   '本物に×=もう呼ばない。替え玉で全域走査＋感度分析（▲）';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);
   let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① 開かずの箱</h3><div class="eq curr">y = f(x)　—　f の中身は見えない・開けない</div><div class="desc">'+STORY[fnKey].intro+'分かるのは<span class="ref" data-hl="box">「x を入れると y が出てくる」</span>だけ。しかも 1 回が遅く高価。この箱の応答の全体像が欲しい、何万回も呼びたい、微分もしたい——でも箱は開かない。</div>';}
-  else if(k==='query'){h+='<h3>② できる唯一のこと＝箱に聞く</h3><div class="eq curr">D = {(x₁,y₁), …, (x₁₄,y₁₄)}</div><div class="desc">入力を変えては出力を記録する。集まった<span class="ref" data-hl="data">入出力ペア</span>は箱の<b>「外から見える顔」</b>。中の原理は 1 ミリも知らないまま、顔だけを集める。'+NQ+' 回の問い合わせで打ち止め——ここまでが高価な作業で、ここから先は箱に頼らない。</div>';}
-  else if(k==='mimic'){h+='<h3>③ 写し取り：NN が替え玉になる</h3><div class="eq curr">min Σ ( NN(xᵢ) − yᵢ )²　— 一致させるのは振る舞いだけ</div><div class="desc">小さなニューラルネット（1-16-16-1）に「<b>同じ入力に同じ出力を返せ</b>」とだけ要求して訓練（いまこの場で本当に学習中）。箱の中の仕組みは一切使わない。学習が終わる頃には、外から見る限り区別のつかない<span class="ref" data-hl="nn">替え玉＝サロゲート</span>が生まれる。学習 '+ep+' / '+TOTAL_EP+' エポック。</div>';}
-  else if(k==='trust'){h+='<h3>④ どこまで信じていい？</h3><div class="desc">答え合わせ（<span class="ref" data-hl="true">破線＝本物の素顔</span>）。問い合わせた範囲の<b>内側（緑）ではほぼ重なる</b>。しかし<span class="ref" data-hl="extra">範囲の外（赤）では平気で嘘をつく</span>——箱の顔しか見ていないから、見せてもらっていない場所は<b>創作</b>になる。'+STORY[fnKey].trust+'<b>内挿は信用、外挿は疑え</b>。</div>';}
-  else{const s=sensPeak();h+='<h3>⑤ 交換：速くて、開けられる</h3><div class="desc">替え玉の強みは 2 つ。<b>(1) 速い</b>：本物 1 回の時間で数百万回呼べる——設計探索・リアルタイム制御・デジタルツインに埋め込める。<b>(2) 開けられる</b>：NN は微分できるから<span class="ref" data-hl="sens">応答が最も敏感な入力（▲ x='+s.x.toFixed(2)+'）</span>が分かるし、勾配で設計最適化もできる。<b>ブラックボックスに勾配が生えた</b>。ただし信用できるのは緑の範囲の内側だけ。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入出力だけで写せる（中身の知識ゼロで OK）<br>・信用できるのは観測範囲の内側（外挿は創作）<br>・替え玉は速く、微分できる＝開けられる複製</div>';}
+  if(k==='prob'){h+='<h3>① 開かずの箱</h3><div class="eq curr"><i>y</i> = <i>f</i>(<i>x</i>)　—　<i>f</i> の中身は見えない・開けない<span class="read">読み：<i>f</i>＝箱の中の仕組み。式は見えないが、<i>x</i> を入れれば <i>y</i> は返ってくる——使えるのはこの1事実だけ</span></div><div class="desc">'+STORY[fnKey].intro+'分かるのは<span class="ref" data-hl="box">「x を入れると y が出てくる」</span>だけ。しかも 1 回が遅く高価。この箱の応答の全体像が欲しい、何万回も呼びたい、微分もしたい——でも箱は開かない。</div>';}
+  else if(k==='query'){h+='<h3>② できる唯一のこと＝箱に聞く</h3><div class="eq curr">D = { (<i>x</i>₁,<i>y</i>₁), …, (<i>x</i>₁₄,<i>y</i>₁₄) }<span class="read">読み：D＝問い合わせの記録（入れた値と返ってきた値のペア 14 組）。ここから先はこの記録だけが頼り</span></div><div class="desc">入力を変えては出力を記録する。集まった<span class="ref" data-hl="data">入出力ペア</span>は箱の<b>「外から見える顔」</b>。中の原理は 1 ミリも知らないまま、顔だけを集める。'+NQ+' 回の問い合わせで打ち止め——ここまでが高価な作業で、ここから先は箱に頼らない。</div>';}
+  else if(k==='mimic'){h+='<h3>③ 写し取り：NN が替え玉になる</h3><div class="eq curr">min<sub><i>W</i></sub> Σᵢ ( NN<sub><i>W</i></sub>(<i>x</i>ᵢ) − <i>y</i>ᵢ )²<span class="read">読み：NN の答えと箱の答えの「ずれの二乗和」が最小になるよう重み <i>W</i> を調整＝<b>振る舞いだけを一致</b>させる。中の仕組みは要求しない</span></div><div class="desc">小さなニューラルネット（1-16-16-1）に「<b>同じ入力に同じ出力を返せ</b>」とだけ要求して訓練（いまこの場で本当に学習中）。箱の中の仕組みは一切使わない。学習が終わる頃には、外から見る限り区別のつかない<span class="ref" data-hl="nn">替え玉＝サロゲート</span>が生まれる。学習 '+ep+' / '+TOTAL_EP+' エポック。</div>';}
+  else if(k==='trust'){const io=innerOuterErr();h+='<h3>④ どこまで信じていい？</h3><div class="eq curr">内挿（<i>x</i> ∈ ['+QLO+', '+QHI+']）：誤差 = '+io.rin.toFixed(3)+'　⇔　外挿（範囲の外）：最大誤差 = '+io.rout.toFixed(2)+'<span class="read">読み：内挿＝観測した範囲の<b>中</b>の予測（点と点の間を埋める）／外挿＝範囲の<b>外</b>の予測（見たことのない世界）。誤差は桁で違う</span></div><div class="desc">答え合わせ（<span class="ref" data-hl="true">破線＝本物の素顔</span>）。問い合わせた範囲の<b>内側（緑）ではほぼ重なる</b>。しかし<span class="ref" data-hl="extra">範囲の外（赤）では平気で嘘をつく</span>——箱の顔しか見ていないから、見せてもらっていない場所は<b>創作</b>になる。'+STORY[fnKey].trust+'<b>内挿は信用、外挿は疑え</b>。</div>';}
+  else{const s=sensPeak();h+='<h3>⑤ 交換：速くて、開けられる</h3><div class="eq curr"><span class="frac"><span>d<i>ŷ</i></span><span>d<i>x</i></span></span> ≈ ( NN(<i>x</i>+<i>h</i>) − NN(<i>x</i>−<i>h</i>) ) / 2<i>h</i>　→　最大は <i>x</i> = '+s.x.toFixed(2)+'<span class="read">読み：替え玉は何度でも呼べるから、少しずらした差分で<b>勾配（感度）</b>まで手に入る——本物の箱では絶対にできなかったこと</span></div><div class="desc">替え玉の強みは 2 つ。<b>(1) 速い</b>：本物 1 回の時間で数百万回呼べる——設計探索・リアルタイム制御・デジタルツインに埋め込める。<b>(2) 開けられる</b>：NN は微分できるから<span class="ref" data-hl="sens">応答が最も敏感な入力（▲ x='+s.x.toFixed(2)+'）</span>が分かるし、勾配で設計最適化もできる。<b>ブラックボックスに勾配が生えた</b>。ただし信用できるのは緑の範囲の内側だけ。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入出力だけで写せる（中身の知識ゼロで OK）<br>・信用できるのは観測範囲の内側（外挿は創作）<br>・替え玉は速く、微分できる＝開けられる複製</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 

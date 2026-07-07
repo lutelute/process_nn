@@ -20,7 +20,10 @@
       + '.frac>span:last-child{padding:1px .45em 0;}'
       + '.rad{border-top:1.4px solid currentColor;padding:0 .3em;margin-left:.06em;}'
       + '.rad::before{content:"\\221A";margin-left:-.52em;margin-right:.02em;}'
-      + '.mvec{font-weight:600;font-style:italic;}';
+      + '.mvec{font-weight:600;font-style:italic;}'
+      // 数式の「読み下し」行 — .eq 内に <span class="read">…</span> で記号の意味を日本語で添える
+      + '.eq .read{display:block;font-family:var(--gothic,sans-serif);font-size:11.5px;font-style:normal;color:var(--ink-3,#6e6a60);letter-spacing:.02em;line-height:1.7;margin-top:3px;border-top:1px dashed var(--rule,#dcd8cc);padding-top:3px;}'
+      + '.eq .read i,.eq .read b{font-style:normal;font-weight:700;color:var(--ink-2,#52504a);}';
     const s = document.createElement('style');
     s.id = 'mathfmt'; s.textContent = css;
     (document.head || document.documentElement).appendChild(s);
