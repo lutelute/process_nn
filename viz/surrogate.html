@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サロゲートモデル（代理モデル・ベイズ最適化）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4; --true:#a98a4a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>サロゲートモデル（代理モデル）を理解する</h1>
+  <div class="lead">実験や重いシミュレーションは<b>1 回測るのに何時間もかかる</b>——そんな世界では、勾配も総当たりも使えない。そこで少ない観測から<b>「安い代理の模型」＝サロゲート</b>を作り、その模型が語る<b>不確かさ</b>を頼りに「次の 1 回」をどこに使うか賢く選ぶ（ベイズ最適化）。下の流れを「次へ」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>評価 1 回が高価だと、勾配降下（微分要）も GA（大量評価）も使えない。<b>評価回数が予算</b>という第三の最適化を知る。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>高価な関数の「安い代理」を<b>不確かさ付き</b>で学び、次に測る 1 点を賢く選ぶしくみ。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ハイパーパラメータ探索（AutoML）・材料/創薬スクリーニング・翼型/回路設計・重い物理シミュレーション（潮流計算・CFD）の代替。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="fnSel"><option value="trick" selected>関数: 多峰（だまし山）</option><option value="sharp">関数: 険しい（狭い峰）</option><option value="smooth">関数: なだらか</option></select>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>サロゲートは<b>「自分が何を知らないか」を知っている模型</b>。予測の帯が描く「無知の地図」が、次に測るべき 1 点を教えてくれる——測定 1 回が高価な世界では、<b>賢く測ること自体が学習</b>になる。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>サロゲート＝ただの回帰（カーブフィット）</div>
+    <div class="row"><span class="o">✓</span>肝は平均の予測ではなく<b>不確かさ σ(x) も一緒に返す</b>こと。「どこがまだ分かっていないか」を言えるから、次に測る場所を決められる。予測＋自信表明のセットで初めて道具になる。</div>
+    <div class="row"><span class="x">✗</span>一番良さそうな所を測り続ければ最速で最適に着く</div>
+    <div class="row"><span class="o">✓</span>それ（純粋な活用）は<b>手前のだまし山に張り付く</b>。獲得関数は「予測が高い（活用）」と「帯が広い（探索）」の<b>両取り</b>だから、まだ見ぬ奥の本物の山を見逃さない。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：ガウス過程の中身／獲得関数の種類／GP 以外のサロゲート</summary>
+    <div class="det"><b>ガウス過程（GP）</b>は「近い入力は近い出力」というだけの仮定（RBF カーネル k(x,x′)=exp(−(x−x′)²/2ℓ²)）から、観測に条件付けた平均 μ(x) と分散 σ²(x) が閉じた式で求まる回帰。このページも毎ステップ本当に GP を解いています（コレスキー分解）。<b>獲得関数</b>は EI（期待改善量）のほか UCB（μ+κσ＝不確かさへの楽観）・PI（改善確率）など。<b>サロゲートは GP だけではない</b>——多項式（応答曲面法）・RBF 補間・ランダムフォレスト・ニューラルネットも使われ、「重い物理シミュレーションの代わりに NN を訓練して置き換える」<b>NN サロゲート</b>は気象・流体・電力系統の潮流計算などで実用化が進む分野。<b>限界</b>：GP は観測数 n に対し O(n³) で重くなり、高次元（目安 20 次元超）では距離が意味を失い苦しい（次元の呪い）。<b>位置づけ</b>：<a href="gradient.html">勾配降下</a>＝微分が使える世界、<a href="ga.html">遺伝的アルゴリズム</a>＝評価が安く大量に試せる世界、そして<b>サロゲート＋ベイズ最適化＝評価が高価な世界</b>の主力。ハイパーパラメータ探索（Optuna などの AutoML）はまさにこれです。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== 隠れた真の関数（高価で数回しか評価できない想定）===== */
+const gauss=(x,c,s)=>Math.exp(-((x-c)**2)/(2*s*s));
+const FNS={
+  trick:{raw:x=>0.66*gauss(x,0.20,0.085)+1.0*gauss(x,0.79,0.045)+0.08*Math.sin(11*x)+0.06},
+  sharp:{raw:x=>0.55*gauss(x,0.14,0.05)+0.72*gauss(x,0.47,0.06)+1.0*gauss(x,0.88,0.03)+0.05},
+  smooth:{raw:x=>gauss(x,0.62,0.16)+0.04},
+};
+for(const k in FNS){let mx=0;for(let i=0;i<=400;i++)mx=Math.max(mx,FNS[k].raw(i/400));FNS[k].f=(x=>FNS[k].raw(x)/mx);
+  let bx=0,bv=-1;for(let i=0;i<=400;i++){const v=FNS[k].f(i/400);if(v>bv){bv=v;bx=i/400;}}FNS[k].optX=bx;}
+let fnKey='trick';const f=x=>FNS[fnKey].f(x);
+
+/* ===== ガウス過程回帰（RBF カーネル・コレスキー分解で本当に解く）===== */
+const ELL=0.09,NVAR=1e-4,XI=0.01,BUDGET=10,INIT_X=[0.10,0.25,0.55];
+const kern=(a,b)=>{const d=(a-b)/ELL;return Math.exp(-0.5*d*d);};
+function chol(A){const n=A.length,L=Array.from({length:n},()=>new Array(n).fill(0));
+  for(let i=0;i<n;i++)for(let j=0;j<=i;j++){let s=A[i][j];for(let k=0;k<j;k++)s-=L[i][k]*L[j][k];
+    if(i===j)L[i][j]=Math.sqrt(Math.max(s,1e-12));else L[i][j]=s/L[j][j];}return L;}
+function solveLower(L,b){const n=L.length,x=new Array(n);for(let i=0;i<n;i++){let s=b[i];for(let k=0;k<i;k++)s-=L[i][k]*x[k];x[i]=s/L[i][i];}return x;}
+function solveUpperT(L,b){const n=L.length,x=new Array(n);for(let i=n-1;i>=0;i--){let s=b[i];for(let k=i+1;k<n;k++)s-=L[k][i]*x[k];x[i]=s/L[i][i];}return x;}
+function gpFit(xs,ys){const n=xs.length;
+  const K=xs.map((xi,i)=>xs.map((xj,j)=>kern(xi,xj)+(i===j?NVAR:0)));
+  const L=chol(K);const ym=ys.reduce((s,v)=>s+v,0)/n;
+  const alpha=solveUpperT(L,solveLower(L,ys.map(v=>v-ym)));
+  return x=>{const ks=xs.map(xi=>kern(x,xi));let mu=ym;for(let i=0;i<n;i++)mu+=ks[i]*alpha[i];
+    const v=solveLower(L,ks);let s2=kern(x,x);for(let i=0;i<n;i++)s2-=v[i]*v[i];
+    return[mu,Math.sqrt(Math.max(0,s2))];};}
+const normPdf=z=>Math.exp(-z*z/2)/Math.sqrt(2*Math.PI);
+function normCdf(z){const t=1/(1+0.2316419*Math.abs(z)),d=0.3989423*Math.exp(-z*z/2);
+  const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return z>0?1-p:p;}
+function EI(mu,sg,fb){if(sg<1e-9)return 0;const z=(mu-fb-XI)/sg;return(mu-fb-XI)*normCdf(z)+sg*normPdf(z);}
+
+/* ===== ベイズ最適化の状態 ===== */
+const G=141,grid=Array.from({length:G},(_,i)=>i/(G-1));
+let obs=[],bestHist=[],post=null,postN=-1;
+function initObs(){obs=INIT_X.map(x=>({x,y:f(x)}));bestHist=[fBest()];postN=-1;}
+function fBest(){return Math.max(...obs.map(o=>o.y));}
+function fBestX(){let b=obs[0];for(const o of obs)if(o.y>b.y)b=o;return b.x;}
+// grid 上の μ/σ/EI と次候補をまとめて計算（観測が変わった時だけ再計算）
+function computePost(){if(post&&postN===obs.length)return post;
+  const g=gpFit(obs.map(o=>o.x),obs.map(o=>o.y)),fb=fBest();
+  const mu=new Array(G),sg=new Array(G),ei=new Array(G);let bi=-1,bv=-Infinity;
+  for(let i=0;i<G;i++){const[m,s]=g(grid[i]);mu[i]=m;sg[i]=s;
+    ei[i]=obs.some(o=>Math.abs(o.x-grid[i])<0.015)?0:EI(m,s,fb);
+    if(ei[i]>bv){bv=ei[i];bi=i;}}
+  post={mu,sg,ei,nextI:bi,nextX:grid[bi],eiMax:bv};postN=obs.length;return post;}
+function bayesStep(){if(obs.length>=BUDGET)return false;const p=computePost();
+  if(p.nextI<0||p.eiMax<1e-7)return false;
+  obs.push({x:p.nextX,y:f(p.nextX)});bestHist.push(fBest());return true;}
+function gridSearch(){let best=-1,bx=0;for(let i=0;i<10;i++){const x=0.05+0.1*i,v=f(x);if(v>best){best=v;bx=x;}}return{best,bx};}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PL=32,PR=14,FT=24,FB=262,AT=292,ABot=386; // 上=関数パネル / 下=獲得関数パネル
+const px=x=>PL+(CW-PL-PR)*x, fy=v=>FB-(FB-FT-12)*Math.max(0,Math.min(1.06,v))/1.06;
+let HL=null; // 図と言葉の同期（nav.js の .ref から届く強調キー）
+const dim=k=>(HL&&HL!==k)?0.22:1;
+function drawBase(){ctx.clearRect(0,0,CW,CH);
+  // 方眼
+  ctx.lineWidth=1;for(let gx=PL;gx<=CW-PR+1;gx+=29){ctx.strokeStyle='rgba(150,143,127,0.12)';ctx.beginPath();ctx.moveTo(gx+.5,FT-8);ctx.lineTo(gx+.5,FB+4);ctx.stroke();}
+  for(let gy=FT;gy<=FB;gy+=28){ctx.strokeStyle='rgba(150,143,127,0.12)';ctx.beginPath();ctx.moveTo(PL,gy+.5);ctx.lineTo(CW-PR,gy+.5);ctx.stroke();}
+  // 軸
+  ctx.strokeStyle='rgba(26,26,23,0.45)';ctx.beginPath();ctx.moveTo(PL,FT-8);ctx.lineTo(PL,FB);ctx.lineTo(CW-PR,FB);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');
+  ctx.textAlign='left';ctx.save();ctx.translate(11,FT+30);ctx.rotate(-Math.PI/2);ctx.textAlign='right';ctx.fillText('性能（高いほど良い）',0,0);ctx.restore();
+  ctx.textAlign='center';ctx.fillText('x（設計変数：角度・温度・学習率…）',(PL+CW-PR)/2,FB+15);}
+function drawBand(){const p=computePost();ctx.save();ctx.globalAlpha=dim('band');
+  ctx.beginPath();for(let i=0;i<G;i++){const X=px(grid[i]),Y=fy(p.mu[i]+2*p.sg[i]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}
+  for(let i=G-1;i>=0;i--)ctx.lineTo(px(grid[i]),fy(p.mu[i]-2*p.sg[i]));
+  ctx.closePath();ctx.fillStyle=HL==='band'?'rgba(31,158,138,0.30)':'rgba(31,158,138,0.16)';ctx.fill();ctx.restore();}
+function drawMean(){const p=computePost();ctx.save();ctx.globalAlpha=dim('mean');
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=HL==='mean'?2.8:1.8;ctx.beginPath();
+  for(let i=0;i<G;i++){const X=px(grid[i]),Y=fy(p.mu[i]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.restore();}
+function drawObs(opt){opt=opt||{};ctx.save();ctx.globalAlpha=dim('obs');
+  obs.forEach((o,i)=>{const last=opt.markLast&&i===obs.length-1;
+    ctx.beginPath();ctx.arc(px(o.x),fy(o.y),HL==='obs'?4.6:3.6,0,7);ctx.fillStyle='#1a1a17';ctx.fill();
+    if(last){ctx.beginPath();ctx.arc(px(o.x),fy(o.y),7,0,7);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.8;ctx.stroke();}});
+  ctx.restore();}
+function drawTrue(){ctx.save();ctx.globalAlpha=dim('true');
+  ctx.strokeStyle=getCSS('--true');ctx.lineWidth=HL==='true'?2.6:1.6;ctx.setLineDash([5,4]);ctx.beginPath();
+  for(let i=0;i<G;i++){const X=px(grid[i]),Y=fy(f(grid[i]));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);
+  // 真の最適（◎）
+  const ox=FNS[fnKey].optX;ctx.beginPath();ctx.arc(px(ox),fy(f(ox)),6,0,7);ctx.strokeStyle=getCSS('--true');ctx.lineWidth=1.6;ctx.stroke();
+  ctx.beginPath();ctx.arc(px(ox),fy(f(ox)),2,0,7);ctx.fillStyle=getCSS('--true');ctx.fill();ctx.restore();}
+function drawStar(){const bx=fBestX(),by=fBest();ctx.save();ctx.globalAlpha=dim('obs');
+  ctx.translate(px(bx),fy(by));ctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?4:9;ctx[i?'lineTo':'moveTo'](Math.cos(a)*r,-Math.sin(a)*r);}
+  ctx.closePath();ctx.fillStyle=getCSS('--accent');ctx.fill();ctx.lineWidth=1.3;ctx.strokeStyle='#06231f';ctx.stroke();ctx.restore();}
+function drawQmarks(){ctx.save();ctx.fillStyle='rgba(146,143,132,0.5)';ctx.font='700 22px '+getCSS('--gothic');ctx.textAlign='center';
+  [0.42,0.72,0.92].forEach((x,i)=>ctx.fillText('?',px(x),fy(0.55+0.16*Math.sin(i*2.4))));ctx.restore();}
+function drawAcq(){const p=computePost();ctx.save();ctx.globalAlpha=dim('acq');
+  ctx.strokeStyle='rgba(26,26,23,0.45)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PL,ABot+.5);ctx.lineTo(CW-PR,ABot+.5);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('獲得関数 EI（次にどこを測るべきか）',PL,AT-6);
+  const mx=Math.max(p.eiMax,1e-9);
+  ctx.beginPath();ctx.moveTo(px(0),ABot);
+  for(let i=0;i<G;i++)ctx.lineTo(px(grid[i]),ABot-(ABot-AT-2)*(p.ei[i]/mx));
+  ctx.lineTo(px(1),ABot);ctx.closePath();
+  ctx.fillStyle=HL==='acq'?'rgba(194,137,27,0.5)':'rgba(194,137,27,0.30)';ctx.fill();
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=HL==='acq'?2.2:1.4;ctx.beginPath();
+  for(let i=0;i<G;i++){const X=px(grid[i]),Y=ABot-(ABot-AT-2)*(p.ei[i]/mx);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.restore();
+  // 次候補：両パネルを貫く縦点線＋▼
+  if(p.nextI>=0&&obs.length<BUDGET){ctx.save();ctx.globalAlpha=dim('next');
+    const X=px(p.nextX);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=HL==='next'?2:1.2;ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.moveTo(X,FT-4);ctx.lineTo(X,ABot);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(X-6,FT-4);ctx.lineTo(X+6,FT-4);ctx.lineTo(X,FT+6);ctx.closePath();ctx.fillStyle=getCSS('--loss');ctx.fill();
+    ctx.fillStyle=getCSS('--loss');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillText('次はここ',Math.max(PL+22,Math.min(CW-PR-22,X)),ABot+14);ctx.restore();}}
+function drawGridPts(){const gs=gridSearch();ctx.save();ctx.globalAlpha=dim('grid');
+  for(let i=0;i<10;i++){const x=0.05+0.1*i,X=px(x),Y=fy(f(x));
+    ctx.beginPath();ctx.moveTo(X,Y-4);ctx.lineTo(X+4,Y);ctx.lineTo(X,Y+4);ctx.lineTo(X-4,Y);ctx.closePath();
+    ctx.fillStyle=HL==='grid'?'rgba(82,80,74,0.95)':'rgba(82,80,74,0.55)';ctx.fill();}
+  ctx.strokeStyle='rgba(82,80,74,0.6)';ctx.lineWidth=1;ctx.setLineDash([2,4]);
+  ctx.beginPath();ctx.moveTo(PL,fy(gs.best));ctx.lineTo(CW-PR,fy(gs.best));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(82,80,74,0.9)';ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='right';
+  ctx.fillText('グリッド10回の最良 '+(gs.best*100).toFixed(0)+'%',CW-PR-4,fy(gs.best)-5);ctx.restore();}
+function drawCurve(){if(bestHist.length<2)return;const w=104,h=40,x0=CW-w-12,y0=FT+2;
+  ctx.fillStyle='rgba(255,253,246,0.94)';ctx.fillRect(x0,y0,w,h);ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.5;ctx.beginPath();
+  for(let i=0;i<bestHist.length;i++){const X=x0+4+(w-8)*i/(BUDGET-INIT_X.length),Y=y0+h-4-(h-8)*bestHist[i];i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('最良↑',x0+4,y0+10);}
+
+const STEPS=[
+  {key:'prob',t:'問題',c:'var(--neg)'},
+  {key:'fit',t:'代理モデル',c:'var(--accent)'},
+  {key:'acq',t:'獲得関数',c:'var(--loss)'},
+  {key:'loop',t:'最適化ループ',c:'var(--upd)'},
+  {key:'result',t:'結果',c:'var(--accent)'},
+];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;drawBase();
+  if(k==='prob'){drawObs();drawQmarksSafe();}
+  else if(k==='fit'){drawBand();drawMean();drawObs();}
+  else if(k==='acq'){drawBand();drawMean();drawObs();drawAcq();}
+  else if(k==='loop'){drawBand();drawMean();drawObs({markLast:true});drawAcq();drawCurve();}
+  else{drawTrue();drawBand();drawMean();drawObs();drawGridPts();drawStar();drawCurve();}}
+function drawQmarksSafe(){drawQmarks();}
+
+/* ===== テキスト（実況・実数代入）===== */
+function pct(v){return(v*100).toFixed(0)+'%';}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
+  if(k==='prob'){m.innerHTML='<div>評価済み <b>'+obs.length+'</b> / 予算 '+BUDGET+'</div><div class="best">現在の最良 <b>'+pct(fBest())+'</b></div>';return;}
+  if(k==='result'){const gs=gridSearch();m.innerHTML='<div>評価 <b>'+obs.length+'</b>/'+BUDGET+'</div><div class="best">BO 最良 <b>'+pct(fBest())+'</b></div><div>グリッド10回 <b>'+pct(gs.best)+'</b></div>';return;}
+  const p=computePost();
+  m.innerHTML='<div>評価 <b>'+obs.length+'</b>/'+BUDGET+'</div><div class="best">最良 <b>'+pct(fBest())+'</b></div>'+(k!=='fit'&&obs.length<BUDGET?'<div>次候補 <b>x='+p.nextX.toFixed(2)+'</b></div>':'');}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=
+  k==='prob'?'●=測った点（1回=1実験）／ ? =まだ何も知らない領域':
+  k==='fit'?'緑線=予測μ, 緑帯=95%信頼区間(μ±2σ), ●=観測点':
+  k==='acq'?'下の橙=獲得関数EI, ▼点線=次に測る点（EI最大）':
+  k==='loop'?'橙リング=いま測った点。帯が締まり最良（右上）が階段状に上がる':
+  '破線=隠れていた真の関数, ◎=真の最適, ★=BOの最良, 灰◆=グリッド探索10点';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);
+  let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 問題：1 回測るのに 1 日かかる</h3><div class="desc">横軸は設計変数（翼の角度・反応温度・学習率…）、縦軸は性能。<b>この曲線の形は誰も知らない</b>。1 回の評価＝実験や重いシミュレーションで、<b>予算は全部で '+BUDGET+' 回</b>。総当たりは論外、微分も取れない。今わかっているのは<span class="ref" data-hl="obs">測った '+obs.length+' 点</span>だけ（最良 '+pct(fBest())+'）。この状態から最高性能の設計を見つけられるか？</div>';}
+  else if(k==='fit'){h+='<h3>② 観測から「安い模型」を作る</h3><div class="eq curr">サロゲート = 予測 <i>μ</i>(<i>x</i>) と 自信のなさ <i>σ</i>(<i>x</i>)<br>帯（95% 信頼区間）= <i>μ</i>(<i>x</i>) ± 2<i>σ</i>(<i>x</i>)</div><div class="desc">'+obs.length+' 点の観測から<b>ガウス過程回帰</b>で関数全体を推定。<span class="ref" data-hl="mean">実線＝予測の平均 μ</span>、<span class="ref" data-hl="band">帯＝95% 信頼区間</span>。<span class="ref" data-hl="obs">観測点</span>の近くでは帯が細く（自信あり）、離れるほど太い（分からない）。この模型は<b>一瞬で何万回でも</b>問い合わせられる——高価な本物の「代理」です。</div>';}
+  else if(k==='acq'){const p=computePost(),fb=fBest();const nm=p.mu[p.nextI],ns=p.sg[p.nextI];
+    h+='<h3>③ 次の 1 回をどこに使う？</h3><div class="eq curr">EI(<i>x</i>) = 期待できる改善量（μ が高い × σ が大きい所で大）<br>現最良 <i>f</i>⁺='+fb.toFixed(2)+' → EI 最大は <b>x='+p.nextX.toFixed(2)+'</b>（μ='+nm.toFixed(2)+', σ='+ns.toFixed(2)+'）</div><div class="desc"><span class="ref" data-hl="acq">下の橙＝獲得関数 EI</span>。「予測が良さそう（<b>活用</b>）」と「まだ分かっていない（<b>探索</b>）」の両方を汲み、期待できる改善量が最大の<span class="ref" data-hl="next">次の測定点 ▼</span>を選ぶ。良さそうな所<b>だけ</b>でも、分からない所<b>だけ</b>でもない。</div>';}
+  else if(k==='loop'){h+='<h3>④ 測る → 更新 → また選ぶ</h3><div class="desc">選んだ点を<b>実際に測り</b>（橙リング）、サロゲートを作り直し、また次の点を選ぶ——これが<b>ベイズ最適化ループ</b>。帯がどんどん締まり、最良値（右上）が階段状に上がる。いま評価 <b>'+obs.length+' / '+BUDGET+'</b> 回・最良 '+pct(fBest())+'。</div>';}
+  else{const gs=gridSearch();h+='<h3>⑤ '+BUDGET+' 回で正体を見抜いた</h3><div class="desc"><span class="ref" data-hl="true">破線＝隠れていた真の関数</span>。★＝BO が見つけた最良（'+pct(fBest())+'）、◎＝真の最適。同じ予算で<span class="ref" data-hl="grid">等間隔に 10 回測るグリッド探索（灰◆）</span>なら最良 '+pct(gs.best)+' 止まり——<b>どこを測るかを賢く選ぶ</b>だけでこの差がつく。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・サロゲート＝不確かさ付きの安い代理モデル<br>・獲得関数＝探索と活用の両取りで次の 1 点を決める<br>・「評価回数が予算」の世界の最適化＝ベイズ最適化</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+/* ===== ステップ制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if((k==='prob'||k==='fit'||k==='acq')&&obs.length>INIT_X.length)initObs();
+  if(k==='loop')runLoop();
+  if(k==='result')while(obs.length<BUDGET&&bayesStep());
+  renderAll();draw_();}
+function runLoop(){anim=true;
+  if(window.__prefersReducedMotion){while(obs.length<BUDGET&&bayesStep());anim=false;return;}
+  function go(){if(!anim||STEPS[stepIdx].key!=='loop')return;
+    if(!bayesStep()){anim=false;renderMini();renderExplain();draw_();return;}
+    draw_();renderMini();renderExplain();
+    if(obs.length>=BUDGET){anim=false;return;}
+    setTimeout(()=>requestAnimationFrame(go),650);}
+  setTimeout(()=>requestAnimationFrame(go),450);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,STEPS[stepIdx].key==='loop'?600:2000);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;fnKey=document.getElementById('fnSel').value;initObs();stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('fnSel').onchange=reset;
+document.addEventListener('hl',e=>{HL=e.detail;draw_();}); // 図と言葉の同期（nav.js）
+initObs();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

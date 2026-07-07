@@ -89,6 +89,7 @@ const CATS={
 const M=[
   {n:'勾配降下',h:'gradient.html',c:'opt',x:0.80,y:0.45,mo:'descent'},
   {n:'遺伝的AL',h:'ga.html',c:'opt',x:0.92,y:0.54,mo:'pop'},
+  {n:'サロゲート',h:'surrogate.html',c:'opt',x:0.86,y:0.50,mo:'gp'},
   {n:'Q学習',h:'qlearning.html',c:'rl',x:0.90,y:0.27,mo:'grid'},
   {n:'DQN',h:'dqn.html',c:'rl',x:0.92,y:0.40,mo:'grid'},
   {n:'k-means',h:'kmeans.html',c:'unsup',x:0.15,y:0.30,mo:'cluster'},
@@ -178,6 +179,15 @@ const MOT={
   pop(x,y,w,h,c){const g=rng(17);for(let i=0;i<18;i++){const px=x+4+g()*(w-8),py=y+4+g()*(h-8),top=py<y+h*0.4;ctx.beginPath();ctx.arc(px,py,top?2.3:1.6,0,7);ctx.fillStyle=top?c:'rgba(60,60,52,0.4)';ctx.fill();}},
   grid(x,y,w,h,c){const N=4,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2;ctx.strokeStyle='rgba(60,60,52,0.25)';ctx.lineWidth=.7;for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(ox+i*cw,oy);ctx.lineTo(ox+i*cw,oy+N*cw);ctx.moveTo(ox,oy+i*cw);ctx.lineTo(ox+N*cw,oy+i*cw);ctx.stroke();}
     ctx.strokeStyle=c;ctx.lineWidth=1.6;ctx.beginPath();const path=[[0,3],[1,3],[1,2],[2,2],[2,1],[3,1],[3,0]];path.forEach((p,i)=>{const px=ox+(p[0]+0.5)*cw,py=oy+(p[1]+0.5)*cw;i?ctx.lineTo(px,py):ctx.moveTo(px,py);});ctx.stroke();ctx.fillStyle=c;ctx.fillRect(ox+0.5*cw-2,oy+3.5*cw-2,4,4);},
+  gp(x,y,w,h,c){ // サロゲート：GP 平均線＋不確かさ帯＋観測点（観測の近くで帯が細い）
+    const obs=[0.16,0.52,0.86];const mu=t=>0.55-0.30*Math.sin(t*Math.PI*1.6+0.2);
+    const sg=t=>{let d=1;for(const o of obs)d=Math.min(d,Math.abs(t-o));return 0.05+0.55*d;};
+    const[r,g,b]=hex2rgb(c);
+    ctx.beginPath();for(let i=0;i<=24;i++){const t=i/24;ctx[i?'lineTo':'moveTo'](x+t*w,y+h*Math.max(0.06,mu(t)-sg(t)));}
+    for(let i=24;i>=0;i--){const t=i/24;ctx.lineTo(x+t*w,y+h*Math.min(0.94,mu(t)+sg(t)));}
+    ctx.closePath();ctx.fillStyle=`rgba(${r},${g},${b},0.20)`;ctx.fill();
+    ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<=24;i++){const t=i/24;ctx[i?'lineTo':'moveTo'](x+t*w,y+h*mu(t));}ctx.stroke();
+    ctx.fillStyle=INK;for(const o of obs){ctx.beginPath();ctx.arc(x+o*w,y+h*mu(o),2,0,7);ctx.fill();}},
   pattern(x,y,w,h,c){const N=6,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2,g=rng(23);for(let r=0;r<N;r++)for(let cc=0;cc<N;cc++){const on=((r+cc)%2===0)^(g()<0.18);ctx.fillStyle=on?c:'rgba(60,60,52,0.1)';ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1,cw-1);}},
 };
 
