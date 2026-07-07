@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>グラフニューラルネットワーク（GNN）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>グラフニューラルネットワーク（GNN）</h1>
+  <div class="lead">分子・SNS・送電網・地図——現実のデータの多くは表でも画像でもなく<b>「つながり」</b>でできている。GNN は<b>隣から情報を集めて自分を混ぜ直す</b>（メッセージパッシング）を繰り返し、つながりの形そのものから学ぶ。ここでは<b>ラベル 2 個だけ</b>から全ノードの所属を当てる実学習を観察します。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>分子・SNS・送電網・ナレッジグラフ——<b>つながりがデータ</b>の世界を直接食べる NN の仕組みを知る。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>「<b>隣から集めて混ぜる</b>」を層の数だけ繰り返し、グラフ構造から学ぶニューラルネット。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>創薬（分子の性質予測）・推薦システム・交通/電力網の予測・地図アプリの到着時刻推定。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="gSel"><option value="community" selected>グラフ: コミュニティ</option><option value="gridnet">グラフ: 送電網風</option><option value="chain">グラフ: 鎖</option></select>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>畳み込みとは<b>「隣から集めて混ぜる」ことの総称</b>だった——画像の隣は 8 マス、グラフの隣はつながった相手。<b>CNN は格子グラフ専用の GNN</b> だと気づくと、2 つの世界が 1 つになる。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>GNN はグラフの「絵」を画像のように見ている</div>
+    <div class="row"><span class="o">✓</span>見た目や座標ではなく<b>隣接関係（誰と誰がつながるか）そのもの</b>の上で計算する。ノードの並べ方・描き方を変えても結果は同じ（置換不変）。だから座標のない分子や SNS にも使える。</div>
+    <div class="row"><span class="x">✗</span>層を深くするほど遠くまで見えて賢くなる</div>
+    <div class="row"><span class="o">✓</span>深すぎると全ノードの特徴が混ざりきって<b>区別がつかなくなる（過平滑化）</b>。実務の GNN は 2〜3 層が主流。「何ホップ先の情報まで必要か」で層数を決める。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：GCN の正規化／GAT・GraphSAGE／CNN・RNN との統一視点</summary>
+    <div class="det">このページの実装は <b>GCN</b>（Kipf & Welling 2017）：単純平均の代わりに Â = D<sup>−1/2</sup>(A+I)D<sup>−1/2</sup> で<b>次数の大きいノードの声を割り引いて</b>集約する（人気者の情報ばかりが支配しないように）。集約の仕方を変えると家族が広がる——<b>GraphSAGE</b>（サンプリング集約で巨大グラフへ）、<b>GAT</b>（どの隣をどれだけ聞くかを<a href="attention.html">注意（attention）</a>で学ぶ）。<b>統一視点</b>：<a href="cnn.html">CNN</a> は「格子グラフ」、<a href="rnn.html">RNN</a> は「鎖グラフ」、<a href="attention.html">Transformer</a> は「全結合グラフ＋重み学習」の GNN と見なせる。応用は創薬（分子＝原子グラフ）・推薦（ユーザ×商品）・<b>電力系統</b>（バス＝ノード・送電線＝エッジで潮流や安定度を予測する GNN サロゲート＝<a href="surrogate2.html">サロゲート②</a>との合わせ技）など。特徴が乏しくても<b>構造だけで分類できる</b>のがこのページの実験（特徴＝one-hot、Zachary の空手クラブの設定）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=11;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== グラフ定義（pos: 描画座標 0..1）===== */
+const GRAPHS={
+  community:{n:16,cls:i=>i<8?0:1,labeled:[0,15],focus:4,
+    edges:[[0,1],[0,2],[1,2],[1,3],[2,4],[3,4],[3,5],[4,6],[5,6],[5,7],[6,7],[0,3],[2,7],
+      [8,9],[8,10],[9,10],[9,11],[10,12],[11,12],[11,13],[12,14],[13,14],[13,15],[14,15],[8,11],[10,15],[7,8],[6,9]],
+    pos:[[0.13,0.18],[0.30,0.11],[0.15,0.36],[0.38,0.26],[0.27,0.44],[0.50,0.14],[0.46,0.42],[0.31,0.58],
+         [0.56,0.64],[0.62,0.44],[0.70,0.78],[0.76,0.58],[0.88,0.72],[0.88,0.48],[0.72,0.92],[0.94,0.88]]},
+  gridnet:{n:14,cls:i=>i<7?0:1,labeled:[0,13],focus:4,
+    edges:[[0,1],[1,2],[0,3],[1,4],[2,5],[3,4],[4,5],[4,6],[5,6],[3,6],
+      [7,8],[8,9],[7,10],[8,11],[9,12],[10,11],[11,12],[11,13],[12,13],[10,13],[6,7]],
+    pos:[[0.08,0.24],[0.22,0.12],[0.36,0.22],[0.10,0.52],[0.24,0.40],[0.38,0.50],[0.34,0.68],
+         [0.56,0.40],[0.70,0.26],[0.86,0.34],[0.58,0.66],[0.72,0.52],[0.88,0.60],[0.76,0.82]]},
+  chain:{n:12,cls:i=>i<6?0:1,labeled:[0,11],focus:5,
+    edges:Array.from({length:11},(_,i)=>[i,i+1]),
+    pos:[[0.08,0.20],[0.26,0.13],[0.44,0.20],[0.62,0.13],[0.80,0.22],[0.90,0.40],
+         [0.78,0.56],[0.60,0.62],[0.42,0.57],[0.24,0.64],[0.12,0.80],[0.30,0.92]]},
+};
+let gKey='community';const G=()=>GRAPHS[gKey];
+
+/* ===== GCN (2層, X=I, 半教師あり) ===== */
+const HD=8,TOTAL_EP=300,LR=0.05;
+let Ah=null,nbr=null,hops=null,Ws=null,mom=null,ep=0,P=null,lossHist=[];
+function buildGraph(){const g=G(),n=g.n;
+  const A=Array.from({length:n},()=>new Array(n).fill(0));
+  for(const[a,b]of g.edges){A[a][b]=1;A[b][a]=1;}
+  nbr=Array.from({length:n},(_,i)=>g.edges.filter(e=>e[0]===i||e[1]===i).map(e=>e[0]===i?e[1]:e[0]));
+  for(let i=0;i<n;i++)A[i][i]=1;
+  const d=A.map(r=>r.reduce((s,v)=>s+v,0));
+  Ah=Array.from({length:n},()=>new Array(n).fill(0));
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++)Ah[i][j]=A[i][j]/Math.sqrt(d[i]*d[j]);
+  // focus からのホップ距離（BFS）
+  hops=new Array(n).fill(99);hops[g.focus]=0;const q=[g.focus];
+  while(q.length){const u=q.shift();for(const v of nbr[u])if(hops[v]>hops[u]+1){hops[v]=hops[u]+1;q.push(v);}}}
+const matmul=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,v,k)=>s+v*B[k][j],0)));
+function initGCN(){seed=11;const g=G(),n=g.n;const r=k=>(rng()*2-1)*Math.sqrt(1/k);
+  Ws=[Array.from({length:n},()=>Array.from({length:HD},()=>r(n))),
+      Array.from({length:HD},()=>Array.from({length:2},()=>r(HD)))];
+  mom=Ws.map(W=>W.map(row=>row.map(()=>0)));ep=0;lossHist=[];P=null;forward();}
+function forward(){const g=G();
+  const Z0=matmul(Ah,Ws[0]);
+  const H1=Z0.map(row=>row.map(v=>Math.max(0,v)));
+  const Z1=matmul(Ah,matmul(H1,Ws[1]));
+  P=Z1.map(row=>{const m=Math.max(...row);const e=row.map(v=>Math.exp(v-m));const s=e[0]+e[1];return[e[0]/s,e[1]/s];});
+  return{Z0,H1,Z1};}
+function trainStep(){const g=G(),n=g.n;const{Z0,H1,Z1}=forward();
+  let loss=0;const dZ1=Z1.map(()=>[0,0]);
+  for(const i of g.labeled){const y=g.cls(i);loss+=-Math.log(P[i][y]+1e-12);
+    dZ1[i][0]=(P[i][0]-(y===0?1:0))/g.labeled.length;dZ1[i][1]=(P[i][1]-(y===1?1:0))/g.labeled.length;}
+  loss/=g.labeled.length;
+  // W1 (=Ws[1]) の勾配: (Ah·H1)ᵀ·dZ1
+  const AH1=matmul(Ah,H1);
+  const dW1=Ws[1].map((row,i)=>row.map((_,j)=>AH1.reduce((s,r,k)=>s+r[i]*dZ1[k][j],0)));
+  // dH1 = Ah·dZ1·W1ᵀ → relu マスク → dZ0
+  const AtG=matmul(Ah,dZ1);
+  const dH1=AtG.map(row=>Ws[1].map(wrow=>wrow.reduce((s,w,j)=>s+w*row[j],0)));
+  const dZ0=dH1.map((row,i)=>row.map((v,j)=>Z0[i][j]>0?v:0));
+  // W0 の勾配: (Ah·X)ᵀ·dZ0 = Ahᵀ·dZ0（X=I, Ah対称）
+  const dW0raw=matmul(Ah,dZ0);
+  const dW0=Ws[0].map((row,i)=>row.map((_,j)=>dW0raw[i][j]));
+  // momentum SGD
+  [[0,dW0],[1,dW1]].forEach(([l,dW])=>{
+    for(let i=0;i<Ws[l].length;i++)for(let j=0;j<Ws[l][i].length;j++){
+      mom[l][i][j]=0.9*mom[l][i][j]+dW[i][j];Ws[l][i][j]-=LR*mom[l][i][j];}});
+  ep++;if(ep%5===0)lossHist.push(loss);
+  return loss;}
+function accuracy(){const g=G();let ok=0;for(let i=0;i<g.n;i++)if((P[i][1]>P[i][0]?1:0)===g.cls(i))ok++;return ok/g.n;}
+function minConf(){const g=G();let mi=0,mv=1;for(let i=0;i<g.n;i++){const c=Math.abs(P[i][0]-P[i][1]);if(c<mv){mv=c;mi=i;}}return{i:mi,conf:Math.max(P[mi][0],P[mi][1])};}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const gx=u=>24+(CW-48)*u, gy=v=>34+352*v, NR=12;
+let HL=null;const dim=k=>(HL&&HL!==k)?0.22:1;
+const CA=[31,158,138],CB=[111,84,196]; // A=teal, B=purple
+function mix(p0,p1){ // クラス確率→色（確信が低いほど白へ）
+  const conf=Math.abs(p0-p1);
+  const r=p0*CA[0]+p1*CB[0],g=p0*CA[1]+p1*CB[1],b=p0*CA[2]+p1*CB[2];
+  const w=1-Math.min(1,conf*1.15);
+  return`rgb(${Math.round(r+(250-r)*w)},${Math.round(g+(248-g)*w)},${Math.round(b+(241-b)*w)})`;}
+function nodeColor(i,mode){const g=G();
+  if(mode==='initial')return g.labeled.includes(i)?(g.cls(i)===0?`rgb(${CA})`:`rgb(${CB})`):'#e6e3d8';
+  return mix(P[i][0],P[i][1]);}
+function drawGrid(){ctx.lineWidth=1;
+  for(let x=24;x<CW-16;x+=29){ctx.strokeStyle='rgba(150,143,127,0.10)';ctx.beginPath();ctx.moveTo(x+.5,18);ctx.lineTo(x+.5,398);ctx.stroke();}
+  for(let y=26;y<400;y+=29){ctx.strokeStyle='rgba(150,143,127,0.10)';ctx.beginPath();ctx.moveTo(20,y+.5);ctx.lineTo(CW-16,y+.5);ctx.stroke();}}
+function drawEdges(hl){const g=G();ctx.save();ctx.globalAlpha=dim('edge');
+  for(const[a,b]of g.edges){const strong=hl&&(a===g.focus||b===g.focus);
+    ctx.strokeStyle=strong?getCSS('--loss'):'rgba(26,26,23,'+(HL==='edge'?0.6:0.28)+')';
+    ctx.lineWidth=strong?2.2:1.1;
+    ctx.beginPath();ctx.moveTo(gx(g.pos[a][0]),gy(g.pos[a][1]));ctx.lineTo(gx(g.pos[b][0]),gy(g.pos[b][1]));ctx.stroke();}ctx.restore();}
+function drawNodes(opt){opt=opt||{};const g=G();ctx.save();
+  for(let i=0;i<g.n;i++){const X=gx(g.pos[i][0]),Y=gy(g.pos[i][1]);
+    ctx.globalAlpha=dim(g.labeled.includes(i)?'label':'node');
+    // ③ 受容野の波紋
+    if(opt.hopLevel!==undefined&&hops[i]<=opt.hopLevel&&hops[i]>0){
+      ctx.beginPath();ctx.arc(X,Y,NR+5,0,7);ctx.strokeStyle=hops[i]===1?'rgba(194,137,27,0.85)':'rgba(194,137,27,0.4)';ctx.lineWidth=2;ctx.stroke();}
+    ctx.beginPath();ctx.arc(X,Y,NR,0,7);
+    ctx.fillStyle=nodeColor(i,opt.colorMode);ctx.fill();
+    ctx.lineWidth=g.labeled.includes(i)?2.4:1.1;
+    ctx.strokeStyle=g.labeled.includes(i)?'#1a1a17':'rgba(26,26,23,0.4)';ctx.stroke();
+    if(g.labeled.includes(i)){ctx.fillStyle='#fff';ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(g.cls(i)===0?'A':'B',X,Y+.5);}
+    if(opt.focusRing&&i===g.focus){ctx.beginPath();ctx.arc(X,Y,NR+3,0,7);ctx.strokeStyle='#1a1a17';ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}
+    if(opt.marks&&!g.labeled.includes(i)){const pred=P[i][1]>P[i][0]?1:0;
+      if(pred!==g.cls(i)){ctx.fillStyle=getCSS('--neg');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✗',X,Y);}}}
+  ctx.restore();}
+function drawPackets(t){const g=G();ctx.save(); // ②: 隣→focus のパケット
+  const fx=gx(g.pos[g.focus][0]),fy2=gy(g.pos[g.focus][1]);
+  for(const u of nbr[g.focus]){const ux=gx(g.pos[u][0]),uy=gy(g.pos[u][1]);
+    const X=ux+(fx-ux)*t,Y=uy+(fy2-uy)*t;
+    ctx.beginPath();ctx.arc(X,Y,4,0,7);ctx.fillStyle=getCSS('--loss');ctx.fill();
+    ctx.lineWidth=1;ctx.strokeStyle='#1a1a17';ctx.stroke();}
+  if(t>0.93){ctx.beginPath();ctx.arc(fx,fy2,NR+4,0,7);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.6;ctx.stroke();}
+  ctx.restore();}
+function drawLossWin(){if(lossHist.length<2)return;const w=100,h=38,x0=CW-w-10,y0=16;
+  ctx.fillStyle='rgba(255,253,246,0.94)';ctx.fillRect(x0,y0,w,h);ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const mx=Math.max(...lossHist);
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();
+  lossHist.forEach((l,i)=>{const X=x0+4+(w-8)*i/(TOTAL_EP/5-1),Y=y0+h-4-(h-8)*Math.min(1,l/mx);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('loss↓',x0+4,y0+10);}
+function caption(txt){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,418);}
+
+const STEPS=[
+  {key:'prob',t:'問題',c:'var(--neg)'},
+  {key:'agg',t:'近傍集約',c:'var(--accent)'},
+  {key:'hop',t:'層=ホップ',c:'var(--upd)'},
+  {key:'train',t:'実学習',c:'var(--loss)'},
+  {key:'result',t:'結果',c:'var(--accent)'},
+];
+let stepIdx=0,anim=false,auto=false,packetT=0,hopLevel=0;
+function draw_(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);drawGrid();
+  if(k==='prob'){drawEdges(false);drawNodes({colorMode:'initial'});
+    caption('色付き=ラベル既知(2個)、灰色=所属不明('+(G().n-2)+'個)');}
+  else if(k==='agg'){drawEdges(true);drawNodes({colorMode:'initial',focusRing:true});drawPackets(packetT);
+    caption('点線丸=注目ノード、橙=隣から届くメッセージ');}
+  else if(k==='hop'){drawEdges(false);drawNodes({colorMode:'initial',focusRing:true,hopLevel});
+    caption('波紋='+(hopLevel===0?'自分だけ(0層)':hopLevel+'層目で届く範囲('+hopLevel+'ホップ)'));}
+  else if(k==='train'){drawEdges(false);drawNodes({colorMode:'prob'});drawLossWin();
+    caption('ノード色=予測クラス（濃さ=確信度）');}
+  else{drawEdges(false);drawNodes({colorMode:'prob',marks:true});drawLossWin();
+    caption('枠太=ラベル既知、✗=不正解、色の薄いノード=自信なし');}}
+
+/* ===== テキスト ===== */
+function pct(v){return(v*100).toFixed(0)+'%';}
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key,g=G();
+  if(k==='prob'){m.innerHTML='<div>ノード <b>'+g.n+'</b>・エッジ <b>'+g.edges.length+'</b></div><div>既知ラベル <b>2</b> 個だけ</div>';return;}
+  if(k==='agg'){m.innerHTML='<div>注目ノードの隣 <b>'+nbr[g.focus].length+'</b> 個</div><div>使う重み <b>W は全ノード共通</b></div>';return;}
+  if(k==='hop'){m.innerHTML='<div>層の数 <b>2</b></div><div>見える範囲 <b>2ホップ</b></div>';return;}
+  if(k==='train'){m.innerHTML='<div>学習 <b>'+ep+'</b> / '+TOTAL_EP+' ep</div><div class="best">loss <b>'+(lossHist.length?lossHist[lossHist.length-1].toFixed(3):'—')+'</b></div>';return;}
+  const mc=minConf();
+  m.innerHTML='<div class="best">正解率 <b>'+pct(accuracy())+'</b>（'+g.n+'ノード中）</div><div>最も自信のないノード <b>'+pct(mc.conf)+'</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=
+  k==='prob'?'緑=クラスA(既知), 紫=クラスB(既知), 灰=不明。手がかりはつながりだけ':
+  k==='agg'?'GNN 1層の仕事：隣の特徴を集めて平均し、自分と混ぜて更新':
+  k==='hop'?'1層=1ホップ。層を重ねるほど遠くの構造が特徴に混ざる':
+  k==='train'?'ラベル2個の誤差だけで学習。色がコミュニティに染まっていく':
+  '色の濃さ=確信度。橋の近くや遠いノードは薄い（自信がない）';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key,g=G();el.style.setProperty('--c',STEPS[stepIdx].c);
+  let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① つながりがデータだ</h3><div class="eq curr">入力 = グラフ (V, E)：ノード '+g.n+'・エッジ '+g.edges.length+'・既知ラベル 2</div><div class="desc">分子・SNS・送電網——<b>「つながり」そのものがデータ</b>の世界。普通の NN は固定長の表しか食べられず、ノードの順番を入れ替えると答えが変わってしまう。いま所属（<span class="ref" data-hl="label">A か B か</span>）が分かっているのは 2 ノードだけ。残り '+(g.n-2)+' 個を、<b>つながりの形だけ</b>から当てられるか？</div>';}
+  else if(k==='agg'){h+='<h3>② 近傍集約：隣から集めて混ぜる</h3><div class="eq curr">h′<sub>v</sub> = σ( W · mean{ h<sub>u</sub> : u ∈ 隣(v) ∪ {v} } )</div><div class="desc">GNN の 1 層の仕事はこれだけ——<span class="ref" data-hl="edge">つながっている相手</span>から特徴を集め（メッセージ）、平均し（集約）、重み W で変換して自分を更新。<b>W は全ノードで同じものを使い回す</b>。CNN が 1 枚のフィルタを画像全体で使い回すのと同じ発想で、どんな形・大きさのグラフにも同じ層が使える。</div>';}
+  else if(k==='hop'){h+='<h3>③ 層を重ねる＝見える範囲が広がる</h3><div class="eq curr">1 層 = 1 ホップ　→　L 層 = L ホップ先まで</div><div class="desc">1 層で隣まで、2 層で<b>隣の隣</b>まで——集約を重ねるたび、波紋のように「特徴に混ざり込む範囲（受容野）」が広がる。このページの GCN は 2 層なので、各ノードは<b> 2 ホップ以内の構造</b>を要約した特徴を持つ。'+(gKey==='chain'?'鎖グラフでは 2 ホップはとても狭い——中央のノードに両端のラベルは届かない。⑤で確かめよう。':'このグラフなら 2 ホップでほぼ全域の構造が届く。')+'</div>';}
+  else if(k==='train'){h+='<h3>④ ラベル 2 個で全員を染める</h3><div class="eq curr">損失 = ラベル付き 2 ノードだけの交差エントロピー</div><div class="desc">ノードの特徴はあえて「自分が誰か」だけ（one-hot）——<b>頼れるのはつながりだけ</b>。それでも 2 ノードの誤差を減らすだけで、メッセージパッシングが構造の中をラベル情報ごと伝え、全ノードが正しい色に染まっていく（<b>半教師あり学習</b>）。学習 '+ep+' / '+TOTAL_EP+' ep。</div>';}
+  else{const mc=minConf();h+='<h3>⑤ 構造だけで当たった</h3><div class="desc">正解率 <b>'+pct(accuracy())+'</b>。同じ色のかたまり＝メッセージがよく行き交う集団が、同じ特徴に集まった。ただし<span class="ref" data-hl="conf">最も自信のないノード</span>の確信度は '+pct(mc.conf)+'——'+(gKey==='chain'?'<b>鎖の中央には 2 層（2 ホップ）では両端のラベルが届かない</b>から。層数＝情報が届く距離、が数字で見える。':'コミュニティの境目（橋の近く）は両方のメッセージが混ざるから。グラフを「鎖」に切り替えると、もっと劇的な例が見られる。')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・GNN = 「隣から集めて混ぜる」の繰り返し<br>・層数 = 見える範囲（ホップ数）。深すぎは過平滑化<br>・CNN は格子グラフ専用の GNN（統一視点）</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+/* ===== ステップ制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='agg')runPackets();
+  else if(k==='hop')runHops();
+  else if(k==='train'){initGCN();runTrain();}
+  else if(k==='result'){if(!P||ep<TOTAL_EP){initGCN();while(ep<TOTAL_EP)trainStep();forward();}}
+  renderAll();draw_();}
+function runPackets(){anim=true;packetT=0;
+  if(window.__prefersReducedMotion){packetT=0.95;anim=false;return;}
+  let t0=null;function go(ts){if(!anim||STEPS[stepIdx].key!=='agg')return;
+    if(t0===null)t0=ts;const el=(ts-t0)/1400;packetT=Math.min(1,el%1.4);
+    if(el%1.4>1)packetT=1;draw_();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+function runHops(){anim=true;hopLevel=0;
+  if(window.__prefersReducedMotion){hopLevel=2;anim=false;return;}
+  function go(){if(!anim||STEPS[stepIdx].key!=='hop')return;
+    hopLevel=(hopLevel+1)%3;draw_();setTimeout(go,900);}
+  setTimeout(go,700);}
+function runTrain(){anim=true;
+  if(window.__prefersReducedMotion){while(ep<TOTAL_EP)trainStep();forward();anim=false;return;}
+  function go(){if(!anim||STEPS[stepIdx].key!=='train')return;
+    if(ep>=TOTAL_EP){anim=false;forward();draw_();renderMini();renderExplain();return;}
+    for(let s=0;s<5&&ep<TOTAL_EP;s++)trainStep();forward();
+    draw_();renderMini();renderExplain();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;const k=STEPS[stepIdx].key;
+    if(anim&&k==='train'){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,k==='agg'||k==='hop'?3000:2000);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;gKey=document.getElementById('gSel').value;buildGraph();initGCN();stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('gSel').onchange=reset;
+document.addEventListener('hl',e=>{HL=e.detail;draw_();});
+buildGraph();initGCN();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

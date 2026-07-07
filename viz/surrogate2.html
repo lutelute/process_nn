@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サロゲートモデル②（ブラックボックスの複製）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4; --true:#a98a4a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>サロゲートモデル②（ブラックボックスの複製）</h1>
+  <div class="lead"><a href="surrogate.html">サロゲート①</a>は「高価な関数を賢く最適化する」顔。このページは<b>もう一つの顔</b>——中身を開けられない<b>ブラックボックス</b>（実機・商用ソルバ・物理現象）を、<b>入出力だけから写し取り</b>、速くて開けられる「替え玉」を作る。小さなニューラルネットが箱を本当に学習します。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>実機・商用ソルバ・物理現象——世の中の多くのシステムは<b>中身が見えない</b>。開けずに扱う道具を知る。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>ブラックボックスの入出力だけから、同じ振る舞いの<b>「速くて開けられる替え玉」</b>を学ぶこと。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>デジタルツイン・NN による物理シミュレーション代替（天気・流体・潮流計算）・実機の制御設計・モデル蒸留。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <select id="fnSel"><option value="resonance" selected>箱の中身: 共振する装置</option><option value="saturate">箱の中身: 飽和する装置</option><option value="kink">箱の中身: 急変する装置</option></select>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>ブラックボックスは開けられない。でも<b>開けられる複製</b>なら作れる——中身を知らないまま振る舞いを写し、写した複製の方を開けて調べる。<b>コピーの方が本物より観察しやすい</b>、それがサロゲートのもう一つの顔。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>写し取るには箱の中身（物理式・コード）を知る必要がある</div>
+    <div class="row"><span class="o">✓</span>必要なのは<b>入出力ペアだけ</b>。中身の知識ゼロで写せる（だから実機・他社コード・物理現象にも使える）。ただし写るのは振る舞いだけで、中の仕組みが解明されるわけではない。</div>
+    <div class="row"><span class="x">✗</span>一度写し取れば、本物の完全な代わりになる</div>
+    <div class="row"><span class="o">✓</span>信用できるのは<b>問い合わせた範囲の内側だけ</b>。範囲の外（外挿）では平気で嘘をつく——箱の「顔」しか見ていないから、見せてもらっていない場所は創作になる。運用では入力が範囲内かを必ず監視する。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：システム同定という大先輩／蒸留／①との合流</summary>
+    <div class="det">制御工学の<b>システム同定</b>は同じ発想の大先輩——実機の入出力データから伝達関数（モデル）を推定して制御設計に使う。<b>蒸留</b>（巨大な NN の入出力で小さな NN を訓練し軽量な複製を作る）もサロゲートの親戚で、「箱」が NN 自身になった場合と言える。<b>NN サロゲート</b>の実用例：天気予報（物理シミュレーションの数万倍速の学習版）・流体解析・電力系統の潮流計算の代替など、「重い本物を訓練済みの替え玉で置き換えてリアルタイム化する」流れが各分野で進む。そして「<b>どこを問い合わせるか</b>」を賢く選べば少ない回数で写せる（能動学習）——その最前線が <a href="surrogate.html">サロゲート①（ベイズ最適化）</a>の獲得関数。①は「最適点を探すために測る」、②は「全体を写すために測る」で、同じ道具の使い分け。学習の中身は <a href="backprop.html">誤差逆伝播</a>、内挿の質と過学習は <a href="reg.html">正則化</a> を参照。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=7;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== ブラックボックスの中身（ユーザーからは見えない想定の真の関数）===== */
+const gauss=(x,c,s)=>Math.exp(-((x-c)**2)/(2*s*s));
+const FNS={
+  resonance:x=>0.22+0.45*gauss(x,0.45,0.12)+0.4*gauss(x,1.08,0.10), // 観測範囲の外に第二の山（外挿トラップ）
+  saturate: x=>0.15+0.7/(1+Math.exp(-9*(x-0.45))),
+  kink:     x=>0.3+0.28*gauss(x,0.3,0.09)+0.38*(Math.tanh(18*(x-0.68))+1)/2,
+};
+let fnKey='resonance';const bbox=x=>FNS[fnKey](x);
+
+/* ===== 替え玉：小型 NN (1-16-16-1, tanh) を Adam で実学習 ===== */
+const H=16,TOTAL_EP=1000,LR=0.012;
+const QLO=0.15,QHI=0.85,NQ=14; // 問い合わせ範囲と回数
+const QXS=Array.from({length:NQ},(_,i)=>QLO+(QHI-QLO)*i/(NQ-1));
+function makeNet(){seed=7;const r=k=>(rng()*2-1)*Math.sqrt(1/k);
+  const zeros=()=>({W1:new Array(H).fill(0),b1:new Array(H).fill(0),W2:Array.from({length:H},()=>new Array(H).fill(0)),b2:new Array(H).fill(0),W3:new Array(H).fill(0),b3:0});
+  return{W1:Array.from({length:H},()=>r(1)),b1:new Array(H).fill(0),
+    W2:Array.from({length:H},()=>Array.from({length:H},()=>r(H))),b2:new Array(H).fill(0),
+    W3:Array.from({length:H},()=>r(H)),b3:0,m:zeros(),v:zeros(),t:0};}
+function fwd(net,x,cache){const h1=new Array(H),h2=new Array(H);
+  for(let i=0;i<H;i++)h1[i]=Math.tanh(net.W1[i]*x+net.b1[i]);
+  for(let i=0;i<H;i++){let s=net.b2[i];for(let j=0;j<H;j++)s+=net.W2[i][j]*h1[j];h2[i]=Math.tanh(s);}
+  let y=net.b3;for(let i=0;i<H;i++)y+=net.W3[i]*h2[i];
+  if(cache){cache.h1=h1;cache.h2=h2;}return y;}
+function trainEpoch(net,xs,ys,lr){const n=xs.length;
+  const g={W1:new Array(H).fill(0),b1:new Array(H).fill(0),W2:Array.from({length:H},()=>new Array(H).fill(0)),b2:new Array(H).fill(0),W3:new Array(H).fill(0),b3:0};
+  let loss=0;
+  for(let k=0;k<n;k++){const c={};const y=fwd(net,xs[k],c);const d=y-ys[k];loss+=d*d;const dy=2*d/n;
+    g.b3+=dy;const dh2=new Array(H);
+    for(let i=0;i<H;i++){g.W3[i]+=dy*c.h2[i];dh2[i]=dy*net.W3[i]*(1-c.h2[i]*c.h2[i]);}
+    const dh1=new Array(H).fill(0);
+    for(let i=0;i<H;i++){g.b2[i]+=dh2[i];for(let j=0;j<H;j++){g.W2[i][j]+=dh2[i]*c.h1[j];dh1[j]+=dh2[i]*net.W2[i][j];}}
+    for(let j=0;j<H;j++){const t=dh1[j]*(1-c.h1[j]*c.h1[j]);g.W1[j]+=t*xs[k];g.b1[j]+=t;}}
+  net.t++;const B1=0.9,B2=0.999,EPS=1e-8;
+  const upd=(p,gr,m,v,set)=>{const nm=B1*m+(1-B1)*gr,nv=B2*v+(1-B2)*gr*gr;
+    const mh=nm/(1-Math.pow(B1,net.t)),vh=nv/(1-Math.pow(B2,net.t));
+    set(p-lr*mh/(Math.sqrt(vh)+EPS),nm,nv);};
+  for(let i=0;i<H;i++){
+    upd(net.W1[i],g.W1[i],net.m.W1[i],net.v.W1[i],(p,m,v)=>{net.W1[i]=p;net.m.W1[i]=m;net.v.W1[i]=v;});
+    upd(net.b1[i],g.b1[i],net.m.b1[i],net.v.b1[i],(p,m,v)=>{net.b1[i]=p;net.m.b1[i]=m;net.v.b1[i]=v;});
+    upd(net.W3[i],g.W3[i],net.m.W3[i],net.v.W3[i],(p,m,v)=>{net.W3[i]=p;net.m.W3[i]=m;net.v.W3[i]=v;});
+    upd(net.b2[i],g.b2[i],net.m.b2[i],net.v.b2[i],(p,m,v)=>{net.b2[i]=p;net.m.b2[i]=m;net.v.b2[i]=v;});
+    for(let j=0;j<H;j++)upd(net.W2[i][j],g.W2[i][j],net.m.W2[i][j],net.v.W2[i][j],(p,m,v)=>{net.W2[i][j]=p;net.m.W2[i][j]=m;net.v.W2[i][j]=v;});}
+  upd(net.b3,g.b3,net.m.b3,net.v.b3,(p,m,v)=>{net.b3=p;net.m.b3=m;net.v.b3=v;});
+  return loss/n;}
+
+/* ===== 状態 ===== */
+let data=[],net=null,ep=0,lossHist=[],lastQ=null; // lastQ: 直近の問い合わせ表示用
+function resetAll(){data=[];net=null;ep=0;lossHist=[];lastQ=null;}
+function collectAll(){data=QXS.map(x=>({x,y:bbox(x)}));lastQ=data[data.length-1];}
+function trainAll(){if(!net)net=makeNet();while(ep<TOTAL_EP){const l=trainEpoch(net,data.map(o=>o.x),data.map(o=>o.y),LR);ep++;if(ep%10===0)lossHist.push(l);}}
+function sensPeak(){let bx=0,bv=-1;for(let i=1;i<200;i++){const x=i/200,h=0.004;
+  const g=Math.abs((fwd(net,x+h)-fwd(net,x-h))/(2*h));if(g>bv){bv=g;bx=x;}}return{x:bx,g:bv};}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const BT=12,BB=104; // 箱フロー図の帯
+const PL=32,PR=14,PT=128,PB=396;
+const px=x=>PL+(CW-PL-PR)*x, fy=v=>PB-(PB-PT-12)*Math.max(0,Math.min(1.06,v))/1.06;
+let HL=null;const dim=k=>(HL&&HL!==k)?0.22:1;
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawFlow(mode){ // mode: 'box'(①②) / 'both'(③④) / 'swap'(⑤)
+  ctx.save();ctx.globalAlpha=dim('box');
+  const boxW=mode==='box'?96:74,boxH=58,byc=(BT+BB)/2;
+  const bx0=mode==='box'?(CW/2-boxW/2):84, bx1=bx0+boxW;
+  // 入出力ラベル
+  ctx.font='10.5px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');ctx.textAlign='center';
+  ctx.fillText('入力 x',34,byc-16);ctx.fillText('出力 y',CW-38,byc-16);
+  if(lastQ){ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');
+    ctx.fillText(lastQ.x.toFixed(2),34,byc+2);ctx.fillText(lastQ.y.toFixed(2),CW-38,byc+2);}
+  else{ctx.fillStyle=getCSS('--faint');ctx.fillText('?',CW-38,byc+2);}
+  // 矢印
+  const arrow=(x0,x1,y)=>{ctx.strokeStyle='rgba(26,26,23,0.55)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1-6,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x1-7,y-4);ctx.lineTo(x1-7,y+4);ctx.closePath();ctx.fillStyle='rgba(26,26,23,0.55)';ctx.fill();};
+  arrow(56,bx0-4,byc);
+  // 黒箱
+  ctx.fillStyle='#1a1a17';rr(bx0,byc-boxH/2,boxW,boxH,4);ctx.fill();
+  ctx.fillStyle='#faf8f1';ctx.font='700 15px '+getCSS('--mono');ctx.fillText('？？？',bx0+boxW/2,byc+5);
+  ctx.font='9px '+getCSS('--mono');ctx.fillStyle='rgba(250,248,241,0.75)';ctx.fillText(mode==='box'?'開かない':'本物(遅い)',bx0+boxW/2,byc+boxH/2-6);
+  if(mode==='swap'){ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=2.4;ctx.globalAlpha=0.85;
+    ctx.beginPath();ctx.moveTo(bx0+8,byc-boxH/2+8);ctx.lineTo(bx1-8,byc+boxH/2-8);
+    ctx.moveTo(bx1-8,byc-boxH/2+8);ctx.lineTo(bx0+8,byc+boxH/2-8);ctx.stroke();ctx.globalAlpha=dim('box');}
+  if(mode==='box'){arrow(bx1+4,CW-62,byc);ctx.restore();return;}
+  // 替え玉 NN（紫の小型ネット）
+  ctx.globalAlpha=dim('nn');
+  const nx0=190,nw=74,nyc=byc;
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=mode==='swap'?2:1.2;
+  ctx.fillStyle='rgba(111,84,196,0.06)';rr(nx0,nyc-boxH/2,nw,boxH,4);ctx.fill();ctx.stroke();
+  const cols=[1,3,1];const posx=[nx0+14,nx0+nw/2,nx0+nw-14];
+  const pts=cols.map((k,l)=>Array.from({length:k},(_,i)=>[posx[l],nyc-boxH/2+boxH*(i+1)/(k+1)]));
+  ctx.strokeStyle='rgba(111,84,196,0.5)';ctx.lineWidth=.8;
+  for(let l=0;l<2;l++)for(const a of pts[l])for(const b of pts[l+1]){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  ctx.fillStyle=getCSS('--upd');for(const layer of pts)for(const p of layer){ctx.beginPath();ctx.arc(p[0],p[1],2.6,0,7);ctx.fill();}
+  ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('替え玉(一瞬)',nx0+nw/2,nyc+boxH/2+11);
+  arrow(bx1+4,nx0-4,byc);arrow(nx0+nw+4,CW-62,byc);
+  ctx.restore();}
+function drawAxes(){ctx.lineWidth=1;
+  for(let gx=PL;gx<=CW-PR+1;gx+=29){ctx.strokeStyle='rgba(150,143,127,0.12)';ctx.beginPath();ctx.moveTo(gx+.5,PT-8);ctx.lineTo(gx+.5,PB+4);ctx.stroke();}
+  for(let gy=PT;gy<=PB;gy+=28){ctx.strokeStyle='rgba(150,143,127,0.12)';ctx.beginPath();ctx.moveTo(PL,gy+.5);ctx.lineTo(CW-PR,gy+.5);ctx.stroke();}
+  ctx.strokeStyle='rgba(26,26,23,0.45)';ctx.beginPath();ctx.moveTo(PL,PT-8);ctx.lineTo(PL,PB);ctx.lineTo(CW-PR,PB);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');
+  ctx.save();ctx.translate(11,PT+30);ctx.rotate(-Math.PI/2);ctx.textAlign='right';ctx.fillText('出力 y（応答）',0,0);ctx.restore();
+  ctx.textAlign='center';ctx.fillText('入力 x（ダイヤル）',(PL+CW-PR)/2,PB+15);}
+function drawRegions(){ctx.save();ctx.globalAlpha=dim('extra');
+  ctx.fillStyle='rgba(31,158,138,0.07)';ctx.fillRect(px(QLO),PT-8,px(QHI)-px(QLO),PB-PT+8);
+  ctx.fillStyle=HL==='extra'?'rgba(207,79,95,0.20)':'rgba(207,79,95,0.09)';
+  ctx.fillRect(PL,PT-8,px(QLO)-PL,PB-PT+8);ctx.fillRect(px(QHI),PT-8,CW-PR-px(QHI),PB-PT+8);
+  ctx.fillStyle='rgba(207,79,95,0.85)';ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('外挿',px(QHI/2+0.5+0.075),PT+2);ctx.fillText('外挿',px(QLO/2),PT+2);
+  ctx.fillStyle='rgba(31,158,138,0.9)';ctx.fillText('問い合わせた範囲（内挿）',px(0.5),PT+2);ctx.restore();}
+function drawTrue(){ctx.save();ctx.globalAlpha=dim('true');
+  ctx.strokeStyle=getCSS('--true');ctx.lineWidth=HL==='true'?2.6:1.6;ctx.setLineDash([5,4]);ctx.beginPath();
+  for(let i=0;i<=200;i++){const x=i/200,X=px(x),Y=fy(bbox(x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);ctx.restore();}
+function drawData(){ctx.save();ctx.globalAlpha=dim('data');
+  for(const o of data){ctx.beginPath();ctx.arc(px(o.x),fy(o.y),HL==='data'?4.4:3.4,0,7);ctx.fillStyle='#1a1a17';ctx.fill();}ctx.restore();}
+function drawNN(){if(!net)return;ctx.save();ctx.globalAlpha=dim('nn');
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=HL==='nn'?2.8:1.9;ctx.beginPath();
+  for(let i=0;i<=200;i++){const x=i/200,X=px(x),Y=fy(fwd(net,x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.restore();}
+function drawLossWin(){if(lossHist.length<2)return;const w=104,h=40,x0=CW-w-12,y0=PT+8;
+  ctx.fillStyle='rgba(255,253,246,0.94)';ctx.fillRect(x0,y0,w,h);ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const mx=Math.max(...lossHist);
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.5;ctx.beginPath();
+  lossHist.forEach((l,i)=>{const X=x0+4+(w-8)*i/(TOTAL_EP/10-1),Y=y0+h-4-(h-8)*Math.min(1,l/mx);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('loss↓',x0+4,y0+10);}
+function drawSens(){if(!net)return;const s=sensPeak();ctx.save();ctx.globalAlpha=dim('sens');
+  const X=px(s.x);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.4;ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(X,PT+4);ctx.lineTo(X,PB);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();ctx.moveTo(X-6,PB+2);ctx.lineTo(X+6,PB+2);ctx.lineTo(X,PB-8);ctx.closePath();ctx.fillStyle=getCSS('--loss');ctx.fill();
+  ctx.fillStyle=getCSS('--loss');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('感度最大 |dŷ/dx|',Math.max(PL+44,Math.min(CW-PR-44,X)),PT+14);ctx.restore();}
+
+const STEPS=[
+  {key:'prob',t:'開かずの箱',c:'var(--neg)'},
+  {key:'query',t:'問い合わせ',c:'var(--loss)'},
+  {key:'mimic',t:'写し取り',c:'var(--upd)'},
+  {key:'trust',t:'検証',c:'var(--warm)'},
+  {key:'swap',t:'交換',c:'var(--accent)'},
+];
+let stepIdx=0,anim=false,auto=false;
+function draw_(){const k=STEPS[stepIdx].key;ctx.clearRect(0,0,CW,CH);
+  if(k==='prob'){drawFlow('box');drawAxes();
+    ctx.fillStyle='rgba(146,143,132,0.5)';ctx.font='700 22px '+getCSS('--gothic');ctx.textAlign='center';
+    [0.25,0.5,0.75].forEach((x,i)=>ctx.fillText('?',px(x),fy(0.5+0.18*Math.sin(i*2.1))));}
+  else if(k==='query'){drawFlow('box');drawAxes();drawData();}
+  else if(k==='mimic'){drawFlow('both');drawAxes();drawData();drawNN();drawLossWin();}
+  else if(k==='trust'){drawFlow('both');drawAxes();drawRegions();drawTrue();drawData();drawNN();}
+  else{drawFlow('swap');drawAxes();drawRegions();drawTrue();drawNN();drawSens();}}
+
+/* ===== テキスト ===== */
+function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
+function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;
+  if(k==='prob'){m.innerHTML='<div>問い合わせ <b>0</b> 回</div><div>1回のコスト <b>大</b>（実験/重い計算）</div>';return;}
+  if(k==='query'){m.innerHTML='<div>問い合わせ <b>'+data.length+'</b> / '+NQ+' 回</div><div>範囲 <b>x∈['+QLO+', '+QHI+']</b></div>';return;}
+  if(k==='mimic'){m.innerHTML='<div>学習 <b>'+ep+'</b> / '+TOTAL_EP+' ep</div><div class="best">loss <b>'+(lossHist.length?lossHist[lossHist.length-1].toExponential(1):'—')+'</b></div>';return;}
+  if(k==='trust'){let se=0,cnt=0,mx=0;for(let i=0;i<=200;i++){const x=i/200,e=Math.abs(fwd(net,x)-bbox(x));
+    if(x>=QLO&&x<=QHI){se+=e*e;cnt++;}else mx=Math.max(mx,e);}
+    m.innerHTML='<div class="best">内挿の誤差(RMSE) <b>'+Math.sqrt(se/cnt).toFixed(3)+'</b></div><div>外挿の最大誤差 <b style="color:var(--neg)">'+mx.toFixed(3)+'</b></div>';return;}
+  m.innerHTML='<div>本物 <b>1回=数時間</b></div><div class="best">替え玉 <b>数十万回/秒</b></div><div>微分 <b>可能</b></div>';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=
+  k==='prob'?'黒い箱=中身の見えないシステム。y の正体も応答の形も不明':
+  k==='query'?'●=記録した入出力ペア（箱の「外から見える顔」）':
+  k==='mimic'?'紫線=NN(替え玉)の予測が観測点にフィットしていく':
+  k==='trust'?'破線=本物の素顔, 緑帯=問い合わせた範囲, 赤帯=外挿（危険）':
+  '本物に×=もう呼ばない。替え玉で全域走査＋感度分析（▲）';}
+function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);
+  let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
+  if(k==='prob'){h+='<h3>① 開かずの箱</h3><div class="eq curr">y = f(x)　—　f の中身は見えない・開けない</div><div class="desc">世の中は開かずの箱だらけ——<b>実機</b>（開けたら壊れる）・<b>商用シミュレータ</b>（コードは企業秘密）・<b>物理現象</b>（式が完全には書けない）。分かるのは<span class="ref" data-hl="box">「x を入れると y が出てくる」</span>だけ。しかも 1 回が遅く高価。この箱の応答の全体像が欲しい、何万回も呼びたい、微分もしたい——でも箱は開かない。</div>';}
+  else if(k==='query'){h+='<h3>② できる唯一のこと＝箱に聞く</h3><div class="eq curr">D = {(x₁,y₁), …, (x₁₄,y₁₄)}</div><div class="desc">入力を変えては出力を記録する。集まった<span class="ref" data-hl="data">入出力ペア</span>は箱の<b>「外から見える顔」</b>。中の原理は 1 ミリも知らないまま、顔だけを集める。'+NQ+' 回の問い合わせで打ち止め——ここまでが高価な作業で、ここから先は箱に頼らない。</div>';}
+  else if(k==='mimic'){h+='<h3>③ 写し取り：NN が替え玉になる</h3><div class="eq curr">min Σ ( NN(xᵢ) − yᵢ )²　— 一致させるのは振る舞いだけ</div><div class="desc">小さなニューラルネット（1-16-16-1）に「<b>同じ入力に同じ出力を返せ</b>」とだけ要求して訓練（いまこの場で本当に学習中）。箱の中の仕組みは一切使わない。学習が終わる頃には、外から見る限り区別のつかない<span class="ref" data-hl="nn">替え玉＝サロゲート</span>が生まれる。学習 '+ep+' / '+TOTAL_EP+' エポック。</div>';}
+  else if(k==='trust'){h+='<h3>④ どこまで信じていい？</h3><div class="desc">答え合わせ（<span class="ref" data-hl="true">破線＝本物の素顔</span>）。問い合わせた範囲の<b>内側（緑）ではほぼ重なる</b>。しかし<span class="ref" data-hl="extra">範囲の外（赤）では平気で嘘をつく</span>——箱の顔しか見ていないから、見せてもらっていない場所は<b>創作</b>になる。'+(fnKey==='resonance'?'この装置は範囲外の x≈1.0 に第二の共振峰を隠していたが、替え玉は知る由もない。':'')+'<b>内挿は信用、外挿は疑え</b>。</div>';}
+  else{const s=sensPeak();h+='<h3>⑤ 交換：速くて、開けられる</h3><div class="desc">替え玉の強みは 2 つ。<b>(1) 速い</b>：本物 1 回の時間で数百万回呼べる——設計探索・リアルタイム制御・デジタルツインに埋め込める。<b>(2) 開けられる</b>：NN は微分できるから<span class="ref" data-hl="sens">応答が最も敏感な入力（▲ x='+s.x.toFixed(2)+'）</span>が分かるし、勾配で設計最適化もできる。<b>ブラックボックスに勾配が生えた</b>。ただし信用できるのは緑の範囲の内側だけ。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入出力だけで写せる（中身の知識ゼロで OK）<br>・信用できるのは観測範囲の内側（外挿は創作）<br>・替え玉は速く、微分できる＝開けられる複製</div>';}
+  el.innerHTML=h;}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
+
+/* ===== ステップ制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goStep(i){i=Math.max(0,Math.min(STEPS.length-1,i));anim=false;stepIdx=i;const k=STEPS[i].key;
+  if(k==='prob'){resetAll();}
+  else if(k==='query'){if(net){resetAll();}if(data.length<NQ)runCollect();}
+  else if(k==='mimic'){if(data.length<NQ)collectAll();if(ep>=TOTAL_EP){net=null;ep=0;lossHist=[];}runTrain();}
+  else{if(data.length<NQ)collectAll();if(ep<TOTAL_EP)trainAll();}
+  renderAll();draw_();}
+function runCollect(){anim=true;data=[];lastQ=null;
+  if(window.__prefersReducedMotion){collectAll();anim=false;return;}
+  function go(){if(!anim||STEPS[stepIdx].key!=='query')return;
+    if(data.length>=NQ){anim=false;return;}
+    const x=QXS[data.length];data.push({x,y:bbox(x)});lastQ=data[data.length-1];
+    draw_();renderMini();
+    setTimeout(()=>requestAnimationFrame(go),150);}
+  requestAnimationFrame(go);}
+function runTrain(){anim=true;if(!net)net=makeNet();
+  if(window.__prefersReducedMotion){trainAll();anim=false;return;}
+  function go(){if(!anim||STEPS[stepIdx].key!=='mimic')return;
+    if(ep>=TOTAL_EP){anim=false;renderMini();renderExplain();return;}
+    let l=0;for(let s=0;s<10&&ep<TOTAL_EP;s++){l=trainEpoch(net,data.map(o=>o.x),data.map(o=>o.y),LR);ep++;}
+    lossHist.push(l);draw_();renderMini();renderExplain();
+    requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(stepIdx<STEPS.length-1){goStep(stepIdx+1);const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,2000);};requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;fnKey=document.getElementById('fnSel').value;resetAll();stepIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(stepIdx<STEPS.length-1)goStep(stepIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(stepIdx>0)goStep(stepIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(stepIdx===STEPS.length-1)goStep(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('fnSel').onchange=reset;
+document.addEventListener('hl',e=>{HL=e.detail;draw_();});
+renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
