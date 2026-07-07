@@ -127,6 +127,7 @@ const M=[
   {n:'RNN',h:'rnn.html',c:'imgseq',x:0.70,y:0.63,mo:'seq'},
   {n:'LSTM',h:'lstm.html',c:'imgseq',x:0.78,y:0.58,mo:'seq'},
   {n:'グラフNN',h:'gnn.html',c:'imgseq',x:0.68,y:0.50,mo:'graphnet'},
+  {n:'潮流GNN⚡',h:'gnnflow.html',c:'imgseq',x:0.64,y:0.44,mo:'powerflow'},
   {n:'単語埋め込み',h:'word2vec.html',c:'lang',x:0.74,y:0.70,mo:'proj'},
   {n:'位置エンコーディング',h:'positional.html',c:'lang',x:0.81,y:0.66,mo:'wave'},
   {n:'自己注意',h:'attention.html',c:'lang',x:0.83,y:0.77,mo:'attn'},
@@ -205,6 +206,12 @@ const MOT={
     ctx.strokeStyle='rgba(60,60,52,0.35)';ctx.lineWidth=.8;
     [[0,1],[0,2],[0,3],[1,3],[2,3],[4,5],[4,6],[5,7],[6,7],[4,7],[3,4]].forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(P[a][0],P[a][1]);ctx.lineTo(P[b][0],P[b][1]);ctx.stroke();});
     P.forEach((p,i)=>{ctx.beginPath();ctx.arc(p[0],p[1],2.6,0,7);ctx.fillStyle=i<4?c:'#6f54c4';ctx.fill();});},
+  powerflow(x,y,w,h,c){ // 潮流GNN：送電網（リング系統＋太さ違いの潮流）
+    const P=[[0.15,0.72],[0.15,0.28],[0.5,0.12],[0.85,0.28],[0.85,0.72],[0.5,0.9]].map(p=>[x+p[0]*w,y+p[1]*h]);
+    const E=[[0,1,2.4],[1,2,1.2],[2,3,2.8],[3,4,2.0],[4,5,1.0],[5,0,1.6],[1,4,0.8]];
+    for(const[a,b,lw]of E){ctx.strokeStyle=lw>2.4?'rgba(207,79,95,0.8)':'rgba(60,60,52,0.5)';ctx.lineWidth=lw;
+      ctx.beginPath();ctx.moveTo(P[a][0],P[a][1]);ctx.lineTo(P[b][0],P[b][1]);ctx.stroke();}
+    P.forEach((p,i)=>{ctx.beginPath();ctx.arc(p[0],p[1],2.6,0,7);ctx.fillStyle=(i===0||i===3)?c:INK;ctx.fill();});},
   pattern(x,y,w,h,c){const N=6,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2,g=rng(23);for(let r=0;r<N;r++)for(let cc=0;cc<N;cc++){const on=((r+cc)%2===0)^(g()<0.18);ctx.fillStyle=on?c:'rgba(60,60,52,0.1)';ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1,cw-1);}},
 };
 

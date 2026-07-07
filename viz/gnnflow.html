@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>特別講演：GNN × 潮流計算 — 送電網を学ぶニューラルネット</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  .lecture-tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:#fff;background:var(--upd);border-radius:2px;padding:2px 10px;margin-bottom:6px;font-weight:700;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <div class="lecture-tag">⚡ 特別講演 — 全15枚</div>
+  <h1>GNN × 潮流計算 — 送電網を学ぶニューラルネット</h1>
+  <div class="lead">ここまでに学んだ 2 つの道具——<a href="gnn.html">グラフNN</a>（つながりを食べる）と<a href="surrogate2.html">サロゲート</a>（重い計算を写し取る）——が、現実の研究で合流する様子を 1 本の講演で。舞台は<b>送電網</b>。本物の潮流計算をこの場で解き、GNN がそれを<b>実学習で写し取り</b>、一瞬の過負荷スクリーニングをやってみせます。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>個々に学んだ道具が<b>現実の研究でどう組み合わさるか</b>を、1 つの応用を最後まで通して見る。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>送電網の潮流計算を GNN で写し取り、<b>一瞬の過負荷スクリーニング</b>を可能にする応用研究の入門講演。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>リアルタイム系統監視・N-1 事故スクリーニング・系統計画のシナリオ大量評価・最適化の内側ループ。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別のケース</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>キルヒホッフ則は「<b>隣としか会話しない</b>」——GNN のメッセージパッシングと同じ形をしている。<b>物理の形と学習器の形が一致するとき、写し取りは少ないデータで速く正確になる</b>。モデル選びとは、データの形に道具の形を合わせること。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>GNN 潮流サロゲートは、潮流計算そのものを置き換える</div>
+    <div class="row"><span class="o">✓</span>役割は<b>学習範囲内の高速スクリーニング</b>。数千ケースを GNN で粗く絞り、危ないケースだけ本物の計算で精査する<b>2 段構え</b>が実務の使い方。内挿は信用・外挿は疑え——サロゲートの教訓がそのまま生きる。</div>
+    <div class="row"><span class="x">✗</span>送電網の AI 化には巨大なモデルと大量のデータが必要</div>
+    <div class="row"><span class="o">✓</span>物理の形（局所則）と学習器の形（メッセージパッシング）が<b>合っていれば</b>、今日の小さな GNN（パラメータ約 1,200 個・訓練 160 問）でも誤差 7% まで写せる。<b>形の一致（帰納バイアス）はデータ量より効く</b>。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：DC と AC／PINN／実務ツールと研究動向</summary>
+    <div class="det">この講演の「本物」は <b>DC 潮流</b>（B′θ=P の線形方程式。有効電力と位相角のみ、高速で頑健）。実務の高精度計算は <b>AC 潮流</b>で、電圧・無効電力も含む非線形方程式を Newton-Raphson 反復で解く——系統が大きいほど、またシナリオが増えるほど重くなり、それがサロゲート化の動機。研究では GNN で AC 潮流・状態推定・安定度判定・N-1 スクリーニングを学ぶ試みが 2019 年頃から活発で、<b>PINN</b>（物理法則を損失関数に足す Physics-Informed NN）と組み合わせて「データが少なくても物理で縛る」方向も盛ん。実務ツールは pandapower・MATPOWER・PSS/E など。<b>限界も明確</b>：学習範囲外の運転点・想定外のトポロジー変化では保証がなく、最終判断は必ず本物の計算と運用者が行う。関連ページ: <a href="gnn.html">グラフNN</a>（メッセージパッシングの基礎）・<a href="surrogate2.html">サロゲート②</a>（写し取りと外挿の危険）・<a href="surrogate.html">サロゲート①</a>（どこを測るかの賢い選び方）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=21;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== 6バス系統と DC 潮流（本物のソルバ）===== */
+const N=6;
+const LINES=[[0,1,0.15],[1,2,0.20],[2,3,0.18],[3,4,0.22],[4,5,0.16],[5,0,0.19],[1,4,0.25],[2,5,0.28]];
+const BASE_P=[0,-0.40,-0.50,0.80,-0.35,-0.25]; // 正=発電/負=負荷（B0スラック, B3発電）
+const POS=[[0.15,0.75],[0.15,0.30],[0.50,0.12],[0.85,0.30],[0.85,0.75],[0.50,0.92]];
+function inv(M){const n=M.length,A2=M.map((r,i)=>[...r,...Array.from({length:n},(_,j)=>i===j?1:0)]);
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A2[r][c])>Math.abs(A2[p][c]))p=r;[A2[c],A2[p]]=[A2[p],A2[c]];
+    const d=A2[c][c];for(let j=0;j<2*n;j++)A2[c][j]/=d;
+    for(let r=0;r<n;r++)if(r!==c){const f=A2[r][c];for(let j=0;j<2*n;j++)A2[r][j]-=f*A2[c][j];}}
+  return A2.map(r=>r.slice(n));}
+const Bm=(()=>{const B=Array.from({length:N},()=>new Array(N).fill(0));
+  for(const[f,t,x]of LINES){const b=1/x;B[f][f]+=b;B[t][t]+=b;B[f][t]-=b;B[t][f]-=b;}return B;})();
+const Binv=inv(Bm.slice(1).map(r=>r.slice(1)));
+function solvePF(P){const th=new Array(N).fill(0);
+  for(let i=1;i<N;i++){let s=0;for(let j=1;j<N;j++)s+=Binv[i-1][j-1]*P[j];th[i]=s;}
+  return{th,flows:LINES.map(([f,t,x])=>(th[f]-th[t])/x)};}
+const baseSol=solvePF([...BASE_P]);
+const CAP=baseSol.flows.map(f=>Math.max(Math.abs(f)*1.45,0.25));
+function randPattern(scaleLo,scaleHi){scaleLo=scaleLo??0.4;scaleHi=scaleHi??1.7;
+  const P=new Array(N).fill(0);
+  for(let i=1;i<N;i++)P[i]=BASE_P[i]*(scaleLo+(scaleHi-scaleLo)*rng());return P;}
+
+/* ===== GNN（P再注入つき5層 = ヤコビ反復の学習版）===== */
+const LYR=5,HD=16,SC=20,ITER=800,BS=16,LR=0.01;
+const Adj=(()=>{const A2=Array.from({length:N},()=>new Array(N).fill(0));
+  for(const[f,t]of LINES){A2[f][t]=1;A2[t][f]=1;}for(let i=0;i<N;i++)A2[i][i]=1;return A2;})();
+const degA=Adj.map(r=>r.reduce((s,v)=>s+v,0));
+const Ah=Adj.map((r,i)=>r.map((v,j)=>v/Math.sqrt(degA[i]*degA[j])));
+const mm=(Aa,Bb)=>Aa.map(r=>Bb[0].map((_,j)=>r.reduce((s,v,k)=>s+v*Bb[k][j],0)));
+const Tr=M=>M[0].map((_,j)=>M.map(r=>r[j]));
+function dimsOf(l){return[l===0?1:HD,l===LYR-1?1:HD];}
+function makeNet(){seed=33;const r=k=>(rng()*2-1)*Math.sqrt(1/k);
+  const layers=[];for(let l=0;l<LYR;l++){const[di,dO]=dimsOf(l);
+    layers.push({W:Array.from({length:di},()=>Array.from({length:dO},()=>r(di))),
+      U:[Array.from({length:dO},()=>r(1))],b:new Array(dO).fill(0)});}
+  const z=()=>layers.map(ly=>({W:ly.W.map(r2=>r2.map(()=>0)),U:ly.U.map(r2=>r2.map(()=>0)),b:ly.b.map(()=>0)}));
+  return{layers,m:z(),v:z(),t:0};}
+function gnnFwd(net,P,cache){const X=P.map(v=>[v]);let H=X;const Zs=[],Hs=[H];
+  for(let l=0;l<LYR;l++){const ly=net.layers[l];
+    const Z=mm(Ah,mm(H,ly.W)).map((row,i)=>row.map((v,j)=>v+X[i][0]*ly.U[0][j]+ly.b[j]));
+    Zs.push(Z);H=(l<LYR-1)?Z.map(r=>r.map(v=>Math.max(0,v))):Z;Hs.push(H);}
+  let th=H.map(r=>r[0]);th=th.map(v=>v-th[0]);
+  if(cache)Object.assign(cache,{X,Zs,Hs});return th;}
+function gnnGrad(net,P,thT,g){const c={};const th=gnnFwd(net,P,c);let loss=0;
+  const dth=th.map((v,i)=>{const d=v-thT[i];loss+=d*d/N;return 2*d/N;});
+  const dcol=dth.map((v,i)=>i===0?0:v);dcol[0]=-dth.slice(1).reduce((s,v)=>s+v,0);
+  let dH=dcol.map(v=>[v]);
+  for(let l=LYR-1;l>=0;l--){const ly=net.layers[l];
+    const dZ=(l<LYR-1)?dH.map((r,i)=>r.map((v,j)=>c.Zs[l][i][j]>0?v:0)):dH;
+    const AdZ=mm(Ah,dZ);
+    const dW=mm(Tr(c.Hs[l]),AdZ);
+    const dU=[c.X.reduce((acc,r,i)=>{dZ[i].forEach((v,j)=>acc[j]+=r[0]*v);return acc;},new Array(dZ[0].length).fill(0))];
+    const db=dZ[0].map((_,j)=>dZ.reduce((s,r)=>s+r[j],0));
+    for(let i=0;i<g[l].W.length;i++)for(let j=0;j<g[l].W[i].length;j++)g[l].W[i][j]+=dW[i][j];
+    for(let j=0;j<g[l].U[0].length;j++)g[l].U[0][j]+=dU[0][j];
+    for(let j=0;j<g[l].b.length;j++)g[l].b[j]+=db[j];
+    dH=mm(AdZ,Tr(ly.W));}
+  return loss;}
+function adam(net,g,lr,bs){net.t++;const B1=0.9,B2=0.999,E=1e-8;
+  const one=(P2,M,V,i,j,gr)=>{M[i][j]=B1*M[i][j]+(1-B1)*gr;V[i][j]=B2*V[i][j]+(1-B2)*gr*gr;
+    P2[i][j]-=lr*(M[i][j]/(1-Math.pow(B1,net.t)))/(Math.sqrt(V[i][j]/(1-Math.pow(B2,net.t)))+E);};
+  const oneV=(P2,M,V,j,gr)=>{M[j]=B1*M[j]+(1-B1)*gr;V[j]=B2*V[j]+(1-B2)*gr*gr;
+    P2[j]-=lr*(M[j]/(1-Math.pow(B1,net.t)))/(Math.sqrt(V[j]/(1-Math.pow(B2,net.t)))+E);};
+  for(let l=0;l<LYR;l++){const ly=net.layers[l],gl=g[l],ml=net.m[l],vl=net.v[l];
+    for(let i=0;i<ly.W.length;i++)for(let j=0;j<ly.W[i].length;j++)one(ly.W,ml.W,vl.W,i,j,gl.W[i][j]/bs);
+    for(let j=0;j<ly.U[0].length;j++)one(ly.U,ml.U,vl.U,0,j,gl.U[0][j]/bs);
+    for(let j=0;j<ly.b.length;j++)oneV(ly.b,ml.b,vl.b,j,gl.b[j]/bs);}}
+const zeroG=net=>net.layers.map(ly=>({W:ly.W.map(r=>r.map(()=>0)),U:ly.U.map(r=>r.map(()=>0)),b:ly.b.map(()=>0)}));
+function gnnFlows(net,P){const th=gnnFwd(net,P).map(v=>v/SC);
+  return LINES.map(([f,t,x])=>(th[f]-th[t])/x);}
+
+/* ===== 講演の状態 ===== */
+let net=null,it=0,lossHist=[],trainData=null,dataCount=0;
+let curP=[...BASE_P],curSol=baseSol;            // スライド2-6 で表示するケース
+let testCase=null;                               // スライド10-13 の答え合わせケース
+let extraCase=null;                              // スライド14 の範囲外ケース
+function genTrain(){seed=21;trainData=Array.from({length:160},()=>{const P=randPattern();return{P,th:solvePF(P).th.map(v=>v*SC)};});}
+function newCase(lo,hi){const P=randPattern(lo,hi);const sol=solvePF(P);
+  const fP=net&&it>=ITER?gnnFlows(net,P):null;return{P,sol,fP};}
+function trainAll(){if(!trainData)genTrain();if(!net)net=makeNet();
+  while(it<ITER){const g=zeroG(net);let l=0;
+    for(let b=0;b<BS;b++){const s=trainData[(it*BS+b)%trainData.length];l+=gnnGrad(net,s.P,s.th,g);}
+    adam(net,g,LR,BS);it++;if(it%10===0)lossHist.push(l/BS);}}
+function flowErrPct(fP,fT){let e=0,m=0;fT.forEach((f,k)=>{e+=Math.abs(fP[k]-f);m+=Math.abs(f);});return e/m*100;}
+function olMatch(fP,fT){let hit=0;LINES.forEach((_,k)=>{if((Math.abs(fP[k])>CAP[k])===(Math.abs(fT[k])>CAP[k]))hit++;});return hit;}
+
+/* ===== 描画部品 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const SX=u=>30+(CW-60)*u, SY=v=>26+270*v; // 系統図領域
+let HL=null;const dim=k=>(HL&&HL!==k)?0.22:1;
+function drawGridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.10)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.10)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+function lineColor(k,flows){if(!flows)return'rgba(26,26,23,0.35)';const u=Math.abs(flows[k])/CAP[k];
+  return u>=1?getCSS('--neg'):u>=0.8?getCSS('--loss'):'rgba(26,26,23,0.55)';}
+function drawSystem(opt){opt=opt||{};const flows=opt.flows;
+  // 線路
+  LINES.forEach(([f,t],k)=>{const x1=SX(POS[f][0]),y1=SY(POS[f][1]),x2=SX(POS[t][0]),y2=SY(POS[t][1]);
+    ctx.save();ctx.globalAlpha=dim('line');
+    ctx.strokeStyle=lineColor(k,flows);
+    ctx.lineWidth=flows?1+5*Math.min(1.3,Math.abs(flows[k])/CAP[k]):1.3;
+    if(opt.diffHl&&opt.diffHl[k]){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth+=1;}
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    // 流向矢印
+    if(flows&&Math.abs(flows[k])>0.02){const s=flows[k]>0?1:-1;
+      const mx=(x1+x2)/2,my=(y1+y2)/2;let dx=(x2-x1),dy=(y2-y1);const L2=Math.hypot(dx,dy);dx=dx/L2*s;dy=dy/L2*s;
+      ctx.beginPath();ctx.moveTo(mx+dx*7,my+dy*7);ctx.lineTo(mx-dx*4+dy*4.5,my-dy*4-dx*4.5);ctx.lineTo(mx-dx*4-dy*4.5,my-dy*4+dx*4.5);ctx.closePath();
+      ctx.fillStyle=lineColor(k,flows);ctx.fill();}
+    // 流れアニメ（点）
+    if(opt.animT!==undefined&&flows&&Math.abs(flows[k])>0.02){const s=flows[k]>0?1:-1;
+      for(let d=0;d<2;d++){let tt=(opt.animT*Math.min(1.6,Math.abs(flows[k])/CAP[k]+0.4)+d*0.5)%1;if(s<0)tt=1-tt;
+        ctx.beginPath();ctx.arc(x1+(x2-x1)*tt,y1+(y2-y1)*tt,2.6,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();}}
+    ctx.restore();});
+  // バス
+  for(let i=0;i<N;i++){const X=SX(POS[i][0]),Y=SY(POS[i][1]);
+    ctx.save();ctx.globalAlpha=dim('bus');
+    const gen=(i===0||i===3);
+    if(opt.hlBus===i){ctx.beginPath();ctx.arc(X,Y,19,0,7);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.4;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);}
+    ctx.beginPath();ctx.arc(X,Y,13,0,7);
+    ctx.fillStyle=gen?'#e4f4ef':'#fffdf6';ctx.fill();
+    ctx.lineWidth=i===0?2.6:1.4;ctx.strokeStyle=gen?getCSS('--accent'):'rgba(26,26,23,0.6)';ctx.stroke();
+    ctx.fillStyle=gen?getCSS('--accent'):getCSS('--muted');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('B'+i,X,Y+.5);
+    // 役割ラベル
+    ctx.font='8.5px '+getCSS('--mono');ctx.fillStyle=getCSS('--faint');
+    const tag=i===0?'G(スラック)':i===3?'G(発電)':'負荷';
+    ctx.fillText(tag,X,Y+23);
+    ctx.restore();
+    // パケット（スライド6）
+    if(opt.packets!==undefined&&opt.packetTo===i){
+      for(const[f2,t2]of LINES){let u2=-1;if(f2===i)u2=t2;else if(t2===i)u2=f2;if(u2<0)continue;
+        const ux=SX(POS[u2][0]),uy=SY(POS[u2][1]);
+        ctx.beginPath();ctx.arc(ux+(X-ux)*opt.packets,uy+(Y-uy)*opt.packets,4,0,7);
+        ctx.fillStyle=getCSS('--loss');ctx.fill();ctx.lineWidth=1;ctx.strokeStyle='#1a1a17';ctx.stroke();}
+      if(opt.packets>0.92){ctx.beginPath();ctx.arc(X,Y,17,0,7);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.6;ctx.stroke();}}}}
+function drawFlowBars(y0,flows,flows2,h){h=h||86;const n=LINES.length,bw=(CW-70)/n;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';
+  ctx.fillText(flows2?'各線路の利用率 |f|/容量（墨=本物, 紫=GNN）':'各線路の利用率 |f|/容量',30,y0-6);
+  for(let k=0;k<n;k++){const x0=34+k*bw;
+    const u1=Math.min(1.35,Math.abs(flows[k])/CAP[k]);
+    if(flows2){const u2=Math.min(1.35,Math.abs(flows2[k])/CAP[k]);
+      ctx.fillStyle='rgba(26,26,23,0.75)';ctx.fillRect(x0,y0+h-h*u1/1.35,bw*0.34,h*u1/1.35);
+      ctx.fillStyle='rgba(111,84,196,0.85)';ctx.fillRect(x0+bw*0.40,y0+h-h*u2/1.35,bw*0.34,h*u2/1.35);}
+    else{ctx.fillStyle=Math.abs(flows[k])>CAP[k]?getCSS('--neg'):Math.abs(flows[k])>0.8*CAP[k]?getCSS('--loss'):'rgba(26,26,23,0.65)';
+      ctx.fillRect(x0,y0+h-h*u1/1.35,bw*0.7,h*u1/1.35);}
+    ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillText('L'+(k+1),x0+bw*0.36,y0+h+10);}
+  // 容量線 (u=1)
+  const yc=y0+h-h/1.35;ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1;ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(30,yc);ctx.lineTo(CW-30,yc);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--neg');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('容量100%',CW-30,yc-4);}
+function drawLossCurve(y0,h){if(lossHist.length<2)return;
+  ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;ctx.strokeRect(30,y0,CW-60,h);
+  const mx=Math.max(...lossHist);
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.6;ctx.beginPath();
+  lossHist.forEach((l,i)=>{const X=32+(CW-64)*i/(ITER/10-1),Y=y0+h-4-(h-8)*Math.min(1,l/mx);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('loss↓ （学習 '+it+'/'+ITER+'）',34,y0+12);}
+function drawConfluence(){const y1=100,y2=210,xg=80,xs2=80,xr=268;
+  // GNN アイコン（小グラフ）
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;
+  const gp=[[xg-26,y1-6],[xg,y1-26],[xg+26,y1-6],[xg,y1+18]];
+  [[0,1],[1,2],[0,3],[2,3],[0,2]].forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(gp[a][0],gp[a][1]);ctx.lineTo(gp[b][0],gp[b][1]);ctx.stroke();});
+  gp.forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],5,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();});
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('グラフNN',xg,y1+42);ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=getCSS('--faint');ctx.fillText('つながりを食べる',xg,y1+57);
+  // サロゲートアイコン（黒箱→複製）
+  ctx.fillStyle='#1a1a17';ctx.fillRect(xs2-30,y2-18,26,36);
+  ctx.fillStyle='#faf8f1';ctx.font='700 11px '+getCSS('--mono');ctx.fillText('?',xs2-17,y2+4);
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.3;ctx.strokeRect(xs2+6,y2-18,26,36);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 10px '+getCSS('--mono');ctx.fillText('NN',xs2+19,y2+4);
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');
+  ctx.fillText('サロゲート',xs2,y2+40);ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=getCSS('--faint');ctx.fillText('重い計算を写し取る',xs2,y2+55);
+  // 矢印
+  ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(xg+56,y1+6);ctx.quadraticCurveTo(175,130,xr-58,152);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(xs2+56,y2-4);ctx.quadraticCurveTo(175,190,xr-58,168);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(xr-56,160);ctx.lineTo(xr-66,154);ctx.lineTo(xr-66,166);ctx.closePath();ctx.fillStyle='rgba(26,26,23,0.5)';ctx.fill();
+  // 送電網ミニ
+  const sp=POS.map(p=>[xr-20+p[0]*72,120+p[1]*80]);
+  LINES.forEach(([f,t])=>{ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sp[f][0],sp[f][1]);ctx.lineTo(sp[t][0],sp[t][1]);ctx.stroke();});
+  sp.forEach((p,i)=>{ctx.beginPath();ctx.arc(p[0],p[1],4.5,0,7);ctx.fillStyle=(i===0||i===3)?getCSS('--accent'):'#52504a';ctx.fill();});
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('⚡ 送電網',xr+16,238);
+  ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=getCSS('--faint');ctx.fillText('今日の舞台',xr+16,253);}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-12);}
+
+/* ===== スライド定義（4章×15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 形が合う',c:'var(--upd)',start:4},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0;
+
+const SLIDES=[
+{title:'開演：2 つの道具が合流する',legend:'学んだ道具（緑=GNN・紫=サロゲート）が送電網で出会う',
+ html(){return'<h3>開演：2 つの道具が合流する</h3><div class="desc">ようこそ、特別講演へ。ここまでに<b>グラフNN</b>（つながりの形から学ぶ）と<b>サロゲート</b>（重い計算・開かずの箱を写し取る）を学びました。今日はこの 2 つが現実の研究で合流する現場——<b>電力系統（送電網）</b>——を最後まで通しで見ます。本物の計算・本物の学習だけで進みます。</div>';},
+ draw(){drawConfluence();caption('スライドを「次へ ▶」で進めてください');}},
+{title:'送電網はグラフそのもの',legend:'◎緑=発電機のあるバス（B0=スラック）、●=負荷バス、線=送電線',
+ html(){return'<h3>送電網はグラフそのもの</h3><div class="eq curr">バス（母線）= ノード　／　送電線 = エッジ</div><div class="desc">6 つの<b>バス</b>（発電所や変電所の接続点）が 8 本の<b>送電線</b>でつながる小さな系統。B0 と B3 が発電、残りは需要家（負荷）。<b>グラフNN の回で見た構造がそのまま現実のインフラ</b>です。送電網の解析が GNN と相性が良い理由は、この一枚に尽きます。</div>';},
+ draw(){drawSystem({});caption('6バス・8線路のモデル系統',CH-70);}},
+{title:'潮流計算：どの線にどれだけ流れる？',legend:'線の太さ=潮流の大きさ、▲=向き。下=各線の利用率',
+ html(){return'<h3>潮流計算：どの線にどれだけ流れる？</h3><div class="eq curr">B′<i>θ</i> = <i>P</i> を解く → 線の潮流 <i>f</i><sub>ij</sub> = (<i>θ</i><sub>i</sub> − <i>θ</i><sub>j</sub>)/<i>x</i><sub>ij</sub></div><div class="desc">発電と需要を与えると、電気がどの線をどれだけ流れるかは<b>物理法則で一意に決まる</b>——それを解くのが潮流計算です。いまこの場で本物を解きました（DC 潮流）。太い線ほど大きな流れ。<b>橙は容量の 80% 超、赤は過負荷</b>。運用の関心は常に「どこかの線が溢れていないか」。</div>';},
+ draw(){drawSystem({flows:curSol.flows,animT});drawFlowBars(324,curSol.flows);}},
+{title:'なぜ大変か：実務のスケール',legend:'このデモは6バス。実物は数万バス×数千シナリオ×毎日',
+ html(){return'<h3>なぜ大変か：実務のスケール</h3><div class="desc">6 バスなら一瞬です。しかし実物は——<b>数千〜数万バス</b>、方程式は非線形（AC 潮流）で<b>反復計算</b>、しかも「どの設備が 1 つ壊れても大丈夫か」を調べる <b>N-1 解析</b>では設備の数だけケースが増える。需要は刻々変わるから<b>毎日・毎時間解き直し</b>。積み上がると計算は日単位——<b>「重い本物」の典型</b>です。ここに<a href="surrogate2.html">サロゲート②</a>の出番がある。</div>';},
+ draw(){drawSystem({flows:curSol.flows});
+   const x0=52,y0=330;ctx.fillStyle='rgba(255,253,246,0.95)';ctx.fillRect(x0-14,y0-18,CW-x0-24,86);
+   ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.strokeRect(x0-14,y0-18,CW-x0-24,86);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';
+   ctx.fillText('実務のスケール感',x0,y0);
+   ctx.font='10.5px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');
+   ctx.fillText('・バス数     : 6 → 数千〜数万',x0,y0+18);
+   ctx.fillText('・N-1 ケース : 1 → 設備数ぶん(数千)',x0,y0+34);
+   ctx.fillText('・頻度       : 1回 → 毎時・毎日',x0,y0+50);}},
+{title:'キルヒホッフ則は「局所則」',legend:'点線丸のバス：流入と流出の収支は隣との間だけで決まる',
+ html(){return'<h3>キルヒホッフ則は「局所則」</h3><div class="eq curr">各バスで：流入の合計 = 流出の合計（隣の線だけの足し算）</div><div class="desc">潮流を支配する物理・キルヒホッフの法則をよく見ると、各バスの収支は<b>そのバスにつながる線だけ</b>で書けています。つまりこの物理は「<b>隣としか会話しない</b>」——B4 の式に B2 は直接登場しない。物理法則が<b>グラフの局所ルール</b>でできている、ここが今日の講演の急所です。</div>';},
+ draw(){drawSystem({flows:curSol.flows,hlBus:4});caption('B4 の収支に登場するのは隣（B3・B5・B1）だけ',CH-70);}},
+{title:'メッセージパッシングと同じ形',legend:'橙=隣からB4へ届くメッセージ（グラフNNの復習）',
+ html(){return'<h3>メッセージパッシングと同じ形</h3><div class="eq curr">GNN の1層： h′<sub>v</sub> = σ( W·mean{h<sub>u</sub>} + U·P<sub>v</sub> )　※各層で注入 P を混ぜ直す</div><div class="desc"><a href="gnn.html">グラフNN</a>の 1 層も「<b>隣から集めて混ぜる</b>」でした——物理と学習器が<b>同じ形</b>をしている。さらに今日の GNN は各層で入力（電力の注入 P）を混ぜ直します。実はこれ、潮流方程式を反復で解く古典解法（ヤコビ法）と同じ格好——<b>GNN の 1 層 ≒ 反復解法の 1 ステップ</b>という対応まである。</div>';},
+ draw(){drawSystem({flows:null,packets:animT,packetTo:4});caption('物理も学習器も「隣から集めて混ぜる」',CH-70);}},
+{title:'ただし解は「大域的」',legend:'紫=B2の負荷を増やしたとき潮流が大きく変わった線',
+ html(){return'<h3>ただし解は「大域的」</h3><div class="desc">法則は局所でも、<b>解は大域的</b>——B2 の負荷を 5 割増やすと（点滅）、離れた線の潮流まで変わります。電気は系統全体で瞬時につじつまを合わせるから。GNN で写すには<b>層を重ねて情報を遠くまで届かせる</b>必要がある：実測では 2 層で誤差 14.6%、<b>5 層で 7.1%</b>。<b>層数 = 波及を追える距離</b>（グラフNN の教訓がそのまま効く）。</div>';},
+ draw(){const P2=[...curP];P2[2]*=1.5;const sol2=solvePF(P2);
+   const useAlt=animT%1>0.5;const fl=useAlt?sol2.flows:curSol.flows;
+   const diff=LINES.map((_,k)=>Math.abs(sol2.flows[k]-curSol.flows[k])>0.05);
+   drawSystem({flows:fl,diffHl:useAlt?diff:null,hlBus:useAlt?2:undefined});
+   drawFlowBars(324,fl);}},
+{title:'教師データ：本物に 160 問解いてもらう',legend:'ランダムな需要パターン→本物の潮流計算で正解を用意',
+ html(){return'<h3>教師データ：本物に 160 問解いてもらう</h3><div class="eq curr">D = { (P⁽¹⁾, θ⁽¹⁾), …, (P⁽¹⁶⁰⁾, θ⁽¹⁶⁰⁾) }</div><div class="desc"><a href="surrogate2.html">サロゲート②</a>の「問い合わせ」です。需要をランダムに変えた <b>160 パターン</b>を本物のソルバで解き、入出力ペアを作る。このデモでは一瞬ですが、<b>実物の系統ならここが一番高価な工程</b>——だからこそ、できたデータで替え玉を作る価値がある。生成中… <b>'+dataCount+'</b> / 160</div>';},
+ draw(){drawSystem({flows:curSol.flows});
+   ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('教師データ '+dataCount+' / 160',CW/2,340);
+   const n=Math.floor(dataCount/4),bw=(CW-70)/40;
+   for(let i=0;i<n;i++){ctx.fillStyle='rgba(194,137,27,0.7)';ctx.fillRect(34+i*bw,352+((i%2)?8:0),bw*0.6,6);}
+   caption('1本=4パターン（needs 本物のソルバ160回）',CH-24);}},
+{title:'ライブ学習：GNN が潮流を覚える',legend:'いまこの場で 800 反復の実学習（パラメータ約1,200個）',
+ html(){return'<h3>ライブ学習：GNN が潮流を覚える</h3><div class="eq curr">損失 = Σ ‖ θ<sub>GNN</sub>(P) − θ<sub>本物</sub>(P) ‖²　→ 最小化（Adam）</div><div class="desc">5 層のメッセージパッシング GNN（パラメータ約 1,200 個）が、160 問の入出力だけから「注入 P → 位相角 θ → 潮流」の対応を<b>いまこの場で学習中</b>。物理式は一切教えていません。loss が下がる＝送電網の振る舞いが写っていく。学習 <b>'+it+'</b> / '+ITER+' 反復。</div>';},
+ draw(){drawSystem({flows:curSol.flows});drawLossCurve(320,96);}},
+{title:'答え合わせ：未知のケースで比較',legend:'墨=本物の潮流計算、紫=GNNの予測（未知の需要パターン）',
+ html(){const e=testCase?flowErrPct(testCase.fP,testCase.sol.flows).toFixed(1):'—';
+   return'<h3>答え合わせ：未知のケースで比較</h3><div class="desc">学習に使っていない<b>新しい需要パターン</b>を出題。墨のバーが本物、紫が GNN の予測——ほぼ重なります（このケースの潮流誤差 <b>'+e+'%</b>）。「🎲 別のケース」で何度でも出題できます。<b>GNN は 1 回の行列計算（forward）だけ</b>で答えている——反復計算はもうしていない。</div>';},
+ draw(){if(!testCase)return;drawSystem({flows:testCase.fP});drawFlowBars(324,testCase.sol.flows,testCase.fP);},
+ dice:true},
+{title:'過負荷スクリーニング',legend:'赤=容量超過の線。GNNの判定が本物とほぼ一致する',
+ html(){const hit=testCase?olMatch(testCase.fP,testCase.sol.flows):8;
+   return'<h3>過負荷スクリーニング</h3><div class="desc">運用が知りたいのは潮流の数字そのものより「<b>どの線が危ないか</b>」。GNN 予測で過負荷（赤）を判定すると、このケースは 8 線中 <b>'+hit+'</b> 本で本物と一致。60 ケースの通し検証では<b>一致率 98%+</b>。数千ケースを GNN で粗くふるい、引っかかったものだけ本物で精査する——<b>スクリーニング</b>の完成です。</div>';},
+ draw(){if(!testCase)return;drawSystem({flows:testCase.fP});drawFlowBars(324,testCase.sol.flows,testCase.fP);},
+ dice:true},
+{title:'速さ：反復計算 → 1 回の行列計算',legend:'サロゲートの狙い＝重い反復を一瞬のforwardに置き換える',
+ html(){return'<h3>速さ：反復計算 → 1 回の行列計算</h3><div class="desc">本物（実務の AC 潮流）は<b>収束するまで反復</b>、系統が大きいほど・ケースが増えるほど時間が積み上がる。GNN は<b>固定回数の行列計算 1 発</b>——数万ケースの一括スクリーニングやリアルタイム監視に載る速さです。もちろん誤差 7% の「粗い目」なので、<b>ふるいにかけた後は本物で確認</b>（2 段構え）。</div>';},
+ draw(){drawSystem({flows:curSol.flows});
+   const y0=330,w=CW-96;
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';
+   ctx.fillText('数千ケースを解く時間（イメージ・対数目盛）',34,y0-6);
+   ctx.fillStyle='rgba(26,26,23,0.75)';ctx.fillRect(34,y0+6,w*0.95,16);
+   ctx.fillStyle='rgba(111,84,196,0.9)';ctx.fillRect(34,y0+34,w*0.22,16);
+   ctx.fillStyle='#fff';ctx.font='700 9.5px '+getCSS('--mono');
+   ctx.fillText('本物の反復計算（時間〜日）',40,y0+17.5);
+   ctx.fillStyle=getCSS('--upd');ctx.fillText('',40,y0+45);
+   ctx.fillStyle='#fff';ctx.fillText('GNN(秒)',40,y0+45.5);
+   caption('速さの正体：反復なし・固定計算量・GPUで束ねられる',CH-24);}},
+{title:'使い道：監視・N-1・計画',legend:'2秒ごとに新しい需要が流れ込み、GNNが即時判定（過負荷=赤）',
+ html(){const ol=testCase?LINES.some((_,k)=>Math.abs(testCase.fP[k])>CAP[k]):false;
+   return'<h3>使い道：監視・N-1・計画</h3><div class="desc">これが応用の姿——需要が刻々変わる系統を GNN が<b>即時に追いかけ</b>、危ないケースに旗を立てる（いま：'+(ol?'<b style="color:var(--neg)">⚑ 過負荷あり→本物で精査へ</b>':'<b style="color:var(--accent)">✓ 健全</b>')+'）。同じ枠組みが <b>N-1 スクリーニング</b>（事故想定の大量ケース）、<b>系統計画</b>（増設シナリオの一括評価）、<b>最適化の内側ループ</b>（候補解の高速評価）に使われていきます。</div>';},
+ draw(){if(!testCase)return;drawSystem({flows:testCase.fP,animT});drawFlowBars(324,testCase.fP);},
+ dice:true},
+{title:'限界：学習範囲の外では信じない',legend:'逆潮流ケース（負荷バスが発電に反転）→誤差が跳ね上がる',
+ html(){const eIn=7.1,eOut=extraCase?flowErrPct(extraCase.fP,extraCase.sol.flows).toFixed(0):'—';
+   return'<h3>限界：学習範囲の外では信じない</h3><div class="eq curr">内挿の誤差 ≈ '+eIn+'%　⇔　逆潮流ケースの誤差 = <b>'+eOut+'%</b></div><div class="desc"><a href="surrogate2.html">サロゲート②</a>の教訓の再演です。太陽光の大量導入などで<b>負荷バスが発電側に回る「逆潮流」</b>——学習時に一度も見ていない運転状態——を入れると、誤差は '+eOut+'% に跳ね上がる。面白いことに単なる重負荷 2 倍なら誤差 5% のまま（線形な延長は写せる）。壊れるのは<b>質の違う世界</b>に出たとき。だから実務では入力が学習分布の内側かを監視し、範囲外は必ず本物の計算へ。</div>';},
+ draw(){if(!extraCase)return;drawSystem({flows:extraCase.fP});drawFlowBars(324,extraCase.sol.flows,extraCase.fP);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('⚠ 逆潮流（学習分布の外）',CW/2,310);}},
+{title:'閉演：形を合わせるということ',legend:'物理の形（局所則）×学習器の形（メッセージパッシング）',
+ html(){return'<h3>閉演：形を合わせるということ</h3><div class="desc">今日の講演の芯は 1 つ——<b>物理の形と学習器の形が合っていたから、小さな GNN と 160 問で送電網が写せた</b>。CNN が画像（格子）に、RNN が時系列（鎖）に合うのと同じ理屈の、研究の現場での姿です。ここから先へ進むなら：物理法則を損失に足す <b>PINN</b>、設備停止を構造ごと学ぶ<b>トポロジー可変 GNN</b>、そして<a href="surrogate.html">どこを測るか賢く選ぶ</a>能動学習。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・送電網はグラフ、潮流の物理は局所則＝GNN と同形<br>・160 問の写し取りで誤差 7%・過負荷一致 98%（実演）<br>・速さはスクリーニング用——外挿は疑い、本物と2段構え</div>';},
+ draw(){drawConfluence();caption('ご清聴ありがとうございました 🎓');}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  if(s<=1){m.innerHTML='<div>バス <b>'+N+'</b>・線路 <b>'+LINES.length+'</b></div><div>発電 <b>B0, B3</b></div>';}
+  else if(s===2||s===3){const ol=LINES.filter((_,k)=>Math.abs(curSol.flows[k])>CAP[k]).length;
+    m.innerHTML='<div>過負荷 <b>'+ol+'</b>/8 線</div><div>最大利用率 <b>'+Math.round(Math.max(...curSol.flows.map((f,k)=>Math.abs(f)/CAP[k]))*100)+'%</b></div>';}
+  else if(s<=6){m.innerHTML='<div>物理 <b>局所則</b></div><div>解 <b>大域的</b>→層数で追う</div>';}
+  else if(s===7){m.innerHTML='<div>教師データ <b>'+dataCount+'</b>/160</div><div>正解を作るのは<b>本物</b></div>';}
+  else if(s===8){m.innerHTML='<div>学習 <b>'+it+'</b>/'+ITER+'</div><div class="best">loss <b>'+(lossHist.length?lossHist[lossHist.length-1].toExponential(1):'—')+'</b></div>';}
+  else if(s===9||s===10){const e=testCase?flowErrPct(testCase.fP,testCase.sol.flows).toFixed(1):'—';
+    const hit=testCase?olMatch(testCase.fP,testCase.sol.flows):'—';
+    m.innerHTML='<div class="best">このケースの潮流誤差 <b>'+e+'%</b></div><div>過負荷判定一致 <b>'+hit+'/8</b> 線</div>';}
+  else if(s===11){m.innerHTML='<div>本物 <b>反復×数千ケース</b></div><div class="best">GNN <b>forward 1回/ケース</b></div>';}
+  else if(s===12){const ol=testCase?LINES.filter((_,k)=>Math.abs(testCase.fP[k])>CAP[k]).length:0;
+    m.innerHTML='<div>監視中のケース: 過負荷 <b>'+ol+'</b> 線</div><div class="best">判定 <b>即時</b></div>';}
+  else if(s===13){const eOut=extraCase?flowErrPct(extraCase.fP,extraCase.sol.flows).toFixed(1):'—';
+    m.innerHTML='<div class="best">内挿誤差 <b>≈7%</b></div><div>外挿誤差 <b style="color:var(--neg)">'+eOut+'%</b></div>';}
+  else{m.innerHTML='<div class="best">写し取り成功 <b>誤差7%・一致98%</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function ensureTrained(){if(it<ITER){if(!trainData){genTrain();dataCount=160;}trainAll();}}
+function ensureCase(){if(!testCase||!testCase.fP){ensureTrained();testCase=newCase();}}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2||i===3||i===5||i===6){/* 基本ケース表示 */}
+  if(i===7)runData();
+  if(i===8){if(!trainData){genTrain();dataCount=160;}if(it>=ITER){net=null;it=0;lossHist=[];}runTrain();}
+  if(i===9||i===10){ensureCase();}
+  if(i===12){ensureCase();runMonitor();}
+  if(i===13){ensureTrained();if(!extraCase){const P=randPattern(-0.8,-0.3);const sol=solvePF(P);extraCase={P,sol,fP:gnnFlows(net,P)};}}
+  if(i===2)runFlowAnim();
+  if(i===5)runPackets();
+  if(i===6)runRipple();
+  renderAll();draw_();}
+function runFlowAnim(){anim=true;if(window.__prefersReducedMotion){animT=0.3;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==2)return;if(t0===null)t0=ts;animT=((ts-t0)/1800)%1;draw_();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runPackets(){anim=true;if(window.__prefersReducedMotion){animT=0.95;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==5)return;if(t0===null)t0=ts;animT=((ts-t0)/1400)%1;draw_();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runRipple(){anim=true;if(window.__prefersReducedMotion){animT=0.75;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==6)return;if(t0===null)t0=ts;animT=((ts-t0)/2400)%1;draw_();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runData(){anim=true;dataCount=trainData?160:0;
+  if(window.__prefersReducedMotion||trainData){genTrain();dataCount=160;anim=false;return;}
+  genTrain(); // データ自体は即生成、カウンタだけ演出
+  function go(){if(!anim||slideIdx!==7)return;
+    dataCount=Math.min(160,dataCount+8);draw_();renderMini();renderExplain();
+    if(dataCount>=160){anim=false;return;}setTimeout(go,90);}
+  go();}
+function runTrain(){anim=true;if(!net)net=makeNet();
+  if(window.__prefersReducedMotion){trainAll();anim=false;return;}
+  function go(){if(!anim||slideIdx!==8)return;
+    if(it>=ITER){anim=false;renderMini();renderExplain();draw_();return;}
+    for(let s=0;s<10&&it<ITER;s++){const g=zeroG(net);let l=0;
+      for(let b=0;b<BS;b++){const smp=trainData[(it*BS+b)%trainData.length];l+=gnnGrad(net,smp.P,smp.th,g);}
+      adam(net,g,LR,BS);it++;if(it%10===0)lossHist.push(l/BS);}
+    draw_();renderMini();renderExplain();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+function runMonitor(){anim=true;
+  if(window.__prefersReducedMotion){anim=false;return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==12)return;if(t0===null)t0=ts;
+    animT=((ts-t0)/1800)%1;
+    if((ts-t0)>2200){t0=ts;testCase=newCase();renderMini();renderExplain();}
+    draw_();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===7||slideIdx===8);
+    if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?1500:4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;net=null;it=0;lossHist=[];trainData=null;dataCount=0;testCase=null;extraCase=null;
+  seed=21;curP=[...BASE_P];curSol=solvePF(curP);slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{ensureTrained();testCase=newCase();renderMini();renderExplain();draw_();};
+document.addEventListener('hl',e=>{HL=e.detail;draw_();});
+renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

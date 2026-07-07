@@ -2,7 +2,7 @@
 // 各ビューアは <script src="nav.js"></script> を読み込むだけ。現在ページのカテゴリだけ展開し、
 // 他カテゴリは名前だけ表示（クリックでその場に展開・再読込なし）。カテゴリはトップ index.html の
 // STEP 分類を基に一部を分割した 10 分野（cats）。分野の追加・改名時はトップの STEP と両方直すこと。
-// nav.js は全 51 ページが読み込む唯一の共有 JS＝ここ 1 ファイルで全ページに効く
+// nav.js は全 52 ページが読み込む唯一の共有 JS＝ここ 1 ファイルで全ページに効く
 // （数式整形・a11y・ナビ・学習順路フッターを集約）。
 (function () {
   // ===== 数式の見た目を全ビューア一括で改善（教科書品質） =====
@@ -27,7 +27,7 @@
   })();
 
   // ===== アクセシビリティ底上げ（全ビューア一括） =====
-  // nav.js は全 51 ページが読み込む唯一の共有 JS。ここで横断的に最低ラインを底上げする
+  // nav.js は全 52 ページが読み込む唯一の共有 JS。ここで横断的に最低ラインを底上げする
   // （inline <style>/theme.css より後勝ちの注入で、どのページにも確実に届く）。
   (function injectA11yStyles(){
     if (document.getElementById('a11yfmt')) return;
@@ -155,6 +155,7 @@
       { href: 'rnn.html',         label: 'RNN' },
       { href: 'lstm.html',        label: 'LSTM' },
       { href: 'gnn.html',         label: 'グラフNN' },
+      { href: 'gnnflow.html',     label: '⚡潮流GNN(講演)' },
     ]},
     { name: '言語', items: [
       { href: 'word2vec.html',    label: '単語埋め込み' },

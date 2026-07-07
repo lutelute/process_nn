@@ -104,7 +104,7 @@
 
   <details>
     <summary>もっと詳しく：GCN の正規化／GAT・GraphSAGE／CNN・RNN との統一視点</summary>
-    <div class="det">このページの実装は <b>GCN</b>（Kipf & Welling 2017）：単純平均の代わりに Â = D<sup>−1/2</sup>(A+I)D<sup>−1/2</sup> で<b>次数の大きいノードの声を割り引いて</b>集約する（人気者の情報ばかりが支配しないように）。集約の仕方を変えると家族が広がる——<b>GraphSAGE</b>（サンプリング集約で巨大グラフへ）、<b>GAT</b>（どの隣をどれだけ聞くかを<a href="attention.html">注意（attention）</a>で学ぶ）。<b>統一視点</b>：<a href="cnn.html">CNN</a> は「格子グラフ」、<a href="rnn.html">RNN</a> は「鎖グラフ」、<a href="attention.html">Transformer</a> は「全結合グラフ＋重み学習」の GNN と見なせる。応用は創薬（分子＝原子グラフ）・推薦（ユーザ×商品）・<b>電力系統</b>（バス＝ノード・送電線＝エッジで潮流や安定度を予測する GNN サロゲート＝<a href="surrogate2.html">サロゲート②</a>との合わせ技）など。特徴が乏しくても<b>構造だけで分類できる</b>のがこのページの実験（特徴＝one-hot、Zachary の空手クラブの設定）。</div>
+    <div class="det">このページの実装は <b>GCN</b>（Kipf & Welling 2017）：単純平均の代わりに Â = D<sup>−1/2</sup>(A+I)D<sup>−1/2</sup> で<b>次数の大きいノードの声を割り引いて</b>集約する（人気者の情報ばかりが支配しないように）。集約の仕方を変えると家族が広がる——<b>GraphSAGE</b>（サンプリング集約で巨大グラフへ）、<b>GAT</b>（どの隣をどれだけ聞くかを<a href="attention.html">注意（attention）</a>で学ぶ）。<b>統一視点</b>：<a href="cnn.html">CNN</a> は「格子グラフ」、<a href="rnn.html">RNN</a> は「鎖グラフ」、<a href="attention.html">Transformer</a> は「全結合グラフ＋重み学習」の GNN と見なせる。応用は創薬（分子＝原子グラフ）・推薦（ユーザ×商品）・<b>電力系統</b>（バス＝ノード・送電線＝エッジで潮流や安定度を予測する GNN サロゲート＝<a href="surrogate2.html">サロゲート②</a>との合わせ技。その実演は<a href="gnnflow.html">特別講演: GNN×潮流計算</a>へ）など。特徴が乏しくても<b>構造だけで分類できる</b>のがこのページの実験（特徴＝one-hot、Zachary の空手クラブの設定）。</div>
   </details>
 </div>
 

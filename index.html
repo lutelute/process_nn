@@ -228,6 +228,7 @@
       <a class="mapcard spineCard" href="viz/rnn.html"><div class="tag">時系列・記憶</div><div class="t">RNN</div><div class="d">同じセルを使い回し、隠れ状態 h に過去を記憶。次の値を予測・生成。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>次:</b> 自己注意</div></a>
       <a class="mapcard" href="viz/lstm.html"><div class="tag">時系列・長期記憶</div><div class="t">LSTM（長短期記憶）</div><div class="d">セル状態と3ゲート（入力・忘却・出力）で情報を長く保持。RNNの勾配消失を緩和。記憶タスクを実学習。</div><div class="dep"><b>前提:</b> RNN・勾配消失 ／ <b>次:</b> 自己注意</div></a>
       <a class="mapcard branchCard" href="viz/gnn.html"><div class="tag">グラフ・つながり</div><div class="t">グラフNN（GNN）</div><div class="d">「隣から集めて混ぜる」を繰り返し、つながりの形から学ぶ。ラベル2個の半教師ありノード分類を実学習。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> CNN（格子グラフのGNN）・自己注意</div></a>
+      <a class="mapcard branchCard" href="viz/gnnflow.html"><div class="tag">⚡特別講演・応用</div><div class="t">GNN × 潮流計算</div><div class="d">送電網の潮流計算をGNNが写し取り、一瞬の過負荷スクリーニングを実演。全15枚の講演形式。</div><div class="dep"><b>前提:</b> グラフNN・サロゲート② ／ <b>関連:</b> 応用研究の入門</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 5</span><span class="ttl">Attention と言語モデル</span><span class="badge">系列を一度に見る → Transformer → GPT。</span></div>
