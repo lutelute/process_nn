@@ -85,7 +85,7 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
-      <select id="fnSel"><option value="resonance" selected>箱の中身: 共振する装置</option><option value="saturate">箱の中身: 飽和する装置</option><option value="kink">箱の中身: 急変する装置</option></select>
+      <select id="fnSel"><option value="resonance" selected>箱の中身: 共振する装置</option><option value="saturate">箱の中身: 飽和する装置</option><option value="kink">箱の中身: 急変する装置</option><option value="battery">箱の中身: バッテリー実機</option><option value="diode">箱の中身: 半導体素子</option></select>
     </div>
   </div>
 
@@ -119,6 +119,16 @@ const FNS={
   resonance:x=>0.22+0.45*gauss(x,0.45,0.12)+0.4*gauss(x,1.08,0.10), // 観測範囲の外に第二の山（外挿トラップ）
   saturate: x=>0.15+0.7/(1+Math.exp(-9*(x-0.45))),
   kink:     x=>0.3+0.28*gauss(x,0.3,0.09)+0.38*(Math.tanh(18*(x-0.68))+1)/2,
+  battery:  x=>0.88-0.18*x-0.62*Math.exp(8*(x-1.05)),  // 平坦な下り→範囲外で電圧の崖
+  diode:    x=>0.06+0.55*Math.exp(5.5*(x-1.02)),        // 指数の立ち上がり→範囲外で爆発
+};
+// 例題ごとの物語（軸ラベルと①の導入文、④の答え合わせの一言を切替）
+const STORY={
+  resonance:{ax:'入力 x（ダイヤル）',ay:'出力 y（応答）',intro:'世の中は開かずの箱だらけ——<b>実機</b>（開けたら壊れる）・<b>商用シミュレータ</b>（コードは企業秘密）・<b>物理現象</b>（式が完全には書けない）。',trust:'この装置は範囲外の x≈1.0 に第二の共振峰を隠していたが、替え玉は知る由もない。'},
+  saturate:{ax:'入力 x（ダイヤル）',ay:'出力 y（応答）',intro:'この箱は入力を上げるとやがて<b>頭打ち（飽和）</b>する装置。アンプでもバルブでも、現実の装置にはよくある顔つき。',trust:''},
+  kink:{ax:'入力 x（ダイヤル）',ay:'出力 y（応答）',intro:'この箱は途中で挙動が<b>急変</b>する装置（モードが切り替わる・ギアが繋がる…）。',trust:'急変の角は少し丸まって写る——滑らかな NN の癖も見える。'},
+  battery:{ax:'x（放電した量）',ay:'y（端子電圧）',intro:'この箱は<b>バッテリー実機</b>。開けたら壊れるし、内部の電気化学は完全には式にできない。分かるのは「これだけ放電したら電圧はいくつ」だけ。送電系統の電圧（PV カーブ）も同じ形の話。',trust:'バッテリーは放電しきる直前に<b>電圧が崖のように落ちる</b>が、緩やかな下りしか見ていない替え玉はその崖を知らない。'},
+  diode:{ax:'x（かけた電圧）',ay:'y（流れる電流）',intro:'この箱は<b>半導体素子（ダイオード）</b>。教科書に式はあるが、実物には個体差や温度依存があり、本当の特性は測らないと分からない。',trust:'電流は範囲外で<b>指数的に爆発</b>するが、替え玉は伸びを知らず過小評価する——嘘は「盛る」だけでなく「見くびる」形でもつく。'},
 };
 let fnKey='resonance';const bbox=x=>FNS[fnKey](x);
 
@@ -214,8 +224,8 @@ function drawAxes(){ctx.lineWidth=1;
   for(let gy=PT;gy<=PB;gy+=28){ctx.strokeStyle='rgba(150,143,127,0.12)';ctx.beginPath();ctx.moveTo(PL,gy+.5);ctx.lineTo(CW-PR,gy+.5);ctx.stroke();}
   ctx.strokeStyle='rgba(26,26,23,0.45)';ctx.beginPath();ctx.moveTo(PL,PT-8);ctx.lineTo(PL,PB);ctx.lineTo(CW-PR,PB);ctx.stroke();
   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');
-  ctx.save();ctx.translate(11,PT+30);ctx.rotate(-Math.PI/2);ctx.textAlign='right';ctx.fillText('出力 y（応答）',0,0);ctx.restore();
-  ctx.textAlign='center';ctx.fillText('入力 x（ダイヤル）',(PL+CW-PR)/2,PB+15);}
+  ctx.save();ctx.translate(11,PT+30);ctx.rotate(-Math.PI/2);ctx.textAlign='right';ctx.fillText(STORY[fnKey].ay,0,0);ctx.restore();
+  ctx.textAlign='center';ctx.fillText(STORY[fnKey].ax,(PL+CW-PR)/2,PB+15);}
 function drawRegions(){ctx.save();ctx.globalAlpha=dim('extra');
   ctx.fillStyle='rgba(31,158,138,0.07)';ctx.fillRect(px(QLO),PT-8,px(QHI)-px(QLO),PB-PT+8);
   ctx.fillStyle=HL==='extra'?'rgba(207,79,95,0.20)':'rgba(207,79,95,0.09)';
@@ -279,10 +289,10 @@ function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('lege
   '本物に×=もう呼ばない。替え玉で全域走査＋感度分析（▲）';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);
   let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① 開かずの箱</h3><div class="eq curr">y = f(x)　—　f の中身は見えない・開けない</div><div class="desc">世の中は開かずの箱だらけ——<b>実機</b>（開けたら壊れる）・<b>商用シミュレータ</b>（コードは企業秘密）・<b>物理現象</b>（式が完全には書けない）。分かるのは<span class="ref" data-hl="box">「x を入れると y が出てくる」</span>だけ。しかも 1 回が遅く高価。この箱の応答の全体像が欲しい、何万回も呼びたい、微分もしたい——でも箱は開かない。</div>';}
+  if(k==='prob'){h+='<h3>① 開かずの箱</h3><div class="eq curr">y = f(x)　—　f の中身は見えない・開けない</div><div class="desc">'+STORY[fnKey].intro+'分かるのは<span class="ref" data-hl="box">「x を入れると y が出てくる」</span>だけ。しかも 1 回が遅く高価。この箱の応答の全体像が欲しい、何万回も呼びたい、微分もしたい——でも箱は開かない。</div>';}
   else if(k==='query'){h+='<h3>② できる唯一のこと＝箱に聞く</h3><div class="eq curr">D = {(x₁,y₁), …, (x₁₄,y₁₄)}</div><div class="desc">入力を変えては出力を記録する。集まった<span class="ref" data-hl="data">入出力ペア</span>は箱の<b>「外から見える顔」</b>。中の原理は 1 ミリも知らないまま、顔だけを集める。'+NQ+' 回の問い合わせで打ち止め——ここまでが高価な作業で、ここから先は箱に頼らない。</div>';}
   else if(k==='mimic'){h+='<h3>③ 写し取り：NN が替え玉になる</h3><div class="eq curr">min Σ ( NN(xᵢ) − yᵢ )²　— 一致させるのは振る舞いだけ</div><div class="desc">小さなニューラルネット（1-16-16-1）に「<b>同じ入力に同じ出力を返せ</b>」とだけ要求して訓練（いまこの場で本当に学習中）。箱の中の仕組みは一切使わない。学習が終わる頃には、外から見る限り区別のつかない<span class="ref" data-hl="nn">替え玉＝サロゲート</span>が生まれる。学習 '+ep+' / '+TOTAL_EP+' エポック。</div>';}
-  else if(k==='trust'){h+='<h3>④ どこまで信じていい？</h3><div class="desc">答え合わせ（<span class="ref" data-hl="true">破線＝本物の素顔</span>）。問い合わせた範囲の<b>内側（緑）ではほぼ重なる</b>。しかし<span class="ref" data-hl="extra">範囲の外（赤）では平気で嘘をつく</span>——箱の顔しか見ていないから、見せてもらっていない場所は<b>創作</b>になる。'+(fnKey==='resonance'?'この装置は範囲外の x≈1.0 に第二の共振峰を隠していたが、替え玉は知る由もない。':'')+'<b>内挿は信用、外挿は疑え</b>。</div>';}
+  else if(k==='trust'){h+='<h3>④ どこまで信じていい？</h3><div class="desc">答え合わせ（<span class="ref" data-hl="true">破線＝本物の素顔</span>）。問い合わせた範囲の<b>内側（緑）ではほぼ重なる</b>。しかし<span class="ref" data-hl="extra">範囲の外（赤）では平気で嘘をつく</span>——箱の顔しか見ていないから、見せてもらっていない場所は<b>創作</b>になる。'+STORY[fnKey].trust+'<b>内挿は信用、外挿は疑え</b>。</div>';}
   else{const s=sensPeak();h+='<h3>⑤ 交換：速くて、開けられる</h3><div class="desc">替え玉の強みは 2 つ。<b>(1) 速い</b>：本物 1 回の時間で数百万回呼べる——設計探索・リアルタイム制御・デジタルツインに埋め込める。<b>(2) 開けられる</b>：NN は微分できるから<span class="ref" data-hl="sens">応答が最も敏感な入力（▲ x='+s.x.toFixed(2)+'）</span>が分かるし、勾配で設計最適化もできる。<b>ブラックボックスに勾配が生えた</b>。ただし信用できるのは緑の範囲の内側だけ。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入出力だけで写せる（中身の知識ゼロで OK）<br>・信用できるのは観測範囲の内側（外挿は創作）<br>・替え玉は速く、微分できる＝開けられる複製</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}

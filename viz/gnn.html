@@ -85,7 +85,7 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
-      <select id="gSel"><option value="community" selected>グラフ: コミュニティ</option><option value="gridnet">グラフ: 送電網風</option><option value="chain">グラフ: 鎖</option></select>
+      <select id="gSel"><option value="community" selected>グラフ: コミュニティ</option><option value="gridnet">グラフ: 送電網風</option><option value="chain">グラフ: 鎖</option><option value="grid4x4">グラフ: 格子(=画像)</option><option value="molecule">グラフ: 分子(環+側鎖)</option></select>
     </div>
   </div>
 
@@ -129,6 +129,21 @@ const GRAPHS={
     edges:Array.from({length:11},(_,i)=>[i,i+1]),
     pos:[[0.08,0.20],[0.26,0.13],[0.44,0.20],[0.62,0.13],[0.80,0.22],[0.90,0.40],
          [0.78,0.56],[0.60,0.62],[0.42,0.57],[0.24,0.64],[0.12,0.80],[0.30,0.92]]},
+  grid4x4:{n:16,cls:i=>(i%4)<2?0:1,labeled:[8,11],focus:5, // 格子＝画像の画素のつながり
+    edges:(()=>{const e=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++){const i=r*4+c;if(c<3)e.push([i,i+1]);if(r<3)e.push([i,i+4]);}return e;})(),
+    pos:Array.from({length:16},(_,i)=>[0.14+(i%4)*0.24,0.10+Math.floor(i/4)*0.26])},
+  molecule:{n:10,cls:i=>i<6?0:1,labeled:[0,9],focus:3, // 環（0-5）＋側鎖（6-9）
+    edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[3,6],[6,7],[7,8],[8,9]],
+    pos:[[0.30,0.10],[0.50,0.21],[0.50,0.43],[0.30,0.54],[0.10,0.43],[0.10,0.21],
+         [0.46,0.68],[0.62,0.78],[0.78,0.86],[0.92,0.93]]},
+};
+// グラフごとの物語（①の導入に差し込む）
+const GSTORY={
+  community:'このグラフは <b>SNS 風のコミュニティ</b>——2 つの仲良し集団が橋 2 本でつながっている。',
+  gridnet:'このグラフは<b>送電網</b>風——2 つのエリアが連系線 1 本でつながっている。',
+  chain:'このグラフは<b>鎖</b>——1 列につながるだけの最小構造。情報の伝わり方が最もよく見える。',
+  grid4x4:'このグラフは <b>4×4 の格子＝画像の画素のつながり</b>そのもの。左半分と右半分、どちらの領域かを当てる。',
+  molecule:'このグラフは<b>分子</b>——環（ベンゼン環のような輪）と側鎖（ぶら下がる尻尾）でできている。環の原子か・側鎖の原子かを当てる。',
 };
 let gKey='community';const G=()=>GRAPHS[gKey];
 
@@ -272,11 +287,16 @@ function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('lege
   '色の濃さ=確信度。橋の近くや遠いノードは薄い（自信がない）';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key,g=G();el.style.setProperty('--c',STEPS[stepIdx].c);
   let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① つながりがデータだ</h3><div class="eq curr">入力 = グラフ (V, E)：ノード '+g.n+'・エッジ '+g.edges.length+'・既知ラベル 2</div><div class="desc">分子・SNS・送電網——<b>「つながり」そのものがデータ</b>の世界。普通の NN は固定長の表しか食べられず、ノードの順番を入れ替えると答えが変わってしまう。いま所属（<span class="ref" data-hl="label">A か B か</span>）が分かっているのは 2 ノードだけ。残り '+(g.n-2)+' 個を、<b>つながりの形だけ</b>から当てられるか？</div>';}
+  if(k==='prob'){h+='<h3>① つながりがデータだ</h3><div class="eq curr">入力 = グラフ (V, E)：ノード '+g.n+'・エッジ '+g.edges.length+'・既知ラベル 2</div><div class="desc">'+GSTORY[gKey]+'普通の NN は固定長の表しか食べられず、ノードの順番を入れ替えると答えが変わってしまう。いま所属（<span class="ref" data-hl="label">A か B か</span>）が分かっているのは 2 ノードだけ。残り '+(g.n-2)+' 個を、<b>つながりの形だけ</b>から当てられるか？</div>';}
   else if(k==='agg'){h+='<h3>② 近傍集約：隣から集めて混ぜる</h3><div class="eq curr">h′<sub>v</sub> = σ( W · mean{ h<sub>u</sub> : u ∈ 隣(v) ∪ {v} } )</div><div class="desc">GNN の 1 層の仕事はこれだけ——<span class="ref" data-hl="edge">つながっている相手</span>から特徴を集め（メッセージ）、平均し（集約）、重み W で変換して自分を更新。<b>W は全ノードで同じものを使い回す</b>。CNN が 1 枚のフィルタを画像全体で使い回すのと同じ発想で、どんな形・大きさのグラフにも同じ層が使える。</div>';}
-  else if(k==='hop'){h+='<h3>③ 層を重ねる＝見える範囲が広がる</h3><div class="eq curr">1 層 = 1 ホップ　→　L 層 = L ホップ先まで</div><div class="desc">1 層で隣まで、2 層で<b>隣の隣</b>まで——集約を重ねるたび、波紋のように「特徴に混ざり込む範囲（受容野）」が広がる。このページの GCN は 2 層なので、各ノードは<b> 2 ホップ以内の構造</b>を要約した特徴を持つ。'+(gKey==='chain'?'鎖グラフでは 2 ホップはとても狭い——中央のノードに両端のラベルは届かない。⑤で確かめよう。':'このグラフなら 2 ホップでほぼ全域の構造が届く。')+'</div>';}
+  else if(k==='hop'){h+='<h3>③ 層を重ねる＝見える範囲が広がる</h3><div class="eq curr">1 層 = 1 ホップ　→　L 層 = L ホップ先まで</div><div class="desc">1 層で隣まで、2 層で<b>隣の隣</b>まで——集約を重ねるたび、波紋のように「特徴に混ざり込む範囲（受容野）」が広がる。このページの GCN は 2 層なので、各ノードは<b> 2 ホップ以内の構造</b>を要約した特徴を持つ。'+(gKey==='chain'?'鎖グラフでは 2 ホップはとても狭い——中央のノードに両端のラベルは届かない。⑤で確かめよう。':gKey==='grid4x4'?'格子は広く、2 ホップで届かないマスも残る。それでも当たるのか、⑤で確かめよう。':'このグラフなら 2 ホップでほぼ全域の構造が届く。')+'</div>';}
   else if(k==='train'){h+='<h3>④ ラベル 2 個で全員を染める</h3><div class="eq curr">損失 = ラベル付き 2 ノードだけの交差エントロピー</div><div class="desc">ノードの特徴はあえて「自分が誰か」だけ（one-hot）——<b>頼れるのはつながりだけ</b>。それでも 2 ノードの誤差を減らすだけで、メッセージパッシングが構造の中をラベル情報ごと伝え、全ノードが正しい色に染まっていく（<b>半教師あり学習</b>）。学習 '+ep+' / '+TOTAL_EP+' ep。</div>';}
-  else{const mc=minConf();h+='<h3>⑤ 構造だけで当たった</h3><div class="desc">正解率 <b>'+pct(accuracy())+'</b>。同じ色のかたまり＝メッセージがよく行き交う集団が、同じ特徴に集まった。ただし<span class="ref" data-hl="conf">最も自信のないノード</span>の確信度は '+pct(mc.conf)+'——'+(gKey==='chain'?'<b>鎖の中央には 2 層（2 ホップ）では両端のラベルが届かない</b>から。層数＝情報が届く距離、が数字で見える。':'コミュニティの境目（橋の近く）は両方のメッセージが混ざるから。グラフを「鎖」に切り替えると、もっと劇的な例が見られる。')+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・GNN = 「隣から集めて混ぜる」の繰り返し<br>・層数 = 見える範囲（ホップ数）。深すぎは過平滑化<br>・CNN は格子グラフ専用の GNN（統一視点）</div>';}
+  else{const mc=minConf();const tail=
+    gKey==='chain'?'<b>鎖の中央には 2 層（2 ホップ）では両端のラベルが届かない</b>から。層数＝情報が届く距離、が数字で見える。':
+    gKey==='grid4x4'?'境界の列は両側のメッセージが混ざるから。そしてこの格子、<b>各マス＝画素・隣＝上下左右と読めば画像そのもの</b>——いまの計算は CNN が画像にしていることの一般形（💡参照）。':
+    gKey==='molecule'?'<b>環と側鎖の接点</b>は両方のメッセージが混ざるから。分子をグラフとして食べて性質を予測する——創薬の GNN はこの仕組みの実用版。':
+    'コミュニティの境目（橋の近く）は両方のメッセージが混ざるから。グラフを「鎖」や「格子(=画像)」に切り替えると、また違う顔が見られる。';
+  h+='<h3>⑤ 構造だけで当たった</h3><div class="desc">正解率 <b>'+pct(accuracy())+'</b>。同じ色のかたまり＝メッセージがよく行き交う集団が、同じ特徴に集まった。ただし<span class="ref" data-hl="conf">最も自信のないノード</span>の確信度は '+pct(mc.conf)+'——'+tail+'</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・GNN = 「隣から集めて混ぜる」の繰り返し<br>・層数 = 見える範囲（ホップ数）。深すぎは過平滑化<br>・CNN は格子グラフ専用の GNN（統一視点）</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 

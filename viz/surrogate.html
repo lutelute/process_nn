@@ -84,7 +84,7 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
-      <select id="fnSel"><option value="trick" selected>関数: 多峰（だまし山）</option><option value="sharp">関数: 険しい（狭い峰）</option><option value="smooth">関数: なだらか</option></select>
+      <select id="fnSel"><option value="trick" selected>関数: 多峰（だまし山）</option><option value="sharp">関数: 険しい（狭い峰）</option><option value="smooth">関数: なだらか</option><option value="lr">実例: NNの学習率</option><option value="temp">実例: 反応温度→収率</option></select>
     </div>
   </div>
 
@@ -117,6 +117,16 @@ const FNS={
   trick:{raw:x=>0.66*gauss(x,0.20,0.085)+1.0*gauss(x,0.79,0.045)+0.08*Math.sin(11*x)+0.06},
   sharp:{raw:x=>0.55*gauss(x,0.14,0.05)+0.72*gauss(x,0.47,0.06)+1.0*gauss(x,0.88,0.03)+0.05},
   smooth:{raw:x=>gauss(x,0.62,0.16)+0.04},
+  lr:{raw:x=>(0.2+0.75*gauss(x,0.6,0.22))*(1/(1+Math.exp(30*(x-0.82))))+0.05},
+  temp:{raw:x=>0.1+0.85*gauss(x,0.59,0.045)+0.15*gauss(x,0.3,0.15)},
+};
+// 例題ごとの物語（軸ラベルと①の導入文を切替）
+const STORY={
+  trick:{ax:'x（設計変数：角度・配合比…）',ay:'性能（高いほど良い）',intro:'横軸は設計変数（翼の角度・材料の配合比…）、縦軸は性能。1 回の評価＝実験や重いシミュレーション。'},
+  sharp:{ax:'x（設計変数：角度・配合比…）',ay:'性能（高いほど良い）',intro:'横軸は設計変数、縦軸は性能。最適の峰がとても狭い、意地悪な問題。1 回の評価＝実験や重いシミュレーション。'},
+  smooth:{ax:'x（設計変数：角度・配合比…）',ay:'性能（高いほど良い）',intro:'横軸は設計変数、縦軸は性能。今回はなだらかで素直な地形。1 回の評価＝実験や重いシミュレーション。'},
+  lr:{ax:'x（学習率：小 ← → 大）',ay:'検証精度',intro:'横軸は<b>ニューラルネットの学習率</b>、縦軸は訓練後の検証精度。1 回の評価＝訓練を最後まで回す（GPU で数時間）。学習率は大きすぎると発散し、精度が崖のように落ちる。'},
+  temp:{ax:'x（反応温度）',ay:'収率',intro:'横軸は<b>化学反応の温度</b>、縦軸は収率。1 回の評価＝実験 1 バッチ（半日仕事）。最適温度の窓は狭く、外すと副反応で収率が落ちる。'},
 };
 for(const k in FNS){let mx=0;for(let i=0;i<=400;i++)mx=Math.max(mx,FNS[k].raw(i/400));FNS[k].f=(x=>FNS[k].raw(x)/mx);
   let bx=0,bv=-1;for(let i=0;i<=400;i++){const v=FNS[k].f(i/400);if(v>bv){bv=v;bx=i/400;}}FNS[k].optX=bx;}
@@ -174,8 +184,8 @@ function drawBase(){ctx.clearRect(0,0,CW,CH);
   // 軸
   ctx.strokeStyle='rgba(26,26,23,0.45)';ctx.beginPath();ctx.moveTo(PL,FT-8);ctx.lineTo(PL,FB);ctx.lineTo(CW-PR,FB);ctx.stroke();
   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');
-  ctx.textAlign='left';ctx.save();ctx.translate(11,FT+30);ctx.rotate(-Math.PI/2);ctx.textAlign='right';ctx.fillText('性能（高いほど良い）',0,0);ctx.restore();
-  ctx.textAlign='center';ctx.fillText('x（設計変数：角度・温度・学習率…）',(PL+CW-PR)/2,FB+15);}
+  ctx.textAlign='left';ctx.save();ctx.translate(11,FT+30);ctx.rotate(-Math.PI/2);ctx.textAlign='right';ctx.fillText(STORY[fnKey].ay,0,0);ctx.restore();
+  ctx.textAlign='center';ctx.fillText(STORY[fnKey].ax,(PL+CW-PR)/2,FB+15);}
 function drawBand(){const p=computePost();ctx.save();ctx.globalAlpha=dim('band');
   ctx.beginPath();for(let i=0;i<G;i++){const X=px(grid[i]),Y=fy(p.mu[i]+2*p.sg[i]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}
   for(let i=G-1;i>=0;i--)ctx.lineTo(px(grid[i]),fy(p.mu[i]-2*p.sg[i]));
@@ -262,7 +272,7 @@ function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('lege
   '破線=隠れていた真の関数, ◎=真の最適, ★=BOの最良, 灰◆=グリッド探索10点';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);
   let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
-  if(k==='prob'){h+='<h3>① 問題：1 回測るのに 1 日かかる</h3><div class="desc">横軸は設計変数（翼の角度・反応温度・学習率…）、縦軸は性能。<b>この曲線の形は誰も知らない</b>。1 回の評価＝実験や重いシミュレーションで、<b>予算は全部で '+BUDGET+' 回</b>。総当たりは論外、微分も取れない。今わかっているのは<span class="ref" data-hl="obs">測った '+obs.length+' 点</span>だけ（最良 '+pct(fBest())+'）。この状態から最高性能の設計を見つけられるか？</div>';}
+  if(k==='prob'){h+='<h3>① 問題：1 回測るのに 1 日かかる</h3><div class="desc">'+STORY[fnKey].intro+'<b>この曲線の形は誰も知らない</b>し、<b>予算は全部で '+BUDGET+' 回</b>。総当たりは論外、微分も取れない。今わかっているのは<span class="ref" data-hl="obs">測った '+obs.length+' 点</span>だけ（最良 '+pct(fBest())+'）。ここから最高の x を見つけられるか？</div>';}
   else if(k==='fit'){h+='<h3>② 観測から「安い模型」を作る</h3><div class="eq curr">サロゲート = 予測 <i>μ</i>(<i>x</i>) と 自信のなさ <i>σ</i>(<i>x</i>)<br>帯（95% 信頼区間）= <i>μ</i>(<i>x</i>) ± 2<i>σ</i>(<i>x</i>)</div><div class="desc">'+obs.length+' 点の観測から<b>ガウス過程回帰</b>で関数全体を推定。<span class="ref" data-hl="mean">実線＝予測の平均 μ</span>、<span class="ref" data-hl="band">帯＝95% 信頼区間</span>。<span class="ref" data-hl="obs">観測点</span>の近くでは帯が細く（自信あり）、離れるほど太い（分からない）。この模型は<b>一瞬で何万回でも</b>問い合わせられる——高価な本物の「代理」です。</div>';}
   else if(k==='acq'){const p=computePost(),fb=fBest();const nm=p.mu[p.nextI],ns=p.sg[p.nextI];
     h+='<h3>③ 次の 1 回をどこに使う？</h3><div class="eq curr">EI(<i>x</i>) = 期待できる改善量（μ が高い × σ が大きい所で大）<br>現最良 <i>f</i>⁺='+fb.toFixed(2)+' → EI 最大は <b>x='+p.nextX.toFixed(2)+'</b>（μ='+nm.toFixed(2)+', σ='+ns.toFixed(2)+'）</div><div class="desc"><span class="ref" data-hl="acq">下の橙＝獲得関数 EI</span>。「予測が良さそう（<b>活用</b>）」と「まだ分かっていない（<b>探索</b>）」の両方を汲み、期待できる改善量が最大の<span class="ref" data-hl="next">次の測定点 ▼</span>を選ぶ。良さそうな所<b>だけ</b>でも、分からない所<b>だけ</b>でもない。</div>';}
