@@ -359,7 +359,7 @@ const SLIDES=[
    drawMap(192,70,19,xn,saln,[207,79,95],{title:'正常モデルの根拠',titleColor:getCSS('--accent')});
    caption('根拠を覗けば、隅を見る罠モデルを見抜ける',300);}},
 {title:'次の一歩：Grad-CAM / SHAP / LIME',legend:'saliency の先にある説明手法たち',dice:false,
- html(){return'<h3>次の一歩：Grad-CAM / SHAP / LIME</h3><div class="eq curr">今日の 2 手法 → 実務の道具箱へ<span class="read">読み：ここで作った「勾配」と「遮蔽」は、より強力な説明手法の土台。目的（画像/表/局所）に応じて使い分ける</span></div><div class="desc">出発点は 2 つでも、道具箱は広い。<b>Grad-CAM</b>：<a href="cnn.html">CNN</a> の畳み込み層の勾配で、粗いが頑健な注目領域を出す（画像で定番）。<b>SHAP</b>：各特徴の貢献を協力ゲームの Shapley 値で公平に配る（表データで人気）。<b>LIME</b>：注目する 1 点の近所だけを単純な線形モデルで近似する。共通の心得は<b>「説明も検証する」</b>——複数手法の一致を根拠とみなす。まずは <a href="digit.html">数字あて</a> で saliency をもう一度触ってみてください。</div>';},
+ html(){return'<h3>次の一歩：Grad-CAM / SHAP / LIME</h3><div class="eq curr">今日の 2 手法 → 実務の道具箱へ<span class="read">読み：ここで作った「勾配」と「遮蔽」は、より強力な説明手法の土台。目的（画像/表/局所）に応じて使い分ける</span></div><div class="desc">出発点は 2 つでも、道具箱は広い。<b>Grad-CAM</b>：<a href="cnn.html">CNN</a> の畳み込み層の勾配で、粗いが頑健な注目領域を出す（画像で定番）。<a href="shap.html">SHAP</a>：各特徴の貢献を協力ゲームの Shapley 値で公平に配る（表データで人気）。<a href="lime.html">LIME</a>：注目する 1 点の近所だけを単純な線形モデルで近似する。共通の心得は<b>「説明も検証する」</b>——複数手法の一致を根拠とみなす。まずは <a href="digit.html">数字あて</a> で saliency をもう一度触ってみてください。</div>';},
  draw(){ // 見取り図
    const items=[['saliency','勾配・1回で安い',getCSS('--neg'),80],['occlusion','遮蔽・箱を開けない',getCSS('--upd'),80]];
    ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('今日の 2 手法',CW/2,44);
