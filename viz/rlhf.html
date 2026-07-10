@@ -104,7 +104,7 @@
 
   <details>
     <summary>もっと詳しく：Bradley-Terry・PPO・KL・DPO</summary>
-    <div class="det"><b>Bradley-Terry モデル</b>：2 つの選択肢の勝敗確率を P(A≻B)=σ(r(A)−r(B)) で表す古典モデル（チェスの Elo と同じ発想）。報酬モデルはこの式の対数尤度を最大化して学びます。<b>PPO</b>：実際の RLHF では方策改善に PPO（近接方策最適化）を使い、更新を「元の方策から近い範囲」に制限しつつ、報酬に <b>KL ペナルティ</b> −β·KL(π‖π<sub>ref</sub>) を足します（このページの REINFORCE ＋ KL はその最小形）。KL 係数 β の設計は「報酬を追う力」と「元の言葉を保つ力」の綱引きで、大きすぎると変わらず・小さすぎるとハッキング。<b>DPO</b>（Direct Preference Optimization）：報酬モデルを陽に作らず、好みの比較から直接方策を最適化する後継手法で、KL 制約が理論に組み込まれています。関連: <a href="policygrad.html">方策勾配</a>（③方策改善の土台）・<a href="surrogate2.html">サロゲート②</a>（代理モデルは内挿で信用・外挿で危険）。</div>
+    <div class="det"><b>Bradley-Terry モデル</b>：2 つの選択肢の勝敗確率を P(A≻B)=σ(r(A)−r(B)) で表す古典モデル（チェスの Elo と同じ発想）。報酬モデルはこの式の対数尤度を最大化して学びます。<b>PPO</b>：実際の RLHF では方策改善に PPO（近接方策最適化）を使い、更新を「元の方策から近い範囲」に制限しつつ、報酬に <b>KL ペナルティ</b> −β·KL(π‖π<sub>ref</sub>) を足します（このページの REINFORCE ＋ KL はその最小形）。KL 係数 β の設計は「報酬を追う力」と「元の言葉を保つ力」の綱引きで、大きすぎると変わらず・小さすぎるとハッキング。<b>DPO</b>（Direct Preference Optimization）：報酬モデルを陽に作らず、好みの比較から直接方策を最適化する後継手法で、KL 制約が理論に組み込まれています。関連: <a href="policygrad.html">方策勾配</a>（③方策改善の土台）・<a href="surrogate2.html">サロゲート②</a>（代理モデルは内挿で信用・外挿で危険）・磨かれる側の言語モデル本体は <a href="transformer.html">Transformer</a>／<a href="../gpt2/">GPT-2</a> を参照。</div>
   </details>
 </div>
 
@@ -268,7 +268,7 @@ const SLIDES=[
 
 /* ---------- Ⅲ 方策改善と暴走 ---------- */
 {legend:'方策改善：報酬モデル r_φ を報酬にして、良い文の確率を太らせる',
- html(){return'<h3>⑧ 方策改善：報酬モデルを報酬に</h3><div class="eq curr">θ ← θ + α ( <i>r</i><sub>φ</sub>(文) − ベースライン ) ∇logπ(文)<span class="read">読み：<a href="policygrad.html">方策勾配</a>そのもの。ただし報酬は環境からではなく<b>報酬モデル r<sub>φ</sub> から</b>もらう。点が高かった文を出やすく（太らせる）</span></div><div class="desc">3 段目です。<a href="policygrad.html">方策勾配（REINFORCE）</a>で方策を磨きますが、<b>報酬は報酬モデル r<sub>φ</sub> から</b >受け取る点だけが違います。「r<sub>φ</sub> が高い文を出やすくする」——それだけ。参照方策から出発し、<b>だんだん高得点の語に寄せて</b>いきます。ここで大事な問い：<b>r<sub>φ</sub> を全力で追ったら、何が起きるでしょう？</b></div>';},
+ html(){return'<h3>⑧ 方策改善：報酬モデルを報酬に</h3><div class="eq curr">θ ← θ + α ( <i>r</i><sub>φ</sub>(文) − ベースライン ) ∇logπ(文)<span class="read">読み：<a href="policygrad.html">方策勾配</a>そのもの。ただし報酬は環境からではなく<b>報酬モデル r<sub>φ</sub> から</b>もらう。点が高かった文を出やすく（太らせる）</span></div><div class="desc">3 段目です。<a href="policygrad.html">方策勾配（REINFORCE）</a>で方策を磨きますが、<b>報酬は報酬モデル r<sub>φ</sub> から</b>受け取る点だけが違います。「r<sub>φ</sub> が高い文を出やすくする」——それだけ。参照方策から出発し、<b>だんだん高得点の語に寄せて</b>いきます。ここで大事な問い：<b>r<sub>φ</sub> を全力で追ったら、何が起きるでしょう？</b></div>';},
  draw(){drawGridBg();ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('方策の語の出やすさ（参照 π_ref）',CW/2,28);
    drawDistBars(20,42,CW-40,190,piRef);
    ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('↓ r_φ が高い語へ寄せていく',CW/2,262);

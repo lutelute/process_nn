@@ -432,7 +432,7 @@ function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideId
   const wait=()=>{if(!auto)return;const heavy=(slideIdx===2||slideIdx===5);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,4200);};
   requestAnimationFrame(wait);}else stopAuto();}
 function reset(){stopAuto();anim=false;dataSeed=42;kFold=5;document.getElementById('kSel').value='5';compute();slideIdx=0;window.__hoTally=null;foldPhase=0;curSplit=null;renderAll();draw_();}
-function reroll(){stopAuto();dataSeed=Math.floor(Math.random()*1e6)+1;/*seed更新のみ*/dataSeed=(dataSeed*2654435761>>>0)%99999+1;compute();
+function reroll(){stopAuto();/*seed更新のみ（決定的・Math.random不使用）*/dataSeed=((dataSeed*2654435761+1)>>>0)%99999+1;compute();
   window.__hoTally=null;curSplit=null;foldPhase=0;
   if(slideIdx===2)goSlide(2);else if(slideIdx===6)goSlide(6);else{renderAll();draw_();}}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};

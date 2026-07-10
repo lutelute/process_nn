@@ -256,7 +256,7 @@ const SLIDES=[
    ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('×0.7 を 9 回 → 0.7⁹ ≈ 0.04',CW/2,y+70);
    caption('伝言ゲームで声が毎回小さくなり、奥に届かない',CH-14);}},
 {title:'実測：plain 網の層別勾配',legend:'plain 網。バー=各層に届く勾配（対数）。入力側が低い',dice:true,
- html(){ensureNets();const r=ratio(hgP);return'<h3>実測：plain 網の層別勾配</h3><div class="eq curr">入力側の勾配 / 出力側の勾配 = '+r.toExponential(1)+'<span class="read">読み：一番左（入力側）のブロックに届く勾配は、一番右（出力側）の '+r.toExponential(1)+' 倍しかない。対数目盛で右肩下がり＝入力側ほど信号が弱い</span></div><div class="desc">本物の '+L+' 層 plain 網（近道なし）で逆伝播を流し、各ブロックに届いた勾配の大きさを測ったのが左のバー（<b>対数目盛＝1 目盛で 10 倍</b>）。<b>入力側（左）ほど低く</b>、出力側の <b>'+r.toExponential(1)+' 倍</b>まで目減りしています。この差が「入力側の層は学習が進まない」の正体。右下で<b>深さ</b>を深くすると消え方が激しくなります。</div>';},
+ html(){ensureNets();const r=ratio(hgP);return'<h3>実測：plain 網の層別勾配</h3><div class="eq curr">入力側の勾配 / 出力側の勾配 = '+r.toExponential(1)+'<span class="read">読み：一番左（入力側）のブロックに届く勾配は、一番右（出力側）の '+r.toExponential(1)+' 倍しかない。対数目盛で右肩上がり＝入力側ほど信号が弱い</span></div><div class="desc">本物の '+L+' 層 plain 網（近道なし）で逆伝播を流し、各ブロックに届いた勾配の大きさを測ったのが左のバー（<b>対数目盛＝1 目盛で 10 倍</b>）。<b>入力側（左）ほど低く</b>、出力側の <b>'+r.toExponential(1)+' 倍</b>まで目減りしています。この差が「入力側の層は学習が進まない」の正体。右下で<b>深さ</b>を深くすると消え方が激しくなります。</div>';},
  draw(){ensureNets();drawBars(44,60,CW-70,300,hgP,[207,79,95],'plain 網（近道なし）の層別勾配',getCSS('--neg'));
    caption('入力側ほど勾配が小さい＝学習信号が届かない',CH-12);}},
 {title:'その帰結：入力側の層が凍りつく',legend:'信号が届かない層は初期値のまま。深いほど"死んだ層"が増える',dice:false,
@@ -323,9 +323,9 @@ const SLIDES=[
    ctx.fillStyle=getCSS('--accent');ctx.fillText('― res',148,378);
    ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('学習 '+it+' / '+ITERS+' 反復',CW-42,378);
    caption('違いは skip だけ。あとは全部同じ',CH-8);}},
-{title:'A/B：層別勾配の流れ方',legend:'上=plain（右肩下がり）／下=res（平ら）。同じ初期値での比較',dice:true,
+{title:'A/B：層別勾配の流れ方',legend:'上=plain（右肩上がり）／下=res（平ら）。同じ初期値での比較',dice:true,
  html(){ensureNets();const rp=ratio(hgP),rr=ratio(hgR);
-   return'<h3>A/B：層別勾配の流れ方</h3><div class="eq curr">入力側/出力側の比：　plain '+rp.toExponential(1)+'　⇔　res '+rr.toExponential(1)+'<span class="read">読み：plain は入力側で勾配が '+rp.toExponential(1)+' 倍に消える（右肩下がり）。res はどの層もほぼ同じ '+rr.toExponential(1)+'（平ら）＝全層に信号が届く</span></div><div class="desc">学習開始時（初期値）の層別勾配を上下で並べました。<b>plain（上・赤）は入力側へ向かって激減</b>（比 '+rp.toExponential(1)+'）。<b>res（下・緑）はほぼ真っ平ら</b>（比 '+rr.toExponential(1)+'）——恒等の近道が、どの層にも同じ強さで勾配を届けています。<b>これが勾配の高速道路の実測</b>。同じネット・同じ初期値で、skip の有無だけでこの差。右下で<b>深さ</b>を変えると、深いほど plain の右肩下がりが急になります（🎲＝別の初期値）。</div>';},
+   return'<h3>A/B：層別勾配の流れ方</h3><div class="eq curr">入力側/出力側の比：　plain '+rp.toExponential(1)+'　⇔　res '+rr.toExponential(1)+'<span class="read">読み：plain は入力側で勾配が '+rp.toExponential(1)+' 倍に消える（右肩上がり）。res はどの層もほぼ同じ '+rr.toExponential(1)+'（平ら）＝全層に信号が届く</span></div><div class="desc">学習開始時（初期値）の層別勾配を上下で並べました。<b>plain（上・赤）は入力側へ向かって激減</b>（比 '+rp.toExponential(1)+'）。<b>res（下・緑）はほぼ真っ平ら</b>（比 '+rr.toExponential(1)+'）——恒等の近道が、どの層にも同じ強さで勾配を届けています。<b>これが勾配の高速道路の実測</b>。同じネット・同じ初期値で、skip の有無だけでこの差。右下で<b>深さ</b>を変えると、深いほど plain の右肩上がりが急になります（🎲＝別の初期値）。</div>';},
  draw(){ensureNets();drawBars(44,54,CW-70,138,hgP,[207,79,95],'plain（近道なし）',getCSS('--neg'));
    drawBars(44,258,CW-70,138,hgR,[31,158,138],'res（残差接続）',getCSS('--accent'));
    caption('上=消える／下=平ら。skip の有無だけの差',CH-10);}},

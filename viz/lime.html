@@ -278,8 +278,10 @@ const SLIDES=[
  html(){const b=lime?lime.beta:[0,0,0];return'<h3>場所 A と B：説明は反転する（局所性）</h3><div class="eq curr">β<sub>1</sub>(A) &gt; 0　⇔　β<sub>1</sub>(B) &lt; 0　（同じモデル・同じ特徴なのに逆）<span class="read">読み：A では「x1 を増やすと承認へ」、B では「x1 を増やすと否決へ」。矛盾ではなく、地形の起伏を局所で言えばこうなる＝説明は場所つきでしか正しくない</span></div><div class="desc">★が境界上の <b>A（左）と B（中央）を往復</b>します（下のバーに注目）。<b>特徴 x1 の係数が、A では正・B では負</b>と<b>符号ごと反転</b>——「x1 が承認に効く/否決に効く」がひっくり返る。これが局所性です。<b>「LIME の説明＝モデル全体の話」は誤り</b>。いまの β1=<b>'+b[1].toFixed(2)+'</b>。隣に立てば、別の説明。</div>';},
  draw(){drawBoundary();if(lime)drawLocalLine(lime,getCSS('--upd'),2.4);drawData();drawStar(star,starPred(star));
    ctx.fillStyle=getCSS('--faint');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';
-   const near=Math.hypot(star[0]-PRESET_A[0],star[1]-PRESET_A[1])<Math.hypot(star[0]-PRESET_B[0],star[1]-PRESET_B[1]);
-   ctx.fillText(near?'いま：場所 A 付近':'いま：場所 B 付近',CW/2,300);if(lime)drawCoefBars(lime);}},
+   const dA=Math.hypot(star[0]-PRESET_A[0],star[1]-PRESET_A[1]),dB=Math.hypot(star[0]-PRESET_B[0],star[1]-PRESET_B[1]);
+   const seg=Math.hypot(PRESET_A[0]-PRESET_B[0],PRESET_A[1]-PRESET_B[1]);
+   const lbl=dA<seg*0.3?'いま：場所 A（特徴 x1 の係数 ＞ 0）':dB<seg*0.3?'いま：場所 B（特徴 x1 の係数 ＜ 0）':'A ⇄ B を移動中…';
+   ctx.fillText(lbl,CW/2,300);if(lime)drawCoefBars(lime);}},
 /* 10 */{title:'σ を変えると説明が変わる（近傍の定義しだい）',legend:'σ スライダを動かすと局所モデルと係数が変わる',live:true,
  html(){const b=lime?lime.beta:[0,0,0];return'<h3>σ を変えると説明が変わる（近傍の定義しだい）</h3><div class="eq curr">σ 小　→　足元だけ・係数は急（不安定）　／　σ 大　→　遠くまで平均・係数はなまる<span class="read">読み：σ は「近所の広さ」の定義。狭いと足元の急な坂を拾うがサンプルが減ってぶれる、広いと遠くを混ぜて局所でなくなる。正解の σ は無い</span></div><div class="desc">下の <b>σ スライダ</b>を動かしてください（いま σ=<b>'+sKer.toFixed(2)+'</b>、|β|=<b>'+(lime?Math.hypot(b[1],b[2]).toFixed(2):'—')+'</b>）。σ を<b>小さく</b>すると足元の急な坂を拾って係数は<b>大きく</b>、<b>大きく</b>すると遠くまで混ぜて係数は<b>なまり</b>ます。同じ★・同じモデルでも、<b>「近所」の定義しだいで説明が動く</b>——LIME の弱点であり、使うときの注意点です。</div>';},
  draw(){drawBoundary();const x=toX(star[0]),y=toY(star[1]);ctx.beginPath();ctx.arc(x,y,sKer*PPU,0,7);ctx.strokeStyle='rgba(111,84,196,0.6)';ctx.lineWidth=1.3;ctx.setLineDash([5,4]);ctx.stroke();ctx.setLineDash([]);

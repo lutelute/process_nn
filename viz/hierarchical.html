@@ -196,7 +196,6 @@ function drawScatter(box,pts,labels,opt){opt=opt||{};const[x0,y0,w,h]=box;
   if(opt.frame){ctx.strokeStyle='rgba(26,26,23,0.12)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);}
   // 併合ペアの結び線
   if(opt.pair){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.setLineDash([4,3]);
-    for(const a of opt.pair[0])for(const b of opt.pair[1]){}
     // 代表点同士を結ぶ
     const ca=centroid(opt.pair[0]),cb=centroid(opt.pair[1]);
     ctx.beginPath();ctx.moveTo(SX(ca[0]),SY(ca[1]));ctx.lineTo(SX(cb[0]),SY(cb[1]));ctx.stroke();ctx.setLineDash([]);}
@@ -357,7 +356,7 @@ const SLIDES=[
    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';
    ctx.fillText('単連結 k=3 のクラスタサイズ: ['+sz+']',CW/2,CH-8);}},
 {title:'データ次第で使い分ける',legend:'球状に分離した blobs はどのリンクも一致。帯や橋では分岐',dice:true,
- html(){const same=isAgree();return'<h3>データ次第で使い分ける</h3><div class="eq curr">きれいに分離した球状 → どのリンクも一致 ／ 帯・橋・非球状 → 分岐<span class="read">読み：クラスタが丸くよく離れていれば測り方は結果に効かない。形が入り組むほどリンク法の選択が効いてくる</span></div><div class="desc">いつでもリンク法で悩む必要はありません。<b>丸い塊がよく離れている</b>なら、単連結でも完全連結でも<b>同じ答え</b>（いまのデータ: '+(same?'<b>3手法一致</b>':'<b>手法で分岐</b>')+'）。差が出るのは<b>帯・橋・非球状</b>など形が入り組むとき。分離した 3 群（blobs）では、単・完全・平均のどれで切っても<b>純度 100%</b>で真の 3 群を復元します（実測）。「🎲 別のデータ」で '+Object.values(KLABEL).join(' / ')+' を切り替え、どこで一致し・どこで割れるかを確かめてください。現在: <b>'+KLABEL[curKind]+'</b>。</div>';},
+ html(){const same=isAgree();return'<h3>データ次第で使い分ける</h3><div class="eq curr">きれいに分離した球状 → どのリンクも一致 ／ 帯・橋・非球状 → 分岐<span class="read">読み：クラスタが丸くよく離れていれば測り方は結果に効かない。形が入り組むほどリンク法の選択が効いてくる</span></div><div class="desc">いつでもリンク法で悩む必要はありません。<b>丸い塊がよく離れている</b>なら、単連結でも完全連結でも<b>同じ答え</b>（いまのデータ: '+(same?'<b>3手法一致</b>':'<b>手法で分岐</b>')+'）。差が出るのは<b>帯・橋・非球状</b>など形が入り組むとき。分離した 3 群（blobs）では、単・完全・平均の<b>どれで切っても同じ 3 群</b>に到達します（開発時の Node 検証では正解ラベルとの純度 100%）。「🎲 別のデータ」で '+Object.values(KLABEL).join(' / ')+' を切り替え、どこで一致し・どこで割れるかを確かめてください。現在: <b>'+KLABEL[curKind]+'</b>。</div>';},
  draw(){const n=P.length;const kk=curKind==='blobs'?3:2;
    const ms=agglomerate(P,'single'),mc=agglomerate(P,'complete'),ma=agglomerate(P,'average');
    ctx.fillStyle=getCSS('--text');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='center';
