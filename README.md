@@ -74,6 +74,7 @@
 | `viz/transformer.html` | **Transformer 学習** — 小型 GPT をブラウザで学習、loss 低下で attention・生成が変化 |
 | `gpt2/` | **GPT-2 推論** — 本物の GPT-2 (124M) を forward 実行し、次トークン予測と内部を可視化 |
 | `viz/lstm.html` | **LSTM（長短期記憶）** — セル状態と 3 ゲート（書く/保つ/読む）で長期依存を学習。最初の値が最後まで保たれる様子を可視化 |
+| `viz/moe.html` | **Mixture of Experts（MoE）** — 専門家の集団＋受付（ルーター）。ゲート+4専門家の実学習で専門分化が創発、単一MLP比3.7倍改善、top-k の疎な計算と dead expert の A/B。Mixtral/GPT-4 の構造 |
 | `viz/rag.html` | **RAG（検索拡張生成）** — 文書を意味ベクトル化→質問とコサイン類似で該当箇所を検索→出典つきで回答（昔話/論文/法的文書を選択） |
 
 ### ④ 教師なし学習 — 構造を見つける

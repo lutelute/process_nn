@@ -173,6 +173,7 @@
       { href: 'attention.html',   label: '自己注意' },
       { href: 'transformer.html', label: 'Transformer' },
       { href: '../gpt2/',         label: 'GPT-2' },
+      { href: 'moe.html',         label: 'MoE' },
       { href: 'rag.html',         label: 'RAG' },
     ]},
     { name: 'クラスタ', items: [
