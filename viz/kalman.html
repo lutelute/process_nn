@@ -88,6 +88,7 @@
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
       <label>センサ誤差 σ<sub>r</sub> <input type="range" id="sr" min="15" max="100" step="5" value="45"><span id="srVal" style="font-family:var(--mono);color:var(--text)">0.045</span></label>
+      <label>モデル誤差 σ<sub>q</sub> <input type="range" id="sq" min="2" max="20" step="1" value="5"><span id="sqVal" style="font-family:var(--mono);color:var(--text)">0.005</span></label>
       <button id="diceBtn">🎲 別のノイズ</button>
     </div>
   </div>
@@ -107,7 +108,7 @@
 
   <details>
     <summary>もっと詳しく：最適性／非線形（EKF・UKF）／Q と R の決め方</summary>
-    <div class="det"><b>最適性</b>：線形・ガウスの仮定のもとでカルマンフィルタは<b>最小分散推定（MMSE）かつ最尤</b>で、これ以上の線形推定器は作れない。予測と観測という 2 つのガウス分布の<b>積（ベイズ更新）</b>がまたガウスになり、その平均・分散が更新式そのもの——<a href="gp.html">ガウス過程</a>と同じ「ガウスの条件付け」です。<b>非線形</b>：現実の運動や観測は非線形なことが多く、その場合は接線で線形化する <b>EKF（拡張カルマン）</b>、代表点を通す <b>UKF（無香料カルマン）</b>、粒子で表す<b>粒子フィルタ</b>を使う。<b>Q と R の決め方</b>：R はセンサの実測ノイズから、Q は「モデルがどれだけ当てにならないか（加速度の揺らぎ等）」から決める。合っているかは<b>イノベーションの整合性</b>（NIS が自由度に近いか、このデモで平均約 2）で点検できる——外れると自信過剰／過小になる。<b>関連</b>：時間方向の状態推定という点で<b>隠れマルコフモデル（HMM）</b>の連続版にあたる（HMM＝離散状態の forward、KF＝連続状態の forward）。滑らかさを空間で扱う <a href="gp.html">ガウス過程</a> とも、同じ「ガウスの条件付け」で地続きです。</div>
+    <div class="det"><b>最適性</b>：線形・ガウスの仮定のもとでカルマンフィルタは<b>最小分散推定（MMSE）かつ最尤</b>で、これ以上の線形推定器は作れない。予測と観測という 2 つのガウス分布の<b>積（ベイズ更新）</b>がまたガウスになり、その平均・分散が更新式そのもの——<a href="gp.html">ガウス過程</a>と同じ「ガウスの条件付け」です。<b>非線形</b>：現実の運動や観測は非線形なことが多く、その場合は接線で線形化する <b>EKF（拡張カルマン）</b>、代表点を通す <b>UKF（無香料カルマン）</b>、粒子で表す<b>粒子フィルタ</b>を使う。<b>Q と R の決め方</b>：R はセンサの実測ノイズから、Q は「モデルがどれだけ当てにならないか（加速度の揺らぎ等）」から決める。合っているかは<b>イノベーションの整合性</b>（NIS が自由度に近いか、このデモで平均約 2）で点検できる——外れると自信過剰／過小になる。<b>関連</b>：時間方向の状態推定という点で <a href="hmm.html">隠れマルコフモデル（HMM）</a> の連続版にあたる（HMM＝離散状態の forward、KF＝連続状態の forward）。滑らかさを空間で扱う <a href="gp.html">ガウス過程</a> とも、同じ「ガウスの条件付け」で地続きです。</div>
   </details>
 </div>
 
@@ -162,6 +163,19 @@ function runKF(){if(!meas)genMeas();const Q=makeQ(qa),R=makeR(sr);
 function modelOnly(){const v0=[TRUTH[1][0]-TRUTH[0][0],TRUTH[1][1]-TRUTH[0][1]];
   let x=[meas[0][0],meas[0][1],v0[0],v0[1]];const out=[[x[0],x[1]]];
   for(let k=1;k<N;k++){x=[x[0]+x[2],x[1]+x[3],x[2],x[3]];out.push([x[0],x[1]]);}return out;}
+/* 観測欠落区間（トンネル）：区間内は更新をスキップ＝予測のみで走る。楕円が膨らみ、復帰で締まる */
+function kfGap(){if(!meas)genMeas();const Q=makeQ(qa),R=makeR(sr);
+  const gapA=Math.round(N*0.58),gapB=Math.round(N*0.74);
+  let x=[meas[0][0],meas[0][1],(TRUTH[1][0]-TRUTH[0][0])*0.6,(TRUTH[1][1]-TRUTH[0][1])*0.6];
+  let P=[[0.02,0,0,0],[0,0.02,0,0],[0,0,0.05,0],[0,0,0,0.05]];const est=[],ells=[];
+  for(let k=0;k<N;k++){
+    if(k>0){x=mv(F,x);P=addM(mul(mul(F,P),Tr(F)),Q);}                 // 予測
+    if(!(k>=gapA&&k<gapB)){                                          // 更新（欠落区間はスキップ）
+      const Hx=mv(Hm,x),inn=[meas[k][0]-Hx[0],meas[k][1]-Hx[1]];
+      const S=addM(mul(mul(Hm,P),Tr(Hm)),R),K=mul(mul(P,Tr(Hm)),inv2(S));
+      x=x.map((v,i)=>v+K[i][0]*inn[0]+K[i][1]*inn[1]);P=mul(subM(eye(4),mul(K,Hm)),P);}
+    est.push([x[0],x[1]]);ells.push(ellipse2([[P[0][0],P[0][1]],[P[1][0],P[1][1]]]));}
+  return{est,ells,gapA,gapB};}
 function rmse(arr,upto){upto=upto??N;let s=0,n=0;for(let k=0;k<upto;k++){const e0=arr[k][0]-TRUTH[k][0],e1=arr[k][1]-TRUTH[k][1];s+=e0*e0+e1*e1;n++;}return Math.sqrt(s/n);}
 function recompute(){genMeas();runKF();}
 
@@ -304,26 +318,29 @@ const SLIDES=[
     rmseBars([rm,md,re],366);},dice:true},
 /* 11 */{title:'ゲインの配分：センサ信頼 vs モデル信頼',legend:'σr スライダを動かすと K が変わり、追従の性格が変わる',
   html(){const K=steps?steps[N-1].K[0][0]:0.5;const re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])).toFixed(3):'—';
-    return'<h3>⑫ 信頼の配分を動かす（σ<sub>r</sub> スライダ）</h3><div class="eq curr">σ<sub>r</sub> 小（センサ精密）→ K 大（センサ追従）　⇔　σ<sub>r</sub> 大（センサ雑）→ K 小（モデル信頼・平滑）<span class="read">読み：センサの誤差 R=σr² を変えると、ゲイン K が自動で再配分される。人はゲインでなく「どちらをどれだけ信じるか」の前提を動かす</span></div><div class="desc">下の <b>σ<sub>r</sub> スライダ</b>でセンサの誤差設定を変えてみてください。<b>σ<sub>r</sub> を小さく</b>すると「センサは正確」＝ K が大きくなり、推定は<b>観測にぴったり追従</b>（でもノイズも拾う）。<b>σ<sub>r</sub> を大きく</b>すると「センサは雑」＝ K が小さく、推定は<b>モデル寄りで滑らか</b>（でも急な動きに遅れる）。いまの定常ゲイン K≈<b>'+K.toFixed(2)+'</b>、RMSE <b>'+re+'</b>。<b>K を直接いじらず、信頼の前提を動かす</b>のがコツ。</div>';},
+    return'<h3>⑫ 信頼の配分を動かす（σ<sub>r</sub> スライダ）</h3><div class="eq curr">σ<sub>r</sub> 小（センサ精密）→ K 大（センサ追従）　⇔　σ<sub>r</sub> 大（センサ雑）→ K 小（モデル信頼・平滑）<span class="read">読み：センサの誤差 R=σr² を変えると、ゲイン K が自動で再配分される。人はゲインでなく「どちらをどれだけ信じるか」の前提を動かす</span></div><div class="desc">下の <b>σ<sub>r</sub> スライダ</b>でセンサの誤差設定を変えてみてください。<b>σ<sub>r</sub> を小さく</b>すると「センサは正確」＝ K が大きくなり、推定は<b>観測にぴったり追従</b>（でもノイズも拾う）。<b>σ<sub>r</sub> を大きく</b>すると「センサは雑」＝ K が小さく、推定は<b>モデル寄りで滑らか</b>（でも急な動きに遅れる）。逆に<b>σ<sub>q</sub>（モデルの誤差）を大きく</b>すると「モデルは当てにならない」＝観測寄りになります（K が大）。いまの定常ゲイン K≈<b>'+K.toFixed(2)+'</b>、RMSE <b>'+re+'</b>。<b>K を直接いじらず、σ<sub>r</sub>・σ<sub>q</sub> という信頼の前提を動かす</b>のがコツ。</div>';},
   draw(){drawTrue();if(meas)drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
     if(steps){drawTrack(steps.map(s=>[s.xUpd[0],s.xUpd[1]]),getCSS('--accent'),N,2.4);
       const s=steps[N-1];drawEllipse(s.xUpd[0],s.xUpd[1],ellipse2([[s.Pupd[0][0],s.Pupd[0][1]],[s.Pupd[1][0],s.Pupd[1][1]]]),hexA(getCSS('--accent'),0.8),2,true);
       caption('σr を動かすと K が再配分される',BYt+12);gainBar(s.K[0][0],390);}}},
-/* 12 */{title:'どこで出会うか（実例）',legend:'GPS＋加速度計の融合＝スマホの現在地もこの仕組み',
-  html(){return'<h3>⑬ どこで出会うか</h3><div class="eq curr">遅いが正確なセンサ（GPS）＋ 速いが漂うモデル（加速度計の積分）→ 融合<span class="read">読み：性質の違う手がかりを不確かさで束ねる、という発想はあらゆる計測に現れる。多くの機器の「現在地」はこの融合で出ている</span></div><div class="desc">カルマンフィルタは身の回りで動いています。<b>スマホ／車のナビ</b>＝GPS（正確だが遅くトンネルで切れる）と加速度計・ジャイロ（速いが漂う）の融合。<b>自動運転・ロボット</b>の自己位置推定、<b>レーダー／ミサイルの追尾</b>、<b>ドローンの姿勢制御</b>、人工衛星の軌道決定、さらに<b>経済指標の推定</b>にも。共通点は<b>「性質の違う不完全な情報を、不確かさで束ねる」</b>こと。トンネルで GPS が切れても、しばらく<b>予測で走り続けられる</b>のが強みです。</div>';},
-  draw(){drawTrue();if(meas){drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
-    // GPS 欠落区間を演出：中央でセンサが切れ、予測のみで走る
-    const est=steps.map(s=>[s.xUpd[0],s.xUpd[1]]);drawTrack(est,getCSS('--accent'),N,2.4);
-    const a=Math.round(N*0.42),b=Math.round(N*0.62);
-    clipField(()=>{ctx.fillStyle=hexA(getCSS('--neg'),0.08);ctx.fillRect(fx(TRUTH[a][0]),TYt,fx(TRUTH[b][0])-fx(TRUTH[a][0]),BYt-TYt);});
-    ctx.fillStyle=getCSS('--neg');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('GPS欠落でも予測で走る',(fx(TRUTH[a][0])+fx(TRUTH[b][0]))/2,TYt+14);}
-    caption('性質の違うセンサを不確かさで束ねる',CH-10);}},
+/* 12 */{title:'実例：観測が途切れても予測で走る',legend:'グレー帯＝観測欠落（トンネル）。観測なしでも予測で走り、帯が膨らみ復帰で締まる',
+  html(){return'<h3>⑬ 観測が途切れても——トンネル実演</h3><div class="eq curr">観測なし → 予測のみ（楕円が膨らむ）　観測復帰 → 更新（一気に締まる）<span class="read">読み：センサが一時切れても運動モデルで走り続けられる。ただし観測で直せない間は不確かさが膨らみ続け、復帰した瞬間に締まる</span></div><div class="desc">カルマンフィルタは身の回りで動いています——<b>スマホ／車のナビ</b>（GPS＋加速度計・ジャイロの融合）、<b>自動運転・ロボット</b>の自己位置、<b>レーダー追尾</b>、<b>ドローンの姿勢制御</b>、人工衛星の軌道決定、そして歴史的には<b>アポロ計画の月着陸誘導</b>（カルマンフィルタ最初の大仕事）。その典型が<b>トンネル</b>——下のグレー帯で GPS が切れても、KF は<b>予測だけで走り続け</b>（緑）。観測で直せないので<b>楕円は膨らみ続け</b>、トンネルを出て観測が戻ると<b>一気に締まる</b>。「見えない間も走れる」のが融合の底力です。</div>';},
+  draw(){const g=kfGap();drawTrue();
+    clipField(()=>{ctx.fillStyle=hexA(getCSS('--faint'),0.16);ctx.fillRect(fx(TRUTH[g.gapA][0]),TYt,fx(TRUTH[Math.min(N-1,g.gapB)][0])-fx(TRUTH[g.gapA][0]),BYt-TYt);});
+    if(meas)clipField(()=>{for(let k=0;k<N;k++){if(k>=g.gapA&&k<g.gapB)continue;ctx.beginPath();ctx.arc(fx(meas[k][0]),fy(meas[k][1]),2.4,0,7);ctx.fillStyle=hexA(getCSS('--warm'),0.6);ctx.fill();}});
+    drawTrack(g.est,getCSS('--accent'),N,2.4);
+    const marks=[g.gapA-1];for(let k=g.gapA;k<g.gapB;k+=2)marks.push(k);marks.push(Math.min(N-1,g.gapB));
+    marks.forEach(k=>{if(k<0||k>=N)return;const inG=(k>=g.gapA&&k<g.gapB);
+      drawEllipse(g.est[k][0],g.est[k][1],g.ells[k],hexA(getCSS('--accent'),inG?0.55:0.9),2,false);});
+    ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillText('観測欠落（トンネル）',(fx(TRUTH[g.gapA][0])+fx(TRUTH[Math.min(N-1,g.gapB)][0]))/2,TYt+14);
+    caption('観測なし→帯が膨らむ／復帰→一気に締まる',CH-10);}},
 /* 13 */{title:'混ぜると両方より良い、の意味',legend:'2つのガウス（予測・観測）の積が、より鋭いガウスになる',
   html(){return'<h3>⑭ なぜ「両方より良い」のか</h3><div class="eq curr">ガウス（予測）× ガウス（観測）＝ より鋭いガウス（更新）<span class="read">読み：予測も観測も「平均±不確かさ」のガウス。2 つのガウスの積（ベイズ更新）はまたガウスで、その分散は<b>両方より小さい</b></span></div><div class="desc">更新の正体は<b>2 つのガウス分布の掛け算（ベイズ更新）</b>です。予測「この辺（±広め）」と観測「この辺（±広め）」を掛けると、両方の重なる所に<b>より鋭いガウス</b>が立つ——平均は不確かさで重み付けした間、分散は<b>どちらより小さい</b>。これが「混ぜると両方より確か」の数学的な中身。<a href="gp.html">ガウス過程</a>の「観測で条件付けると帯が締まる」と<b>まったく同じ原理</b>で、時間方向に逐次applyしたものがカルマンフィルタです。</div>';},
   draw(){drawGaussProduct();}},
 /* 14 */{title:'まとめと限界',legend:'線形・ガウスなら最適。非線形は EKF/UKF、肝は Q・R',
   html(){const re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])).toFixed(3):'—';
-    return'<h3>⑮ まとめ：進む・測る・直す</h3><div class="desc">カルマンフィルタは<b>予測（モデルで進む）</b>と<b>更新（観測で直す）</b>を、<b>不確かさで重み付けして</b>毎ステップ繰り返す状態推定でした。混ぜた結果は<b>両方より確か</b>（このデモで観測だけより約 3 割改善、RMSE '+re+'）。<b>限界</b>：<b>線形・ガウス</b>の仮定が要で、そこでは最適（最小分散）ですが、現実の非線形には <b>EKF・UKF・粒子フィルタ</b>で対応。性能は <b>Q・R の設定</b>次第で、外すと自信過剰／過小になります。<b>関連</b>：離散状態版の隠れマルコフモデル（HMM）、空間版の <a href="gp.html">ガウス過程</a>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・予測＝進む＋楕円が膨らむ（Q）／更新＝直す＋楕円が縮む（R）<br>・カルマンゲイン K＝不確かさによる信頼の配分（自動計算）<br>・混ぜると両方より確か（ガウスの積）。線形・ガウスで最適</div>';},
+    return'<h3>⑮ まとめ：進む・測る・直す</h3><div class="desc">カルマンフィルタは<b>予測（モデルで進む）</b>と<b>更新（観測で直す）</b>を、<b>不確かさで重み付けして</b>毎ステップ繰り返す状態推定でした。混ぜた結果は<b>両方より確か</b>（このデモで観測だけより約 3 割改善、RMSE '+re+'）。<b>限界</b>：<b>線形・ガウス</b>の仮定が要で、そこでは最適（最小分散）ですが、現実の非線形には <b>EKF・UKF・粒子フィルタ</b>で対応。性能は <b>Q・R の設定</b>次第で、外すと自信過剰／過小になります。<b>関連</b>：離散状態版の <a href="hmm.html">隠れマルコフモデル（HMM）</a>、空間版の <a href="gp.html">ガウス過程</a>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・予測＝進む＋楕円が膨らむ（Q）／更新＝直す＋楕円が縮む（R）<br>・カルマンゲイン K＝不確かさによる信頼の配分（自動計算）<br>・混ぜると両方より確か（ガウスの積）。線形・ガウスで最適</div>';},
   draw(){drawTrue();if(meas)drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
     if(steps)drawTrack(steps.map(s=>[s.xUpd[0],s.xUpd[1]]),getCSS('--accent'),N,2.6);
     caption('進む・測る・直すの繰り返し＝状態推定',CH-10);}},
@@ -402,8 +419,9 @@ function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideId
   const wait=()=>{if(!auto)return;const heavy=[0,1,2,4,8,9].includes(slideIdx);
     if(anim&&heavy&&slideIdx!==8){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?5200:3800);};
   requestAnimationFrame(wait);}else stopAuto();}
-function reset(){stopAuto();anim=false;sr=0.045;qa=0.010;noiseSeed=1;
+function reset(){stopAuto();anim=false;sr=0.045;qa=0.005;noiseSeed=1;
   document.getElementById('sr').value=45;document.getElementById('srVal').textContent='0.045';
+  document.getElementById('sq').value=5;document.getElementById('sqVal').textContent='0.005';
   recompute();slideIdx=0;renderAll();draw_();}
 
 /* ===== 配線 ===== */
@@ -413,6 +431,7 @@ document.getElementById('resetBtn').onclick=reset;
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
 document.getElementById('diceBtn').onclick=()=>{noiseSeed++;recompute();renderMini();renderExplain();draw_();};
 document.getElementById('sr').oninput=e=>{sr=(+e.target.value)/1000;document.getElementById('srVal').textContent=sr.toFixed(3);recompute();renderMini();renderExplain();draw_();};
+document.getElementById('sq').oninput=e=>{qa=(+e.target.value)/1000;document.getElementById('sqVal').textContent=qa.toFixed(3);recompute();renderMini();renderExplain();draw_();};
 
 recompute();renderAll();draw_();
 </script>

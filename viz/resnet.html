@@ -49,6 +49,8 @@
   button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
   .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
   details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
   summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
@@ -61,7 +63,7 @@
 <div class="wrap">
   <div class="nav"></div>
   <h1>残差接続（ResNet）— 差分を学ぶと深くできる</h1>
-  <div class="lead">層を深くするほど強いはず——なのに昔の深いネットは<b>深くすると逆に悪化</b>しました（<a href="vanishing.html">勾配消失</a>の回の続き＝解答編）。答えは発想の転換：変換そのものでなく<b>「変換との差分」</b>を学び、<b>恒等の近道（skip）で勾配を通す</b>。同じ 32 層のネットを skip の有無だけ変えて実学習し、勾配と loss の差をこの場で見ます。「次へ ▶」で進んでください。</div>
+  <div class="lead">層を深くするほど強いはず——なのに昔の深いネットは<b>深くすると逆に悪化</b>しました（<a href="vanishing.html">勾配消失</a>の回の続き＝解答編）。答えは発想の転換：変換そのものでなく<b>「変換との差分」</b>を学び、<b>恒等の近道（skip）で勾配を通す</b>。同じ深さのネットを skip の有無だけ変えて実学習し、勾配と loss の差をこの場で見ます（右下の<b>深さ</b>を変えると、深いほど差が開く様子も）。「次へ ▶」で進んでください。</div>
 
   <div class="purpose">
     <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「深いほど強い」を<b>本当に実現した</b>仕掛け。画像の ResNet から<a href="transformer.html">Transformer</a>まで、巨大モデルの土台。</span></div>
@@ -85,6 +87,7 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
+      <label>深さ <select id="depthSel"><option value="8">8層</option><option value="16">16層</option><option value="24">24層</option><option value="32" selected>32層</option></select></label>
       <button id="diceBtn">🎲 別の初期値</button>
     </div>
   </div>
@@ -116,7 +119,8 @@ function getCSS(v){return getComputedStyle(document.documentElement).getProperty
 const tanh=Math.tanh,dtanh=a=>1-a*a;
 
 /* ===== plain網 と 残差網（唯一の違いは skip 接続） ===== */
-const WD=8,L=32,ALPHA=0.4,ITERS=400,LR=0.01;
+const WD=8,ALPHA=0.4,ITERS=400,LR=0.01;
+let L=32;   // 深さ（ブロック数）。深さセレクトで 8/16/24/32 に変更可
 let initSeed=101;
 function makeNet(resid){seed=initSeed;const sc=Math.sqrt(1/WD);
   const Win=Array.from({length:WD},()=>randn()*0.8);
@@ -251,15 +255,15 @@ const SLIDES=[
      s*=0.7;}
    ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('×0.7 を 9 回 → 0.7⁹ ≈ 0.04',CW/2,y+70);
    caption('伝言ゲームで声が毎回小さくなり、奥に届かない',CH-14);}},
-{title:'実測：plain 網の層別勾配',legend:'32層 plain 網。バー=各層に届く勾配（対数）。入力側が低い',dice:true,
- html(){ensureNets();const r=ratio(hgP);return'<h3>実測：plain 網の層別勾配</h3><div class="eq curr">入力側の勾配 / 出力側の勾配 = '+r.toExponential(1)+'<span class="read">読み：一番左（入力側）のブロックに届く勾配は、一番右（出力側）の '+r.toExponential(1)+' 倍しかない。対数目盛で右肩下がり＝入力側ほど信号が弱い</span></div><div class="desc">本物の 32 層 plain 網（近道なし）で逆伝播を流し、各ブロックに届いた勾配の大きさを測ったのが左のバー（<b>対数目盛＝1 目盛で 10 倍</b>）。<b>入力側（左）ほど低く</b>、出力側の <b>'+r.toExponential(1)+' 倍</b>まで目減りしています。この差が「入力側の層は学習が進まない」の正体。🎲 で初期値を変えても傾向は同じです。</div>';},
+{title:'実測：plain 網の層別勾配',legend:'plain 網。バー=各層に届く勾配（対数）。入力側が低い',dice:true,
+ html(){ensureNets();const r=ratio(hgP);return'<h3>実測：plain 網の層別勾配</h3><div class="eq curr">入力側の勾配 / 出力側の勾配 = '+r.toExponential(1)+'<span class="read">読み：一番左（入力側）のブロックに届く勾配は、一番右（出力側）の '+r.toExponential(1)+' 倍しかない。対数目盛で右肩下がり＝入力側ほど信号が弱い</span></div><div class="desc">本物の '+L+' 層 plain 網（近道なし）で逆伝播を流し、各ブロックに届いた勾配の大きさを測ったのが左のバー（<b>対数目盛＝1 目盛で 10 倍</b>）。<b>入力側（左）ほど低く</b>、出力側の <b>'+r.toExponential(1)+' 倍</b>まで目減りしています。この差が「入力側の層は学習が進まない」の正体。右下で<b>深さ</b>を深くすると消え方が激しくなります。</div>';},
  draw(){ensureNets();drawBars(44,60,CW-70,300,hgP,[207,79,95],'plain 網（近道なし）の層別勾配',getCSS('--neg'));
    caption('入力側ほど勾配が小さい＝学習信号が届かない',CH-12);}},
 {title:'その帰結：入力側の層が凍りつく',legend:'信号が届かない層は初期値のまま。深いほど"死んだ層"が増える',dice:false,
  html(){return'<h3>その帰結：入力側の層が凍りつく</h3><div class="eq curr">勾配 ≈ 0 の層　⇒　更新量 ≈ 0　⇒　初期値のまま<span class="read">読み：勾配が届かない層は、Adam でどれだけ回しても<b>ほとんど動かない</b>。学習しているのは出力側の数層だけ——深く積んだ意味が消える</span></div><div class="desc">勾配が消える＝更新の指示が来ない、ということ。入力側の層は<b>ランダムな初期値のまま凍りつき</b>、実質はたらくのは出力側の数層だけ。だから「深くしたのに賢くならない（むしろ悪化）」。——ではどうするか。<b>信号が消えない一本道</b>を、ネットの作りそのものに用意すればいい。それが次の発想です。</div>';},
  draw(){ // 層の帯: 出力側は明るく学習, 入力側は凍結
    const n=L,x0=40,w=CW-80,bw=w/n,y0=120,h=110;
-   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('32 個のブロック（左=入力側 / 右=出力側）',CW/2,y0-16);
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(L+' 個のブロック（左=入力側 / 右=出力側）',CW/2,y0-16);
    for(let i=0;i<n;i++){const t=i/(n-1);const live=t;const x=x0+i*bw;
      ctx.fillStyle=t<0.5?'rgba(120,135,155,'+(0.10+0.20*t)+')':'rgba(31,158,138,'+(0.25+0.6*(t-0.5))+')';
      ctx.fillRect(x+0.5,y0,bw-1,h);}
@@ -310,9 +314,9 @@ const SLIDES=[
 // ---- Ⅲ ライブ実験 ----
 {title:'2 つのネットを実学習する',legend:'同じ深さ32・同じ初期値・唯一の違いは skip の有無',dice:false,
  html(){const p=lossP.length?lossP[lossP.length-1]:null,r=lossR.length?lossR[lossR.length-1]:null;
-   return'<h3>2 つのネットを実学習する</h3><div class="eq curr">損失 = mean(<i>ŷ</i> − <i>y</i>)²　→ Adam で最小化（plain と res を同時に）<span class="read">読み：同じ 32 層・同じ初期値・同じデータ（sin 曲線の回帰）。違いは各ブロックが y=σ(Wx) か y=x+σ(Wx) かだけ。フェアな一騎打ち</span></div><div class="desc">いよいよ本番。<b>まったく同じ 32 層</b>のネットを 2 つ用意し、<b>skip 接続の有無だけ</b>を変えて、同じ sin 曲線の回帰を<b>いまライブで学習</b>します（'+ITERS+' 反復）。初期値もデータも共通のフェアな比較。赤=plain、緑=res。loss がどう下がるか（下がらないか）を見てください。plain '+(p!=null?p.toExponential(1):'…')+' / res '+(r!=null?r.toExponential(1):'…')+'。</div>';},
+   return'<h3>2 つのネットを実学習する</h3><div class="eq curr">損失 = mean(<i>ŷ</i> − <i>y</i>)²　→ Adam で最小化（plain と res を同時に）<span class="read">読み：同じ '+L+' 層・同じ初期値・同じデータ（sin 曲線の回帰）。違いは各ブロックが y=σ(Wx) か y=x+σ(Wx) かだけ。フェアな一騎打ち</span></div><div class="desc">いよいよ本番。<b>まったく同じ '+L+' 層</b>のネットを 2 つ用意し、<b>skip 接続の有無だけ</b>を変えて、同じ sin 曲線の回帰を<b>いまライブで学習</b>します（'+ITERS+' 反復）。初期値もデータも共通のフェアな比較。赤=plain、緑=res。loss がどう下がるか（下がらないか）を見てください。plain '+(p!=null?p.toExponential(1):'…')+' / res '+(r!=null?r.toExponential(1):'…')+'。</div>';},
  draw(){
-   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ 32 層・skip の有無だけ違う 2 ネットを同時に学習',CW/2,52);
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ '+L+' 層・skip の有無だけ違う 2 ネットを同時に学習',CW/2,52);
    drawResBlock(96,true,false);
    drawLoss(40,180,CW-70,180);
    ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('― plain',52,378);
@@ -321,13 +325,13 @@ const SLIDES=[
    caption('違いは skip だけ。あとは全部同じ',CH-8);}},
 {title:'A/B：層別勾配の流れ方',legend:'上=plain（右肩下がり）／下=res（平ら）。同じ初期値での比較',dice:true,
  html(){ensureNets();const rp=ratio(hgP),rr=ratio(hgR);
-   return'<h3>A/B：層別勾配の流れ方</h3><div class="eq curr">入力側/出力側の比：　plain '+rp.toExponential(1)+'　⇔　res '+rr.toExponential(1)+'<span class="read">読み：plain は入力側で勾配が '+rp.toExponential(1)+' 倍に消える（右肩下がり）。res はどの層もほぼ同じ '+rr.toExponential(1)+'（平ら）＝全層に信号が届く</span></div><div class="desc">学習開始時（初期値）の層別勾配を上下で並べました。<b>plain（上・赤）は入力側へ向かって激減</b>（比 '+rp.toExponential(1)+'）。<b>res（下・緑）はほぼ真っ平ら</b>（比 '+rr.toExponential(1)+'）——恒等の近道が、どの層にも同じ強さで勾配を届けています。<b>これが勾配の高速道路の実測</b>。同じネット・同じ初期値で、skip の有無だけでこの差。🎲 で初期値を変えても同じ。</div>';},
+   return'<h3>A/B：層別勾配の流れ方</h3><div class="eq curr">入力側/出力側の比：　plain '+rp.toExponential(1)+'　⇔　res '+rr.toExponential(1)+'<span class="read">読み：plain は入力側で勾配が '+rp.toExponential(1)+' 倍に消える（右肩下がり）。res はどの層もほぼ同じ '+rr.toExponential(1)+'（平ら）＝全層に信号が届く</span></div><div class="desc">学習開始時（初期値）の層別勾配を上下で並べました。<b>plain（上・赤）は入力側へ向かって激減</b>（比 '+rp.toExponential(1)+'）。<b>res（下・緑）はほぼ真っ平ら</b>（比 '+rr.toExponential(1)+'）——恒等の近道が、どの層にも同じ強さで勾配を届けています。<b>これが勾配の高速道路の実測</b>。同じネット・同じ初期値で、skip の有無だけでこの差。右下で<b>深さ</b>を変えると、深いほど plain の右肩下がりが急になります（🎲＝別の初期値）。</div>';},
  draw(){ensureNets();drawBars(44,54,CW-70,138,hgP,[207,79,95],'plain（近道なし）',getCSS('--neg'));
    drawBars(44,258,CW-70,138,hgR,[31,158,138],'res（残差接続）',getCSS('--accent'));
    caption('上=消える／下=平ら。skip の有無だけの差',CH-10);}},
 {title:'A/B：loss の下がり方',legend:'plain は頭打ち／res は収束。同条件での訓練誤差',dice:false,
  html(){ensureTrained();const p=lossP[lossP.length-1],r=lossR[lossR.length-1];
-   return'<h3>A/B：loss の下がり方</h3><div class="eq curr">最終 loss：　plain '+p.toExponential(2)+'　⇔　res '+r.toExponential(2)+'（<b>'+(p/r).toFixed(0)+' 倍</b>の差）<span class="read">読み：同じ回数・同じ初期値で学習しても、plain は早々に<b>頭打ち</b>（入力側が凍結）、res は桁違いに低い loss まで<b>収束</b>する</span></div><div class="desc">結果は歴然。<b>plain（赤）は途中で頭打ち</b>になり、それ以上下がりません（入力側の層が凍りついたまま）。<b>res（緑）はぐんぐん下がって収束</b>。最終 loss は plain '+p.toExponential(2)+' 対 res '+r.toExponential(2)+'＝約 <b>'+(p/r).toFixed(0)+' 倍</b>の差。<b>skip 接続を足しただけ</b>で、深いネットが学習可能になりました。まさに degradation の解消です。</div>';},
+   return'<h3>A/B：loss の下がり方</h3><div class="eq curr">最終 loss：　plain '+p.toExponential(2)+'　⇔　res '+r.toExponential(2)+'（<b>'+(p/r).toFixed(0)+' 倍</b>の差）<span class="read">読み：同じ回数・同じ初期値で学習しても、plain は早々に<b>頭打ち</b>（入力側が凍結）、res は桁違いに低い loss まで<b>収束</b>する</span></div><div class="desc">結果は歴然。<b>plain（赤）は途中で頭打ち</b>になり、それ以上下がりません（入力側の層が凍りついたまま）。<b>res（緑）はぐんぐん下がって収束</b>。最終 loss は plain '+p.toExponential(2)+' 対 res '+r.toExponential(2)+'＝約 <b>'+(p/r).toFixed(0)+' 倍</b>の差。<b>skip 接続を足しただけ</b>で、深いネットが学習可能になりました。まさに degradation の解消です。右下で<b>深さ</b>を浅くすると差は縮み（浅ければ plain でも学べる）、深くするほど plain だけが崩れます。</div>';},
  draw(){ensureTrained();drawLoss(40,90,CW-70,220);
    ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('― plain（頭打ち）',48,116);
    ctx.fillStyle=getCSS('--accent');ctx.fillText('― res（収束）',48,134);
@@ -372,9 +376,9 @@ const SLIDES=[
      if(i<items.length-1){ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(CW/2,by+58);ctx.lineTo(CW/2,by+76);ctx.stroke();}});
    caption('「差分＋近道」が深層の標準になった',CH-12);}},
 {title:'まとめ：掛け算を足し算に',legend:'残差接続の要点。vanishing の解答編',dice:false,
- html(){return'<h3>まとめ：掛け算を足し算に</h3><div class="desc">今日の芯：<b>変換そのものでなく、変換との差分 F(x)=H(x)−x を学び、y=x+F(x) と足し戻す</b>。たったこれだけで——(1) 逆伝播では ∂y/∂x=1+∂F/∂x の<b>「1」が勾配の高速道路</b>になり消失を断ち、(2) 順伝播では <b>F=0 で恒等</b>＝「最悪でも現状維持」を保証。<a href="vanishing.html">勾配消失</a>で見た「掛け算の宿命」を、<b>足し算の 1 で断ち切る</b>解答編でした。同じ 32 層でも、skip の有無だけで loss は桁違い。<b>アーキテクチャの一工夫が、深さを力に変える</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・差分を学ぶ：y = x + F(x)（skip 接続）<br>・勾配の高速道路：∂y/∂x = 1 + ∂F/∂x の「1」が消失を断つ<br>・恒等の保険：F=0 で素通り＝深くしても悪化しない</div>';},
+ html(){return'<h3>まとめ：掛け算を足し算に</h3><div class="desc">今日の芯：<b>変換そのものでなく、変換との差分 F(x)=H(x)−x を学び、y=x+F(x) と足し戻す</b>。たったこれだけで——(1) 逆伝播では ∂y/∂x=1+∂F/∂x の<b>「1」が勾配の高速道路</b>になり消失を断ち、(2) 順伝播では <b>F=0 で恒等</b>＝「最悪でも現状維持」を保証。<a href="vanishing.html">勾配消失</a>で見た「掛け算の宿命」を、<b>足し算の 1 で断ち切る</b>解答編でした。同じ '+L+' 層でも、skip の有無だけで loss は桁違い。<b>アーキテクチャの一工夫が、深さを力に変える</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・差分を学ぶ：y = x + F(x)（skip 接続）<br>・勾配の高速道路：∂y/∂x = 1 + ∂F/∂x の「1」が消失を断つ<br>・恒等の保険：F=0 で素通り＝深くしても悪化しない</div>';},
  draw(){ensureTrained();
-   ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ 32 層・skip の有無だけ',CW/2,46);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ '+L+' 層・skip の有無だけ',CW/2,46);
    // 2つの結果を並べる
    const rp=ratio(hgP),rr=ratio(hgR),p=lossP[lossP.length-1],r=lossR[lossR.length-1];
    const box=(x,title,col,g,l)=>{ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.strokeRect(x,70,120,130);
@@ -396,13 +400,13 @@ function renderStepper(){const el=document.getElementById('stepper');const cur=c
 function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
   if(s===0){m.innerHTML='<div>深さ↑</div><div class="bad">plain <b>劣化</b></div><div class="ok">res <b>改善</b></div>';}
   else if(s===1){m.innerHTML='<div>勾配 <b>= Π 微分</b></div><div class="bad">1未満↑ <b>消失</b></div>';}
-  else if(s===2){ensureNets();m.innerHTML='<div>plain 32層</div><div class="bad">入力/出力 <b>'+ratio(hgP).toExponential(1)+'</b></div>';}
+  else if(s===2){ensureNets();m.innerHTML='<div>plain '+L+'層</div><div class="bad">入力/出力 <b>'+ratio(hgP).toExponential(1)+'</b></div>';}
   else if(s===3){m.innerHTML='<div class="bad">入力側 <b>凍結</b></div><div>働くのは出力側だけ</div>';}
   else if(s===4){m.innerHTML='<div>学ぶ <b>F=H−x</b></div><div>恒等は <b>F=0</b></div>';}
   else if(s===5){m.innerHTML='<div>残差ブロック</div><div><b>y = x + F(x)</b></div>';}
   else if(s===6){m.innerHTML='<div>∂y/∂x <b>= 1+∂F/∂x</b></div><div class="ok">「1」が直通</div>';}
   else if(s===7){m.innerHTML='<div class="bad">plain Π∂F→0</div><div class="ok">res Π(1+∂F)≈1</div>';}
-  else if(s===8){m.innerHTML='<div>学習 <b>'+it+'/'+ITERS+'</b></div><div>同深さ32・skipだけ違う</div>';}
+  else if(s===8){m.innerHTML='<div>学習 <b>'+it+'/'+ITERS+'</b></div><div>同深さ'+L+'・skipだけ違う</div>';}
   else if(s===9){ensureNets();m.innerHTML='<div class="bad">plain <b>'+ratio(hgP).toExponential(1)+'</b></div><div class="ok">res <b>'+ratio(hgR).toExponential(1)+'</b></div>';}
   else if(s===10){ensureTrained();m.innerHTML='<div class="bad">plain <b>'+lossP[lossP.length-1].toExponential(1)+'</b></div><div class="ok">res <b>'+lossR[lossR.length-1].toExponential(1)+'</b></div>';}
   else if(s===11){ensureTrained();m.innerHTML='<div class="bad">RMSE '+Math.sqrt(lossP[lossP.length-1]).toFixed(2)+'</div><div class="ok">RMSE '+Math.sqrt(lossR[lossR.length-1]).toFixed(2)+'</div>';}
@@ -445,11 +449,16 @@ function reset(){stopAuto();anim=false;initSeed=101;plainNet=null;resNet=null;tr
 function reroll(){initSeed=(initSeed*1103515245+12345)>>>0>>>0%100000+2;if(initSeed<2)initSeed=2;
   plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;ensureNets();
   if(slideIdx>=10)ensureTrained();renderMini();renderExplain();draw_();}
+function setDepth(d){L=d;plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;
+  if(slideIdx===8){runTrain();}                       // ライブ学習スライドなら再学習アニメ
+  else{ensureNets();if(slideIdx>=10)ensureTrained();}  // 勾配スライドは初期勾配のみ／loss系は即学習
+  renderAll();draw_();}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
 document.getElementById('diceBtn').onclick=()=>{if(SLIDES[slideIdx].dice)reroll();};
+document.getElementById('depthSel').onchange=(e)=>{stopAuto();setDepth(+e.target.value);};
 ensureNets();renderAll();draw_();
 </script>
 <script src="nav.js"></script>

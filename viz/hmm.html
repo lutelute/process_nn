@@ -49,6 +49,8 @@
   button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
   .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:84px;}
   details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
   summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
@@ -85,6 +87,7 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
+      <label>日数 <input type="range" id="lenR" min="5" max="20" step="1" value="5"><b id="lenV" style="font-family:var(--mono);color:var(--text);">5</b></label>
       <button id="diceBtn">🎲 別の日々</button>
     </div>
   </div>
@@ -104,7 +107,7 @@
 
   <details>
     <summary>もっと詳しく：forward-backward／Baum-Welch（学習）／対数化／RNN・カルマンとの関係</summary>
-    <div class="det">3 つの問題があります。<b>①評価</b>：観測列の尤度 P(O)＝<b>forward</b> で全経路を効率よく足す（各時刻 N 状態を保持するので O(N²T)、素朴な N^T の全列挙を回避）。<b>②復号</b>：最尤の状態列＝<b>Viterbi</b>（forward の和を max に置換＋逆ポインタで経路復元）。<b>③学習</b>：パラメータ（π・遷移 A・出力 B）をデータから推定＝<b>Baum-Welch（forward-backward を使った EM）</b>。潜在変数つき最尤推定なので <a href="gmm.html">GMM</a> の EM と同じ骨格です。<b>平滑化</b>：γ<sub>t</sub>(i)=α<sub>t</sub>(i)β<sub>t</sub>(i)/P(O) は「全観測を見た上での各時刻の状態確率」——このページの「文脈つき推定」。実装上は α が指数的に小さくなり<b>アンダーフロー</b>するので、各時刻で正規化するか<b>対数</b>で計算します。<b>位置づけ</b>：隠れ状態を<b>連続</b>にしてガウスの線形遷移にすると <a href="kalman.html">カルマンフィルタ</a>（forward＝予測+更新に対応）。隠れ状態を<b>ニューラルな連続ベクトル</b>にして非線形にすると <a href="rnn.html">RNN</a>・<a href="lstm.html">LSTM</a>——HMM は「確率で解釈できる、系列の隠れ状態モデル」の原点です。関連：<a href="qlearning.html">Q学習</a>（状態のマルコフ性）。</div>
+    <div class="det">3 つの問題があります。<b>①評価</b>：観測列の尤度 P(O)＝<b>forward</b> で全経路を効率よく足す（各時刻 N 状態を保持するので O(N²T)、素朴な N^T の全列挙を回避）。<b>②復号</b>：最尤の状態列＝<b>Viterbi</b>（forward の和を max に置換＋逆ポインタで経路復元）。<b>③学習</b>：パラメータ（π・遷移 A・出力 B）をデータから推定＝<b>Baum-Welch（forward-backward を使った EM）</b>。潜在変数つき最尤推定なので <a href="gmm.html">GMM</a> の EM と同じ骨格です。<b>平滑化</b>：γ<sub>t</sub>(i)=α<sub>t</sub>(i)β<sub>t</sub>(i)/P(O) は「全観測を見た上での各時刻の状態確率」——このページの「文脈つき推定」。なお forward の α は観測を 1 つ食べるたびに状態の信念を更新する<b>逐次ベイズ更新</b>で、<a href="bandit.html">多腕バンディット</a>の Beta 事後を 1 回ごとに更新するのと同じ精神です。実装上は α が指数的に小さくなり<b>アンダーフロー</b>するので、各時刻で正規化するか<b>対数</b>で計算します。<b>位置づけ</b>：隠れ状態を<b>連続</b>にしてガウスの線形遷移にすると <a href="kalman.html">カルマンフィルタ</a>（forward＝予測+更新に対応）。隠れ状態を<b>ニューラルな連続ベクトル</b>にして非線形にすると <a href="rnn.html">RNN</a>・<a href="lstm.html">LSTM</a>——HMM は「確率で解釈できる、系列の隠れ状態モデル」の原点です。関連：<a href="qlearning.html">Q学習</a>（状態のマルコフ性）。</div>
   </details>
 </div>
 
@@ -115,7 +118,7 @@ function makeRng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t
 
 /* ===== HMM: 天気{晴,雨} × 行動{散歩,買い物,掃除} ===== */
 const S=['晴','雨'], SC=['--loss','--upd'];        // 状態と色（晴=琥珀 / 雨=紫）
-const O=['散歩','買物','掃除'];
+const O=['散歩','買物','掃除'], OS=['散','買','掃'];
 const PI=[0.6,0.4];
 const A=[[0.8,0.2],[0.2,0.8]];                      // A[i][j]=P(次j|今i) 粘り強い天気
 const B=[[0.6,0.3,0.1],[0.1,0.4,0.5]];              // B[i][k]=P(観測k|状態i)
@@ -134,23 +137,27 @@ function viterbi(o){const Tn=o.length,d=Array.from({length:Tn},()=>[0,0]),psi=Ar
   let last=d[Tn-1][0]>=d[Tn-1][1]?0:1;const p=new Array(Tn);p[Tn-1]=last;
   for(let t=Tn-2;t>=0;t--)p[t]=psi[t+1][p[t+1]];return{d,psi,path:p,prob:d[Tn-1][last]};}
 const emitArgmax=o=>o.map(k=>B[0][k]>=B[1][k]?0:1);
+/* HMM から真の状態列と観測列を1本生成（本物の生成過程） */
+function genSeq(rng,Tn){const tr=[],ob=[];let s=rng()<PI[0]?0:1;
+  for(let t=0;t<Tn;t++){if(t>0)s=rng()<A[tr[t-1]][0]?0:1;tr.push(s);
+    const r=rng();let acc=0,k=0;for(;k<3;k++){acc+=B[s][k];if(r<acc)break;}ob.push(Math.min(2,k));}
+  return{tr,ob};}
 let st=null;
-function compute(){const f=forward(obs),be=backward(obs),v=viterbi(obs);
+function compute(){geom();const f=forward(obs),be=backward(obs),v=viterbi(obs);
   const g=f.al.map((r,t)=>{const den=f.L;return r.map((x,i)=>x*be[t][i]/den);});
-  st={al:f.al,L:f.L,be,g,d:v.d,psi:v.psi,path:v.path,prob:v.prob,emit:emitArgmax(obs)};}
-compute();
+  // 一致率の実測（真の状態列と答え合わせ）: 現在の日数で多数の系列を生成し平均
+  let vH=0,eH=0,tt=0;const rng=makeRng((7919+T*131)>>>0);
+  for(let m=0;m<1000;m++){const {tr,ob}=genSeq(rng,T);const vp=viterbi(ob).path,ep=emitArgmax(ob);
+    for(let t=0;t<T;t++){if(vp[t]===tr[t])vH++;if(ep[t]===tr[t])eH++;tt++;}}
+  st={al:f.al,L:f.L,be,g,d:v.d,psi:v.psi,path:v.path,prob:v.prob,emit:emitArgmax(obs),
+      accV:vH/tt*100,accE:eH/tt*100};}
 
-/* 🎲 HMM から新しい系列をサンプル（本物の生成過程・シード付き）。単時点とViterbiが食い違う列を採用 */
-function sampleCase(){const rng=makeRng(seedCase*2654435761>>>0);
-  for(let tries=0;tries<60;tries++){
-    const tr=[],ob=[];let s=rng()<PI[0]?0:1;
-    for(let t=0;t<T;t++){if(t>0)s=rng()<A[tr[t-1]][0]?0:1;tr.push(s);
-      const r=rng();let acc=0,k=0;for(;k<3;k++){acc+=B[s][k];if(r<acc)break;}ob.push(Math.min(2,k));}
-    const em=emitArgmax(ob),vp=viterbi(ob).path;
-    if(ob.some((_,t)=>em[t]!==vp[t])){return{obs:ob,truth:tr};}
-    seedCase++;
-  }
-  return{obs:obs.slice(),truth:truth.slice()};}
+/* 🎲/日数変更: HMM から新しい系列をサンプル。単時点とViterbiが食い違う列を採用 */
+function sampleCase(){for(let tries=0;tries<80;tries++){const rng=makeRng((seedCase*2654435761>>>0)^(T*40503));
+    const {tr,ob}=genSeq(rng,T);const em=emitArgmax(ob),vp=viterbi(ob).path;
+    if(ob.some((_,t)=>em[t]!==vp[t]))return{obs:ob,truth:tr};
+    seedCase++;}
+  const rng=makeRng((seedCase*2654435761>>>0)^(T*40503));const g=genSeq(rng,T);return{obs:g.ob,truth:g.tr};}
 
 /* ===== 描画 ===== */
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
@@ -158,19 +165,22 @@ function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h
 function gridBg(){ctx.lineWidth=1;
   for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
   for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
-const PADX=42, TOPY=118, ROWH=80;
+let PADX=42, NR=15; const TOPY=118, ROWH=80;
+function geom(){PADX=T<=8?42:T<=14?30:22; NR=T<=6?15:T<=9?12:T<=13?9:7;}
 const colX=t=>PADX+(CW-2*PADX)*(T>1?t/(T-1):0.5);
 const rowY=s=>TOPY+s*ROWH;
-const NR=15;
-function obsHeader(upto){ // 上部：日付＋観測ラベル
-  for(let t=0;t<T;t++){const x=colX(t);
-    ctx.fillStyle=(upto!=null&&t>=upto)?getCSS('--faint'):getCSS('--muted');
+geom();compute();
+function obsHeader(upto){ // 上部：日付＋観測ラベル（日数で自動縮約）
+  const gap=T>1?(CW-2*PADX)/(T-1):100, big=T<=8;
+  for(let t=0;t<T;t++){const x=colX(t),dim=(upto!=null&&t>=upto);
+    ctx.fillStyle=dim?getCSS('--faint'):getCSS('--muted');
     ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    ctx.fillText('Day'+(t+1),x,58);
-    // 観測タグ
-    const w=34,h=17;ctx.globalAlpha=(upto!=null&&t>=upto)?0.35:1;
-    ctx.fillStyle='#fff';ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;rr(x-w/2,66,w,h,5);ctx.fill();ctx.stroke();
-    ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--gothic');ctx.textBaseline='middle';ctx.fillText(O[obs[t]],x,66+h/2+.5);
+    if(big||T<=14||t%2===0)ctx.fillText(big?('Day'+(t+1)):String(t+1),x,58);
+    ctx.globalAlpha=dim?0.35:1;
+    const w=Math.min(34,Math.max(14,gap-3)),h=17,short=w<28;
+    if(w>=18){ctx.fillStyle='#fff';ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;rr(x-w/2,66,w,h,5);ctx.fill();ctx.stroke();}
+    ctx.fillStyle=getCSS('--text');ctx.font='700 '+(short?9:10)+'px '+getCSS('--gothic');ctx.textBaseline='middle';
+    ctx.fillText(short?OS[obs[t]]:O[obs[t]],x,66+h/2+.5);
     ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}}
 function stateLabels(){ctx.textAlign='left';ctx.textBaseline='middle';
   for(let s=0;s<N;s++){ctx.fillStyle=getCSS(SC[s]);ctx.font='700 13px '+getCSS('--gothic');ctx.fillText(S[s],12,rowY(s));}
@@ -208,10 +218,10 @@ function drawTrellis(o){o=o||{};const upto=o.upto==null?T:o.upto;
         ctx.strokeStyle=col;ctx.lineWidth=a>0.5?2.2:1;ctx.stroke();}
       // 単時点推定マーク
       if(o.emit&&shown&&o.emit[t]===s){ctx.beginPath();ctx.arc(x,y,NR+3.5,0,7);ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=1.4;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);}
-      // ラベル
-      ctx.fillStyle=(a!=null&&a>0.55)?'#fff':getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(S[s],x,y);
-      if(o.vals&&shown){ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textBaseline='alphabetic';
+      // ラベル（ノードが小さい時は省略し、左の行ラベル＋色で読む）
+      if(NR>=9){ctx.fillStyle=(a!=null&&a>0.55)?'#fff':getCSS('--muted');ctx.font='700 '+(NR>=12?11:10)+'px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(S[s],x,y);}
+      if(o.vals&&shown&&T<=8){ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
         ctx.fillText((a*100).toFixed(0)+'%',x,y+NR+11);}
     }}
   ctx.textBaseline='alphabetic';}
@@ -423,7 +433,7 @@ const SLIDES=[
    caption('緑=Viterbi最尤経路 / 赤破線=本当の天気',CH-12);}},
 {title:'★対比：単時点 vs Viterbi',legend:'各日バラバラの推定と、筋の通った最尤経路が食い違う点',
  html(){const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
-   return'<h3>A/B：単時点推定 vs Viterbi（文脈で覆る）</h3><div class="eq curr">単時点：'+st.emit.map(s=>S[s]).join(' ')+'　⇔　Viterbi：'+st.path.map(s=>S[s]).join(' ')+'<span class="read">読み：上＝各日その行動だけで当てた列、下＝全体で最尤の経路。'+(flip>=0?'Day'+(flip+1)+' で食い違う——同じデータでも「点で見る」と「筋で見る」で答えが変わる':'今回は一致（食い違う日がない並びもある）')+'</span></div><div class="desc">同じ観測列に 2 つの推定。<b>単時点</b>（琥珀の破線＝各日の即断）は '+st.emit.map(s=>S[s]).join(' ')+'。<b>Viterbi</b>（緑の道）は '+st.path.map(s=>S[s]).join(' ')+'。'+(flip>=0?'<b>Day'+(flip+1)+' の散歩</b>を、単時点は「晴」と断じますが、Viterbi は前後の雨に挟まれた文脈から「<b>雨の日にたまたま散歩した</b>」と読み替えます。孤立した 1 点が、筋の力で覆るのです。':'この並びでは両者が一致しますが、')+'「🎲 別の日々」で何度でも食い違いを作れます。</div>';},
+   return'<h3>A/B：単時点推定 vs Viterbi（文脈で覆る）</h3><div class="eq curr">単時点：'+st.emit.map(s=>S[s]).join(' ')+'　⇔　Viterbi：'+st.path.map(s=>S[s]).join(' ')+'<span class="read">読み：上＝各日その行動だけで当てた列、下＝全体で最尤の経路。'+(flip>=0?'Day'+(flip+1)+' で食い違う——同じデータでも「点で見る」と「筋で見る」で答えが変わる':'今回は一致（食い違う日がない並びもある）')+'</span></div><div class="desc">同じ観測列に 2 つの推定。<b>単時点</b>（琥珀の破線＝各日の即断）は '+st.emit.map(s=>S[s]).join(' ')+'。<b>Viterbi</b>（緑の道）は '+st.path.map(s=>S[s]).join(' ')+'。'+(flip>=0?'<b>Day'+(flip+1)+' の散歩</b>を、単時点は「晴」と断じますが、Viterbi は前後の雨に挟まれた文脈から「<b>雨の日にたまたま散歩した</b>」と読み替えます。':'この並びでは両者が一致しますが、')+'真の天気と<b>答え合わせ</b>すると（'+T+'日×1000回）、<b>Viterbi '+st.accV.toFixed(0)+'% ＞ 単時点 '+st.accE.toFixed(0)+'%</b>——文脈を使う方が平均でも当たります。右下スライダで日数を変えても差は残る。「🎲」で別の日々。</div>';},
  draw(){const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
    drawTrellis({vals:null,path:st.path,emit:st.emit,markCol:flip>=0?flip:null});
    ctx.fillStyle=getCSS('--warm');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('破線○=単時点推定',30,CH-52);
@@ -455,7 +465,7 @@ function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
   else if(s<=4){m.innerHTML='<div>単時点 <b>'+st.emit.map(x=>S[x]).join('')+'</b></div>'+(flip>=0?'<div class="bad">Day'+(flip+1)+'が怪しい</div>':'');}
   else if(s<=7){m.innerHTML='<div>尤度 P(O) <b>'+st.L.toExponential(2)+'</b></div><div>経路数 <b>'+(2**T)+'</b> の和</div>';}
   else if(s===8||s===9){m.innerHTML='<div class="best">最尤経路 <b>'+st.path.map(x=>S[x]).join('')+'</b></div><div>確率 <b>'+st.prob.toExponential(2)+'</b></div>';}
-  else if(s===10){m.innerHTML='<div>単時点 <b>'+st.emit.map(x=>S[x]).join('')+'</b></div><div class="best">Viterbi <b>'+st.path.map(x=>S[x]).join('')+'</b></div>'+(flip>=0?'<div class="bad">Day'+(flip+1)+'で割れる</div>':'');}
+  else if(s===10){m.innerHTML='<div>日数 <b>'+T+'</b></div><div class="best">一致率 V<b>'+st.accV.toFixed(0)+'%</b>／単<b>'+st.accE.toFixed(0)+'%</b></div>'+(flip>=0?'<div class="bad">Day'+(flip+1)+'で割れる</div>':'');}
   else if(s===11){m.innerHTML=flip>=0?'<div class="bad">Day'+(flip+1)+' 晴確率 <b>'+(st.g[flip][0]*100).toFixed(0)+'%</b></div><div>文脈が雨に引き戻す</div>':'<div>各日を文脈込みで</div>';}
   else{m.innerHTML='<div class="best">点でなく筋を読む</div>';}}
 function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
@@ -473,25 +483,29 @@ function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideId
   if(i===2)runGen();else if(i===5||i===6)runFill('alpha');else if(i===8)runFill('delta');
   renderAll();draw_();}
 function runGen(){fillStep=0;anim=true;if(window.__prefersReducedMotion){fillStep=T;anim=false;draw_();return;}
-  function go(){if(!anim||slideIdx!==2)return;fillStep=Math.min(T,fillStep+1);draw_();if(fillStep<T){setTimeout(()=>requestAnimationFrame(go),520);}else anim=false;}
+  const dt=Math.max(110,Math.round(2600/T));
+  function go(){if(!anim||slideIdx!==2)return;fillStep=Math.min(T,fillStep+1);draw_();if(fillStep<T){setTimeout(()=>requestAnimationFrame(go),dt);}else anim=false;}
   setTimeout(()=>requestAnimationFrame(go),200);}
 function runFill(kind){fillStep=0;anim=true;if(window.__prefersReducedMotion){fillStep=T;anim=false;draw_();return;}
-  const want=slideIdx;function go(){if(!anim||slideIdx!==want)return;fillStep=Math.min(T,fillStep+1);draw_();if(fillStep<T){setTimeout(()=>requestAnimationFrame(go),440);}else anim=false;}
+  const dt=Math.max(90,Math.round(2200/T)),want=slideIdx;
+  function go(){if(!anim||slideIdx!==want)return;fillStep=Math.min(T,fillStep+1);draw_();if(fillStep<T){setTimeout(()=>requestAnimationFrame(go),dt);}else anim=false;}
   setTimeout(()=>requestAnimationFrame(go),200);}
 let autoT=null;
 function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
   const wait=()=>{if(!auto)return;const heavy=(slideIdx===2||slideIdx===5||slideIdx===6||slideIdx===8);
     if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,4200);};
   requestAnimationFrame(wait);}else stopAuto();}
-function reset(){stopAuto();anim=false;seedCase=7;obs=[2,2,0,2,2];truth=[1,1,1,1,1];T=obs.length;compute();slideIdx=0;fillStep=T;renderAll();draw_();}
-function reroll(){stopAuto();seedCase++;const c=sampleCase();obs=c.obs;truth=c.truth;T=obs.length;compute();fillStep=T;
-  if(slideIdx===2)runGen();
-  renderAll();draw_();}
+function restartAnim(){if(slideIdx===2)runGen();else if(slideIdx===5||slideIdx===6)runFill('alpha');else if(slideIdx===8)runFill('delta');}
+function reset(){stopAuto();anim=false;seedCase=7;obs=[2,2,0,2,2];truth=[1,1,1,1,1];T=obs.length;compute();slideIdx=0;fillStep=T;
+  document.getElementById('lenR').value=5;document.getElementById('lenV').textContent='5';renderAll();draw_();}
+function reroll(){stopAuto();seedCase++;const c=sampleCase();obs=c.obs;truth=c.truth;compute();fillStep=T;restartAnim();renderAll();draw_();}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
 document.getElementById('diceBtn').onclick=reroll;
+document.getElementById('lenR').oninput=function(){document.getElementById('lenV').textContent=this.value;};
+document.getElementById('lenR').onchange=function(){stopAuto();T=+this.value;const c=sampleCase();obs=c.obs;truth=c.truth;compute();fillStep=T;restartAnim();renderAll();draw_();};
 renderAll();draw_();
 </script>
 <script src="nav.js"></script>

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHAP — 貢献の公平な山分け（Shapley値）</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>SHAP — 貢献の公平な山分け</h1>
+  <div class="lead">ブラックボックスの予測に「<b>なぜ?</b>」と数字で答える道具。特徴ひとつひとつの貢献を、<b>協力ゲームの公平な分け前（Shapley 値）</b>として配ります。おもちゃの<b>融資審査</b>を小さなニューラルネットに実学習させ、<b>全 16 通りの部分集合を本当に列挙</b>して厳密な Shapley 値を計算します。表形式データの分類は<a href="logreg.html">ロジスティック回帰</a>や<a href="boosting.html">勾配ブースティング</a>の回でも扱いました。下の流れを「次へ ▶」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>予測の<b>根拠を 1 特徴ずつの数字に分解</b>する、説明可能 AI（XAI）の中核。与信や医療で「なぜこの判定か」を問われる時代の必需品。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>特徴の貢献を、<b>加わる順番を全部試して平均する</b>ことで公平に山分けする方法。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>与信審査・医療診断・需要予測の説明、そして<b>モデルのデバッグ</b>（効き過ぎ・ショートカットの発見）。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の申込者</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>貢献は<b>単独では決められない</b>——「借入 640 万円」が予測をいくら下げたかは、<b>年収 320 万円がすでに効いているかどうか</b>で変わる。だから「どの順で加わったか」を<b>全部ならして</b>初めて、1 人分の手柄が公平に言える。それが Shapley 値です。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span><span>SHAP 値がプラスなら、その特徴を実際に増やせば結果が良くなる</span></div>
+    <div class="row"><span class="o">✓</span><span>帰属は<b>因果ではありません</b>。「モデルがこの入力を<b>どう配分したか</b>」の話であって、現実に年収を上げたら承認されるかは別問題（モデルの外の因果）。SHAP はモデルの内訳を説明するだけです。</span></div>
+    <div class="row"><span class="x">✗</span><span>Shapley 値は特徴の「真の重要度」を表す唯一の正解だ</span></div>
+    <div class="row"><span class="o">✓</span><span>「公平さ」を <b>3 つの公理で定義した 1 つの答え</b>。背景データの選び方や相関する特徴の扱いを変えれば値も変わります。何を基準（E[f]）に置くかで説明は動く。</span></div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：KernelSHAP・TreeSHAP・背景分布の選び方</summary>
+    <div class="det">特徴が <i>d</i> 個だと部分集合は 2<sup>d</sup> 通り——4 個なら 16 で全列挙できますが、<b>数十個を超えると厳密計算は不可能</b>。実務では近似を使います。<b>KernelSHAP</b> は Shapley 値を「重み付き線形回帰」の解として、少数のサンプルから推定（モデルの種類を問わない）。<b>TreeSHAP</b> は決定木・<a href="boosting.html">勾配ブースティング</a>／<a href="forest.html">ランダムフォレスト</a>の構造を使い、厳密な Shapley 値を<b>多項式時間で高速に</b>計算します（木モデルで SHAP が定番なのはこのため）。<b>背景分布</b>：欠けた特徴を何で埋めるか＝基準値 E[f] を何にするかで説明は変わります。今日は訓練データからの標本平均（介入的期待値）を使いました。相関する特徴では「介入的」（分布を壊して独立に置換）か「観測的」（相関を保つ）かで値が割れる——SHAP を読むときは<b>背景の取り方を必ず確認</b>してください。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=20260710;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const sig=z=>1/(1+Math.exp(-z));
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== 特徴：年収・勤続年数・借入額・延滞歴 ===== */
+const FN=4;
+const NAMES=['年収','勤続','借入','延滞'];
+const UNITS=['万円','年','万円','回'];
+const GOODUP=[true,true,false,false]; // 値が大きいほど承認に有利か
+function genRaw(){
+  const income=220+560*rng();
+  const tenure=20*rng()*rng();
+  const loan=120+780*rng();
+  const delinq=Math.floor(rng()*rng()*5);
+  return [income,tenure,loan,delinq];
+}
+const norm=raw=>[(raw[0]-220)/560,raw[1]/20,(raw[2]-120)/780,raw[3]/4];
+function trueScore(raw){const[inc,ten,ln,dq]=norm(raw);return 2.6*inc+1.4*ten-1.6*ln-2.2*dq-3.4*ln*(1-inc)+0.5;}
+const trueProb=raw=>sig(trueScore(raw));
+
+/* ===== データ生成・標準化 ===== */
+const NTRAIN=400;
+let RAW=[],Xstd=[],Y=[],mu=[0,0,0,0],sd=[1,1,1,1],approveRate=0;
+function genData(){RAW=[];Y=[];let pos=0;
+  for(let i=0;i<NTRAIN;i++){const r=genRaw();RAW.push(r);const y=rng()<trueProb(r)?1:0;Y.push(y);pos+=y;}
+  approveRate=pos/NTRAIN;
+  for(let j=0;j<FN;j++){let s=0;for(const r of RAW)s+=r[j];mu[j]=s/NTRAIN;}
+  for(let j=0;j<FN;j++){let s=0;for(const r of RAW)s+=(r[j]-mu[j])**2;sd[j]=Math.sqrt(s/NTRAIN)||1;}
+  Xstd=RAW.map(r=>r.map((v,j)=>(v-mu[j])/sd[j]));}
+const stdOf=raw=>raw.map((v,j)=>(v-mu[j])/sd[j]);
+
+/* ===== 小NN 4->10->6->1 (tanh, sigmoid出力) ===== */
+const H1=10,H2=6;let net=null;
+function makeNet(){const r=k=>randn()*Math.sqrt(1/k);
+  const W=(a,b)=>Array.from({length:a},()=>Array.from({length:b},()=>r(a)));
+  const z=(a,b)=>Array.from({length:a},()=>new Array(b).fill(0));
+  const p={W1:W(FN,H1),b1:new Array(H1).fill(0),W2:W(H1,H2),b2:new Array(H2).fill(0),W3:W(H2,1),b3:[0]};
+  const m={W1:z(FN,H1),b1:new Array(H1).fill(0),W2:z(H1,H2),b2:new Array(H2).fill(0),W3:z(H2,1),b3:[0]};
+  const v={W1:z(FN,H1),b1:new Array(H1).fill(0),W2:z(H1,H2),b2:new Array(H2).fill(0),W3:z(H2,1),b3:[0]};
+  return{p,m,v,t:0};}
+function fwd(p,x){const a1=new Array(H1);
+  for(let j=0;j<H1;j++){let s=p.b1[j];for(let i=0;i<FN;i++)s+=x[i]*p.W1[i][j];a1[j]=Math.tanh(s);}
+  const a2=new Array(H2);
+  for(let j=0;j<H2;j++){let s=p.b2[j];for(let i=0;i<H1;i++)s+=a1[i]*p.W2[i][j];a2[j]=Math.tanh(s);}
+  let s=p.b3[0];for(let i=0;i<H2;i++)s+=a2[i]*p.W3[i][0];
+  return{a1,a2,y:sig(s)};}
+const predStd=x=>fwd(net.p,x).y;
+const predRaw=raw=>predStd(stdOf(raw));
+function trainStep(idxs,lr){const p=net.p;
+  const g={W1:p.W1.map(r=>r.map(()=>0)),b1:new Array(H1).fill(0),W2:p.W2.map(r=>r.map(()=>0)),b2:new Array(H2).fill(0),W3:p.W3.map(r=>r.map(()=>0)),b3:[0]};
+  let loss=0;
+  for(const idx of idxs){const x=Xstd[idx],y=Y[idx];const c=fwd(p,x);const dz=c.y-y;
+    loss+=-(y*Math.log(c.y+1e-9)+(1-y)*Math.log(1-c.y+1e-9));
+    for(let i=0;i<H2;i++)g.W3[i][0]+=dz*c.a2[i];g.b3[0]+=dz;
+    const da2=new Array(H2);for(let i=0;i<H2;i++)da2[i]=dz*p.W3[i][0]*(1-c.a2[i]*c.a2[i]);
+    for(let i=0;i<H1;i++)for(let j=0;j<H2;j++)g.W2[i][j]+=da2[j]*c.a1[i];
+    for(let j=0;j<H2;j++)g.b2[j]+=da2[j];
+    const da1=new Array(H1);for(let i=0;i<H1;i++){let s=0;for(let j=0;j<H2;j++)s+=da2[j]*p.W2[i][j];da1[i]=s*(1-c.a1[i]*c.a1[i]);}
+    for(let i=0;i<FN;i++)for(let j=0;j<H1;j++)g.W1[i][j]+=da1[j]*x[i];
+    for(let j=0;j<H1;j++)g.b1[j]+=da1[j];}
+  const n=idxs.length;net.t++;const B1=0.9,B2=0.999,E=1e-8;
+  const upd=(P,M,V,G)=>{for(let i=0;i<P.length;i++)for(let j=0;j<P[i].length;j++){const gr=G[i][j]/n;
+    M[i][j]=B1*M[i][j]+(1-B1)*gr;V[i][j]=B2*V[i][j]+(1-B2)*gr*gr;
+    P[i][j]-=lr*(M[i][j]/(1-B1**net.t))/(Math.sqrt(V[i][j]/(1-B2**net.t))+E);}};
+  const updV=(P,M,V,G)=>{for(let j=0;j<P.length;j++){const gr=G[j]/n;
+    M[j]=B1*M[j]+(1-B1)*gr;V[j]=B2*V[j]+(1-B2)*gr*gr;
+    P[j]-=lr*(M[j]/(1-B1**net.t))/(Math.sqrt(V[j]/(1-B2**net.t))+E);}};
+  upd(p.W1,net.m.W1,net.v.W1,g.W1);updV(p.b1,net.m.b1,net.v.b1,g.b1);
+  upd(p.W2,net.m.W2,net.v.W2,g.W2);updV(p.b2,net.m.b2,net.v.b2,g.b2);
+  upd(p.W3,net.m.W3,net.v.W3,g.W3);updV(p.b3,net.m.b3,net.v.b3,g.b3);
+  return loss/n;}
+const ITER=1500,LR=0.03,BS=32;
+let lossHist=[],trained=false;
+function trainAll(){net=makeNet();lossHist=[];const idx=Xstd.map((_,i)=>i);
+  for(let it=0;it<ITER;it++){const batch=[];for(let b=0;b<BS;b++)batch.push(idx[Math.floor(rng()*idx.length)]);
+    const l=trainStep(batch,LR);if(it%15===0)lossHist.push(l);}
+  trained=true;}
+
+/* ===== 背景データと価値関数 v(S)（介入的期待値） ===== */
+let BG=[];
+function pickBG(m){BG=[];const used=new Set();while(BG.length<m){const i=Math.floor(rng()*NTRAIN);if(used.has(i))continue;used.add(i);BG.push(RAW[i]);}}
+function compose(x,b,S){const o=new Array(FN);for(let i=0;i<FN;i++)o[i]=(S&(1<<i))?x[i]:b[i];return o;}
+function vOf(x,S){if(S===(1<<FN)-1)return predRaw(x);let s=0;for(const b of BG)s+=predRaw(compose(x,b,S));return s/BG.length;}
+
+/* ===== 厳密 Shapley（全16部分集合の列挙） ===== */
+function fact(n){let f=1;for(let k=2;k<=n;k++)f*=k;return f;}
+const FACT=fact(FN);
+function analyze(raw){const V=new Array(1<<FN);for(let S=0;S<(1<<FN);S++)V[S]=vOf(raw,S);
+  const phi=new Array(FN).fill(0);
+  for(let i=0;i<FN;i++){const others=[];for(let j=0;j<FN;j++)if(j!==i)others.push(j);
+    for(let mask=0;mask<(1<<(FN-1));mask++){let S=0,sz=0;for(let k=0;k<FN-1;k++)if(mask&(1<<k)){S|=(1<<others[k]);sz++;}
+      phi[i]+=fact(sz)*fact(FN-sz-1)/FACT*(V[S|(1<<i)]-V[S]);}}
+  const base=V[0],full=V[(1<<FN)-1];
+  return{raw,V,phi,base,full};}
+// 全24順列（増分の順番違いの実演用）
+function permAll(){const res=[],p=[];const rec=a=>{if(!a.length){res.push(p.slice());return;}for(let i=0;i<a.length;i++){p.push(a[i]);rec(a.slice(0,i).concat(a.slice(i+1)));p.pop();}};rec([0,1,2,3]);return res;}
+const PERMS=permAll();
+// 素朴帰属：単独効果 v({i})-v(∅)
+function soloEffect(A){return[0,1,2,3].map(i=>A.V[1<<i]-A.V[0]);}
+
+/* ===== 状態 ===== */
+const HERO=[320,6,640,1];
+let A=null;                 // 現在の申込者の分析
+function ensureReady(){if(!trained){genData();trainAll();pickBG(64);}if(!A)A=analyze(HERO);}
+function interactionRatio(){ // 低収入/高収入での借入ペナルティ比
+  const fixTen=8,fixDq=1;
+  const lo=[280,fixTen,700,fixDq],loB=[280,fixTen,200,fixDq];
+  const hi=[700,fixTen,700,fixDq],hiB=[700,fixTen,200,fixDq];
+  const pl=predRaw(loB)-predRaw(lo),ph=predRaw(hiB)-predRaw(hi);
+  return{pl,ph,ratio:pl/Math.max(1e-4,ph)};}
+let globalImp=null;
+function computeGlobal(){const agg=[0,0,0,0];const K=40;const sv=seed;
+  for(let k=0;k<K;k++){const s=analyze(genRaw());for(let i=0;i<FN;i++)agg[i]+=Math.abs(s.phi[i]);}
+  seed=sv;return agg.map(v=>v/K);}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const COL=i=>[getCSS('--warm'),getCSS('--accent'),getCSS('--neg'),getCSS('--upd')][i]; // 特徴の識別色
+function gridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.09)';ctx.beginPath();ctx.moveTo(x+.5,12);ctx.lineTo(x+.5,CH-12);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.09)';ctx.beginPath();ctx.moveTo(12,y+.5);ctx.lineTo(CW-12,y+.5);ctx.stroke();}}
+const fmtV=(raw,i)=>i===0||i===2?Math.round(raw[i])+'':i===1?raw[i].toFixed(0):raw[i]+'';
+const pct=p=>(p*100).toFixed(1)+'%';
+
+// 承認ゲージ（円弧）
+function drawGauge(cx,cy,r,p,label){
+  ctx.lineWidth=9;ctx.strokeStyle='rgba(26,26,23,0.10)';ctx.beginPath();ctx.arc(cx,cy,r,Math.PI*0.75,Math.PI*2.25);ctx.stroke();
+  const col=p>=0.5?getCSS('--accent'):getCSS('--neg');
+  ctx.strokeStyle=col;ctx.beginPath();ctx.arc(cx,cy,r,Math.PI*0.75,Math.PI*0.75+Math.PI*1.5*p);ctx.stroke();
+  ctx.fillStyle=col;ctx.font='700 19px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((p*100).toFixed(0)+'%',cx,cy-2);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText(label||'承認確率',cx,cy+14);
+  ctx.fillStyle=col;ctx.font='700 11px '+getCSS('--gothic');ctx.fillText(p>=0.5?'承認':'却下',cx,cy+r+16);}
+
+// 申込者カード（4特徴）
+function drawApplicantCard(x0,y0,w,raw,hlIdx){
+  const rh=30;
+  for(let i=0;i<FN;i++){const y=y0+i*rh;
+    ctx.save();if(hlIdx!==undefined&&hlIdx!==i)ctx.globalAlpha=0.35;
+    ctx.fillStyle=(hlIdx===i)?'rgba(111,84,196,0.10)':'#fffdf6';ctx.fillRect(x0,y,w,rh-4);
+    ctx.strokeStyle=(hlIdx===i)?getCSS('--upd'):'rgba(26,26,23,0.25)';ctx.lineWidth=hlIdx===i?1.6:1;ctx.strokeRect(x0,y,w,rh-4);
+    ctx.fillStyle=COL(i);ctx.fillRect(x0,y,4,rh-4);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(NAMES[i],x0+12,y+(rh-4)/2);
+    ctx.fillStyle=getCSS('--ink');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='right';
+    ctx.fillText(fmtV(raw,i)+' '+UNITS[i],x0+w-10,y+(rh-4)/2);
+    ctx.restore();}}
+
+// 価値軸（縦・確率0..1）
+const AX={x0:44,x1:344,top:28,bot:288};
+function yP(p){return AX.bot-(AX.bot-AX.top)*Math.max(0,Math.min(1,p));}
+function drawYAxis(title){
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(AX.x0,AX.top-4);ctx.lineTo(AX.x0,AX.bot);ctx.lineTo(AX.x1,AX.bot);ctx.stroke();
+  ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.textBaseline='middle';
+  for(const t of[0,0.25,0.5,0.75,1]){const y=yP(t);ctx.strokeStyle='rgba(26,26,23,0.10)';ctx.beginPath();ctx.moveTo(AX.x0,y);ctx.lineTo(AX.x1,y);ctx.stroke();
+    ctx.fillStyle=getCSS('--faint');ctx.fillText((t*100).toFixed(0),AX.x0-4,y);}
+  if(title){ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(title,AX.x0+2,AX.top-14);}}
+
+// ウォーターフォール（基準→各φ→予測）
+function drawWaterfall(A,upto){upto=upto===undefined?FN:upto;
+  drawYAxis('承認確率（基準 → 各特徴の寄与 → 予測）');
+  const cols=FN+2;const bw=(AX.x1-AX.x0)/cols;const cx=k=>AX.x0+bw*(k+0.5);
+  // 基準バー
+  const drawCol=(k,fromP,toP,col,lbl)=>{const x=cx(k)-bw*0.30,w=bw*0.60;const y1=yP(fromP),y2=yP(toP);
+    ctx.fillStyle=col;ctx.fillRect(x,Math.min(y1,y2),w,Math.abs(y2-y1)+0.5);
+    ctx.strokeStyle='rgba(26,26,23,0.30)';ctx.lineWidth=0.8;ctx.strokeRect(x,Math.min(y1,y2),w,Math.abs(y2-y1)+0.5);};
+  // 基準（E[f]）：0からの棒
+  drawCol(0,0,A.base,'rgba(194,137,27,0.75)');
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('基準',cx(0),AX.bot+12);ctx.fillText('E[f]',cx(0),AX.bot+22);
+  let run=A.base;
+  ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx(0)+bw*0.30,yP(A.base));ctx.lineTo(cx(1)-bw*0.30,yP(A.base));ctx.stroke();ctx.setLineDash([]);
+  for(let i=0;i<FN;i++){const to=run+A.phi[i];
+    if(i<upto){const col=A.phi[i]>=0?'rgba(31,158,138,0.85)':'rgba(207,79,95,0.85)';
+      drawCol(i+1,run,to,col);
+      // 増分ラベル
+      ctx.fillStyle=A.phi[i]>=0?getCSS('--accent'):getCSS('--neg');ctx.font='700 9px '+getCSS('--mono');ctx.textAlign='center';
+      const ly=Math.min(yP(run),yP(to))-5;ctx.fillText((A.phi[i]>=0?'+':'')+A.phi[i].toFixed(2),cx(i+1),ly);
+      // 連結線
+      if(i<FN-1){ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(cx(i+1)+bw*0.30,yP(to));ctx.lineTo(cx(i+2)-bw*0.30,yP(to));ctx.stroke();ctx.setLineDash([]);}
+      run=to;}
+    ctx.fillStyle=COL(i);ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(NAMES[i],cx(i+1),AX.bot+13);}
+  // 予測バー
+  drawCol(FN+1,0,A.full,A.full>=0.5?'rgba(31,158,138,0.55)':'rgba(207,79,95,0.55)');
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('予測',cx(FN+1),AX.bot+13);
+  ctx.fillStyle=A.full>=0.5?getCSS('--accent'):getCSS('--neg');ctx.font='700 10px '+getCSS('--mono');ctx.fillText(pct(A.full),cx(FN+1),yP(A.full)-6);}
+
+// 積み上げ階段パス（1順列）
+function drawPermPath(A,perm,upto,ghost){
+  const cols=FN+1;const bw=(AX.x1-AX.x0)/cols;const cx=k=>AX.x0+bw*(k+0.5);
+  let S=0;const pts=[{k:0,p:A.base}];
+  for(let s=0;s<FN;s++){S|=(1<<perm[s]);pts.push({k:s+1,p:A.V[S]});}
+  ctx.lineWidth=ghost?1:2.4;ctx.strokeStyle=ghost?'rgba(111,84,196,0.18)':getCSS('--upd');
+  ctx.beginPath();
+  const lim=upto===undefined?FN:upto;
+  for(let s=0;s<=lim;s++){const x=cx(pts[s].k),y=yP(pts[s].p);
+    if(s===0)ctx.moveTo(x,y);else{ctx.lineTo(cx(pts[s].k),yP(pts[s-1].p));ctx.lineTo(x,y);}}
+  ctx.stroke();
+  if(ghost)return;
+  // ノード＋増分ラベル
+  for(let s=0;s<=lim;s++){const x=cx(pts[s].k),y=yP(pts[s].p);
+    ctx.fillStyle=s===0?getCSS('--loss'):(s===FN?(A.full>=0.5?getCSS('--accent'):getCSS('--neg')):getCSS('--upd'));
+    ctx.beginPath();ctx.arc(x,y,3.2,0,7);ctx.fill();
+    if(s>0){const f=perm[s-1];const inc=pts[s].p-pts[s-1].p;
+      ctx.fillStyle=COL(f);ctx.font='700 8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(NAMES[f],x,AX.bot+13);
+      ctx.fillStyle=inc>=0?getCSS('--accent'):getCSS('--neg');ctx.font='700 8.5px '+getCSS('--mono');
+      ctx.fillText((inc>=0?'+':'')+inc.toFixed(2),(cx(pts[s-1].k)+x)/2,Math.min(yP(pts[s-1].p),y)-5);}}
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('∅',cx(0),AX.bot+13);}
+
+// 横棒グループ（帰属比較・大域重要度）
+function drawBars(items,y0,h,opt){opt=opt||{};const n=items.length;const bh=h/n;
+  let mx=opt.max||Math.max(...items.map(it=>Math.abs(it.v)),0.01);
+  // 名前は左の固定ゲタ、数値は右端そろえ。棒はその間の帯に描く（負の棒でも名前に被らない）
+  const PL=AX.x0+62,PR=AX.x1-46;               // 棒を描ける帯
+  const zx=opt.signed?(PL+PR)/2:PL;            // 署名付きは中央にゼロ軸
+  const halfMax=opt.signed?Math.min(zx-PL,PR-zx):(PR-PL);
+  for(let i=0;i<n;i++){const y=y0+i*bh+bh*0.2,bw=bh*0.6;const it=items[i];
+    ctx.fillStyle=it.col||COL(i);ctx.fillRect(AX.x0,y,3,bw);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(it.label,AX.x0+8,y+bw/2);
+    const w=halfMax*Math.abs(it.v)/mx;
+    if(opt.signed){const col=it.v>=0?getCSS('--accent'):getCSS('--neg');
+      ctx.fillStyle=col;if(it.v>=0)ctx.fillRect(zx,y,w,bw);else ctx.fillRect(zx-w,y,w,bw);
+      ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText((it.v>=0?'+':'')+it.v.toFixed(3),AX.x1,y+bw/2);}
+    else{ctx.fillStyle=it.col||COL(i);ctx.fillRect(zx,y,w,bw);
+      ctx.fillStyle=getCSS('--muted');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(it.v.toFixed(3),zx+w+5,y+bw/2);}}
+  if(opt.signed){ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(zx,y0);ctx.lineTo(zx,y0+h);ctx.stroke();
+    ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('0',zx,y0-6);}}
+
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(txt,CW/2,y||CH-10);}
+
+// 部分集合（連合）チップ図：present=本人値、absent=背景（灰）
+function drawCoalition(raw,S,y0){
+  const cw=(AX.x1-AX.x0-18)/2,ch=34;
+  for(let i=0;i<FN;i++){const col=i%2,row=Math.floor(i/2);
+    const x=AX.x0+col*(cw+18),y=y0+row*(ch+10);const present=!!(S&(1<<i));
+    ctx.fillStyle=present?'#fffdf6':'#f0eee6';ctx.fillRect(x,y,cw,ch);
+    ctx.strokeStyle=present?COL(i):'rgba(146,143,132,0.7)';ctx.lineWidth=present?1.8:1;
+    if(!present){ctx.setLineDash([4,3]);}ctx.strokeRect(x,y,cw,ch);ctx.setLineDash([]);
+    ctx.fillStyle=present?getCSS('--text'):getCSS('--faint');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(NAMES[i],x+9,y+ch/2-6);
+    ctx.font='700 12px '+getCSS('--mono');ctx.fillStyle=present?COL(i):getCSS('--faint');
+    ctx.fillText(present?(fmtV(raw,i)+' '+UNITS[i]):'背景平均',x+9,y+ch/2+9);}}
+
+/* ===== 章とスライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 山分けの理屈',c:'var(--upd)',start:2},{t:'Ⅲ ライブ分解',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0,permIdx=0,stackStep=0;
+const HEROPERM=[[2,0,1,3],[0,1,3,2]]; // A:借入が最初 / B:借入が最後
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'この人はなぜ落ちた?',legend:'融資審査AI（小NN）が申込者を審査。この人は却下された',
+ html(){ensureReady();const H=analyze(HERO);
+   return'<h3>この人はなぜ落ちた?</h3><div class="eq curr"><i>f</i>(年収, 勤続, 借入, 延滞) → 承認確率 = <b>'+pct(H.full)+'</b> → 却下<span class="read">読み：4 つの特徴を受け取って承認確率を返す関数 <i>f</i>（中身は小さなニューラルネット）。この申込者の出力は '+pct(H.full)+' ＝ しきい値 50% を下回り却下</span></div><div class="desc">おもちゃの融資審査 AI を考えます。入力は<b>年収 320 万円・勤続 6 年・借入 640 万円・延滞 1 回</b>。モデルの答えは承認確率 <b>'+pct(H.full)+'</b>——<b>却下</b>です。でも申込者は当然「<b>なぜ?</b>」と聞きます。年収? 借入? どれがどれだけ効いたのか——それを<b>1 特徴ずつの数字に分解</b>したい。これが今日の問題です。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);drawApplicantCard(70,40,220,H.raw);drawGauge(CW/2,250,54,H.full,'モデルの承認確率');caption('入力4つ → 却下。内訳を知りたい',CH-10);}},
+{title:'素朴な答えは合わない',legend:'橙=「その特徴だけ動かした効果」。足しても予測にならない',
+ html(){ensureReady();const H=analyze(HERO);const solo=soloEffect(H);const ssum=solo.reduce((a,b)=>a+b,0);const tot=H.full-H.base;
+   return'<h3>素朴な答えは合わない</h3><div class="eq curr">Σ（単独効果） = '+ssum.toFixed(3)+'　≠　<i>f</i>(x) − E[<i>f</i>] = '+tot.toFixed(3)+'<span class="read">読み：各特徴を<b>1 つだけ</b>基準から動かした効果（単独効果）を足しても、実際の予測の動き（予測−基準）に届かない。差 '+(ssum-tot).toFixed(3)+' が宙に浮く</span></div><div class="desc">まず思いつくのは「<b>その特徴だけ動かしたら予測がどう動くか</b>」。でも下のように、単独効果を<b>全部足しても本当の予測にならない</b>（合計 '+ssum.toFixed(2)+' vs 実際 '+tot.toFixed(2)+'）。理由は<b>相互作用</b>——「低収入」と「高借入」は<b>組み合わさって</b>効くので、別々に測ると取りこぼす。素朴な「重み×値」帰属も同じ罠にはまります。<b>公平に配り切る</b>ルールが要る。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);const solo=soloEffect(H);const tot=H.full-H.base;
+   const items=solo.map((v,i)=>({label:NAMES[i],v,col:COL(i)}));
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('各特徴の「単独効果」 v({i}) − v(∅)',AX.x0,30);
+   drawBars(items,44,150,{signed:true,max:0.42});
+   // 合計 vs 実際
+   const y0=220;ctx.fillStyle='rgba(255,253,246,0.95)';ctx.fillRect(AX.x0,y0,AX.x1-AX.x0,120);ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.strokeRect(AX.x0,y0,AX.x1-AX.x0,120);
+   const ss=solo.reduce((a,b)=>a+b,0);
+   ctx.textAlign='left';ctx.font='700 11px '+getCSS('--mono');
+   ctx.fillStyle=getCSS('--loss');ctx.fillText('単独効果の合計',AX.x0+14,y0+26);ctx.textAlign='right';ctx.fillStyle=getCSS('--text');ctx.fillText(ss.toFixed(3),AX.x1-14,y0+26);
+   ctx.textAlign='left';ctx.fillStyle=getCSS('--upd');ctx.fillText('実際の予測−基準',AX.x0+14,y0+52);ctx.textAlign='right';ctx.fillStyle=getCSS('--text');ctx.fillText(tot.toFixed(3),AX.x1-14,y0+52);
+   ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.beginPath();ctx.moveTo(AX.x0+14,y0+66);ctx.lineTo(AX.x1-14,y0+66);ctx.stroke();
+   ctx.textAlign='left';ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('取りこぼし（相互作用）',AX.x0+14,y0+90);ctx.textAlign='right';ctx.fillText((ss-tot).toFixed(3),AX.x1-14,y0+90);
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('別々に測ると合計が合わない → 公平な配り方が要る',CW/2,y0+112);}},
+// ---- Ⅱ 山分けの理屈 ----
+{title:'予測を「山分け」の問題に',legend:'特徴＝プレイヤー、予測＝みんなで作った価値、基準＝誰もいない状態',
+ html(){ensureReady();const H=analyze(HERO);
+   return'<h3>予測を「山分け」の問題に</h3><div class="eq curr">誰もいない： E[<i>f</i>] = '+pct(H.base)+'　→　全員そろう： <i>f</i>(x) = '+pct(H.full)+'<span class="read">読み：E[<i>f</i>]＝どの特徴も分からない時の平均的な承認確率（＝基準）。そこから 4 特徴が加わって最終予測へ。この「差」を 4 人で分けたい</span></div><div class="desc">発想を変えます。<b>4 つの特徴を、協力して価値（予測）を作るプレイヤー</b>とみなす。誰もいなければ承認確率は平均の <b>'+pct(H.base)+'</b>（基準 E[<i>f</i>]）。全員そろうと <b>'+pct(H.full)+'</b>。この<b>差 '+(H.full-H.base).toFixed(2)+' を、貢献に応じて 4 人で公平に山分け</b>する——それが協力ゲーム理論の <b>Shapley 値</b>の考え方です。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);const gy=104;
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('誰もいない（基準）',96,44);ctx.fillText('全員そろう',CW-96,44);
+   drawGauge(96,gy,38,H.base,'E[f]');drawGauge(CW-96,gy,38,H.full,'f(x)');
+   ctx.strokeStyle='rgba(26,26,23,0.45)';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(142,gy);ctx.lineTo(CW-142,gy);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(CW-142,gy);ctx.lineTo(CW-150,gy-5);ctx.lineTo(CW-150,gy+5);ctx.closePath();ctx.fillStyle='rgba(26,26,23,0.45)';ctx.fill();
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('4特徴が加わる',CW/2,gy-8);
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.fillText('差 '+(H.full-H.base).toFixed(2)+' を山分け',CW/2,gy+16);
+   // プレイヤー
+   ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';
+   for(let i=0;i<FN;i++){const x=AX.x0+((AX.x1-AX.x0)/4)*(i+0.5);ctx.fillStyle=COL(i);ctx.beginPath();ctx.arc(x,225,17,0,7);ctx.fill();
+     ctx.fillStyle='#fff';ctx.textBaseline='middle';ctx.fillText(NAMES[i],x,226);ctx.textBaseline='alphabetic';}
+   caption('特徴＝協力してひとつの予測を作るプレイヤー',272);}},
+{title:'貢献＝加わった瞬間の増分',legend:'欠けた特徴は「背景データの値」で埋める（介入的期待値）',
+ html(){ensureReady();
+   return'<h3>貢献＝加わった瞬間の増分</h3><div class="eq curr"><i>v</i>(S) = 平均<sub>背景 b</sub> <i>f</i>( S は本人の値, 残りは b )　／　増分 = <i>v</i>(S∪{i}) − <i>v</i>(S)<span class="read">読み：<i>v</i>(S)＝「集合 S の特徴だけ本人の値を入れ、<b>欠けた特徴は背景データ b の値で埋めた</b>」ときの予測の平均。特徴 i の貢献＝ i が加わって増えた分</span></div><div class="desc">「貢献」をこう定めます：特徴の集合 S があるとき、<b>S は本人の値・残りは背景データ（他の申込者たち）の値で埋めて</b>予測を出す——これが <i>v</i>(S)。特徴 i が加わったときの増分 <b><i>v</i>(S∪{i}) − <i>v</i>(S)</b> が「i の手柄」。欠けた特徴を消すのではなく<b>平均的な人の値で代用</b>するのがミソ（介入的期待値）。下は「年収だけ本人・残りは背景」の例。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);const S=1<<0; // 年収だけ present
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('連合 S = {年収}（年収だけ本人・残りは背景）',AX.x0,28);
+   drawCoalition(H.raw,S,44);
+   // v(S) と v(S∪借入) の値バー（ラベル左・数値は棒の右）
+   const vS=H.V[S],vSi=H.V[S|(1<<2)];
+   const bx=AX.x0+96,bw=AX.x1-bx-6,by=196,bh=22,gap=40;
+   const drawVBar=(y,frac,col,name)=>{ctx.fillStyle='rgba(26,26,23,0.08)';ctx.fillRect(bx,y,bw,bh);
+     ctx.fillStyle=col;ctx.fillRect(bx,y,bw*frac,bh);
+     ctx.fillStyle=getCSS('--muted');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(name,bx-8,y+bh/2);
+     ctx.fillStyle=getCSS('--ink');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(pct(frac),bx+bw*frac+6,y+bh/2);};
+   drawVBar(by,vS,'rgba(194,137,27,0.75)','v(S)');
+   drawVBar(by+gap,vSi,'rgba(207,79,95,0.75)','v(S∪借入)');
+   // 増分（2本の棒先の差）を矢印で示す
+   const xa=bx+bw*vS,xb=bx+bw*vSi;
+   ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.2;ctx.setLineDash([3,2]);
+   ctx.beginPath();ctx.moveTo(xa,by);ctx.lineTo(xa,by+gap+bh);ctx.stroke();ctx.setLineDash([]);
+   ctx.beginPath();ctx.moveTo(xa,by+gap-8);ctx.lineTo(xb,by+gap-8);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(xb,by+gap-8);ctx.lineTo(xb+7,by+gap-11);ctx.lineTo(xb+7,by+gap-5);ctx.closePath();ctx.fillStyle=getCSS('--neg');ctx.fill();
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('借入を加えた増分 = '+(vSi-vS).toFixed(3),CW/2,by+gap+bh+26);
+   caption('欠けた特徴は背景平均で周辺化 → 増分が貢献',CH-10);}},
+{title:'順番で貢献が変わる',legend:'同じ「借入」でも、先に入るか後に入るかで増分が違う',
+ html(){ensureReady();const H=analyze(HERO);const full=(1<<FN)-1;
+   const first=H.V[1<<2]-H.V[0];const last=H.V[full]-H.V[full^(1<<2)];
+   return'<h3>順番で貢献が変わる</h3><div class="eq curr">借入が最初： '+first.toFixed(3)+'　⇔　借入が最後： '+last.toFixed(3)+'<span class="read">読み：同じ「借入 640 万円」でも、<b>年収などが先に入っているか</b>で下げ幅が変わる。低収入がすでに効いていると、借入の毒はさらに強くなる（相互作用）</span></div><div class="desc">ここが核心です。<b>同じ特徴でも、加わる順番で貢献が変わる</b>。上：借入を<b>一番先</b>に入れると増分 <b>'+first.toFixed(3)+'</b>。下：<b>一番後</b>（年収・勤続・延滞の後）に入れると <b>'+last.toFixed(3)+'</b>。低収入がすでに効いている状態で借入が加わると、<b>相互作用でさらに大きく下がる</b>。どちらか一方を「借入の貢献」と呼ぶのは不公平——だから<b>全ての順番を試して平均</b>します。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);
+   drawYAxis('承認確率');drawPermPath(H,HEROPERM[0]);
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='left';
+   ctx.fillText('A：借入が最初に加わる順',AX.x0+2,AX.top-2);
+   caption('借入の一歩（'+NAMES[2]+'）の下げ幅に注目 → 順番Bと比べる',CH-10);},
+ permB:true},
+{title:'だから全順番を平均：Shapley値',legend:'24通りの順番それぞれの増分を平均＝公平な取り分',
+ html(){
+   return'<h3>だから全順番を平均：Shapley値</h3><div class="eq curr">φ<sub>i</sub> = <span class="frac"><span class="n">1</span><span class="d">d!</span></span> Σ<sub>順番 π</sub> [ <i>v</i>(π までの前 + i) − <i>v</i>(π までの前) ]<span class="read">読み：特徴 i の Shapley 値 φ<sub>i</sub>＝<b>あらゆる並び順 π（全 d! 通り）</b>で「i が加わった瞬間の増分」を求め、その<b>平均</b>を取る。d=4 なら 24 通り</span></div><div class="desc"><b>特徴が加わる順番を全部（4 個なら 24 通り）試し、それぞれで増分を計算して平均</b>する——これが特徴 i の <b>Shapley 値 φ<sub>i</sub></b>。順番によって増分が変わっても、<b>全部ならせば</b>「i が単独でどうか」でも「i が最後の一押しか」でもない、<b>釣り合いの取れた 1 つの数字</b>になります。実装では同じ増分がまとめられ、<b>16 個の部分集合の重み付き和</b>で厳密に計算できます（下の階段の平均）。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);drawYAxis('承認確率（24順列の階段を重ねる）');
+   const show=window.__prefersReducedMotion?PERMS.length:Math.min(PERMS.length,Math.floor(animT*PERMS.length)+1);
+   for(let k=0;k<show;k++)drawPermPath(H,PERMS[k],undefined,true);
+   drawPermPath(H,HEROPERM[0]); // 代表を1本濃く
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText(show+' / 24 順列',AX.x1,AX.top-2);
+   caption('全順列の増分を平均 → 各特徴の Shapley 値',CH-10);},
+ anim:'perms'},
+{title:'公平さの3つの約束',legend:'効率性・対称性・ゼロ貢献。Shapleyはこれを全部満たす唯一の配り方',
+ html(){ensureReady();const H=analyze(HERO);const sum=H.phi.reduce((a,b)=>a+b,0);const err=Math.abs(sum-(H.full-H.base));
+   return'<h3>公平さの3つの約束</h3><div class="eq curr">Σ<sub>i</sub> φ<sub>i</sub> = <i>f</i>(x) − E[<i>f</i>]　（加法性＝配り残しゼロ）<span class="read">読み：全特徴の Shapley 値を足すと、ちょうど「予測 − 基準」に一致する。今日の実測誤差 '+err.toExponential(1)+' ＝ 実質ゼロ</span></div><div class="desc">Shapley 値は次の 3 つを<b>すべて満たす唯一の配り方</b>だと数学的に証明されています。<b>①効率性（加法性）</b>：寄与の総和＝予測−基準ぴったり（配り残しなし）。<b>②対称性</b>：全く同じ働きをする 2 特徴は同じ取り分。<b>③ゼロ貢献</b>：予測を 1 ミリも動かさない特徴の取り分は 0。この 3 つ（＋線形性）が「公平」の定義で、答えが Shapley 値に一意に決まります。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);const y=44,gap=118;
+   const box=(y0,head,col,body)=>{ctx.fillStyle='rgba(255,253,246,0.9)';ctx.fillRect(AX.x0,y0,AX.x1-AX.x0,gap-14);ctx.strokeStyle=col;ctx.lineWidth=1.4;ctx.strokeRect(AX.x0,y0,AX.x1-AX.x0,gap-14);
+     ctx.fillStyle=col;ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(head,AX.x0+12,y0+10);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(body,AX.x0+12,y0+30);};
+   box(y,'① 効率性（加法性）',getCSS('--accent'),'寄与の総和 = 予測 − 基準');
+   const sum=H.phi.reduce((a,b)=>a+b,0);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--mono');ctx.fillText('Σφ='+sum.toFixed(3)+' , f−E[f]='+(H.full-H.base).toFixed(3),AX.x0+12,y+52);
+   box(y+gap,'② 対称性',getCSS('--upd'),'同じ働きの特徴は同じ取り分');
+   box(y+2*gap,'③ ゼロ貢献（null player）',getCSS('--warm'),'予測を動かさない特徴の取り分は 0');
+   ctx.textBaseline='alphabetic';caption('この3つを満たす配り方は Shapley 値ただ1つ',CH-10);}},
+// ---- Ⅲ ライブ分解 ----
+{title:'ライブ学習：審査モデルを育てる',legend:'小NN（4→10→6→1）を実学習。相互作用「低収入×高借入」を確認',
+ html(){ensureReady();const ir=interactionRatio();const H=analyze(HERO);
+   return'<h3>ライブ学習：審査モデルを育てる</h3><div class="eq curr">損失 = 交差エントロピー( NN の承認確率, 実際の可否 ) → 最小化（Adam）<span class="read">読み：申込者 '+NTRAIN+' 人分の「可否」を小 NN に当てさせ、外れ具合（交差エントロピー）を Adam で最小化。'+ITER+' 反復でこの場で学習</span></div><div class="desc">説明する相手＝<b>審査モデル本体</b>を、いまこの場で実学習します（4→10→6→1 の小 NN、'+ITER+' 反復）。わざと<b>相互作用</b>を仕込んであります：<b>低収入のとき借入が増えると承認が急落</b>するが、高収入なら借入が増えても平気。実測で下げ幅は<b>低収入 '+ir.pl.toFixed(2)+' 対 高収入 '+ir.ph.toFixed(2)+'（約 '+ir.ratio.toFixed(0)+' 倍）</b>。この相互作用があるから Shapley 値が要るのです。</div>';},
+ draw(){ensureReady();
+   // loss曲線（縦軸=損失、下ほど小さい）
+   const y0=44,h=150,x0=AX.x0,w=AX.x1-AX.x0;
+   ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('学習損失（交差エントロピー）',x0+6,y0-6);
+   const show=window.__prefersReducedMotion?lossHist.length:Math.max(2,Math.floor(animT*lossHist.length)+1);
+   const mx=Math.max(...lossHist);
+   ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.8;ctx.beginPath();
+   for(let i=0;i<show;i++){const X=x0+5+(w-10)*i/(lossHist.length-1),Yv=y0+h-7-(h-14)*(lossHist[i]/mx);i?ctx.lineTo(X,Yv):ctx.moveTo(X,Yv);}
+   ctx.stroke();
+   ctx.fillStyle=getCSS('--loss');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';
+   if(show>1)ctx.fillText('loss '+lossHist[Math.min(show,lossHist.length)-1].toFixed(3),x0+w-6,y0+h-10);
+   ctx.fillStyle=getCSS('--faint');ctx.textAlign='left';ctx.fillText('↓ 反復とともに減少',x0+6,y0+h-10);
+   // 相互作用の棒
+   const ir=interactionRatio();const iy=y0+h+30;
+   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('借入を増やしたときの承認低下',x0,iy-8);
+   const bw2=w-120;
+   ctx.fillStyle=getCSS('--neg');ctx.fillRect(x0+120,iy,bw2*Math.min(1,ir.pl),16);
+   ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('低収入の人',x0+114,iy+12);
+   ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font='700 9px '+getCSS('--mono');ctx.fillText('−'+ir.pl.toFixed(2),x0+126,iy+12);
+   ctx.fillStyle=getCSS('--accent');ctx.fillRect(x0+120,iy+24,bw2*Math.min(1,ir.ph),16);
+   ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('高収入の人',x0+114,iy+36);
+   ctx.textAlign='left';ctx.fillStyle=getCSS('--accent');ctx.font='700 9px '+getCSS('--mono');ctx.fillText('−'+ir.ph.toFixed(2),x0+126+bw2*Math.min(1,ir.ph)+4,iy+36);
+   caption('約 '+ir.ratio.toFixed(0)+' 倍の差 ＝ 相互作用が確かにある',CH-10);},
+ anim:'loss'},
+{title:'1人を分解：積み上げアニメ',legend:'基準E[f]から特徴が1つずつ加わり、予測まで階段で上り下り',
+ html(){ensureReady();const H=analyze(HERO);
+   return'<h3>1人を分解：積み上げアニメ</h3><div class="eq curr">E[<i>f</i>] = '+pct(H.base)+'　→（順に加える）→　<i>f</i>(x) = '+pct(H.full)+'<span class="read">読み：ある順番で特徴を 1 つずつ加えると、承認確率が基準 '+pct(H.base)+' から最終 '+pct(H.full)+' へ階段状に動く。各段の高さがその特徴の増分</span></div><div class="desc">実際に分解してみましょう。<b>基準 E[<i>f</i>] '+pct(H.base)+' から出発</b>し、この申込者の特徴を 1 つずつ加えます。年収が入ると大きく下がり、勤続で少し戻り…と<b>階段状</b>に動いて、最後は却下水準の <b>'+pct(H.full)+'</b>。これは<b>1 つの順番</b>での分解。順番を変えると各段の高さは変わりますが、<b>出発点と到着点は必ず同じ</b>。だから平均が意味を持ちます。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);drawYAxis('承認確率');
+   const upto=window.__prefersReducedMotion?FN:stackStep;drawPermPath(H,[0,1,2,3],upto);
+   caption('順番 [年収→勤続→借入→延滞] の1本。各段＝増分',CH-10);},
+ anim:'stack'},
+{title:'ウォーターフォール図',legend:'基準から各特徴の寄与を積み、最終予測へ。加法性を実数で確認',
+ html(){ensureReady();const H=analyze(HERO);const sum=H.phi.reduce((a,b)=>a+b,0);const err=Math.abs(sum-(H.full-H.base));
+   const parts=H.phi.map((v,i)=>NAMES[i]+' '+(v>=0?'+':'')+v.toFixed(2)).join('、');
+   return'<h3>ウォーターフォール図</h3><div class="eq curr">'+pct(H.base)+' '+H.phi.map((v,i)=>(v>=0?'+':'−')+Math.abs(v).toFixed(2)).join(' ')+' = '+pct(H.full)+'<span class="read">読み：基準 '+pct(H.base)+' に 4 つの Shapley 値（'+parts+'）を足すと、ちょうど最終予測 '+pct(H.full)+' になる</span></div><div class="desc">Shapley 値を積み上げたのが<b>ウォーターフォール図</b>——SHAP の定番の見せ方です。基準 <b>'+pct(H.base)+'</b> から、<b>年収が大きく下げ（'+H.phi[0].toFixed(2)+'）、借入も下げ（'+H.phi[2].toFixed(2)+'）、延滞が少し下げ、勤続がわずかに上げ</b>、最終 <b>'+pct(H.full)+'</b> へ。この人の却下は<b>年収と借入がほぼ二枚看板</b>。しかも<b>加法性が成立</b>：4 つの寄与の和は予測−基準に一致（誤差 <b>'+err.toExponential(1)+'</b>＝実質ゼロ）。配り残しがありません。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);drawWaterfall(H);
+   caption('年収と借入が二枚看板。寄与の和 = 予測−基準（配り残しゼロ）',CH-10);}},
+{title:'素朴帰属 vs Shapley',legend:'左=単独効果（合わない）／右=Shapley（公平に配り切る）',
+ html(){ensureReady();const H=analyze(HERO);const solo=soloEffect(H);const ss=solo.reduce((a,b)=>a+b,0),sp=H.phi.reduce((a,b)=>a+b,0);const tot=H.full-H.base;
+   return'<h3>素朴帰属 vs Shapley</h3><div class="eq curr">単独効果の和 '+ss.toFixed(3)+'（≠'+tot.toFixed(3)+'）　vs　Shapley の和 '+sp.toFixed(3)+'（＝'+tot.toFixed(3)+'）<span class="read">読み：素朴な単独効果は足しても予測に届かない。Shapley は<b>ちょうど届く</b>——相互作用の分まで公平に配り込むから</span></div><div class="desc">A/B で並べます。<b>左＝単独効果</b>（その特徴だけ動かす）は、相互作用の分を取りこぼし<b>合計が予測に届きません</b>（'+ss.toFixed(2)+' ≠ '+tot.toFixed(2)+'）。<b>右＝Shapley 値</b>は、順番を全部ならすことで<b>相互作用の取り分も各特徴に配り込み</b>、合計がぴったり予測−基準になります。特に<b>借入</b>は単独効果 '+solo[2].toFixed(2)+' より Shapley '+H.phi[2].toFixed(2)+' の方が大きく効いている——低収入との相互作用が借入側に上乗せされたためです。</div>';},
+ draw(){ensureReady();const H=analyze(HERO);const solo=soloEffect(H);
+   ctx.fillStyle=getCSS('--loss');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('単独効果 v({i})−v(∅)',AX.x0,26);
+   drawBars(solo.map((v,i)=>({label:NAMES[i],v,col:COL(i)})),36,150,{signed:true,max:0.42});
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('Shapley 値 φ',AX.x0,224);
+   drawBars(H.phi.map((v,i)=>({label:NAMES[i],v,col:COL(i)})),234,150,{signed:true,max:0.42});
+   caption('Shapleyは相互作用ぶんを配り込む → 和が予測に一致',CH-10);}},
+{title:'同じ特徴でも人により寄与は違う',legend:'🎲で別の申込者。承認された人では年収が＋に働くことも',
+ html(){ensureReady();const H=A;const verdict=H.full>=0.5?'承認':'却下';
+   const top=H.phi.map((v,i)=>({i,v})).sort((a,b)=>Math.abs(b.v)-Math.abs(a.v))[0];
+   return'<h3>同じ特徴でも人により寄与は違う</h3><div class="eq curr">申込者：'+NAMES.map((n,i)=>n+' '+fmtV(H.raw,i)+UNITS[i]).join('、')+' → '+pct(H.full)+'（'+verdict+'）<span class="read">読み：この申込者の最大要因は「<b>'+NAMES[top.i]+'</b>」（φ='+top.v.toFixed(2)+'）。人が変われば効く特徴も符号も変わる</span></div><div class="desc"><b>Shapley 値は「その人の」説明</b>です。「🎲 別の申込者」を押すと、毎回ちがう人の分解になります。<b>年収が高い人では年収が＋（承認を押し上げ）、低い人では −</b>——<b>同じ特徴でも人によって寄与の大きさも符号も変わる</b>。全体で 1 つの重要度ではなく、<b>個別の判断ごとに根拠を出せる</b>のが SHAP の強み。この人の最大要因は <b>'+NAMES[top.i]+'</b>（φ='+top.v.toFixed(2)+'）です。</div>';},
+ draw(){ensureReady();const H=A;drawWaterfall(H);
+   caption('🎲 で別の人。承認/却下も要因も入れ替わる',CH-10);},
+ dice:true},
+// ---- Ⅳ まとめ ----
+{title:'大域の重要度＝|φ|の平均',legend:'申込者40人ぶんの|Shapley値|を平均。全体では何が効くか',
+ html(){ensureReady();if(!globalImp)globalImp=computeGlobal();
+   const order=globalImp.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v);
+   return'<h3>大域の重要度＝|φ|の平均</h3><div class="eq curr">大域重要度<sub>i</sub> = 平均<sub>申込者</sub> | φ<sub>i</sub> |<span class="read">読み：たくさんの申込者について Shapley 値の<b>絶対値</b>を平均すると、「全体としてどの特徴がよく効くか」が分かる（＝SHAP の特徴重要度）</span></div><div class="desc">個別の説明を<b>大勢ぶん集めれば</b>、モデル全体の特徴重要度になります。申込者 40 人の <b>|φ<sub>i</sub>| を平均</b>すると、この審査モデルでは <b>'+NAMES[order[0].i]+'</b>（'+order[0].v.toFixed(3)+'）と <b>'+NAMES[order[1].i]+'</b>（'+order[1].v.toFixed(3)+'）が二大要因、'+NAMES[order[2].i]+'・'+NAMES[order[3].i]+' は脇役。<b>符号を絶対値で潰す</b>のは「上げ・下げどちらでも“効いている”ことに変わりない」からです。ローカル（個人）とグローバル（全体）を同じ物差しで語れる——これも SHAP の利点。</div>';},
+ draw(){ensureReady();if(!globalImp)globalImp=computeGlobal();
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('平均 |Shapley値|（申込者40人）',AX.x0,30);
+   const order=globalImp.map((v,i)=>({label:NAMES[i],v,col:COL(i)})).sort((a,b)=>b.v-a.v);
+   drawBars(order,60,200,{max:Math.max(...globalImp)*1.1});
+   caption('個別の説明を集めると全体の特徴重要度に',CH-40);}},
+{title:'限界と、どこで出会うか',legend:'計算量2^d・相関の罠・因果ではない。実務はKernel/TreeSHAP',
+ html(){
+   return'<h3>限界と、どこで出会うか</h3><div class="eq curr">部分集合の数 = 2<sup>d</sup>　（d=4 → 16、d=20 → 約100万、d=40 → 兆を超える）<span class="read">読み：特徴数 d が増えると全列挙は<b>指数的に爆発</b>する。だから実務は近似（KernelSHAP）や木専用の高速厳密法（TreeSHAP）を使う</span></div><div class="desc">最後に注意点を。<b>①計算量</b>：厳密計算は特徴数 <i>d</i> に対して 2<sup>d</sup> 通り——今日は 4 個で 16 でしたが、数十個で破綻します。実務は <b>KernelSHAP</b>（サンプリング近似）や <b>TreeSHAP</b>（木モデルを多項式時間で厳密計算）を使う。<b>②相関の罠</b>：特徴どうしが相関すると「背景で埋める」やり方（介入的）が非現実的な組み合わせを作り、値が歪むことがある。<b>③因果ではない</b>：φ が負でも「その特徴を実際に減らせば承認される」とは限らない——あくまで<b>モデルの内訳</b>。それでも、<b>与信の説明責任・医療診断の根拠・モデルのデバッグ</b>（効き過ぎ特徴やショートカットの発見）で、SHAP は今もっとも使われる説明手法です。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・貢献＝加わった瞬間の増分。順番で変わるから<b>全順列を平均</b>＝Shapley 値<br>・基準 E[f] からの寄与を<b>配り残しゼロ</b>で山分け（加法性）<br>・厳密は 2<sup>d</sup>。実務は Kernel/TreeSHAP。<b>帰属 ≠ 因果</b>、背景の取り方で変わる</div>';},
+ draw(){ensureReady();const H=analyze(HERO);drawWaterfall(H);
+   caption('公平な山分けで「なぜ却下か」を数字にできた 🎓',CH-10);}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;ensureReady();const H=(s===11)?A:analyze(HERO);
+  if(s===0){m.innerHTML='<div>特徴 <b>4</b> 個</div><div class="best">承認確率 <b>'+pct(H.full)+'</b> → 却下</div>';}
+  else if(s===1){const solo=soloEffect(H);m.innerHTML='<div>単独効果の和 <b>'+solo.reduce((a,b)=>a+b,0).toFixed(2)+'</b></div><div>実際 <b>'+(H.full-H.base).toFixed(2)+'</b></div>';}
+  else if(s===2){m.innerHTML='<div>基準 E[f] <b>'+pct(H.base)+'</b></div><div>予測 f(x) <b>'+pct(H.full)+'</b></div>';}
+  else if(s===3){m.innerHTML='<div>背景データ <b>64</b> 人</div><div>部分集合 <b>2⁴=16</b> 通り</div>';}
+  else if(s===4){const full=(1<<FN)-1;m.innerHTML='<div>借入 最初 <b>'+(H.V[1<<2]-H.V[0]).toFixed(2)+'</b></div><div>借入 最後 <b>'+(H.V[full]-H.V[full^(1<<2)]).toFixed(2)+'</b></div>';}
+  else if(s===5){m.innerHTML='<div>順列 <b>4! = 24</b> 通り</div><div class="best">平均が <b>Shapley 値</b></div>';}
+  else if(s===6){const sum=H.phi.reduce((a,b)=>a+b,0);m.innerHTML='<div>Σφ <b>'+sum.toFixed(3)+'</b></div><div>f−E[f] <b>'+(H.full-H.base).toFixed(3)+'</b></div>';}
+  else if(s===7){const ir=interactionRatio();m.innerHTML='<div>学習 <b>'+ITER+'</b> 反復</div><div class="best">相互作用 <b>約'+ir.ratio.toFixed(0)+'倍</b></div>';}
+  else if(s===8){m.innerHTML='<div>基準 <b>'+pct(H.base)+'</b></div><div>→ 予測 <b>'+pct(H.full)+'</b></div>';}
+  else if(s===9){const err=Math.abs(H.phi.reduce((a,b)=>a+b,0)-(H.full-H.base));m.innerHTML='<div class="best">加法性誤差 <b>'+err.toExponential(0)+'</b></div><div>年収 <b>'+H.phi[0].toFixed(2)+'</b>／借入 <b>'+H.phi[2].toFixed(2)+'</b></div>';}
+  else if(s===10){const solo=soloEffect(H);m.innerHTML='<div>単独和 <b>'+solo.reduce((a,b)=>a+b,0).toFixed(2)+'</b>（≠）</div><div class="best">Σφ <b>'+H.phi.reduce((a,b)=>a+b,0).toFixed(2)+'</b>（＝f−E[f]）</div>';}
+  else if(s===11){const verdict=H.full>=0.5?'承認':'却下';m.innerHTML='<div>この人 <b>'+pct(H.full)+'</b>（'+verdict+'）</div><div>最大要因 <b>'+NAMES[H.phi.map((v,i)=>({i,v})).sort((a,b)=>Math.abs(b.v)-Math.abs(a.v))[0].i]+'</b></div>';}
+  else if(s===12){if(!globalImp)globalImp=computeGlobal();const o=globalImp.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v);m.innerHTML='<div class="best">最重要 <b>'+NAMES[o[0].i]+'</b></div><div>2位 <b>'+NAMES[o[1].i]+'</b></div>';}
+  else{m.innerHTML='<div>厳密 <b>2ᵈ</b> 通り</div><div class="best">実務 <b>Kernel/TreeSHAP</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);gridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;ensureReady();
+  const sp=SLIDES[i];
+  if(sp.anim==='perms')runPerms();
+  else if(sp.anim==='loss')runLoss();
+  else if(sp.anim==='stack')runStack();
+  else if(sp.permB)runPermAB();
+  renderAll();draw_();}
+function runPerms(){anim=true;animT=0;if(window.__prefersReducedMotion){anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||SLIDES[slideIdx].anim!=='perms')return;if(t0===null)t0=ts;animT=Math.min(1,(ts-t0)/2600);draw_();if(animT<1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+function runLoss(){anim=true;animT=0;if(window.__prefersReducedMotion){anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||SLIDES[slideIdx].anim!=='loss')return;if(t0===null)t0=ts;animT=Math.min(1,(ts-t0)/2000);draw_();if(animT<1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+function runStack(){anim=true;stackStep=0;if(window.__prefersReducedMotion){stackStep=FN;anim=false;draw_();return;}
+  function go(){if(!anim||SLIDES[slideIdx].anim!=='stack')return;stackStep++;draw_();renderMini();if(stackStep<FN)setTimeout(go,620);else anim=false;}
+  setTimeout(go,400);}
+function runPermAB(){anim=true;let which=0;if(window.__prefersReducedMotion){anim=false;draw_();return;}
+  function go(){if(!anim||!SLIDES[slideIdx].permB)return;which^=1;ensureReady();const H=analyze(HERO);
+    ctx.clearRect(0,0,CW,CH);gridBg();drawYAxis('承認確率');drawPermPath(H,HEROPERM[which]);
+    ctx.fillStyle=getCSS('--upd');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='left';
+    ctx.fillText(which?'B：借入が最後に加わる順':'A：借入が最初に加わる順',AX.x0+2,AX.top-2);
+    caption('借入（'+NAMES[2]+'）の下げ幅が A と B で変わる',CH-10);
+    setTimeout(go,2100);}
+  setTimeout(go,1400);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;if(anim){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,3600);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=20260710;trained=false;A=null;globalImp=null;lossHist=[];slideIdx=0;ensureReady();renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{ensureReady();A=analyze(genRaw());renderMini();renderExplain();draw_();};
+ensureReady();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
