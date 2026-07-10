@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多腕バンディット — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>多腕バンディット — 探索と活用のジレンマ</h1>
+  <div class="lead">当たり率の分からない<b>5 台のスロット</b>を前に、限られた回数で「試して確かめる（探索）」と「今ベストで稼ぐ（活用）」をどう配分するか。<b>ε-greedy / UCB / Thompson</b> を本当に実走し、<b>regret（機会損失＝最良を引き続けた場合との差）</b>の伸び方を比べます。これは<a href="qlearning.html">Q学習</a>など強化学習の最小形であり、<a href="surrogate.html">ベイズ最適化</a>の獲得関数の親でもあります。「次へ ▶」で進めてください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>正解を教えられず<b>試した結果しか分からない</b>世界での意思決定を、最小構成で学ぶ。強化学習・A/Bテストの共通の芯。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>未知の選択肢を、<b>探索（情報を稼ぐ）と活用（今ベストで稼ぐ）</b>のバランスで選び続けるしくみ。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>A/Bテスト・広告配信・推薦の初期・臨床試験の割付・ゲームAIの探索。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 当たり率を引き直す</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>探索とは<b>「今の損」で「未来の後悔」を買う投資</b>だ。regret 曲線の傾きが寝ていく（対数）とは、序盤に払った探索コストが、本命を引き当てる残りずっとの回で回収されていくこと——<b>欲張りは投資を惜しみ、直線的に後悔を払い続ける</b>。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span><span>ε（寄り道の確率）は大きいほど賢く探索できる</span></div>
+    <div class="row"><span class="o">✓</span><span>ε が大きすぎると、もう分かっている良い台まで確率 ε で捨て続け、<b>regret に一定の線形項が残る</b>。正解は「最初は多め・慣れたら減らす」——<b>UCB・Thompson は不確かさを見て自動でそれをやる</b>ので ε の手調整が要らない。</span></div>
+    <div class="row"><span class="x">✗</span><span>多腕バンディットと強化学習（Q学習）は同じもの</span></div>
+    <div class="row"><span class="o">✓</span><span>バンディットは<b>状態が 1 つだけ</b>（引くたびリセット・選択が次の状況を変えない）＝強化学習の<b>最小形</b>。行動が未来の状態まで動かすようになって初めて <a href="qlearning.html">Q学習</a>など本物の強化学習に。共通の芯が「探索と活用」。</span></div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：regret の下界／UCB の式の出どころ／文脈つきバンディット</summary>
+    <div class="det"><b>pseudo-regret</b> は「毎回、本命の当たり率 p* と実際に選んだ台の当たり率の差」を足したもの——選び方だけで決まる滑らかな量です。理論の急所は <b>Lai–Robbins の下界</b>：どんな方式でも累積 regret は <b>Ω(log T)</b> より速くは 0 に近づけない（腕の差が小さいほど見分けに時間がかかる）。<b>UCB1</b> のボーナス項 √(2 ln t / nₐ) は <b>Hoeffding の不等式</b>（平均が真値からどれだけ外れうるかの確率的な上限）から出ていて、「まだ n 回しか引いていない台の真の当たり率は、これくらい上振れしていても不思議はない」という<b>楽観的な上限</b>そのもの。だから引いた回数の少ない台ほどボーナスが大きく、自然に探索が促される。<b>Thompson sampling</b> は各台の当たり率を Beta 分布で信じ、そこから 1 つサンプルして最大の台を引く——ベイズ的に最適に近く、実務でしばしば UCB より強い。<b>文脈つきバンディット（contextual bandit）</b>：台に特徴 x が付き pₐ(x) を予測して選ぶと、広告配信・推薦の初期・パーソナライズがそのまま乗る（LinUCB など）。<b>位置づけ</b>：<a href="qlearning.html">Q学習</a>＝状態が連なり行動が未来を変える世界、<a href="surrogate.html">ベイズ最適化</a>＝評価が高価な連続空間での探索（獲得関数 UCB はここのボーナス項と血縁）。バンディットはその両方の入口です。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function makeRng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ===== バンディット環境と方式（本物の実走）===== */
+const K=5, STEPS=800;
+const ARM=['①','②','③','④','⑤'];
+const CHK=[8,25,60,160,400,800];              // 推定の帯・Beta 事後のスナップ時点
+const M={greedy:{name:'欲張り (ε=0)',col:'--neg'},eps:{name:'ε貪欲 (ε=.1)',col:'--loss'},
+         ucb:{name:'UCB1',col:'--upd'},ts:{name:'Thompson',col:'--accent'}};
+const ORDER=['greedy','eps','ucb','ts'];
+let caseSeed=21, C=null, sim=null, REGMAX=1;
+
+function buildCase(cs){
+  const rng=makeRng((cs*2654435761 ^ 0x9e3779b9)>>>0);
+  const P=[]; for(let i=0;i<K;i++)P.push(0.15+0.7*rng());
+  const tape=P.map(p=>Array.from({length:STEPS},()=>rng()<p?1:0));
+  const pStar=Math.max(...P), best=P.indexOf(pStar);
+  return {P,tape,pStar,best};
+}
+/* Beta 乱数（Gamma 比・Marsaglia-Tsang） */
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function sampleGamma(k,rng){if(k<1){const u=rng();return sampleGamma(1+k,rng)*Math.pow(u,1/k);}
+  const d=k-1/3,c=1/Math.sqrt(9*d);for(;;){let x,v;do{x=gauss(rng);v=1+c*x;}while(v<=0);v=v*v*v;const u=rng();
+  if(u<1-0.0331*x*x*x*x)return d*v;if(Math.log(u)<0.5*x*x+d*(1-v+Math.log(v)))return d*v;}}
+function sampleBeta(a,b,rng){const x=sampleGamma(a,rng),y=sampleGamma(b,rng);return x/(x+y);}
+
+/* 全方式を STEPS 実走（同じ報酬テープ＝同じ運）。cv=regret曲線, picks=選んだ台, snaps=各時点の推定 */
+function simulate(C){
+  const {P,tape,pStar}=C;
+  const epsRng=makeRng((0x5EED+caseSeed*57)>>>0);
+  const tsRng=makeRng((0xB07+caseSeed*131)>>>0);
+  const mk=()=>({n:new Array(K).fill(0),q:new Array(K).fill(0),reg:0,cv:[],picks:[],snaps:[]});
+  const g=mk(),e=mk(),u=mk(),ts=Object.assign(mk(),{al:new Array(K).fill(1),be:new Array(K).fill(1)});
+  const rew=(s,a)=>tape[a][Math.min(STEPS-1,s.n[a])];
+  const argmaxQ=q=>{let a=0;for(let i=1;i<K;i++)if(q[i]>q[a])a=i;return a;};
+  const snap=(s,t,kind)=>{const o={t,n:s.n.slice()};
+    if(kind==='ts'){o.al=s.al.slice();o.be=s.be.slice();}
+    else{o.q=s.q.slice();}
+    s.snaps.push(o);};
+  let ci=0;
+  for(let t=0;t<STEPS;t++){
+    // greedy ε=0（各台1回のウォームアップ後は常に推定最大）
+    {const s=g;let a=(t<K)?t:argmaxQ(s.q);const r=rew(s,a);s.n[a]++;s.q[a]+=(r-s.q[a])/s.n[a];s.reg+=pStar-P[a];s.cv.push(s.reg);s.picks.push(a);}
+    // ε-greedy 0.1
+    {const s=e;let a;if(t<K)a=t;else if(epsRng()<0.1)a=Math.floor(epsRng()*K);else a=argmaxQ(s.q);const r=rew(s,a);s.n[a]++;s.q[a]+=(r-s.q[a])/s.n[a];s.reg+=pStar-P[a];s.cv.push(s.reg);s.picks.push(a);}
+    // UCB1
+    {const s=u;let a;if(t<K)a=t;else{a=0;let bv=-1e9;for(let i=0;i<K;i++){const b=s.q[i]+Math.sqrt(2*Math.log(t+1)/s.n[i]);if(b>bv){bv=b;a=i;}}}const r=rew(s,a);s.n[a]++;s.q[a]+=(r-s.q[a])/s.n[a];s.reg+=pStar-P[a];s.cv.push(s.reg);s.picks.push(a);}
+    // Thompson（Beta 事後からサンプル）
+    {const s=ts;let a=0,bv=-1;for(let i=0;i<K;i++){const sm=sampleBeta(s.al[i],s.be[i],tsRng);if(sm>bv){bv=sm;a=i;}}const r=rew(s,a);if(r)s.al[a]++;else s.be[a]++;s.n[a]++;s.q[a]=s.al[a]/(s.al[a]+s.be[a]);s.reg+=pStar-P[a];s.cv.push(s.reg);s.picks.push(a);}
+    if(ci<CHK.length&&t+1===CHK[ci]){snap(g,t+1,'g');snap(e,t+1,'e');snap(u,t+1,'u');snap(ts,t+1,'ts');ci++;}
+  }
+  return {greedy:g,eps:e,ucb:u,ts:ts};
+}
+/* ε スイープ（myth1 用）: ε を変えた「平均 regret 曲線」を N 試行平均で返す。
+   単一試行の運（当たりの並び）を消すことで、ε の U 字（中庸が最良）を頑健に見せる。 */
+function simEpsAvg(eps,N){const {P,pStar}=C;const acc=new Array(STEPS).fill(0);
+  for(let s=0;s<N;s++){const rng=makeRng((caseSeed*7919+s*104729+((eps*1000)|0)*13)>>>0);
+    const n=new Array(K).fill(0),q=new Array(K).fill(0);let reg=0;
+    for(let t=0;t<STEPS;t++){let a;if(t<K)a=t;else if(rng()<eps)a=Math.floor(rng()*K);else{a=0;for(let i=1;i<K;i++)if(q[i]>q[a])a=i;}
+      const r=(rng()<P[a])?1:0;n[a]++;q[a]+=(r-q[a])/n[a];reg+=pStar-P[a];acc[t]+=reg;}}
+  return acc.map(v=>v/N);}
+let sweep=null;
+function rebuild(){C=buildCase(caseSeed);sim=simulate(C);REGMAX=Math.max(sim.greedy.reg,sim.eps.reg,sim.ucb.reg,sim.ts.reg)*1.08;
+  sweep={0:simEpsAvg(0,30),0.05:simEpsAvg(0.05,30),0.1:simEpsAvg(0.1,30),0.4:simEpsAvg(0.4,30)};}
+rebuild();
+
+/* ===== 描画部品 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function gridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.09)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.09)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+function colX(i){return 18+(CW-36)*(i+0.5)/K;}
+
+/* スロット5台（上部ストリップ）。opt: reveal, est{n,q}, pick, pickR, dimNonBest */
+function drawMachines(opt){opt=opt||{};const topY=22,w=44,cabH=44;
+  for(let i=0;i<K;i++){const cx=colX(i),x=cx-w/2,y=topY;const isBest=opt.reveal&&i===C.best;
+    ctx.save();if(opt.dimNonBest&&opt.reveal&&i!==C.best)ctx.globalAlpha=0.5;
+    if(opt.pick===i){ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.4;ctx.setLineDash([4,3]);rr(x-4,y-4,w+8,cabH+8,8);ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle=isBest?'#e4f4ef':getCSS('--panel-2');ctx.strokeStyle=isBest?getCSS('--accent'):'rgba(26,26,23,0.4)';ctx.lineWidth=isBest?2:1.2;rr(x,y,w,cabH,7);ctx.fill();ctx.stroke();
+    // reel window
+    ctx.fillStyle='#fffdf6';ctx.fillRect(x+7,y+7,w-14,17);ctx.strokeStyle='rgba(0,0,0,0.14)';ctx.lineWidth=1;ctx.strokeRect(x+7,y+7,w-14,17);
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 12px '+getCSS('--mono');
+    if(opt.pick===i&&opt.pickR!==undefined){if(opt.pickR){ctx.fillStyle=getCSS('--accent');ctx.fillText('＋1',cx,y+15.5);}else{ctx.fillStyle=getCSS('--faint');ctx.fillText('0',cx,y+15.5);}}
+    else{ctx.fillStyle=getCSS('--faint');ctx.fillText(opt.reveal?'':'?',cx,y+15.5);}
+    // lever
+    ctx.strokeStyle=getCSS('--muted');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+w,y+28);ctx.lineTo(x+w+5,y+20);ctx.stroke();ctx.fillStyle=getCSS('--neg');ctx.beginPath();ctx.arc(x+w+6,y+18,3,0,7);ctx.fill();
+    // arm label
+    ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textBaseline='alphabetic';ctx.fillText(ARM[i],cx,y+cabH-6);
+    let uy=y+cabH+11;
+    if(opt.est){const q=opt.est.q?opt.est.q[i]:0,n=opt.est.n[i];
+      ctx.fillStyle='rgba(0,0,0,0.06)';ctx.fillRect(x,uy,w,6);ctx.fillStyle=getCSS('--upd');ctx.fillRect(x,uy,w*Math.max(0,Math.min(1,q)),6);
+      ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('n='+n,cx,uy+16);uy+=26;}
+    if(opt.reveal){ctx.fillStyle=isBest?getCSS('--accent'):getCSS('--muted');ctx.font=(isBest?'700 ':'')+'10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('p='+C.P[i].toFixed(2),cx,uy+2);}
+    ctx.restore();}}
+
+/* regret 曲線プロット。keys=描く方式, upto=表示ステップ, opt.refs=log/線形の参照線 */
+function drawRegret(x0,y0,w,h,upto,keys,opt){opt=opt||{};
+  ctx.fillStyle=getCSS('--panel-2');ctx.fillRect(x0,y0,w,h);
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  // y grid
+  ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let g=0;g<=2;g++){const val=REGMAX*g/2,Y=y0+h-h*g/2;ctx.strokeStyle='rgba(26,26,23,0.10)';ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();ctx.fillStyle=getCSS('--faint');ctx.fillText(Math.round(val),x0-3,Y);}
+  ctx.textAlign='left';ctx.fillStyle=getCSS('--faint');ctx.fillText('回数 →',x0+2,y0+h+9);
+  ctx.save();ctx.translate(x0-20,y0+h/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText('後悔(regret)',0,0);ctx.restore();
+  // 参照線（linear / log）
+  if(opt.refs){const gc=sim.greedy.cv[STEPS-1]/STEPS;
+    ctx.setLineDash([4,3]);ctx.lineWidth=1.2;
+    ctx.strokeStyle='rgba(207,79,95,0.5)';ctx.beginPath();ctx.moveTo(x0,y0+h);ctx.lineTo(x0+w,y0+h-h*Math.min(1,gc*STEPS/REGMAX));ctx.stroke();
+    const A=sim.ts.cv[STEPS-1]/Math.log(STEPS);
+    ctx.strokeStyle='rgba(31,158,138,0.5)';ctx.beginPath();for(let t=1;t<=STEPS;t+=8){const Y=y0+h-h*Math.min(1,A*Math.log(t+1)/REGMAX);t===1?ctx.moveTo(x0,Y):ctx.lineTo(x0+w*t/STEPS,Y);}ctx.stroke();
+    ctx.setLineDash([]);}
+  // 曲線
+  keys.forEach(k=>{const s=sim[k],col=getCSS(M[k].col);ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();
+    const top=Math.min(upto,STEPS);for(let t=0;t<top;t++){const X=x0+w*t/(STEPS-1),Y=y0+h-h*Math.min(1,s.cv[t]/REGMAX);t?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+    // 端点ラベル
+    if(top>1){const t=top-1,X=x0+w*t/(STEPS-1),Y=y0+h-h*Math.min(1,s.cv[t]/REGMAX);ctx.fillStyle=col;ctx.beginPath();ctx.arc(X,Y,2.6,0,7);ctx.fill();
+      ctx.font='700 9px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(Math.round(s.cv[t]),Math.min(X+4,x0+w-22),Y);}});}
+
+/* 凡例（方式名＋色） */
+function drawMethodLegend(x0,y0,keys){ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='middle';
+  keys.forEach((k,i)=>{const Y=y0+i*13;ctx.fillStyle=getCSS(M[k].col);ctx.fillRect(x0,Y-3,12,3);ctx.fillStyle=getCSS('--muted');ctx.fillText(M[k].name,x0+16,Y);});}
+
+/* 推定の帯（1 方式のスナップ）: 各台 mean±不確かさ＋真値ティック */
+function drawEstBands(x0,y0,w,h,method,snapIdx){const s=sim[method],sn=s.snaps[snapIdx];const rowH=h/K;
+  ctx.font='9px '+getCSS('--mono');
+  for(let i=0;i<K;i++){const cy=y0+rowH*(i+0.5);
+    // 軸
+    ctx.strokeStyle='rgba(26,26,23,0.18)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0+26,cy);ctx.lineTo(x0+w-8,cy);ctx.stroke();
+    const AX=v=>x0+26+(w-34)*v;
+    let mean,sd;
+    if(method==='ts'){const a=sn.al[i],b=sn.be[i];mean=a/(a+b);sd=Math.sqrt(a*b/((a+b)*(a+b)*(a+b+1)));}
+    else{mean=sn.q[i];const n=Math.max(1,sn.n[i]);sd=Math.sqrt(Math.max(0.01,mean*(1-mean))/n);}
+    const lo=Math.max(0,mean-2*sd),hi=Math.min(1,mean+2*sd);
+    const isBest=i===C.best;
+    // 帯
+    ctx.fillStyle=isBest?'rgba(31,158,138,0.22)':'rgba(111,84,196,0.16)';ctx.fillRect(AX(lo),cy-7,AX(hi)-AX(lo),14);
+    // mean
+    ctx.fillStyle=isBest?getCSS('--accent'):getCSS('--upd');ctx.beginPath();ctx.arc(AX(mean),cy,3.4,0,7);ctx.fill();
+    // 真値ティック
+    ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(AX(C.P[i]),cy-9);ctx.lineTo(AX(C.P[i]),cy+9);ctx.stroke();
+    // ラベル
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(ARM[i],x0,cy);
+    ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('n='+sn.n[i],x0+w-8,cy-11);}
+  ctx.textAlign='left';ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');
+  ctx.fillText('｜=真の当たり率　●=推定　帯=不確かさ',x0+26,y0+h+9);}
+
+/* Beta 事後（Thompson）: 各台を同数(nPer)引いたときの信念の山＋くじ引きサンプル。実テープから計算 */
+function drawBeta(x0,y0,w,h,nPer){
+  const al=[],be=[];for(let i=0;i<K;i++){let hit=0;for(let j=0;j<nPer;j++)hit+=C.tape[i][j];al.push(1+hit);be.push(1+nPer-hit);}
+  const AX=x=>x0+w*x, betaPdf=(x,a,b)=>Math.pow(x,a-1)*Math.pow(1-x,b-1);
+  let peak=0;const curves=[];
+  for(let i=0;i<K;i++){const ys=[];for(let j=0;j<=90;j++){const x=Math.min(0.999,Math.max(0.001,j/90));const v=betaPdf(x,al[i],be[i]);ys.push(v);peak=Math.max(peak,v);}curves.push(ys);}
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0+h);ctx.lineTo(x0+w,y0+h);ctx.stroke();
+  for(let i=0;i<K;i++){const col=i===C.best?getCSS('--accent'):'rgba(111,84,196,0.72)';
+    ctx.fillStyle=i===C.best?'rgba(31,158,138,0.14)':'rgba(111,84,196,0.07)';ctx.beginPath();ctx.moveTo(x0,y0+h);
+    curves[i].forEach((v,j)=>ctx.lineTo(AX(j/90),y0+h-(h-8)*v/peak));ctx.lineTo(x0+w,y0+h);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=col;ctx.lineWidth=i===C.best?2.4:1.4;ctx.beginPath();
+    curves[i].forEach((v,j)=>{const X=AX(j/90),Y=y0+h-(h-8)*v/peak;j?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+    const mode=(al[i]-1)/(al[i]+be[i]-2||1),mx=Math.min(0.94,Math.max(0.06,mode));
+    ctx.fillStyle=col;ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(ARM[i],AX(mx),y0+h-(h-8)*Math.max(...curves[i])/peak-4);}
+  // 真値ティック
+  for(let i=0;i<K;i++){ctx.strokeStyle='rgba(207,79,95,0.5)';ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(AX(C.P[i]),y0+h);ctx.lineTo(AX(C.P[i]),y0+h-7);ctx.stroke();ctx.setLineDash([]);}
+  // くじ引き（各山から1サンプル→最大が引かれる）
+  const rng=makeRng((caseSeed*99+7)>>>0);let bestS=-1,bestA=0;const samp=[];
+  for(let i=0;i<K;i++){const sv=sampleBeta(al[i],be[i],rng);samp.push(sv);if(sv>bestS){bestS=sv;bestA=i;}}
+  for(let i=0;i<K;i++){const on=i===bestA;ctx.fillStyle=on?getCSS('--loss'):'rgba(26,26,23,0.38)';ctx.beginPath();ctx.arc(AX(samp[i]),y0+h+9,on?4.6:3,0,7);ctx.fill();
+    if(on){ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(AX(samp[i]),y0+h);ctx.lineTo(AX(samp[i]),y0+h+9);ctx.stroke();}}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('0',x0,y0+h+9);ctx.textAlign='right';ctx.fillText('当たり率 1',x0+w,y0+h+9);
+  ctx.textAlign='center';ctx.fillStyle=getCSS('--loss');ctx.font='9.5px '+getCSS('--mono');ctx.fillText('●=各山からのくじ　橙=最大→この回はこの台を引く',CW/2,y0+h+26);}
+
+/* 引いた回数の内訳（各方式の 5 台への配分） */
+function drawPullBars(x0,y0,w,h,keys){const rowH=h/keys.length;
+  keys.forEach((k,r)=>{const s=sim[k],y=y0+rowH*r+6,bh=rowH-22;const tot=STEPS;
+    ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(M[k].name,x0,y-1);
+    let xx=x0;const bw=w;
+    for(let i=0;i<K;i++){const seg=bw*s.n[i]/tot;const isBest=i===C.best;
+      ctx.fillStyle=isBest?getCSS('--accent'):(i===modeArm(s.n)&&!isBest?'rgba(207,79,95,0.6)':'rgba(111,84,196,0.35)');
+      ctx.fillRect(xx,y+4,Math.max(0,seg-1),bh);
+      if(seg>18){ctx.fillStyle=isBest?'#06231f':'#fff';ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(ARM[i],xx+seg/2,y+4+bh/2+3);}
+      xx+=seg;}
+    ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.lineWidth=1;ctx.strokeRect(x0,y+4,bw,bh);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('緑=本命⑤に賭けた割合／横幅 800 回',x0,y0+h+9);}
+function modeArm(n){let a=0;for(let i=1;i<K;i++)if(n[i]>n[a])a=i;return a;}
+
+/* UCB のボーナス項の可視化（推定＋楽観の上乗せ）。UCB値の最大にスケールし、次に引く台を強調 */
+function drawUCBbars(x0,y0,w,h,snapIdx){const sn=sim.ucb.snaps[snapIdx],t=sn.t;const colW=w/K;
+  const q=i=>sn.q[i], bonus=i=>Math.sqrt(2*Math.log(t+1)/Math.max(1,sn.n[i])), ucb=i=>q(i)+bonus(i);
+  let hi=0,pick=0;for(let i=0;i<K;i++){if(ucb(i)>hi){hi=ucb(i);pick=i;}}hi*=1.06;
+  const H=y=>y0+h-(h-14)*Math.min(1,y/hi);
+  for(let i=0;i<K;i++){const cx=x0+colW*(i+0.5),bw=colW*0.5,top=ucb(i);
+    if(i===pick){ctx.fillStyle='rgba(194,137,27,0.10)';ctx.fillRect(cx-colW/2+2,y0,colW-4,h);}
+    // 推定バー（活用の根拠）
+    ctx.fillStyle='rgba(111,84,196,0.72)';ctx.fillRect(cx-bw/2,H(q(i)),bw,y0+h-H(q(i)));
+    // ボーナス（楽観の上乗せ）
+    ctx.strokeStyle='rgba(194,137,27,0.7)';ctx.lineWidth=1.4;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(cx,H(q(i)));ctx.lineTo(cx,H(top));ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx-bw/2-2,H(top));ctx.lineTo(cx+bw/2+2,H(top));ctx.stroke();
+    // 真値
+    ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(cx-bw/2-3,H(C.P[i]));ctx.lineTo(cx+bw/2+3,H(C.P[i]));ctx.stroke();
+    ctx.fillStyle=i===pick?getCSS('--loss'):getCSS('--text');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(ARM[i],cx,y0+h+11);
+    ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.fillText('n'+sn.n[i],cx,y0-3);}
+  // 次に引く台の注記
+  const px=x0+colW*(pick+0.5);ctx.fillStyle=getCSS('--loss');ctx.font='700 9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('▲次に引く',px,y0+h+22);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('紫=推定 ／ 橙=推定＋ボーナス=UCB ／ 赤=真値',x0,y0+h+34);}
+
+/* ε スイープ（平均 regret 曲線を数本。単一試行の運を消して U 字を見せる） */
+function drawEpsSweep(x0,y0,w,h){const list=[{eps:0,lab:'ε=0 (欲張り)',col:'--neg'},
+  {eps:0.05,lab:'ε=0.05 (中庸)',col:'--accent'},
+  {eps:0.1,lab:'ε=0.1',col:'--loss'},
+  {eps:0.4,lab:'ε=0.4 (探索過多)',col:'--upd'}];
+  list.forEach(o=>o.cv=sweep[o.eps]);
+  let mx=0;list.forEach(o=>mx=Math.max(mx,o.cv[STEPS-1]));mx*=1.08;
+  ctx.fillStyle=getCSS('--panel-2');ctx.fillRect(x0,y0,w,h);ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  list.forEach((o,li)=>{ctx.strokeStyle=getCSS(o.col);ctx.lineWidth=1.8;ctx.beginPath();
+    for(let t=0;t<STEPS;t+=4){const X=x0+w*t/(STEPS-1),Y=y0+h-h*Math.min(1,o.cv[t]/mx);t?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+    ctx.fillStyle=getCSS(o.col);ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(o.lab+'  →'+Math.round(o.cv[STEPS-1]),x0+8,y0+12+li*14);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('回数 →（30 回平均の regret）',x0+2,y0+h+9);}
+
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(txt,CW/2,y||CH-12);}
+
+/* ジレンマの図（探索 vs 活用の綱引き） */
+function drawDilemma(){const cy=170;
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(30,cy);ctx.lineTo(CW-30,cy);ctx.stroke();
+  // 左：活用
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('活用',95,cy-40);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('今ベストで',95,cy-22);ctx.fillText('確実に稼ぐ',95,cy-8);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('探索',CW-95,cy-40);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('未知を試し',CW-95,cy-22);ctx.fillText('情報を稼ぐ',CW-95,cy-8);
+  // 矢印（引き合い）
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(CW/2-10,cy+26);ctx.lineTo(60,cy+26);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(60,cy+26);ctx.lineTo(70,cy+21);ctx.lineTo(70,cy+31);ctx.closePath();ctx.fillStyle=getCSS('--accent');ctx.fill();
+  ctx.strokeStyle=getCSS('--upd');ctx.beginPath();ctx.moveTo(CW/2+10,cy+26);ctx.lineTo(CW-60,cy+26);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(CW-60,cy+26);ctx.lineTo(CW-70,cy+21);ctx.lineTo(CW-70,cy+31);ctx.closePath();ctx.fillStyle=getCSS('--upd');ctx.fill();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('同時に最大化できない',CW/2,cy+60);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('稼ぐ手と、確かめる手は別。',CW/2,cy+84);ctx.fillText('限られた回数をどう割り振るか＝バンディット',CW/2,cy+102);}
+
+/* 応用カード */
+function drawApps(){const items=[['🅰 A/B テスト','2 案の勝ちを最短で見極め、良い方に流量を寄せる'],
+  ['📣 広告配信','クリック率の高い広告を、損を抑えつつ見つける'],
+  ['🎬 推薦の初期','新規ユーザー・新作の当たりを、探索しながら学ぶ'],
+  ['💊 臨床試験','有望な治療へ被験者を寄せる（倫理と探索の両立）']];
+  items.forEach((it,i)=>{const y=40+i*92;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;rr(24,y,CW-48,78,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(it[0],40,y+26);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText(it[1],40,y+50);});}
+
+/* まとめ：導線 */
+function drawSummary(){
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('多腕バンディット',CW/2,44);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('状態が 1 つの「探索 vs 活用」',CW/2,64);
+  // 下向き2分岐
+  const y0=90;ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(CW/2,74);ctx.lineTo(CW/2,y0+6);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(95,y0+6);ctx.lineTo(CW-95,y0+6);ctx.stroke();
+  [[95,'--upd'],[CW-95,'--accent']].forEach(([x,c])=>{ctx.strokeStyle=getCSS(c);ctx.beginPath();ctx.moveTo(x,y0+6);ctx.lineTo(x,y0+30);ctx.stroke();ctx.beginPath();ctx.moveTo(x,y0+30);ctx.lineTo(x-5,y0+22);ctx.lineTo(x+5,y0+22);ctx.closePath();ctx.fillStyle=getCSS(c);ctx.fill();});
+  // 左カード（Q学習）
+  ctx.fillStyle='#f2effb';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.4;rr(30,y0+34,140,96,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('状態を足すと',100,y0+58);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('強化学習(Q学習)',100,y0+80);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('行動が未来の',100,y0+100);ctx.fillText('状態を変える',100,y0+116);
+  // 右カード（サロゲート）
+  ctx.fillStyle='#e4f4ef';ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;rr(CW-170,y0+34,140,96,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('連続空間へ',CW-100,y0+58);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('ベイズ最適化',CW-100,y0+80);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('獲得関数UCBは',CW-100,y0+100);ctx.fillText('この楽観の親戚',CW-100,y0+116);
+  // 要点ボックス
+  const by=y0+150;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;rr(24,by,CW-48,120,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('要点',40,by+22);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');
+  ctx.fillText('・欲張りは本命を見逃し regret が直線',40,by+44);
+  ctx.fillText('・UCB/Thompson は不確かさを見て自動探索',40,by+64);
+  ctx.fillText('・regret は log T で頭打ち（理論限界）',40,by+84);
+  ctx.fillText('・探索は未来の後悔を減らす投資',40,by+104);}
+
+/* ===== スライド定義（4章×14枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 戦い方',c:'var(--upd)',start:3},{t:'Ⅲ ライブ対戦',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:11}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animStep=0,bandSnap=0;
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'開演：5 台のスロット',legend:'5 台のスロット。各台の当たり率 p は隠れている（? のまま）',
+ html(){return'<h3>開演：5 台のスロット、当たり率は隠れている</h3><div class="eq curr">台 <i>a</i> ∈ {①,②,③,④,⑤}、当たり率 <i>p<sub>a</sub></i> は<b>見えない</b>（当たり＝＋1／はずれ＝0 のベルヌーイ）<span class="read">読み：台を 1 つ選んでレバーを引くと、確率 <i>p<sub>a</sub></i> で＋1・確率 1−<i>p<sub>a</sub></i> で 0。<i>p<sub>a</sub></i> は最初から分からず、<b>引いた結果からしか推し量れない</b></span></div><div class="desc">目の前に当たり率の異なる 5 台のスロット。でも<b>どれがどれだけ当たるかは伏せられています</b>。引ける回数は有限。試して当たり率を<b>確かめる</b>ほど、その回は「今ベストの台で稼ぐ」機会を失う——これが<b>探索と活用のジレンマ</b>の舞台です。まずは手札（台）を眺めましょう。「🎲 当たり率を引き直す」で別の並びにできます。</div>';},
+ draw(){drawMachines({reveal:false});caption('当たり率は伏せられている — 引いて確かめるしかない',150);
+   ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('この 5 台から、有限回のレバー引きで',CW/2,230);ctx.fillText('できるだけ多く「当たり」を集めたい。',CW/2,252);
+   ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.fillText('試す（探索）と 稼ぐ（活用）は同時に選べない。',CW/2,288);},dice:true},
+{title:'regret：機会損失をものさしに',legend:'成果の測り方＝「本命を引き続けた場合との差」の累積',
+ html(){return'<h3>regret：後悔（機会損失）をものさしにする</h3><div class="eq curr">regret<sub>T</sub> = Σ<sub>t=1..T</sub> ( <i>p</i>* − <i>p<sub>aₜ</sub></i> )<span class="read">読み：<i>p</i>*＝一番当たる台の当たり率、<i>a<sub>t</sub></i>＝t 回目に選んだ台。毎回「本命との差」を足した<b>取りこぼしの総額</b>。ずっと本命を引ければ 0</span></div><div class="desc">成績は「当たった回数」でも測れますが、当たり自体が運任せでガタつきます。そこで<b>regret（後悔）</b>——「もし毎回<b>本命の台</b>を引いていたら得られた分」との差——を使います。<b>低いほど良い</b>。この後、各方式の regret 曲線がどう伸びるかを競わせます。いまの本命は <b>台'+ARM[C.best]+'（p='+C.pStar.toFixed(2)+'）</b>ですが、方式はそれを知りません。</div>';},
+ draw(){drawMachines({reveal:true,dimNonBest:true});caption('赤枠なし＝本命⑤。方式はこれを知らずに探す',150);
+   const y=185;ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('毎回の後悔 ＝ 本命 p* − 選んだ台 p',CW/2,y);
+   // 一例のバー
+   ctx.font='11px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');ctx.fillText('例：台②(0.51) を引いた 1 回の後悔 = '+(C.pStar-C.P[1]).toFixed(2),CW/2,y+26);
+   ctx.fillStyle=getCSS('--faint');ctx.fillText('これを毎回足したのが regret。小さいほど賢い。',CW/2,y+52);
+   drawMethodLegend(40,290,ORDER);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('この 4 方式で競う →',40,282);},dice:true},
+{title:'欲張り一本足の陥落',legend:'欲張り(ε=0)＝いつも推定最大を選ぶ。②に固執して本命⑤を試さない',
+ html(){const g=sim.greedy,lock=modeArm(g.n);return'<h3>欲張り一本足の陥落：本命を見逃す</h3><div class="eq curr">欲張り： <i>a<sub>t</sub></i> = argmax<sub>a</sub> Q̂<sub>a</sub>（推定平均が一番高い台を毎回選ぶ）<span class="read">読み：Q̂<sub>a</sub>＝これまでの平均当たり。欲張りは<b>常に</b>今いちばん良く見える台を選ぶ。＝探索ゼロ</span></div><div class="desc">「今ベストを選ぶ」だけの欲張り（ε=0）。序盤にたまたま良く見えた <b>台'+ARM[lock]+'（p='+C.P[lock].toFixed(2)+'）</b>へ張り付き、<b>'+g.n[lock]+' / '+STEPS+' 回</b>もそこを引き続けます。本命 <b>台'+ARM[C.best]+'（p='+C.pStar.toFixed(2)+'）</b>は数回しか試さないまま見捨てられ、regret は<b>直線的に</b>積み上がって最終 <b>'+Math.round(g.reg)+'</b>。運が悪いと本命を永遠に試さない——探索ゼロの代償です。</div>';},
+ draw(){drawMachines({reveal:true,est:snapState('greedy',animStep),pick:sim.greedy.picks[Math.min(STEPS-1,animStep*40)]});
+   drawRegret(44,180,CW-64,210,Math.min(STEPS,animStep*40+1),['greedy']);
+   caption('欲張りだけ実走中 — regret はまっすぐ伸びる',CH-6);}},
+// ---- Ⅱ 戦い方 ----
+{title:'ジレンマの正体',legend:'探索（情報を稼ぐ）と 活用（利益を稼ぐ）は同時に最大化できない',
+ html(){return'<h3>ジレンマの正体：探索 vs 活用</h3><div class="eq curr">max（今の利益）　と　max（情報の獲得）　は両立しない<span class="read">読み：今ベストで稼ぐ手（活用）と、未知を試して当たり率を確かめる手（探索）は<b>別の一手</b>。限られた回数をどう配分するか、が問題のすべて</span></div><div class="desc">欲張りが失敗したのは<b>探索を全くしなかった</b>から。かといって、ずっとランダムに試すだけ（探索ばかり）では、分かった後も稼げず損。<b>賢い方式とは、この綱引きの配分を上手にやるもの</b>。次の 3 つ——ε-greedy・UCB・Thompson——は、探索と活用のバランスの取り方がそれぞれ違います。共通の鍵は「<b>不確かさ</b>をどう扱うか」。</div>';},
+ draw(){drawDilemma();}},
+{title:'ε-greedy：たまに寄り道',legend:'確率εでランダムに寄り道、残りは今ベスト。εが探索量',
+ html(){return'<h3>戦い方①　ε-greedy：サイコロで寄り道</h3><div class="eq curr">確率 ε → ランダムに 1 台　／　確率 1−ε → argmax<sub>a</sub> Q̂<sub>a</sub><span class="read">読み：毎回サイコロを振り、ε の割合だけ<b>わざと</b>ランダムな台を試す（探索）。残りは今ベスト（活用）。ε=0 が欲張り</span></div><div class="desc">一番素朴な処方箋。欲張りに<b>「ときどきサイコロで寄り道」</b>を足すだけ。ε=0.1 なら 10 回に 1 回はランダムに試すので、見捨てられていた本命にもいつか光が当たります。ただし弱点も明快——<b>分かった後もずっと ε の割合で寄り道し続ける</b>ので、取りこぼしがゼロになりません（後のスライドで ε の大小を比べます）。単純で強く、実務の定番でもあります。</div>';},
+ draw(){drawMachines({reveal:true,est:snapState('eps',3)});
+   const cy=200;ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('毎回サイコロを振る',CW/2,cy);
+   // 円グラフ的な割合バー
+   const x0=50,w=CW-100,y=cy+18;ctx.fillStyle=getCSS('--accent');ctx.fillRect(x0,y,w*0.9,22);ctx.fillStyle=getCSS('--upd');ctx.fillRect(x0+w*0.9,y,w*0.1,22);
+   ctx.fillStyle='#06231f';ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('1−ε：今ベストで稼ぐ',x0+w*0.45,y+15);
+   ctx.fillStyle='#fff';ctx.font='700 10px '+getCSS('--gothic');ctx.fillText('ε：探索',x0+w*0.95,y+15);
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('ε=0.1 なら 10 回に 1 回は寄り道',CW/2,y+50);
+   ctx.fillStyle=getCSS('--faint');ctx.fillText('弱点：分かった後も ε の割合で寄り道し続ける',CW/2,y+72);}},
+{title:'UCB1：不確かなほど楽観',legend:'推定＋「まだ引いていない分のボーナス」。引いた回数が少ない台ほど楽観',
+ html(){return'<h3>戦い方②　UCB：不確かなものほど楽観する</h3><div class="eq curr"><i>a<sub>t</sub></i> = argmax<sub>a</sub> [ Q̂<sub>a</sub> + √( 2 ln <i>t</i> / <i>n<sub>a</sub></i> ) ]<span class="read">読み：推定平均 Q̂ に<b>不確かさボーナス</b>を足して選ぶ。<i>n<sub>a</sub></i>＝台 a を引いた回数。n が小さい台ほどボーナスが大きい＝<b>まだよく知らない台を楽観的に見る</b></span></div><div class="desc">UCB（Upper Confidence Bound＝信頼上限）は「<b>まだ n 回しか引いていない台の本当の当たり率は、これくらい<u>上振れ</u>していても不思議はない</b>」という楽観的な見積もりで選びます。よく引いた台はボーナスが縮み、放置された台はボーナスが膨らんで自然に順番が回ってくる。<b>サイコロ（ε）に頼らず、不確かさそのものが探索を駆動</b>する——だから ε の手調整が要りません。下のバーで、引いた回数の少ない台ほど橙のボーナスが高いのが見えます。</div>';},
+ draw(){drawMachines({reveal:true});drawUCBbars(44,205,CW-70,150,1);}},
+{title:'Thompson：事後からくじ引き',legend:'各台の当たり率を Beta 分布で信じ、そこから1つサンプルして最大を引く',
+ html(){return'<h3>戦い方③　Thompson：信念の山からくじを引く</h3><div class="eq curr"><i>θ<sub>a</sub></i> 〜 Beta(<i>α<sub>a</sub></i>, <i>β<sub>a</sub></i>)、　<i>a<sub>t</sub></i> = argmax<sub>a</sub> <i>θ<sub>a</sub></i>（当たりで α+1・はずれで β+1）<span class="read">読み：各台の当たり率を「山（Beta 分布）」で信じる。毎回その山から<b>1 つ値をサンプル</b>し、出た目が最大の台を引く。結果で山を更新</span></div><div class="desc">Thompson sampling は各台の当たり率を<b>確率分布（信念の山）</b>で持ちます。下は「各台を同じ回数だけ引いてみたら信念はこう分かれる」の図（本物の当たり列から計算）。回数が少ないうちは山が<b>幅広く重なり</b>、たまに高い値が出る＝探索。本命 <b>台'+ARM[C.best]+'</b> の緑の山は右に寄って尖る＝活用。<b>毎回この 5 つの山から 1 つずつくじを引き（下の●）、いちばん高い目が出た台を選ぶ</b>——それだけで探索と活用が確率的に自然配分されます。ベイズ的に最適に近く、実務でしばしば UCB より強い方式。</div>';},
+ draw(){drawMachines({reveal:true});drawBeta(48,196,CW-96,128,16);}},
+// ---- Ⅲ ライブ対戦 ----
+{title:'推定の帯：今どう見ているか',legend:'Thompson の信念（推定±不確かさ）。回数が増えると帯が細る',
+ html(){const sn=sim.ts.snaps[bandSnap];return'<h3>推定の帯：不確かさが探索を呼ぶ</h3><div class="eq curr">推定 Q̂<sub>a</sub> ± 不確かさ（<i>n<sub>a</sub></i> が増えるほど細る）<span class="read">読み：●＝推定した当たり率、帯＝その不確かさ、赤い縦線｜＝本当の当たり率。帯が広い台は「まだ分からない」＝試す価値がある</span></div><div class="desc">方式が今スロットを<b>どう見ているか</b>を、Thompson の信念で覗きます（'+sn.t+' 回時点）。序盤は全部の帯が広く重なり、どれが本命か判然としません。引く回数が増えるほど帯が細り、本命 <b>台'+ARM[C.best]+'</b> の●が上へ抜けて確信に変わる。<b>「帯が広い＝無知＝賭ける価値」</b>——この無知の地図が、次にどこを試すかを教えます（<a href="surrogate.html">サロゲート</a>の不確かさと同じ発想）。「次へ」で帯が締まる様子を追えます。</div>';},
+ draw(){drawMachines({reveal:true});drawEstBands(30,190,CW-40,170,'ts',bandSnap);}},
+{title:'ライブ対戦：regret の分岐',legend:'4方式を同時実走。欲張り＝直線／UCB・Thompson＝頭打ち（対数）',
+ html(){const g=Math.round(sim.greedy.reg),e=Math.round(sim.eps.reg),u=Math.round(sim.ucb.reg),ts=Math.round(sim.ts.reg);
+   return'<h3>ライブ対戦：4 本の regret 曲線が分かれる</h3><div class="eq curr">欲張り 〜 直線（傾き一定）　⇔　UCB・Thompson 〜 log <i>t</i> で頭打ち<span class="read">読み：曲線の<b>傾き</b>＝その瞬間に払っている後悔の速さ。賢い方式は傾きが時間とともに寝ていく＝授業料が下がる</span></div><div class="desc">同じ当たり率・同じ運（報酬列）で 4 方式を'+STEPS+'回<b>本当に走らせた</b>結果。<b>欲張り（赤）</b>は本命を見つけられず regret がまっすぐ伸びて <b>'+g+'</b>。<b>ε貪欲（橙）'+e+'</b>・<b>UCB（紫）'+u+'</b>・<b>Thompson（緑）'+ts+'</b> は序盤に探索して一度は損をしても、本命を見つけた後は<b>傾きが寝て頭打ち</b>に。これが「直線 vs 対数」——探索という投資の回収です。「🎲」で当たり率を変えても傾向は同じ。</div>';},
+ draw(){drawMachines({reveal:true});drawRegret(44,178,CW-64,210,Math.min(STEPS,animStep),ORDER);drawMethodLegend(58,188,ORDER);},dice:true},
+{title:'引いた回数の内訳',legend:'誰がどこに賭けたか。欲張り＝1台集中／Thompson＝本命に集中',
+ html(){const g=sim.greedy,ts=sim.ts,lock=modeArm(g.n);return'<h3>引いた回数の内訳：戦略が見える</h3><div class="eq curr">Σ<sub>a</sub> <i>n<sub>a</sub></i> = T、　配分そのものが戦略を語る<span class="read">読み：<i>n<sub>a</sub></i>＝台 a を引いた回数。'+STEPS+' 回をどう割り振ったか。緑＝本命⑤に賭けた割合</span></div><div class="desc">同じ'+STEPS+'回を、各方式がどの台に投じたか。<b>欲張り</b>は台'+ARM[lock]+'に <b>'+g.n[lock]+'</b> 回と<b>ほぼ全張り</b>——本命⑤にはたった '+g.n[C.best]+' 回。<b>Thompson</b>は迷いながらも本命⑤へ <b>'+ts.n[C.best]+'</b> 回と<b>集中投資</b>できています。<b>UCB</b>も本命中心。regret の差は、この「どこに時間を賭けたか」の差そのもの。賢い方式は<b>早く見切りをつけ、本命に資源を寄せる</b>。「🎲」で並びを変えても本命に緑が寄ります。</div>';},
+ draw(){drawPullBars(30,60,CW-60,320,ORDER);},dice:true},
+// ---- Ⅳ まとめ ----
+{title:'εを変えると：探索量の綱引き',legend:'ε小＝本命探しが遅い／ε大＝分かった後も捨て続ける。中庸が最良',
+ html(){return'<h3>ε の大小：小さすぎも大きすぎも損（myth の実演）</h3><div class="eq curr">総 regret ≈ （本命を探す損）＋（分かった後の取りこぼし）、ε が両者を綱引き<span class="read">読み：ε を大きくすると本命は早く見つかるが、分かった後もずっと ε の割合で寄り道して損。小さいと逆。<b>最適な ε は中間</b></span></div><div class="desc">「ε は大きいほど賢い」は誤り。同じ問題で ε を変えた regret を重ねました。<b>ε=0（欲張り・赤）</b>は本命を逃して直線。<b>ε=0.4（探索過多・紫）</b>は本命が分かった後もサイコロで良い台を捨て続け、regret がやはり線形に増える。<b>ε=0.05〜0.1</b>あたりが最も低い。つまり<b>探索は「最初は多め・慣れたら減らす」</b>のが正解——UCB や Thompson は不確かさを見て<b>これを自動でやる</b>から、ε の手調整から解放されます。</div>';},
+ draw(){drawEpsSweep(44,150,CW-64,220);caption('中庸の ε が最良。UCB/Thompson は自動で探索を絞る',CH-8);},dice:true},
+{title:'regret の伸び方の意味',legend:'直線(欲張り) vs 対数(UCB/Thompson)。log T は理論の限界',
+ html(){return'<h3>regret の伸び方：直線 vs 対数、そして限界</h3><div class="eq curr">下界：regret = Ω( log <i>T</i> )（Lai–Robbins）<span class="read">読み：どんなに賢い方式でも、累積 regret を <b>log <i>T</i> より速く 0 には近づけられない</b>（腕の差が小さいほど見分けに時間がかかるから）。UCB・Thompson はこの限界に達する</span></div><div class="desc">赤の点線が「傾き一定＝直線」の目安、緑の点線が「log <i>t</i> 形」の目安。<b>欲張り</b>は直線に乗り、時間とともに損が<b>比例して</b>増え続けます。<b>UCB・Thompson</b>は log 形に沿って<b>傾きが寝ていく</b>——理論の下界 Ω(log T) にほぼ張り付く「これ以上は無理」の最善。<b>regret ゼロは原理的に不可能</b>（未知を見分けるには必ず試すコストが要る）。だから目標は「後悔を最小の log T に抑える」こと。</div>';},
+ draw(){drawMachines({reveal:true});drawRegret(44,178,CW-64,210,STEPS,['greedy','ucb','ts'],{refs:true});
+   drawMethodLegend(58,188,['greedy','ucb','ts']);
+   ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('点線=直線/log の目安',58,188+3*13);}},
+{title:'どこで出会うか',legend:'A/Bテスト・広告配信・推薦の初期・臨床試験——選択の連続',
+ html(){return'<h3>どこで出会うか：選び続ける現場すべて</h3><div class="eq curr">選択肢が複数 × 結果が確率的 × 試行が有限　→　バンディット<span class="read">読み：この 3 つが揃う場面はどこにでもある。「どれを出すか」を毎回決め、結果を見て賢くなる問題は、みなバンディットの一族</span></div><div class="desc">同じ枠組みが現実の意思決定に広く効きます。<b>A/B テスト</b>では、2 案を半々で流す古典より、勝ちを見極めながら良い案へ流量を寄せるバンディット（例：Google Analytics の最適化）が取りこぼしを減らす。<b>広告配信・推薦の初期</b>は「新作・新規ユーザーの当たりを探索しつつ稼ぐ」まさにこれ。<b>臨床試験</b>では有望な治療へ被験者を寄せる割付に使われます（倫理と探索の両立）。台に特徴を付けた <b>文脈つきバンディット</b>が、パーソナライズの実務を支えます。</div>';},
+ draw(){drawApps();}},
+{title:'まとめと次の一歩',legend:'状態を足せば強化学習(Q学習)、連続空間へ広げればベイズ最適化',
+ html(){return'<h3>まとめ：バンディットは意思決定の入口</h3><div class="eq curr">状態を足す → <a href="qlearning.html">Q学習</a>　／　連続空間へ → <a href="surrogate.html">ベイズ最適化</a>（獲得関数 UCB）<span class="read">読み：バンディットは「状態が 1 つの強化学習」。状態が連なれば Q学習、探索を連続空間の高価な関数へ広げればベイズ最適化。<b>UCB の楽観は探索の共通言語</b></span></div><div class="desc">今日の芯は 1 つ——<b>未知を前にした選択では、探索という「今の損」が未来の後悔を減らす投資になる</b>。欲張りは投資を惜しんで直線的に後悔し、UCB・Thompson は不確かさを見て自動で投資配分し、理論限界 log T に達しました。ここから先へ：行動が<b>未来の状態</b>まで変えるなら <a href="qlearning.html">Q学習</a>など強化学習へ。評価が<b>高価な連続空間</b>の探索なら <a href="surrogate.html">ベイズ最適化</a>へ（獲得関数 UCB はまさにこの楽観の親戚）。探索と活用は、そのすべての底に流れています。</div>';},
+ draw(){drawSummary();}},
+];
+
+/* ===== 補助：欲張り/eps の推定スナップ状態（帯・機械の est 用） ===== */
+function snapState(method,step){const s=sim[method];const idx=Math.min(s.snaps.length-1,Math.max(0,step));return s.snaps[idx];}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;const g=sim.greedy,ts=sim.ts,u=sim.ucb;
+  if(s<=1){m.innerHTML='<div>台数 <b>'+K+'</b></div><div class="best">本命 <b>台'+ARM[C.best]+' ('+C.pStar.toFixed(2)+')</b></div><div>回数 <b>'+STEPS+'</b></div>';}
+  else if(s===2){m.innerHTML='<div class="bad">欲張り regret <b>'+Math.round(g.reg)+'</b></div><div>台'+ARM[modeArm(g.n)]+'に <b>'+g.n[modeArm(g.n)]+'/'+STEPS+'</b> 回固執</div>';}
+  else if(s<=6){m.innerHTML='<div>戦い方 <b>'+(s===4?'ε-greedy':s===5?'UCB1':s===6?'Thompson':'—')+'</b></div><div class="best">本命 <b>台'+ARM[C.best]+'</b></div>';}
+  else if(s===7){const sn=sim.ts.snaps[bandSnap];m.innerHTML='<div>時点 <b>'+sn.t+'</b>/'+STEPS+' 回</div><div class="best">本命⑤ 推定 <b>'+(sn.al[C.best]/(sn.al[C.best]+sn.be[C.best])).toFixed(2)+'</b></div>';}
+  else if(s===8){m.innerHTML='<div class="bad">欲張り <b>'+Math.round(g.reg)+'</b></div><div>UCB <b>'+Math.round(u.reg)+'</b></div><div class="best">Thompson <b>'+Math.round(ts.reg)+'</b></div>';}
+  else if(s===9){m.innerHTML='<div class="bad">欲張り→台'+ARM[modeArm(g.n)]+' <b>'+g.n[modeArm(g.n)]+'</b></div><div class="best">Thompson→⑤ <b>'+ts.n[C.best]+'</b></div>';}
+  else if(s===10){m.innerHTML='<div>ε=0 <b>'+Math.round(sweep[0][STEPS-1])+'</b></div><div class="best">ε=0.05 <b>'+Math.round(sweep[0.05][STEPS-1])+'</b></div><div class="bad">ε=0.4 <b>'+Math.round(sweep[0.4][STEPS-1])+'</b></div>';}
+  else if(s===11){m.innerHTML='<div class="bad">欲張り 傾き一定</div><div class="best">UCB/TS 傾き↓(log)</div>';}
+  else{m.innerHTML='<div class="best">探索＝未来への投資</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);gridBg();SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2)runGreedy();
+  else if(i===7){bandSnap=0;runBands();}
+  else if(i===8)runRace();
+  renderAll();draw_();}
+/* 欲張り単独の実走アニメ */
+function runGreedy(){animStep=0;anim=true;if(window.__prefersReducedMotion){animStep=STEPS/40;anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==2)return;animStep++;draw_();renderExplain();if(animStep*40<STEPS){setTimeout(()=>requestAnimationFrame(go),40);}else anim=false;}
+  requestAnimationFrame(go);}
+/* 推定の帯：スナップを順に進める */
+function runBands(){anim=true;if(window.__prefersReducedMotion){bandSnap=CHK.length-1;anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==7)return;draw_();renderMini();renderExplain();
+    if(bandSnap<CHK.length-1){bandSnap++;setTimeout(()=>requestAnimationFrame(go),650);}else anim=false;}
+  requestAnimationFrame(go);}
+/* ライブ対戦：regret を伸ばす */
+function runRace(){animStep=0;anim=true;if(window.__prefersReducedMotion){animStep=STEPS;anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==8)return;animStep=Math.min(STEPS,animStep+14);draw_();renderMini();
+    if(animStep<STEPS){requestAnimationFrame(go);}else anim=false;}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===2||slideIdx===7||slideIdx===8);
+    if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;caseSeed=21;rebuild();slideIdx=0;animStep=0;bandSnap=0;renderAll();draw_();}
+function reroll(){caseSeed++;rebuild();animStep=0;bandSnap=0;
+  if(slideIdx===2)runGreedy();else if(slideIdx===8)runRace();
+  renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{stopAuto();reroll();};
+renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
