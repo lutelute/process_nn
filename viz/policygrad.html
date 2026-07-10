@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方策勾配（REINFORCE）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4; --good:#1f9e8a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>方策勾配（REINFORCE）を理解する</h1>
+  <div class="lead"><a href="qlearning.html">Q学習</a>は「各行動の価値を表にして、いちばん高い行動を選ぶ」学びでした。方策勾配は<b>まったく別の道</b>——価値を経由せず、<b>行動の確率そのもの</b>を「良かった行動が出やすくなる方向」へ直接動かします。小さなグリッドで <b>softmax 方策</b>を <b>REINFORCE</b> で本当に学習させ、各マスの矢印がゴール方向へ偏っていく様子を追います。「次へ ▶」で進めてください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>価値の表を作らず<b>方策（動き方）を直接学ぶ</b>——連続行動や混合戦略に効く、もう一つの強化学習の柱。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>良かった行動の確率を、リターンを重みにして<b>直接太らせる</b>学習（∇logπ×G）。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ロボット制御・連続制御・そして LLM の <b>RLHF</b>（人の好みで方策を磨く）の土台。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の乱数で学習</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>方策勾配は「良い・悪い」を<b>教師ラベルの代わりにリターンで作る</b>。出た行動を、その回の成績（リターン）の分だけ太らせる——<b>正解を知らなくても、うまくいった行動を真似れば方策は勝手に良くなる</b>。これが「行動を直接学ぶ」ということ。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>方策勾配は「報酬」を微分して最大化している</div>
+    <div class="row"><span class="o">✓</span>報酬は環境が返す数字で、<b>微分できません</b>（θ を動かしても報酬関数の式は分からない）。微分するのは<b>方策の log 確率</b> logπ(a|s) の方。「出た行動をリターンの重みで太らせる」を勾配の言葉で書いた式が ∇logπ×G です。</div>
+    <div class="row"><span class="x">✗</span>方策勾配は Q学習の上位互換（いつも使えばよい）</div>
+    <div class="row"><span class="o">✓</span>1回の当たり外れ（リターン）を頼りに動かすので<b>推定のばらつきが大きく、サンプル効率は悪い</b>のが弱点。<b>離散で状態が少なければ Q学習が手堅い</b>。連続行動・確率的な最適策が要るときに方策ベースが効く——<b>使い分け</b>です。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：ベースライン・分散・Actor-Critic への道</summary>
+    <div class="det"><b>スコア関数</b>：∇<sub>θ</sub>logπ(a|s) を「スコア関数」と呼びます。softmax 方策では ∇logπ(a|s) = onehot(a) − π(·|s)、つまり「出た行動を +（1−その確率）、他を −（その確率）」押す向き。<b>ベースライン</b>：更新の重みを G ではなく <b>G − b(s)</b>（advantage＝平均よりどれだけ良かったか）にしても、期待値（＝進む向き）は変わらず<b>分散だけ下がる</b>。b(s) にはその状態の価値の推定（移動平均）を使います。この b(s) を別のネットワークで学び、1歩ごとの TD 誤差を学習信号にすると <b>Actor-Critic</b>（動く人＝方策と批評家＝価値の分業）になります。REINFORCE は<b>エピソードの最後まで待って</b>実リターンで更新する、その最も素朴な原型。関連: <a href="qlearning.html">Q学習</a>（価値ベース）・<a href="dqn.html">DQN</a>（価値を NN で近似）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+/* ===== 乱数（seed付き mulberry32）===== */
+function makeRng(s0){let seed=s0|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ===== 環境：5×5 グリッド（S 左上・G 右下・X 中央の落とし穴）===== */
+const GW=5,GH=5,NS=GW*GH,NA=4;
+const START=0,GOAL=24,PIT=12;
+const ACT=[[-1,0],[1,0],[0,-1],[0,1]];          // 上下左右（[Δ行,Δ列]）
+const ARR=['↑','↓','←','→'];
+const R_GOAL=10,R_PIT=-10,STEP_PEN=-0.2;
+const GAMMA=0.98,ALPHA=0.03,BETA=0.1,MAXSTEP=60;
+function rc(s){return[Math.floor(s/GW),s%GW];}
+function stepEnv(s,a){const[r,c]=rc(s);let nr=r+ACT[a][0],nc=c+ACT[a][1];
+  if(nr<0||nc<0||nr>=GH||nc>=GW){nr=r;nc=c;}                 // 壁は跳ね返る
+  const ns=nr*GW+nc;
+  if(ns===GOAL)return{ns,reward:R_GOAL,done:true};
+  if(ns===PIT) return{ns,reward:R_PIT, done:true};
+  return{ns,reward:STEP_PEN,done:false};}
+
+/* ===== softmax 方策 π(a|s)=softmax(θ[s,·]) ===== */
+function policy(theta,s){let mx=-1e9;for(let a=0;a<NA;a++)mx=Math.max(mx,theta[s*NA+a]);
+  const e=new Array(NA);let z=0;for(let a=0;a<NA;a++){e[a]=Math.exp(theta[s*NA+a]-mx);z+=e[a];}
+  for(let a=0;a<NA;a++)e[a]/=z;return e;}                     // max 引きでオーバーフロー対策
+function sampleA(p,rng){const u=rng();let acc=0;for(let a=0;a<NA;a++){acc+=p[a];if(u<acc)return a;}return NA-1;}
+function sampleEpisode(theta,rng){let s=START;const traj=[];
+  for(let t=0;t<MAXSTEP;t++){const p=policy(theta,s);const a=sampleA(p,rng);
+    const{ns,reward,done}=stepEnv(s,a);traj.push({s,a,reward,p});s=ns;if(done)break;}
+  return{traj,reached:s===GOAL,last:s};}
+function returns(traj){const G=new Array(traj.length);let g=0;
+  for(let t=traj.length-1;t>=0;t--){g=traj[t].reward+GAMMA*g;G[t]=g;}return G;}
+function applyUpdate(theta,traj,G,useBaseline,bval){
+  for(let t=0;t<traj.length;t++){const{s,a,p}=traj[t];let adv=G[t];
+    if(useBaseline){adv=G[t]-bval[s];bval[s]+=(G[t]-bval[s])*BETA;}
+    for(let ap=0;ap<NA;ap++){const grad=(ap===a?1:0)-p[ap];theta[s*NA+ap]+=ALPHA*adv*grad;}}}
+function greedyPath(theta){let s=START;const path=[s];const seen=new Set([s]);
+  for(let k=0;k<NS;k++){const p=policy(theta,s);let a=0,mx=-1;for(let j=0;j<NA;j++)if(p[j]>mx){mx=p[j];a=j;}
+    const[r,c]=rc(s);let nr=r+ACT[a][0],nc=c+ACT[a][1];if(nr<0||nc<0||nr>=GH||nc>=GW){nr=r;nc=c;}const ns=nr*GW+nc;
+    path.push(ns);if(ns===GOAL)return{path,reached:true};if(ns===PIT||seen.has(ns))return{path,reached:false};seen.add(ns);s=ns;}
+  return{path,reached:false};}
+
+/* ===== 状態 ===== */
+let mainSeed=314;
+let theta=new Float64Array(NS*NA), ep=0, retHist=[], succHist=[], succWin=[], training=false;
+const EPMAX=240;
+function resetRun(){theta=new Float64Array(NS*NA);ep=0;retHist=[];succHist=[];succWin=[];}
+function trainBatch(n){const rng=trainBatch.rng||(trainBatch.rng=makeRng(mainSeed));
+  for(let i=0;i<n&&ep<EPMAX;i++){const{traj,reached}=sampleEpisode(theta,rng);const G=returns(traj);
+    applyUpdate(theta,traj,G,false,null);
+    retHist.push(G.length?G[0]:0);succWin.push(reached?1:0);if(succWin.length>50)succWin.shift();
+    succHist.push(succWin.reduce((x,y)=>x+y,0)/succWin.length);ep++;}}
+function newMainRng(){trainBatch.rng=makeRng(mainSeed);}
+function succRate(){return succWin.length?Math.round(100*succWin.reduce((a,b)=>a+b,0)/succWin.length):0;}
+function trainFull(){newMainRng();resetRun();while(ep<EPMAX)trainBatch(40);}
+
+/* ===== デモ用（S8/S9）：軽く学習した方策で 1 本のゴール到達エピソード ===== */
+let demoTheta=null,demoTraj=null,demoG=null;
+function prepDemo(){if(demoTraj)return;
+  const th=new Float64Array(NS*NA);const r=makeRng(7);
+  for(let e=0;e<40;e++){const{traj}=sampleEpisode(th,r);applyUpdate(th,traj,returns(traj),false,null);}
+  const r2=makeRng(777);let d=null;
+  for(let tries=0;tries<80;tries++){const e=sampleEpisode(th,r2);if(e.reached&&e.traj.length<=9){d=e;break;}}
+  demoTheta=th;demoTraj=d.traj;demoG=returns(d.traj);}
+
+/* ===== A/B バンド（S11）：多 seed でベースライン有無を比較 ===== */
+const BAND_N=20,BAND_EP=400;
+let bandReady=false,bandOff=[],bandOn=[],bandStdOff=0,bandStdOn=0,bandReachOff=0,bandReachOn=0;
+function trainSeedCurve(seed,useBaseline){const rng=makeRng(seed);const th=new Float64Array(NS*NA);const bv=new Float64Array(NS);
+  const sh=[];const sw=[];
+  for(let e=0;e<BAND_EP;e++){const{traj,reached}=sampleEpisode(th,rng);applyUpdate(th,traj,returns(traj),useBaseline,bv);
+    sw.push(reached?1:0);if(sw.length>50)sw.shift();sh.push(sw.reduce((x,y)=>x+y,0)/sw.length);}
+  return{sh,reached:greedyPath(th).reached};}
+function computeBand(){if(bandReady)return;
+  bandOff=[];bandOn=[];bandReachOff=0;bandReachOn=0;
+  for(let i=0;i<BAND_N;i++){const o=trainSeedCurve(40+i*29,false);bandOff.push(o.sh);if(o.reached)bandReachOff++;
+    const n=trainSeedCurve(40+i*29,true);bandOn.push(n.sh);if(n.reached)bandReachOn++;}
+  bandStdOff=bandBandStd(bandOff);bandStdOn=bandBandStd(bandOn);bandReady=true;}
+function bandBandStd(curves){let sum=0,cnt=0;for(let e=30;e<=220;e++){const vs=curves.map(c=>c[e]);
+    const m=vs.reduce((a,b)=>a+b,0)/vs.length;sum+=Math.sqrt(vs.reduce((a,b)=>a+(b-m)**2,0)/vs.length);cnt++;}return sum/cnt;}
+
+/* ===== 描画基盤 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const CELL=46,GX0=65,GY0=16;
+function cx(c){return GX0+c*CELL+CELL/2;}
+function cy(r){return GY0+r*CELL+CELL/2;}
+function drawGridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,10);ctx.lineTo(x+.5,CH-10);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(10,y+.5);ctx.lineTo(CW-10,y+.5);ctx.stroke();}}
+function drawCells(){for(let r=0;r<GH;r++)for(let c=0;c<GW;c++){const s=r*GW+c,x=GX0+c*CELL,y=GY0+r*CELL;
+  ctx.fillStyle='#ffffff';ctx.fillRect(x+1,y+1,CELL-2,CELL-2);
+  ctx.strokeStyle='rgba(26,26,23,0.16)';ctx.lineWidth=1;ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);
+  if(s===GOAL){ctx.fillStyle='rgba(31,158,138,0.20)';ctx.fillRect(x+1,y+1,CELL-2,CELL-2);ctx.fillStyle=getCSS('--good');ctx.font='700 18px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('G',cx(c),cy(r)-4);ctx.font='8.5px '+getCSS('--mono');ctx.fillText('+10',cx(c),cy(r)+12);}
+  else if(s===PIT){ctx.fillStyle='rgba(207,79,95,0.20)';ctx.fillRect(x+1,y+1,CELL-2,CELL-2);ctx.fillStyle=getCSS('--neg');ctx.font='700 15px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✕',cx(c),cy(r)-4);ctx.font='8.5px '+getCSS('--mono');ctx.fillText('−10',cx(c),cy(r)+12);}
+  else if(s===START){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('S',x+9,y+11);}}}
+function drawArrows(th,alpha){alpha=alpha===undefined?1:alpha;
+  for(let s=0;s<NS;s++){if(s===GOAL||s===PIT)continue;const p=policy(th,s);const[r,c]=rc(s);const X=cx(c),Y=cy(r);
+    for(let a=0;a<NA;a++){const dy=ACT[a][0],dx=ACT[a][1];const pr=p[a];
+      const len=CELL*0.16+CELL*0.24*pr, w=0.8+6.2*pr;
+      const ex=X+dx*len,ey=Y+dy*len;
+      ctx.strokeStyle='rgba(111,84,196,'+(alpha*(0.30+0.6*pr))+')';ctx.lineWidth=w;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(ex,ey);ctx.stroke();
+      // 矢頭
+      const hs=2+3.4*pr;ctx.fillStyle='rgba(111,84,196,'+(alpha*(0.35+0.6*pr))+')';
+      ctx.beginPath();ctx.moveTo(ex+dx*hs*1.1,ey+dy*hs*1.1);ctx.lineTo(ex-dx*hs+dy*hs,ey-dy*hs+dx*hs);ctx.lineTo(ex-dx*hs-dy*hs,ey-dy*hs-dx*hs);ctx.closePath();ctx.fill();}
+    ctx.fillStyle='rgba(111,84,196,0.5)';ctx.beginPath();ctx.arc(X,Y,1.6,0,7);ctx.fill();}}
+function drawPath(path,color,upto){upto=upto===undefined?path.length-1:upto;ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();for(let i=0;i<=upto&&i<path.length;i++){const[r,c]=rc(path[i]);i?ctx.lineTo(cx(c),cy(r)):ctx.moveTo(cx(c),cy(r));}ctx.stroke();}
+function drawAgent(s){const[r,c]=rc(s);ctx.beginPath();ctx.arc(cx(c),cy(r),CELL*0.20,0,7);ctx.fillStyle=getCSS('--loss');ctx.shadowColor=getCSS('--loss');ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+
+/* ===== 補助図：確率バー・くじ引き・スコア関数 など ===== */
+function probBars(x0,y0,w,p,chosen,pushMode){const bh=17,gap=8;const names=['↑上','↓下','←左','→右'];
+  for(let a=0;a<NA;a++){const y=y0+a*(bh+gap);
+    ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--mono');ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(names[a],x0-8,y+bh/2);
+    ctx.fillStyle='rgba(26,26,23,0.08)';ctx.fillRect(x0,y,w,bh);
+    const fill=(chosen===a)?getCSS('--upd'):'rgba(111,84,196,0.5)';ctx.fillStyle=fill;ctx.fillRect(x0,y,w*p[a],bh);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText((p[a]*100).toFixed(0)+'%',x0+w+8,y+bh/2);
+    if(pushMode){const up=(chosen===a);const px=x0+w+52;ctx.font='700 13px '+getCSS('--mono');ctx.fillStyle=up?getCSS('--good'):getCSS('--neg');ctx.fillText(up?'▲上げ':'▽下げ',px,y+bh/2);}}}
+
+/* ===== スライド定義（4章 × 15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ学習',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0,walkStep=0;
+
+const SLIDES=[
+/* ---------- Ⅰ 問題 ---------- */
+{legend:'S=スタート, G=ゴール(+10), ✕=落とし穴(−10), 灰=ふつうのマス(1歩 −0.2)',
+ html(){return'<h3>① 報酬しか返ってこない世界</h3><div class="eq curr">報酬 <i>r</i>：ゴール +10 ／ 落とし穴 −10 ／ 1歩ごと −0.2<span class="read">読み：環境が返すのは「良し悪しの点数（報酬）」だけ。正解の道も地図も教えてもらえない。早く着くほど −0.2 の積み重ねが小さく、得</span></div><div class="desc">舞台は 5×5 のグリッド。エージェントは <b>S</b> から出発し、中央の<b>落とし穴 ✕</b>を避けて<b>ゴール G</b> を目指します。<a href="qlearning.html">Q学習</a>と同じ設定ですが、今回は解き方が違います。教えてもらえるのは<b>報酬という点数だけ</b>——この点数を手がかりに「どう動くか」を自分で見つけます。</div>';},
+ draw(){drawCells();caption('5×5・落とし穴つき（Q学習と同じ舞台）',CH-10);}},
+
+{legend:'価値ベース(Q学習)＝各行動の価値を表にして、最大の行動を選ぶ',
+ html(){return'<h3>② Q学習は「価値の表 → argmax」だった</h3><div class="eq curr">Q学習： <i>a</i>* = argmax<sub>a</sub> <i>Q</i>(<i>s</i>,<i>a</i>)<span class="read">読み：まず各行動の価値 <i>Q</i> を見積もり、その中で<b>最大の価値の行動</b>を選ぶ。行動は価値表から<b>間接的に</b>決まる（価値ベース）</span></div><div class="desc"><a href="qlearning.html">Q学習</a>は「各マスで各行動がどれだけ得か（価値 Q）」を表に貯め、いちばん価値の高い行動を選びました。行動は<b>価値の表を経由して</b>決まります。これは強力ですが、行動は常に<b>1つに確定</b>（決定的）で、行動が連続量（ハンドルを何度切る等）だと argmax が取りにくい。<b>別の学び方はないでしょうか。</b></div>';},
+ draw(){drawOneCellConcept('value');}},
+
+{legend:'方策ベース＝各マスに「行動のくじ引き」を置き、確率そのものを育てる',
+ html(){return'<h3>③ 別の道：確率的な方策を直接育てる</h3><div class="eq curr">方策 π(<i>a</i>|<i>s</i>)：各マスでの「行動のくじ引き」（確率）<span class="read">読み：π(<i>a</i>|<i>s</i>) ＝ 状態 <i>s</i> で行動 <i>a</i> を選ぶ確率。価値の表を作らず、この<b>確率そのもの</b>を良い方向へ動かす（方策ベース）</span></div><div class="desc">方策勾配の発想はこうです——価値を見積もる代わりに、各マスに<b>「行動のくじ引き」π(a|s)</b> を持たせる。最初は 4 方向とも <b>25% ずつ</b>の一様なくじ。学習とは、この<b>くじの目の出やすさ</b>を「うまくいった行動が出やすくなる」よう直接いじることです。行動そのものを学ぶので、連続量や<b>わざと確率的に振る舞う</b>戦略も自然に扱えます。</div>';},
+ draw(){drawOneCellConcept('policy');}},
+
+/* ---------- Ⅱ 仕組み ---------- */
+{legend:'softmax：スコア θ を「必ず正で合計1」の確率へ変換。矢印の太さ=確率',
+ html(){return'<h3>④ softmax 方策：スコアを確率に</h3><div class="eq curr">π(<i>a</i>|<i>s</i>) = softmax(<i>θ</i><sub>s,·</sub>)<sub>a</sub> = <span class="frac"><span>e<sup>θ<sub>s,a</sub></sup></span><span>Σ<sub>a′</sub> e<sup>θ<sub>s,a′</sub></sup></span></span><span class="read">読み：各マス・各行動に<b>スコア θ</b> を持たせ、指数 e<sup>θ</sup> にして合計で割る。どのスコアでも<b>必ず正・合計1</b>の確率になる＝くじの目の割り当て</span></div><div class="desc">くじの中身は <b>softmax</b> で作ります。各行動に<b>スコア θ[s,a]</b> という調整つまみを持たせ、softmax で「必ず正・合計 1」の確率に変換。スコアが高い行動ほど太い確率になります。学習で動かすのは<b>この θ だけ</b>。θ が全部同じなら 25% ずつ（下段）、右のスコアを上げると「→」の確率が太くなります。</div>';},
+ draw(){drawSoftmaxConcept();}},
+
+{legend:'スコア関数 ∇logπ ＝ 出た行動を上げ、他を下げる「確率のツマミ」',
+ html(){return'<h3>⑤ スコア関数：確率を上げ下げするツマミ</h3><div class="eq curr">∇<sub>θ</sub> logπ(<i>a</i>|<i>s</i>) = onehot(<i>a</i>) − π(·|<i>s</i>)<span class="read">読み：出た行動 <i>a</i> の成分は <b>1−π(a)</b>（正＝上げる）、それ以外は <b>−π</b>（負＝下げる）。「θ をこう動かすと、出た行動の確率が上がる」という向きを表すベクトル</span></div><div class="desc">では θ を「どちらへ」動かせば、出た行動が出やすくなるのか。その向きが<b>スコア関数 ∇logπ</b> です。softmax では驚くほど単純で、<b>実際に出た行動（例：→右）を上げ、残りを下げる</b>だけ（下段の ▲▽）。まだ<b>良し悪しは判断していません</b>——「出た行動を太らせる向き」を用意しただけ。次に、これを<b>どれだけ</b>動かすかを成績で決めます。</div>';},
+ draw(){drawScoreConcept();}},
+
+{legend:'REINFORCE：出た行動を「リターン G の分だけ」太らせる/細らせる',
+ html(){return'<h3>⑥ REINFORCE 則：リターンで重みづけて更新</h3><div class="eq curr"><i>θ</i> ← <i>θ</i> + <i>α</i> · <i>G</i> · ∇logπ(<i>a</i>|<i>s</i>)，　<i>G</i><sub>t</sub> = Σ<sub>k≥t</sub> <i>γ</i><sup>k−t</sup> <i>r</i><sub>k</sub><span class="read">読み：<i>G</i>＝その行動より後にもらった報酬の（割引つき）合計＝<b>リターン（成績）</b>。α＝歩幅。成績が良い(<i>G</i>&gt;0)ほど、出た行動を大きく太らせる</span></div><div class="desc">最後のピースが<b>リターン G</b>——「その行動のあと、最終的にどれだけ得したか」の合計点です。更新は「<b>スコア関数（太らせる向き）× リターン G（どれだけ）</b>」。<b>G が大きく良ければ大きく太らせ、悪ければ（G が負なら）逆に細らせる</b>。正解ラベルの代わりに、<b>自分の成績を教師にしている</b>——これが REINFORCE です。</div>';},
+ draw(){drawReinforceConcept();}},
+
+{legend:'方策勾配定理：期待リターン J(θ) を上げる向き＝E[G·∇logπ]',
+ html(){return'<h3>⑦ なぜ「勾配」なのか</h3><div class="eq curr">∇<sub>θ</sub> <i>J</i>(<i>θ</i>) = 𝔼<sub>π</sub>[ <i>G</i> · ∇<sub>θ</sub>logπ(<i>a</i>|<i>s</i>) ]，　<i>J</i>(<i>θ</i>)=𝔼<sub>π</sub>[<i>G</i>]<span class="read">読み：<i>J</i>＝方策 π で得られる<b>リターンの期待値</b>（＝方策の良さ）。その勾配（登り坂の向き）が、右辺の平均で書ける——これが<b>方策勾配定理</b></span></div><div class="desc">「良かった行動を太らせる」は思いつきではなく、<b>数学的に山登り</b >になっています。方策の良さ <b>J(θ)＝リターンの期待値</b> の勾配は、まさに <b>G·∇logπ の平均</b>に等しい（方策勾配定理）。だから「サンプルした G·∇logπ」を足すのは、J の坂を<b>登る</b>こと。ここで大切なのは——<b>微分しているのは方策の logπ であって、報酬ではない</b>点。報酬は環境が返す数字で、式が分からず微分できません。</div>';},
+ draw(){drawAscentConcept();}},
+
+/* ---------- Ⅲ ライブ学習 ---------- */
+{legend:'橙=いま生成中の1エピソードの道。今の方策でサイコロを振って歩く',
+ html(){prepDemo();return'<h3>⑧ エピソードを1本、生成する</h3><div class="eq curr">τ = (<i>s</i><sub>0</sub>,<i>a</i><sub>0</sub>,<i>r</i><sub>0</sub>, …, ゴール)　　<i>a</i><sub>t</sub> ～ π(·|<i>s</i><sub>t</sub>)<span class="read">読み：τ＝1回の道（エピソード）。各マスで<b>くじを引いて（π から確率的に）</b>行動を選び、S から終端まで歩いた記録。まだ学習はしない</span></div><div class="desc">学習の材料は「<b>1 回やってみた記録</b>」です。今の方策（ここでは軽く学習済み）で各マスの<b>くじを引き</b>、S からゴールまで歩いてみる——それが 1 <b>エピソード</b>。確率的なので毎回違う道になります。この回は <b>'+(demoTraj?demoTraj.length:0)+' 歩でゴール到達</b>、各歩で報酬（−0.2）を受け、最後に +10。次はこの記録から θ を動かします。</div>';},
+ draw(){drawCells();drawArrows(demoTheta,0.35);const path=demoTraj.map(x=>x.s).concat(GOAL);drawPath(path,'rgba(194,137,27,0.9)',anim?walkStep:path.length-1);drawAgent(anim?path[Math.min(walkStep,path.length-1)]:GOAL);}},
+
+{legend:'各マスに ▲/▽：ゴールに繋がった良い道なので、通った行動を太らせる',
+ html(){prepDemo();const G0=demoG?demoG[0].toFixed(1):'—';return'<h3>⑨ リターンを計算し、更新する</h3><div class="eq curr">この道のリターン <i>G</i><sub>0</sub> = '+G0+' （&gt; 0 ＝良い道）→ 通った各行動を <i>α·G</i>·∇logπ だけ太らせる<span class="read">読み：後ろから <i>G</i><sub>t</sub>=<i>r</i><sub>t</sub>+γ<i>G</i><sub>t+1</sub> と足し上げてリターンを出す。<i>G</i>&gt;0 なら「出た行動」を上げ、他を下げる（▲▽）</span></div><div class="desc">記録を後ろから畳んで各時刻の<b>リターン G<sub>t</sub></b> を計算します（この道は成功なので G はどれも正）。あとは⑥の則を通った全マスに適用——<b>この道で選んだ行動を、G の分だけ太らせる</b>。1 本の成功体験が「この道の各分岐で、その行動を少し出やすく」します。失敗（落とし穴）なら G が負になり、逆に<b>細らせる</b>。これを何百回も繰り返します。</div>';},
+ draw(){drawCells();drawArrows(demoTheta,0.4);
+   for(const st of demoTraj){const[r,c]=rc(st.s);const X=cx(c),Y=cy(r);
+     ctx.fillStyle='rgba(31,158,138,0.16)';ctx.beginPath();ctx.arc(X,Y,CELL*0.30,0,7);ctx.fill();
+     ctx.fillStyle=getCSS('--good');ctx.font='700 17px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ARR[st.a],X,Y);}
+   caption('緑=この道で選んだ行動（G>0なので太らせる）',CH-10);}},
+
+{legend:'橙=リターン推移（ギザギザ=当たり外れ）。矢印がゴール方向へ偏っていく',
+ html(){return'<h3>⑩ ライブ学習：矢印がゴールへ偏る</h3><div class="eq curr">エピソード <b>'+ep+'</b> / '+EPMAX+'　成功率 <b>'+succRate()+'%</b>　平均リターン <b>'+(retHist.length?(retHist.slice(-20).reduce((a,b)=>a+b,0)/Math.min(20,retHist.length)).toFixed(1):'—')+'</b><span class="read">読み：エピソードを回すたびに θ を少しずつ更新。各マスの矢印（太さ＝確率）が、だんだん<b>ゴール方向に一本化</b>していく</span></div><div class="desc">いよいよ<b>一様なくじから本当に学習</b>します（今度はゼロから）。「生成 → リターン計算 → 更新」をひたすら反復。各マスの矢印が<b>ゴール方向へ太く偏り</b>、成功率が上がります。下のリターン推移が<b>ギザギザ</b>なのに注目——1 回の当たり外れで揺れる、これが方策勾配の<b>分散の大きさ</b>。それでも平均は着実に上がります。</div>';},
+ draw(){drawCells();drawArrows(theta,1);drawReturnPanel(262,150);}},
+
+{legend:'上=ベースラインなし(赤)／下=あり(緑)。細線=各seedの学習曲線, 太線=平均',
+ html(){computeBand();return'<h3>⑪ A/B：ベースラインで分散を抑える</h3><div class="eq curr">更新の重みを <i>G</i> → <i>G</i> − <i>b</i>(<i>s</i>)（advantage）に。<i>b</i>(<i>s</i>)＝その状態の価値の見積もり<span class="read">読み：<i>G</i> から「その状態でふつう取れる成績 <i>b</i>」を引く＝<b>平均よりどれだけ良かったか</b>。進む向き（期待値）は変えず、<b>ばらつきだけ</b>を下げる</span></div><div class="desc"><b>同じ学習を乱数を変えて '+BAND_N+' 回ずつ</b>走らせ、成功率の曲線を重ねました。ベースライン<b>なし（上・赤）は帯が大きく広がる</b>——回によって速い遅いがバラバラ。<b>あり（下・緑）は帯が締まり</b>、どの回も揃って上がります。学習曲線の広がり（seed間のばらつき）は <b>'+bandStdOff.toFixed(2)+' → '+bandStdOn.toFixed(2)+'</b>（約'+(bandStdOn>0?(bandStdOff/bandStdOn).toFixed(1):'—')+'倍締まる）。到達の信頼性も <b>'+bandReachOff+'/'+BAND_N+' → '+bandReachOn+'/'+BAND_N+'</b>。速さは同じでも<b>安定性</b>が変わります。</div>';},
+ draw(){drawBandPanel();}},
+
+/* ---------- Ⅳ まとめ ---------- */
+{legend:'橙=完成した方策の最短経路。各マスの矢印が一本化してゴールへ',
+ html(){const gp=greedyPath(theta);const reached=gp.reached;return'<h3>⑫ 完成した方策</h3><div class="eq curr">貪欲経路：各マスで最も太い行動をたどる → '+(reached?(gp.path.length-1)+' 歩でゴール':'—')+'<span class="read">読み：学習後は各マスの確率が<b>ほぼ一方向</b>に。いちばん太い矢印をたどるだけで、落とし穴を避けた最短路になる</span></div><div class="desc">学習を終えた方策です。各マスの矢印は<b>ゴール方向にほぼ一本化</b>し、いちばん太い行動をたどるだけで<b>落とし穴を避けた最短路（'+(reached?(gp.path.length-1)+' 歩':'—')+'）</b>でゴールに着きます。価値の表は一度も作らず、<b>確率を直接動かしただけ</b>でここまで来ました。学習中は確率的に探索し、使うときは確信の高い行動を選ぶ——この切り替えが自然にできるのも方策ベースの持ち味です。</div>';},
+ draw(){drawCells();drawArrows(theta,1);const gp=greedyPath(theta);drawPath(gp.path,'rgba(194,137,27,0.85)');}},
+
+{legend:'価値ベース(Q学習)と方策ベース(方策勾配)の使い分け',
+ html(){return'<h3>⑬ 価値ベース vs 方策ベース</h3><div class="eq curr">価値ベース：<i>Q</i>→argmax（決定的）　／　方策ベース：π を直接（確率的）<span class="read">読み：どちらも報酬から学ぶが、学ぶ対象が違う。価値の表から行動を導くか、行動の確率を直接持つか</span></div><div class="desc">2 つは<b>優劣ではなく使い分け</b>です。<a href="qlearning.html">Q学習</a>（価値ベース）は<b>離散で状態が少なければ手堅く・サンプル効率が良い</b>。方策勾配（方策ベース）は<b>連続行動やわざと確率的に振る舞う戦略</b>を自然に扱え、方策を直接調整できる。弱点は⑪で見た<b>分散の大きさ＝サンプル効率の悪さ</b>。だから実務では両者を<b>合体</b>させます（次のスライド）。</div>';},
+ draw(){drawCompareConcept();}},
+
+{legend:'方策ベースが輝く場面：連続行動・混合戦略・ロボ制御・LLMのRLHF',
+ html(){return'<h3>⑭ 強みと、どこで出会うか</h3><div class="eq curr">連続行動 <i>a</i>∈ℝ（ハンドル角など）・混合戦略（じゃんけん）＝方策ベースの独壇場<span class="read">読み：argmax が取りにくい連続量や、<b>あえてランダムが最適</b>な状況では、確率を直接持つ方策ベースが効く</span></div><div class="desc">確率を直接持つ強みは 2 つ。<b>連続行動</b>——ハンドルを「何度」切るような無限の選択肢は argmax が使えず、方策で直接出す。<b>混合戦略</b>——じゃんけんの最適は「グー・チョキ・パーを 1/3 ずつ」のように<b>あえて確率的</b>で、決定的な方策では負ける。出会う場所は<b>ロボット制御・自動運転</b>、そして<b>LLM の RLHF</b>——人の好みから作った報酬で文章生成の方策を磨く、その中核が方策勾配系です。次の一歩は、価値（批評家）と組ませて分散を抑える <b>Actor-Critic</b>。</div>';},
+ draw(){drawUsesConcept();}},
+
+{legend:'方策勾配の3行まとめ',
+ html(){return'<h3>⑮ 閉演：行動を直接学ぶということ</h3><div class="eq curr">出た行動 × リターン ×（太らせる向き）を足すだけで、方策は坂を登る<span class="read">読み：正解ラベルなし・価値の表なし。<b>成績（リターン）を教師にして確率を直接動かす</b>——それが方策勾配</span></div><div class="desc">今日の芯は 1 つ——<b>価値を経由せず、良かった行動の確率を直接太らせれば、方策は良くなる</b>。正解は誰も教えてくれないのに、自分の成績を教師にして山を登れる。REINFORCE はその最も素朴な原型で、分散という弱点をベースラインや批評家（Actor-Critic）で抑えていくのが次の物語です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・π(a|s)=softmax(θ) の確率を直接学ぶ（価値の表を作らない）<br>・更新は α·G·∇logπ ＝「出た行動をリターンの分だけ太らせる」<br>・分散が大きいのが弱点 → ベースライン／Actor-Critic で改善</div>';},
+ draw(){drawCells();drawArrows(theta,1);const gp=greedyPath(theta);drawPath(gp.path,'rgba(194,137,27,0.8)');caption('ご清聴ありがとうございました 🎓',CH-10);}},
+];
+
+/* ===== 概念図 ===== */
+function drawOneCellConcept(mode){
+  // 中央に大きな1マスを描き、value なら価値+argmax、policy なら4方向の確率
+  const bx=CW/2-70,by=70,bs=140;
+  ctx.fillStyle='#ffffff';ctx.fillRect(bx,by,bs,bs);ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1.4;ctx.strokeRect(bx,by,bs,bs);
+  const X=bx+bs/2,Y=by+bs/2;
+  if(mode==='value'){
+    // 4方向の価値の数字＋最大へ太い矢印
+    const q=[3.1,8.7,2.4,6.2];const bi=1;                 // bi=最大価値の向き（↓）
+    const dd=[[-1,0],[1,0],[0,-1],[0,1]];
+    for(let a=0;a<4;a++){const ox=X+dd[a][1]*46,oy=Y+dd[a][0]*46;
+      ctx.fillStyle=(a===bi)?getCSS('--accent'):getCSS('--faint');ctx.font=(a===bi?'700 ':'')+'13px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('Q='+q[a].toFixed(1),ox,oy);}
+    // argmax 矢印（下=最大）
+    ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(X,Y-4);ctx.lineTo(X,Y+30);ctx.stroke();
+    ctx.fillStyle=getCSS('--accent');ctx.beginPath();ctx.moveTo(X,Y+40);ctx.lineTo(X-7,Y+28);ctx.lineTo(X+7,Y+28);ctx.closePath();ctx.fill();
+    ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('価値ベース（Q学習）',CW/2,by+bs+34);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11.5px '+getCSS('--gothic');ctx.fillText('4つの価値を見比べ → 最大の1つ(↓)に確定',CW/2,by+bs+54);
+    ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.fillText('行動は「決定的」。連続量だと argmax しづらい',CW/2,by+bs+72);
+  }else{
+    const p=[0.14,0.55,0.10,0.21];const dd=[[-1,0],[1,0],[0,-1],[0,1]];
+    for(let a=0;a<4;a++){const dy=dd[a][0],dx=dd[a][1];const len=18+34*p[a],w=1+8*p[a];
+      ctx.strokeStyle=getCSS('--upd');ctx.globalAlpha=0.35+0.6*p[a];ctx.lineWidth=w;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(X+dx*len,Y+dy*len);ctx.stroke();
+      const hs=3+4*p[a];ctx.fillStyle=getCSS('--upd');ctx.beginPath();ctx.moveTo(X+dx*(len+hs),Y+dy*(len+hs));ctx.lineTo(X+dx*len+dy*hs,Y+dy*len+dx*hs);ctx.lineTo(X+dx*len-dy*hs,Y+dy*len-dx*hs);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+      ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText((p[a]*100).toFixed(0)+'%',X+dx*(len+22),Y+dy*(len+16));}
+    ctx.globalAlpha=1;ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('方策ベース（方策勾配）',CW/2,by+bs+34);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11.5px '+getCSS('--gothic');ctx.fillText('4方向の確率（くじ引き）を直接持つ',CW/2,by+bs+54);
+    ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.fillText('矢印の太さ=確率。連続量・混合戦略も自然',CW/2,by+bs+72);
+  }}
+function drawSoftmaxConcept(){
+  // 上：θ(スコア) → e^θ → 正規化 → 確率バー
+  ctx.textBaseline='middle';
+  const th=[0.2,1.4,-0.3,0.6];const e=th.map(v=>Math.exp(v));const z=e.reduce((a,b)=>a+b,0);const p=e.map(v=>v/z);
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('スコア θ（学習で動かすつまみ）',24,34);
+  const names=['↑','↓','←','→'];
+  for(let a=0;a<4;a++){const y=54+a*20;
+    ctx.fillStyle=getCSS('--faint');ctx.font='12px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText(names[a],40,y);
+    ctx.fillStyle='rgba(179,129,47,0.18)';ctx.fillRect(48,y-7,80,14);
+    ctx.fillStyle=getCSS('--warm');ctx.fillRect(88,y-7,th[a]*28,14);
+    ctx.fillStyle=getCSS('--text');ctx.font='10.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('θ='+th[a].toFixed(1),150,y);}
+  // 矢印 softmax
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('softmax ↓  e^θ を合計で割る',CW/2,160);
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('確率 π（必ず正・合計100%）',24,186);
+  probBars(90,206,150,p,1,false);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('スコア最大の「↓」がいちばん太い確率に',CW/2,CH-16);}
+function drawScoreConcept(){
+  ctx.textBaseline='middle';
+  const p=[0.14,0.22,0.10,0.54];const chosen=3;
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('いま「→右」が出た（サイコロの結果）',CW/2,34);
+  probBars(80,58,150,p,chosen,true);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11.5px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('∇logπ(→) = onehot(→) − π',CW/2,182);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');
+  ctx.fillText('= [ −0.14, −0.22, −0.10, +0.46 ]',CW/2,206);
+  ctx.fillStyle=getCSS('--good');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('▲ 出た「→」を上げ（+0.46）',CW/2,236);
+  ctx.fillStyle=getCSS('--neg');ctx.fillText('▽ 他の3方向を下げる（合計 −0.46）',CW/2,256);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('※まだ「良し悪し」は入っていない＝向きだけ',CW/2,CH-16);}
+function drawReinforceConcept(){
+  ctx.textBaseline='middle';ctx.textAlign='center';
+  // 良い道 vs 悪い道 の更新
+  const pBefore=[0.20,0.25,0.20,0.35];
+  // good
+  ctx.fillStyle=getCSS('--good');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('良い道（ゴール到達）G = +7',CW/2,32);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('出た「→」を G の分だけ大きく太らせる',CW/2,50);
+  drawBeforeAfterArrow(90,70,pBefore,3,+1);
+  // bad
+  ctx.fillStyle=getCSS('--neg');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('悪い道（落とし穴）G = −10',CW/2,170);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('出た「→」を逆に細らせる（避けるように）',CW/2,188);
+  drawBeforeAfterArrow(90,208,pBefore,3,-1);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('リターン G が「どれだけ・どちらへ」を決める',CW/2,CH-14);}
+function drawBeforeAfterArrow(x0,y0,p,chosen,sign){
+  // before → after を横並びの太さで
+  const labels=['前:','後:'];
+  for(let k=0;k<2;k++){const y=y0+k*40;
+    ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(labels[k],x0-6,y);
+    const pp=p.slice();if(k===1){const d=sign*0.22;pp[chosen]+=d;const others=[0,1,2,3].filter(a=>a!==chosen);for(const a of others)pp[a]-=d/3;for(let a=0;a<4;a++)pp[a]=Math.max(0.02,pp[a]);}
+    const names=['↑','↓','←','→'];
+    for(let a=0;a<4;a++){const X=x0+30+a*45;const w=1+9*pp[a];
+      ctx.strokeStyle=(a===chosen)?getCSS('--upd'):'rgba(111,84,196,0.4)';ctx.lineWidth=w;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(X,y+8);ctx.lineTo(X,y-8);ctx.stroke();
+      ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(names[a],X,y+18);}}}
+function drawAscentConcept(){
+  ctx.textBaseline='alphabetic';
+  // J(θ) の丘を登るボール
+  const x0=40,x1=CW-30,y0=90,yb=250;
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,yb);ctx.lineTo(x1,yb);ctx.stroke();
+  ctx.strokeStyle='rgba(31,158,138,0.8)';ctx.lineWidth=2.4;ctx.beginPath();
+  const J=t=>{const u=(t-x0)/(x1-x0);return yb-150*Math.exp(-Math.pow((u-0.72)*2.4,2));};
+  for(let x=x0;x<=x1;x+=3){const y=J(x);x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+  // ボール（坂の途中）
+  const bx=x0+(x1-x0)*0.45,by=J(bx);
+  ctx.beginPath();ctx.arc(bx,by-7,7,0,7);ctx.fillStyle=getCSS('--upd');ctx.fill();
+  // 登り矢印
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(bx+8,by-14);ctx.lineTo(bx+40,by-40);ctx.stroke();
+  ctx.fillStyle=getCSS('--loss');ctx.beginPath();ctx.moveTo(bx+46,by-46);ctx.lineTo(bx+32,by-40);ctx.lineTo(bx+40,by-28);ctx.closePath();ctx.fill();
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('J(θ) = 期待リターン',CW/2,74);
+  ctx.fillStyle=getCSS('--loss');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('∇J の向きに θ を更新＝坂を登る',bx+70,by-54);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('G·∇logπ の平均が、ちょうど ∇J に一致する（方策勾配定理）',CW/2,yb+30);
+  ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('微分するのは logπ（方策）。報酬は微分しない',CW/2,yb+52);}
+function drawCompareConcept(){
+  ctx.textBaseline='middle';
+  const cols=[{x:26,w:145,t:'価値ベース',s:'Q学習・DQN',c:getCSS('--accent'),rows:['学ぶ物：価値 Q(s,a)','行動：argmax（決定的）','得意：離散・少状態','効率：サンプル効率◎','弱点：連続行動が苦手']},
+             {x:189,w:145,t:'方策ベース',s:'方策勾配・REINFORCE',c:getCSS('--upd'),rows:['学ぶ物：方策 π(a|s)','行動：確率的に選ぶ','得意：連続・混合戦略','効率：分散大・効率△','弱点：ばらつきが大きい']}];
+  for(const col of cols){
+    ctx.fillStyle=col.c;ctx.fillRect(col.x,24,col.w,30);ctx.fillStyle='#fff';ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(col.t,col.x+col.w/2,39);
+    ctx.fillStyle=col.c;ctx.font='9.5px '+getCSS('--mono');ctx.fillText(col.s,col.x+col.w/2,64);
+    for(let i=0;i<col.rows.length;i++){const y=84+i*32;ctx.fillStyle='rgba(26,26,23,0.04)';ctx.fillRect(col.x,y,col.w,28);
+      ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(col.rows[i],col.x+8,y+14);}}
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('両者を合体 → Actor-Critic（動く人＋批評家）',CW/2,CH-16);}
+function drawUsesConcept(){
+  ctx.textBaseline='middle';ctx.textAlign='center';
+  const items=[{t:'連続行動',s:'ハンドル角・トルク',ic:'wheel'},{t:'混合戦略',s:'じゃんけん=1/3ずつ',ic:'rps'},{t:'ロボ制御',s:'歩行・把持',ic:'robot'},{t:'LLM の RLHF',s:'人の好みで方策を磨く',ic:'chat'}];
+  for(let i=0;i<4;i++){const col=i%2,row=(i/2)|0;const x=CW/2-80+col*160,y=60+row*130;
+    ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.4;ctx.fillStyle='rgba(111,84,196,0.06)';
+    roundRect(x-62,y-40,124,104,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=getCSS('--upd');ctx.font='700 26px '+getCSS('--gothic');
+    const emo={wheel:'🎛',rps:'✊',robot:'🤖',chat:'💬'}[items[i].ic];ctx.fillText(emo,x,y-14);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 12.5px '+getCSS('--gothic');ctx.fillText(items[i].t,x,y+18);
+    ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.fillText(items[i].s,x,y+38);}}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+/* ===== パネル：リターン推移・A/B バンド ===== */
+function drawReturnPanel(y0,h){const x0=34,w=CW-64;
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('リターン推移（1エピソードの成績・ギザギザ=分散）',x0+3,y0-5);
+  const lo=-11,hi=11;const Y=v=>y0+h-(v-lo)/(hi-lo)*h;
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x0+w,Y(0));ctx.stroke();ctx.setLineDash([]);
+  if(retHist.length>1){ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.3;ctx.beginPath();
+    for(let i=0;i<retHist.length;i++){const X=x0+w*i/(EPMAX-1),Yv=Y(Math.max(lo,Math.min(hi,retHist[i])));i?ctx.lineTo(X,Yv):ctx.moveTo(X,Yv);}ctx.stroke();}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('+10',x0-3,Y(10));ctx.fillText('−10',x0-3,Y(-10));}
+function drawBandSub(curves,mean,y0,h,color,label,stdv,reach){const x0=34,w=CW-64;
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const Y=v=>y0+h-v*h;
+  // 各 seed の細線
+  for(const c of curves){ctx.strokeStyle=color.replace('ALPHA','0.16');ctx.lineWidth=1;ctx.beginPath();
+    for(let i=0;i<c.length;i+=2){const X=x0+w*i/(BAND_EP-1);i?ctx.lineTo(X,Y(c[i])):ctx.moveTo(X,Y(c[i]));}ctx.stroke();}
+  // 平均
+  ctx.strokeStyle=color.replace('ALPHA','1');ctx.lineWidth=2.2;ctx.beginPath();
+  for(let i=0;i<mean.length;i+=2){const X=x0+w*i/(BAND_EP-1);i?ctx.lineTo(X,Y(mean[i])):ctx.moveTo(X,Y(mean[i]));}ctx.stroke();
+  ctx.fillStyle='rgba(255,253,246,0.86)';ctx.fillRect(x0+1,y0+1,w-2,17);
+  ctx.fillStyle=color.replace('ALPHA','1');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(label,x0+5,y0+10);
+  ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('広がり '+stdv.toFixed(2)+' / 到達 '+reach+'/'+BAND_N,x0+w-5,y0+10);ctx.textBaseline='alphabetic';}
+function meanCurve(curves){const m=new Array(BAND_EP).fill(0);for(const c of curves)for(let i=0;i<BAND_EP;i++)m[i]+=c[i]/curves.length;return m;}
+function drawBandPanel(){
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('成功率の学習曲線を '+BAND_N+' 回ずつ重ねる（縦=成功率0→100%, 横=エピソード）',CW/2,20);
+  drawBandSub(bandOff,meanCurve(bandOff),34,168,'rgba(207,79,95,ALPHA)','① ベースラインなし（帯が広い＝不安定）',bandStdOff,bandReachOff);
+  drawBandSub(bandOn,meanCurve(bandOn),226,168,'rgba(31,158,138,ALPHA)','② ベースラインあり（帯が締まる＝安定）',bandStdOn,bandReachOn);}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  if(s<=1){m.innerHTML='<div>マス <b>25</b>・行動 <b>4方向</b></div><div>報酬 <b>G+10 / ✕−10 / 歩−0.2</b></div>';}
+  else if(s===2){m.innerHTML='<div>方策 <b>π(a|s)</b></div><div>初期 <b>4方向 25%ずつ</b></div>';}
+  else if(s<=6){m.innerHTML='<div>学ぶ物 <b>スコア θ[s,a]</b></div><div>更新 <b>α·G·∇logπ</b></div>';}
+  else if(s===7){prepDemo();m.innerHTML='<div>この道 <b>'+demoTraj.length+' 歩</b>で到達</div><div class="best">リターン <b>'+demoG[0].toFixed(1)+'</b></div>';}
+  else if(s===8){prepDemo();m.innerHTML='<div class="best">G<sub>0</sub> <b>'+demoG[0].toFixed(1)+'</b>（良い道）</div><div>通った行動を<b>太らせる</b></div>';}
+  else if(s===9){m.innerHTML='<div>ep <b>'+ep+'</b>/'+EPMAX+'</div><div class="best">成功率 <b>'+succRate()+'%</b></div>';}
+  else if(s===10){m.innerHTML='<div>広がり <b>'+bandStdOff.toFixed(2)+' → '+bandStdOn.toFixed(2)+'</b></div><div class="best">到達 <b>'+bandReachOff+'→'+bandReachOn+'/'+BAND_N+'</b></div>';}
+  else if(s===11){const gp=greedyPath(theta);m.innerHTML='<div class="best">最短経路 <b>'+(gp.reached?(gp.path.length-1)+' 歩':'—')+'</b></div><div>価値の表 <b>不使用</b></div>';}
+  else if(s===12){m.innerHTML='<div>価値ベース <b>argmax</b></div><div>方策ベース <b>確率を直接</b></div>';}
+  else if(s===13){m.innerHTML='<div>連続行動・混合戦略</div><div class="best">ロボ制御・RLHF</div>';}
+  else{m.innerHTML='<div class="best">方策を直接学ぶ <b>REINFORCE</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=(slideIdx!==9&&slideIdx!==11);}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function ensureMainTrained(){if(ep<EPMAX)trainFull();}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===7)runWalk();
+  if(i===9){if(ep>=EPMAX){resetRun();newMainRng();}runTrain();}
+  if(i===10)computeBand();
+  if(i===11)ensureMainTrained();
+  renderAll();draw_();}
+function runWalk(){prepDemo();anim=true;walkStep=0;const path=demoTraj.map(x=>x.s).concat(GOAL);
+  if(window.__prefersReducedMotion){walkStep=path.length-1;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==7)return;if(t0===null)t0=ts;walkStep=Math.min(path.length-1,Math.floor((ts-t0)/220));draw_();if(walkStep>=path.length-1){anim=false;return;}requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runTrain(){anim=true;if(!trainBatch.rng)newMainRng();
+  if(window.__prefersReducedMotion){ensureMainTrained();anim=false;draw_();renderMini();renderExplain();return;}
+  function go(){if(!anim||slideIdx!==9)return;if(ep>=EPMAX){anim=false;renderMini();renderExplain();draw_();return;}
+    trainBatch(4);draw_();renderMini();renderExplain();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===9);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===9?1600:(slideIdx===7?2600:4200));};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;mainSeed=314;resetRun();newMainRng();slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{
+  if(slideIdx===9){mainSeed=100+Math.floor(makeRng(mainSeed+1)()*9000);resetRun();newMainRng();runTrain();}
+  else if(slideIdx===11){mainSeed=100+Math.floor(makeRng(mainSeed+1)()*9000);resetRun();newMainRng();ensureMainTrained();draw_();renderMini();renderExplain();}};
+reset();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
