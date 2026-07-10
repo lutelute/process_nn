@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIME — 局所で線形に写す — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --c0:#1f9e8a; --c1:#b3812f;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);touch-action:none;}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:88px;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>LIME — 局所で線形に写す</h1>
+  <div class="lead">ブラックボックスの判断は、<a href="classify.html">決定境界</a>が地形のように入り組んでいて、「全体でどう決めているか」の一言では言えません。LIME は発想を変えます——<b>知りたい 1 点の近所だけ</b>を見れば、複雑な地形も<b>坂の向き（単純な線形モデル）</b>で言える。★を<b>ドラッグ</b>して、説明が場所ごとに変わる様子を確かめてください。下の流れを「次へ ▶」で。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>ブラックボックスの<b>1 件の判断に「なぜ?」と答える</b>、実務で最もよく使われる説明手法の原理。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>調べたい 1 点の近所だけで、複雑なモデルを<b>単純な線形モデルに写して</b>係数で説明する。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>融資審査・医療診断・与信・不正検知など、<b>個別の判断に説明責任</b>が要る現場。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>近傍幅 σ <input type="range" id="sig" min="15" max="120" step="5" value="40"></label>
+      <button id="diceBtn">🎲 撒き直す</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p><b>複雑さは大域の性質、説明は局所の行為</b>——LIME は「どこに立って聞くか」を決めてから答えさせます。モデル全体をほどこうとせず、いま知りたい 1 点の周りだけを<b>坂の向き</b>に写す。だから隣へ動けば、答えも変わる。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>LIME の説明は、モデル<b>全体</b>の仕組みを表している</div>
+    <div class="row"><span class="o">✓</span>あくまで<b>その 1 点の近所だけ</b>の話。隣へ動けば別の説明になり、<b>係数の符号さえ反転</b>します（この教材で実演）。「x1 が効く」は場所つきでしか言えない。</div>
+    <div class="row"><span class="x">✗</span>同じ入力なら、LIME の説明は毎回同じ</div>
+    <div class="row"><span class="o">✓</span>周りを<b>乱数で撒いて</b>聞くので、実行ごとに<b>ぶれ</b>ます。ぶれの確認（何度か撒き直す・サンプルを増やす）までが説明の一部。1 回の結果を鵜呑みにしない。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：画像のスーパーピクセル・K-Lasso・アンカー・SHAP との関係</summary>
+    <div class="det">LIME の摂動のしかたは対象で変わります。<b>表形式</b>では各特徴を平均・分位で揺らし、<b>テキスト</b>では単語を消して（オン/オフ）、<b>画像</b>では画素ひとつずつでなく<b>スーパーピクセル</b>（似た色の塊）をまとめてオン/オフします——「この塊があると犬と判定」を見る。特徴が多いと局所モデルも読みにくいので、<b>K-Lasso</b>で効く特徴を K 個に絞ってから線形回帰します（説明の簡潔さ）。同じ著者の後継<b>アンカー</b>は、係数でなく「この条件を満たす限り必ずこの判定」という if-then ルールで局所を説明する手法。貢献の配分に公平性の保証（加法性）を与えるのは協力ゲームの Shapley 値を使う SHAP で、LIME の親戚にあたります。共通の限界は「局所の定義（近傍幅・サンプル）しだいで答えが変わる」こと。関連ページ: <a href="classify.html">決定境界</a>・<a href="logreg.html">ロジスティック回帰</a>（局所モデルの正体）・<a href="reg.html">正則化</a>（リッジ）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=7;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== ブラックボックス：2-12-12-2 MLP（実学習）===== */
+const sizes=[2,12,12,2],L=3;let W,B,mW,vW,mB,vB,tA;
+function build(){seed=7;W=[null];B=[null];mW=[null];vW=[null];mB=[null];vB=[null];
+  for(let l=1;l<=L;l++){const nI=sizes[l-1],nO=sizes[l],s=Math.sqrt(1/nI);const Wl=[],m=[],v=[];
+    for(let j=0;j<nO;j++){const r=[],mm=[],vv=[];for(let k=0;k<nI;k++){r.push(randn()*s);mm.push(0);vv.push(0);}Wl.push(r);m.push(mm);v.push(vv);}
+    W[l]=Wl;mW[l]=m;vW[l]=v;B[l]=Array(nO).fill(0);mB[l]=Array(nO).fill(0);vB[l]=Array(nO).fill(0);}tA=0;}
+const act=z=>Math.tanh(z),actD=a=>1-a*a;
+function fwd(x){const a=[x],z=[null];for(let l=1;l<=L;l++){const nO=sizes[l],nI=sizes[l-1],zl=[],al=[];
+  for(let j=0;j<nO;j++){let s=B[l][j];for(let k=0;k<nI;k++)s+=W[l][j][k]*a[l-1][k];zl.push(s);al.push(l===L?s:act(s));}z.push(zl);a.push(al);}return{a,z};}
+function softmax2(o){const m=Math.max(o[0],o[1]),e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
+function proba(x){return softmax2(fwd(x).a[L]);}   // [p0,p1]
+const p1=x=>proba(x)[1];                            // クラス1（承認）の確率＝ブラックボックスの答え
+let data;
+function gen(){const X=[],Y=[],n=200;seed=7;
+  for(let i=0;i<n;i++){const c=i%2;let x,y;const t=Math.PI*rng();
+    if(c===0){x=Math.cos(t)-0.5;y=Math.sin(t)-0.18;}else{x=Math.cos(t+Math.PI)+0.5;y=Math.sin(t+Math.PI)+0.18;}
+    x*=0.8;y*=0.8;x+=randn()*0.06;y+=randn()*0.06;X.push([x,y]);Y.push(c);}
+  data={X,Y};}
+function trainStep(){const lr=0.03,N=data.X.length;const dW=[null],dB=[null];
+  for(let l=1;l<=L;l++){const g=[];for(let j=0;j<sizes[l];j++)g.push(Array(sizes[l-1]).fill(0));dW[l]=g;dB[l]=Array(sizes[l]).fill(0);}
+  let loss=0,ok=0;
+  for(let n=0;n<N;n++){const{a}=fwd(data.X[n]);const p=softmax2(a[L]),y=data.Y[n];loss+=-Math.log(p[y]+1e-9);if((p[1]>p[0]?1:0)===y)ok++;
+    let dl=[p[0]-(y===0?1:0),p[1]-(y===1?1:0)];
+    for(let l=L;l>=1;l--){for(let j=0;j<sizes[l];j++){dB[l][j]+=dl[j];for(let k=0;k<sizes[l-1];k++)dW[l][j][k]+=dl[j]*a[l-1][k];}
+      if(l>1){const dp=Array(sizes[l-1]).fill(0);for(let k=0;k<sizes[l-1];k++){let s=0;for(let j=0;j<sizes[l];j++)s+=W[l][j][k]*dl[j];dp[k]=s*actD(a[l-1][k]);}dl=dp;}}}
+  const iN=1/N;tA++;const b1=.9,b2=.999,bc1=1-b1**tA,bc2=1-b2**tA;
+  for(let l=1;l<=L;l++)for(let j=0;j<sizes[l];j++){let gb=dB[l][j]*iN;mB[l][j]=b1*mB[l][j]+.1*gb;vB[l][j]=b2*vB[l][j]+.001*gb*gb;B[l][j]-=lr*(mB[l][j]/bc1)/(Math.sqrt(vB[l][j]/bc2)+1e-8);
+    for(let k=0;k<sizes[l-1];k++){let gw=dW[l][j][k]*iN;mW[l][j][k]=b1*mW[l][j][k]+.1*gw;vW[l][j][k]=b2*vW[l][j][k]+.001*gw*gw;W[l][j][k]-=lr*(mW[l][j][k]/bc1)/(Math.sqrt(vW[l][j][k]/bc2)+1e-8);}}
+  return{loss:loss/N,acc:ok/N};}
+let nnAcc=0;
+function accAll(){let ok=0;for(let n=0;n<data.X.length;n++)if((p1(data.X[n])>0.5?1:0)===data.Y[n])ok++;return ok/data.X.length;}
+function trainNet(){build();gen();for(let e=0;e<700;e++)trainStep();nnAcc=accAll();}
+
+/* ===== LIME：摂動→距離重み→重み付きリッジ回帰 ===== */
+const NSAMP=300, SSAMP=0.45, LAM=1e-3;
+let star=[-0.20,0.22], sKer=0.40, limeSeed=100, lime=null;
+const PRESET_A=[-0.85,-0.04], PRESET_B=[-0.20,0.22];
+function solve3(A,b){const M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<3;c++){let p=c;for(let r=c+1;r<3;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;[M[c],M[p]]=[M[p],M[c]];
+    const d=M[c][c]||1e-12;for(let j=c;j<4;j++)M[c][j]/=d;
+    for(let r=0;r<3;r++)if(r!==c){const f=M[r][c];for(let j=c;j<4;j++)M[r][j]-=f*M[c][j];}}
+  return[M[0][3],M[1][3],M[2][3]];}
+function runLime(pt,sk,sd){seed=sd;const Z=[],yv=[],wv=[];
+  for(let i=0;i<NSAMP;i++){const d1=randn()*SSAMP,d2=randn()*SSAMP,d=Math.hypot(d1,d2);
+    Z.push([d1,d2]);yv.push(p1([pt[0]+d1,pt[1]+d2]));wv.push(Math.exp(-(d*d)/(sk*sk)));}
+  const A=[[0,0,0],[0,0,0],[0,0,0]],bvec=[0,0,0];
+  for(let i=0;i<NSAMP;i++){const phi=[1,Z[i][0],Z[i][1]],w=wv[i];
+    for(let a=0;a<3;a++){for(let b=0;b<3;b++)A[a][b]+=w*phi[a]*phi[b];bvec[a]+=w*phi[a]*yv[i];}}
+  A[1][1]+=LAM;A[2][2]+=LAM;const beta=solve3(A,bvec);
+  let sw=0,swy=0;for(let i=0;i<NSAMP;i++){sw+=wv[i];swy+=wv[i]*yv[i];}const ym=swy/sw;
+  let ssr=0,sst=0;for(let i=0;i<NSAMP;i++){const pr=beta[0]+beta[1]*Z[i][0]+beta[2]*Z[i][1];ssr+=wv[i]*(yv[i]-pr)**2;sst+=wv[i]*(yv[i]-ym)**2;}
+  return{beta,Z,yv,wv,r2:sst>1e-9?1-ssr/sst:0,pt:[pt[0],pt[1]],sk};}
+function recompute(){lime=runLime(star,sKer,limeSeed);}
+// 有限差分でブラックボックスの真の局所勾配（検証・矢印用）
+function gradFD(x,h=0.02){return[(p1([x[0]+h,x[1]])-p1([x[0]-h,x[1]]))/(2*h),(p1([x[0],x[1]+h])-p1([x[0],x[1]-h]))/(2*h)];}
+// ぶれ統計：seedを変えてK回、係数の標準偏差
+function varStats(pt,sk,K){const b1=[],b2=[];for(let r=0;r<K;r++){const L2=runLime(pt,sk,700+r*53);b1.push(L2.beta[1]);b2.push(L2.beta[2]);}
+  const mean=a=>a.reduce((s,v)=>s+v,0)/a.length,std=a=>{const m=mean(a);return Math.sqrt(mean(a.map(v=>(v-m)**2)));};
+  return{s1:std(b1),s2:std(b2),lines:b1.map((_,i)=>({b1:b1[i],b2:b2[i]}))};}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PPU=118, MCX=180, MCY=156;                    // 地図：中心(180,156)・118px/単位
+const toX=x=>MCX+x*PPU, toY=y=>MCY-y*PPU;
+const fromX=sx=>(sx-MCX)/PPU, fromY=sy=>-(sy-MCY)/PPU;
+const RGx=1.5, RGy=1.25;
+function drawBoundary(G){G=G||44;const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
+  for(let r=0;r<G;r++){const ry=Math.round(y0+r*H2/G),ry2=Math.round(y0+(r+1)*H2/G);
+    for(let c=0;c<G;c++){const rx=Math.round(x0+c*W2/G),rx2=Math.round(x0+(c+1)*W2/G);
+      const xx=fromX((rx+rx2)/2),yy=fromY((ry+ry2)/2),p=proba([xx,yy]);
+      const cl=p[1]>p[0]?1:0,conf=Math.abs(p[1]-p[0]);
+      ctx.fillStyle=(cl?'rgba(179,129,47,':'rgba(31,158,138,')+(0.05+0.34*conf)+')';
+      ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}}
+function drawData(){for(let i=0;i<data.X.length;i++){ctx.beginPath();ctx.arc(toX(data.X[i][0]),toY(data.X[i][1]),2.8,0,7);
+  ctx.fillStyle=data.Y[i]?getCSS('--c1'):getCSS('--c0');ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+  ctx.lineWidth=.4;ctx.strokeStyle='rgba(12,16,22,0.55)';ctx.stroke();}}
+function drawStar(pt,pred){const x=toX(pt[0]),y=toY(pt[1]);ctx.save();ctx.translate(x,y);
+  ctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?4.5:10.5;ctx[i?'lineTo':'moveTo'](Math.cos(a)*r,-Math.sin(a)*r);}ctx.closePath();
+  ctx.fillStyle=pred>=0?(pred?getCSS('--c1'):getCSS('--c0')):'#fff';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#faf8f1';ctx.stroke();ctx.restore();}
+function drawPerturb(res,showW){for(let i=0;i<res.Z.length;i++){const px2=toX(res.pt[0]+res.Z[i][0]),py2=toY(res.pt[1]+res.Z[i][1]);
+  const w=res.wv[i],cl=res.yv[i]>0.5?1:0,r=showW?(1+3.4*Math.sqrt(w)):2,base=cl?'179,129,47':'31,158,138',al=showW?(0.22+0.6*w):0.5;
+  ctx.beginPath();ctx.arc(px2,py2,r,0,7);ctx.fillStyle='rgba('+base+','+al+')';ctx.fill();}}
+function drawLocalLine(res,col,wd){const b=res.beta,rhs=0.5-b[0];// b1*Δx+b2*Δy=rhs, Δ=座標-★
+  ctx.strokeStyle=col||getCSS('--upd');ctx.lineWidth=wd||2.4;ctx.setLineDash([]);
+  const pts=[];
+  if(Math.abs(b[2])>Math.abs(b[1])){for(let sx=-RGx;sx<=RGx+1e-6;sx+=RGx){const dx=sx-res.pt[0];const dy=(rhs-b[1]*dx)/b[2];pts.push([sx,res.pt[1]+dy]);}}
+  else{for(let sy=-RGy;sy<=RGy+1e-6;sy+=RGy){const dy=sy-res.pt[1];const dx=(rhs-b[2]*dy)/b[1];pts.push([res.pt[0]+dx,sy]);}}
+  ctx.beginPath();pts.forEach((p,i)=>{const X=toX(p[0]),Y=toY(p[1]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();}
+function drawGradArrow(pt,col){const g=gradFD(pt);const n=Math.hypot(g[0],g[1])||1;const ux=g[0]/n,uy=g[1]/n,len=44;
+  const x=toX(pt[0]),y=toY(pt[1]),ex=x+ux*len,ey=y-uy*len;
+  ctx.strokeStyle=col||getCSS('--neg');ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(ex,ey);ctx.stroke();
+  const ang=Math.atan2(-uy,ux);ctx.beginPath();ctx.moveTo(ex,ey);
+  ctx.lineTo(ex-9*Math.cos(ang-0.4),ey-9*Math.sin(ang-0.4));ctx.lineTo(ex-9*Math.cos(ang+0.4),ey-9*Math.sin(ang+0.4));ctx.closePath();ctx.fillStyle=col||getCSS('--neg');ctx.fill();}
+function drawKernelRings(pt){const x=toX(pt[0]),y=toY(pt[1]);
+  for(let k=2;k>=1;k--){const rr=k*sKer*PPU,w=Math.exp(-k*k);       // 距離 kσ での重み = exp(−k²)
+    ctx.beginPath();ctx.arc(x,y,rr,0,7);ctx.fillStyle='rgba(111,84,196,'+(0.05+0.09/k)+')';ctx.fill();
+    ctx.strokeStyle='rgba(111,84,196,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+    const lx=x+rr*0.7,ly=y-rr*0.7;ctx.fillStyle=getCSS('--upd');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';
+    ctx.fillText('d='+k+'σ → w='+w.toFixed(2),lx+2,ly);}}
+function drawCoefBars(res,y0){const b=res.beta;y0=y0||322;const h=100;
+  ctx.fillStyle='rgba(255,253,246,0.72)';ctx.fillRect(8,y0-2,CW-16,h);
+  ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.strokeRect(8,y0-2,CW-16,h);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';
+  ctx.fillText('局所モデルの係数 β（この近所での特徴の効き目）',16,y0+12);
+  const zx=180,half=128,sc=Math.max(1.8,Math.abs(b[1]),Math.abs(b[2]));
+  ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(zx,y0+22);ctx.lineTo(zx,y0+h-14);ctx.stroke();
+  const rows=[['x1',b[1]],['x2',b[2]]];
+  rows.forEach(([nm,val],i)=>{const yy=y0+34+i*30,bl=val/sc*half,col=val>0?getCSS('--c1'):getCSS('--c0');
+    ctx.fillStyle=col;ctx.fillRect(Math.min(zx,zx+bl),yy,Math.abs(bl),15);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign=bl>=0?'right':'left';
+    ctx.fillText('特徴 '+nm,zx+(bl>=0?-half-4:half+4),yy+11);ctx.textAlign=bl>=0?'left':'right';
+    ctx.fillText(val>=0?'+'+val.toFixed(2):val.toFixed(2),zx+bl+(bl>=0?4:-4),yy+11);});
+  ctx.fillStyle=getCSS('--c0');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('← クラス0寄り',14,y0+h-4);
+  ctx.fillStyle=getCSS('--c1');ctx.textAlign='right';ctx.fillText('クラス1寄り →',CW-14,y0+h-4);}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-8);}
+function starPred(pt){return p1(pt)>0.5?1:0;}
+
+/* ===== スライド定義（4章×15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:13}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0;
+
+const SLIDES=[
+/* 0 */{title:'この 1 件は、なぜ否決されたのか',legend:'背景色＝モデルの判定（緑=クラス0/否決寄り, 黄=クラス1/承認寄り）',live:false,
+ html(){return'<h3>この 1 件は、なぜ否決されたのか</h3><div class="eq curr"><i>f</i> : 入力 <i>x</i> ↦ 判定（複雑・中身は見えない）　—　「<i>f</i>(あなた) はなぜ否決?」<span class="read">読み：<i>f</i>＝学習済みのブラックボックス（ここでは実学習した小さなニューラルネット）。訓練精度は右の数値。中身の重みは見えても、なぜその判定かは読めない</span></div><div class="desc">融資審査・与信・診断——モデルは「承認/否決」を返しますが、<b>当事者が知りたいのは「なぜ」</b>です。ここでは 2 つの特徴（<b>x1・x2</b>）で決まる審査を、実学習した NN（訓練精度 <b>'+(nnAcc*100).toFixed(0)+'%</b>）が担います。背景の色がモデルの判定。まず、この地形を眺めてください。</div>';},
+ draw(){drawBoundary();drawData();caption('2 特徴・2 クラスの審査モデル（実学習した NN）',CH-8);}},
+/* 1 */{title:'決定は地形のように入り組む',legend:'境界は曲がりくねり、「全体で一言」は言えない',live:false,
+ html(){return'<h3>決定は地形のように入り組む</h3><div class="eq curr">境界 = { <i>x</i> : <i>p</i><sub>1</sub>(<i>x</i>) = 0.5 }　は<b>曲線</b><span class="read">読み：<i>p</i><sub>1</sub>＝クラス1（承認）の確率。ちょうど 50:50 になる場所の集まりが決定境界。線形モデルなら直線だが、NN では入り組んだ曲線になる</span></div><div class="desc">承認（黄）と否決（緑）を分ける<b>境界は曲がりくねっています</b>。「x1 が大きいほど承認される」と<b>大域で一言</b>にすると、場所によっては真逆で<b>嘘</b>になる。複雑なモデルの判断は、平らな坂ではなく<b>起伏のある地形</b>。全体を一枚の説明にたたむのは無理があります。</div>';},
+ draw(){drawBoundary();drawData();caption('入り組んだ境界＝大域の要約は場所ごとに崩れる',CH-8);}},
+/* 2 */{title:'場所が違えば、坂の向きが違う',legend:'赤矢印＝各点でモデルが最も承認へ傾く向き（局所の勾配）',live:false,
+ html(){return'<h3>場所が違えば、坂の向きが違う</h3><div class="eq curr">向き<sub>A</sub> ＝ ∇<i>p</i><sub>1</sub>(A) ≠ ∇<i>p</i><sub>1</sub>(B) ＝ 向き<sub>B</sub><span class="read">読み：∇<i>p</i><sub>1</sub>＝承認確率が最も増える方向（坂の登り向き）。2 点 A・B で矢印の向きが違う＝「どの特徴がどちらに効くか」は場所ごとに変わる</span></div><div class="desc">境界上の 2 点 A・B に立って、モデルが<b>最も承認へ傾く向き</b>（赤矢印）を見ます。<b>A と B で向きが違う</b>——A では横（x1）方向に登り、B では別の向き。同じモデルでも「効く特徴」は<b>立つ場所しだい</b>。ここに、次の発想の芽があります。</div>';},
+ draw(){drawBoundary();drawData();drawGradArrow(PRESET_A,getCSS('--neg'));drawGradArrow(PRESET_B,getCSS('--neg'));
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('A',toX(PRESET_A[0])-14,toY(PRESET_A[1])+4);ctx.fillText('B',toX(PRESET_B[0])+16,toY(PRESET_B[1])+4);
+   caption('A と B で「登り坂の向き」が違う',CH-8);}},
+/* 3 */{title:'発想：近所だけなら、坂で言える',legend:'★＝説明したい 1 点（ドラッグ可）。周りの小さな窓だけを見る',live:true,
+ html(){return'<h3>発想：近所だけなら、坂で言える</h3><div class="eq curr">複雑な <i>f</i> を、★の<b>近所だけ</b>で単純な <i>g</i>（線形）に写す：<i>f</i> ≈ <i>g</i>（★の近くだけ）<span class="read">読み：<i>g</i>＝説明用の単純な線形モデル。全域で <i>f</i>≈<i>g</i> は無理でも、★のまわりの小さな窓の中だけなら十分成り立つ、というのが LIME の割り切り</span></div><div class="desc">地形全体は起伏だらけでも、<b>いま立っている場所の周りだけ</b>なら「こっちが登り坂」と<b>坂の向き（線形モデル）</b>で言えます。LIME は説明したい 1 点★を決め、<b>その近所だけ</b>を単純なモデルに写す。★を<b>ドラッグ</b>して動かせます。★の承認確率 <i>p</i><sub>1</sub>=<b>'+p1(star).toFixed(2)+'</b>。</div>';},
+ draw(){drawBoundary();drawData();
+   const x=toX(star[0]),y=toY(star[1]);ctx.beginPath();ctx.arc(x,y,sKer*PPU,0,7);ctx.strokeStyle='rgba(111,84,196,0.7)';ctx.lineWidth=1.4;ctx.setLineDash([5,4]);ctx.stroke();ctx.setLineDash([]);
+   drawStar(star,starPred(star));caption('★の周りの「窓」（点線）だけを相手にする',CH-8);}},
+/* 4 */{title:'① 周りを揺らして聞いてみる',legend:'小点＝摂動サンプル。色＝ブラックボックスに聞いた判定',live:true,
+ html(){return'<h3>① 周りを揺らして聞いてみる</h3><div class="eq curr"><i>z</i><sub>i</sub> = ★ + ε<sub>i</sub>,　ε<sub>i</sub> ～ 正規乱数　→　ブラックボックスに <i>f</i>(<i>z</i><sub>i</sub>) を問い合わせ<span class="read">読み：★の周りに乱数で点 <i>z</i><sub>i</sub> を '+NSAMP+' 個ばらまき（摂動）、その一つずつを <i>f</i> に入れて判定（色）をもらう。中身は開けず「入れて出す」だけ＝モデル不問</span></div><div class="desc">まず★の周りに点を <b>'+NSAMP+' 個</b>ばらまき（摂動サンプリング）、<b>一つずつブラックボックスに入れて判定をもらいます</b>（緑=クラス0/黄=クラス1）。中身は一切開けません——「入れて、出てきた答えを見る」だけ。境界をまたいで色が入れ替わるのが見えます。この問い合わせの集まりが、次の材料になります。</div>';},
+ draw(){drawBoundary();if(lime)drawPerturb(lime,false);drawData();drawStar(star,starPred(star));caption('★の周りに撒いて、判定を集める',CH-8);}},
+/* 5 */{title:'② 近いほど、重く聞く（距離カーネル）',legend:'点の大きさ＝重み。★に近い問い合わせほど大きく効く',live:true,
+ html(){return'<h3>② 近いほど、重く聞く（距離カーネル）</h3><div class="eq curr"><i>w</i><sub>i</sub> = exp( − <i>d</i><sub>i</sub>² / σ² ),　<i>d</i><sub>i</sub> = ‖<i>z</i><sub>i</sub> − ★‖<span class="read">読み：<i>d</i><sub>i</sub>＝★からサンプルまでの距離、σ＝近傍幅（下のスライダ）。近いほど <i>w</i>≈1、遠いほど 0 に。★の足元の情報を重く、遠くを軽くする重み</span></div><div class="desc">「近所だけ」を効かせるため、各サンプルに<b>距離で重み</b>を付けます。★に近いほど重く（大きい点）、遠いほど軽く（小さい点）。重みは <b>σ（近傍幅）</b>で決まり、下のスライダで変えられます（いま σ=<b>'+sKer.toFixed(2)+'</b>）。σ が小さいほど足元だけを見て、大きいほど遠くまで拾います。この σ の選び方が、後で効いてきます。</div>';},
+ draw(){drawBoundary();drawKernelRings(star);if(lime)drawPerturb(lime,true);drawData();drawStar(star,starPred(star));caption('近い問い合わせほど大きい＝重い（σで調整）',CH-8);}},
+/* 6 */{title:'③ 重み付き回帰で坂の向きを出す',legend:'紫線＝重みを付けて解いた局所線形モデルの境界',live:true,
+ html(){return'<h3>③ 重み付き回帰で坂の向きを出す</h3><div class="eq curr">β = argmin Σ<sub>i</sub> <i>w</i><sub>i</sub>( <i>f</i>(<i>z</i><sub>i</sub>) − <i>g</i>(<i>z</i><sub>i</sub>) )² + λ‖β‖²<span class="read">読み：重み <i>w</i> を付けた最小二乗（＋<a href="reg.html">リッジ</a>の λ‖β‖² で暴れ止め）。近い問い合わせほど強く合わせ、★の近所での <i>f</i> を最もよく写す線形 <i>g</i> の傾き β を解く</span></div><div class="desc">集めた問い合わせに<b>重み付きの線形回帰</b>（リッジ）を当てます。近い点ほど強く合わせるので、できる直線は<b>★の足元での境界の傾き</b>。これが「坂の向き」。紫線が、その局所線形モデルの境界です——曲がった本物の境界に、★の近くだけで<b>接する</b>ように引かれます。当てはまり R²=<b>'+(lime?lime.r2.toFixed(2):'—')+'</b>。</div>';},
+ draw(){drawBoundary();if(lime){drawPerturb(lime,true);drawLocalLine(lime,getCSS('--upd'),2.6);}drawData();drawStar(star,starPred(star));caption('近い点に合わせた直線＝局所の坂の向き',CH-8);}},
+/* 7 */{title:'④ 係数＝この近所での効き目',legend:'下の棒＝各特徴の係数 β。符号と長さで「効き」を読む',live:true,
+ html(){const b=lime?lime.beta:[0,0,0];return'<h3>④ 係数＝この近所での効き目</h3><div class="eq curr"><i>g</i>(<i>x</i>) = β<sub>0</sub> + β<sub>1</sub>(<i>x</i><sub>1</sub>−★<sub>1</sub>) + β<sub>2</sub>(<i>x</i><sub>2</sub>−★<sub>2</sub>)<span class="read">読み：局所モデルの式。β<sub>1</sub>・β<sub>2</sub> が「その特徴を少し増やすと承認確率がどちら向きにどれだけ動くか」＝この近所での効き目。これが LIME の説明そのもの</span></div><div class="desc">解けた<b>係数 β が、そのまま説明</b>です。下の棒グラフ——<b>正なら承認（クラス1）へ、負なら否決（クラス0）へ</b>、長さが効きの強さ。いま β1=<b>'+b[1].toFixed(2)+'</b>、β2=<b>'+b[2].toFixed(2)+'</b>。「この人のこの判定は、主に特徴 '+((Math.abs(b[1])>Math.abs(b[2]))?'x1':'x2')+' が効いた」と、1 件について言えるようになりました。</div>';},
+ draw(){drawBoundary();if(lime)drawLocalLine(lime,getCSS('--upd'),2.4);drawData();drawStar(star,starPred(star));if(lime)drawCoefBars(lime);}},
+/* 8 */{title:'★をドラッグ：説明がその場で再計算',legend:'★を動かすたび、摂動→重み→回帰→係数を再実行',live:true,
+ html(){const b=lime?lime.beta:[0,0,0];return'<h3>★をドラッグ：説明がその場で再計算</h3><div class="eq curr">★を動かす　⇒　摂動 → 重み <i>w</i> → 回帰 → 係数 β　を毎回やり直す<span class="read">読み：LIME は「点ごと」の手法。★を動かすと、その場所の近所で一連の計算をまるごとやり直し、新しい係数を出す。1 点につき 1 つの説明</span></div><div class="desc">★を<b>ドラッグ</b>してください（自動再生でも巡回します）。動かすたびに、いまの場所で摂動から回帰までを<b>やり直し</b>、係数が更新されます。★の <i>p</i><sub>1</sub>=<b>'+p1(star).toFixed(2)+'</b>、β=(<b>'+b[1].toFixed(2)+', '+b[2].toFixed(2)+'</b>)。境界のそばでは係数が大きく（坂が急）、色の濃い奥（自信のある領域）では小さく（坂が平ら）なるのが分かります。</div>';},
+ draw(){drawBoundary();if(lime){drawPerturb(lime,true);drawLocalLine(lime,getCSS('--upd'),2.4);}drawData();drawStar(star,starPred(star));if(lime)drawCoefBars(lime);},
+ dice:true},
+/* 9 */{title:'場所 A と B：説明は反転する（局所性）',legend:'A⇄B を自動で往復。x1 の係数が符号ごと入れ替わる',live:true,
+ html(){const b=lime?lime.beta:[0,0,0];return'<h3>場所 A と B：説明は反転する（局所性）</h3><div class="eq curr">β<sub>1</sub>(A) &gt; 0　⇔　β<sub>1</sub>(B) &lt; 0　（同じモデル・同じ特徴なのに逆）<span class="read">読み：A では「x1 を増やすと承認へ」、B では「x1 を増やすと否決へ」。矛盾ではなく、地形の起伏を局所で言えばこうなる＝説明は場所つきでしか正しくない</span></div><div class="desc">★が境界上の <b>A（左）と B（中央）を往復</b>します（下のバーに注目）。<b>特徴 x1 の係数が、A では正・B では負</b>と<b>符号ごと反転</b>——「x1 が承認に効く/否決に効く」がひっくり返る。これが局所性です。<b>「LIME の説明＝モデル全体の話」は誤り</b>。いまの β1=<b>'+b[1].toFixed(2)+'</b>。隣に立てば、別の説明。</div>';},
+ draw(){drawBoundary();if(lime)drawLocalLine(lime,getCSS('--upd'),2.4);drawData();drawStar(star,starPred(star));
+   ctx.fillStyle=getCSS('--faint');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';
+   const near=Math.hypot(star[0]-PRESET_A[0],star[1]-PRESET_A[1])<Math.hypot(star[0]-PRESET_B[0],star[1]-PRESET_B[1]);
+   ctx.fillText(near?'いま：場所 A 付近':'いま：場所 B 付近',CW/2,300);if(lime)drawCoefBars(lime);}},
+/* 10 */{title:'σ を変えると説明が変わる（近傍の定義しだい）',legend:'σ スライダを動かすと局所モデルと係数が変わる',live:true,
+ html(){const b=lime?lime.beta:[0,0,0];return'<h3>σ を変えると説明が変わる（近傍の定義しだい）</h3><div class="eq curr">σ 小　→　足元だけ・係数は急（不安定）　／　σ 大　→　遠くまで平均・係数はなまる<span class="read">読み：σ は「近所の広さ」の定義。狭いと足元の急な坂を拾うがサンプルが減ってぶれる、広いと遠くを混ぜて局所でなくなる。正解の σ は無い</span></div><div class="desc">下の <b>σ スライダ</b>を動かしてください（いま σ=<b>'+sKer.toFixed(2)+'</b>、|β|=<b>'+(lime?Math.hypot(b[1],b[2]).toFixed(2):'—')+'</b>）。σ を<b>小さく</b>すると足元の急な坂を拾って係数は<b>大きく</b>、<b>大きく</b>すると遠くまで混ぜて係数は<b>なまり</b>ます。同じ★・同じモデルでも、<b>「近所」の定義しだいで説明が動く</b>——LIME の弱点であり、使うときの注意点です。</div>';},
+ draw(){drawBoundary();const x=toX(star[0]),y=toY(star[1]);ctx.beginPath();ctx.arc(x,y,sKer*PPU,0,7);ctx.strokeStyle='rgba(111,84,196,0.6)';ctx.lineWidth=1.3;ctx.setLineDash([5,4]);ctx.stroke();ctx.setLineDash([]);
+   if(lime){drawPerturb(lime,true);drawLocalLine(lime,getCSS('--upd'),2.4);}drawData();drawStar(star,starPred(star));if(lime)drawCoefBars(lime);}},
+/* 11 */{title:'繰り返すと、ぶれる（乱数サンプリング依存）',legend:'薄紫＝撒き直すたびの別の局所境界。ばらつき＝説明のぶれ',live:true,
+ html(){const st=(slideIdx===11)?varStats(star,sKer,8):null;return'<h3>繰り返すと、ぶれる（乱数サンプリング依存）</h3><div class="eq curr">同じ★でも　β は撒くたびに違う　→　ぶれ = 標準偏差（β<sub>1</sub>）≈ <b>'+(st?st.s1.toFixed(2):'—')+'</b><span class="read">読み：摂動は乱数なので、実行ごとに係数がばらつく。「🎲 撒き直す」で乱数を変えると説明が動く。ぶれ＝同じ★で 8 回引いたときの係数の散らばり</span></div><div class="desc">摂動は<b>乱数</b>です。だから同じ★でも、<b>撒き直すたびに係数がぶれます</b>。薄い紫の線が、乱数を変えたときの別の局所境界——束のばらつきが「説明のぶれ」。「🎲 撒き直す」を押すと係数が動きます。ぶれ（β1 の標準偏差）≈ <b>'+(st?st.s1.toFixed(2):'—')+'</b>。<b>1 回の説明を鵜呑みにせず</b>、何度か引いて安定を確かめるのが作法。サンプルを増やせばぶれは縮みます。</div>';},
+ draw(){drawBoundary();
+   if(slideIdx===11){for(let r=0;r<8;r++){const L2=runLime(star,sKer,700+r*53);drawLocalLine(L2,'rgba(111,84,196,0.22)',1.4);}}
+   if(lime)drawLocalLine(lime,getCSS('--upd'),2.6);drawData();drawStar(star,starPred(star));if(lime)drawCoefBars(lime);},
+ dice:true},
+/* 12 */{title:'局所モデルの当てはまり（近似の限界）',legend:'R²＝局所線形が f をどれだけ写せたか。遠方は外れる',live:true,
+ html(){return'<h3>局所モデルの当てはまり（近似の限界）</h3><div class="eq curr">R²（重み付き） = 1 − Σ<i>w</i>( <i>f</i> − <i>g</i> )² / Σ<i>w</i>( <i>f</i> − <i>f̄</i> )²　= <b>'+(lime?lime.r2.toFixed(2):'—')+'</b><span class="read">読み：局所線形 <i>g</i> が近所の <i>f</i> をどれだけ説明できたかの指標（1 に近いほど良い）。境界が曲がる所ほど直線では写しきれず、R² は下がる＝説明の信頼度の目安</span></div><div class="desc">局所モデルは<b>近似</b>です。R²（当てはまり）が高ければ「この近所は直線でよく写せた＝説明は信頼できる」、低ければ「境界が曲がりすぎて直線では無理＝説明を割り引く」。いま R²=<b>'+(lime?lime.r2.toFixed(2):'—')+'</b>。★を境界の<b>曲がった所</b>へ動かすと R² が下がり、<b>平らな所</b>では上がるのが見えます。R² は「その説明をどこまで信じてよいか」の温度計です。</div>';},
+ draw(){drawBoundary();if(lime){drawPerturb(lime,true);drawLocalLine(lime,getCSS('--upd'),2.4);}drawData();drawStar(star,starPred(star));
+   if(lime){const bx=14,by=304;ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';
+     ctx.fillText('当てはまり R² = '+lime.r2.toFixed(2),bx,by);
+     ctx.fillStyle='rgba(111,84,196,0.25)';ctx.fillRect(bx,by+6,150,7);ctx.fillStyle=getCSS('--upd');ctx.fillRect(bx,by+6,150*Math.max(0,lime.r2),7);}
+   if(lime)drawCoefBars(lime);}},
+/* 13 */{title:'モデル不問（model-agnostic）',legend:'NN でも木でも同じ手順：入れて出す・撒く・写す',live:false,
+ html(){return'<h3>モデル不問（model-agnostic）</h3><div class="eq curr">手順は <i>f</i> の中身に依らない：撒く → 聞く（<i>f</i> をブラックボックスとして呼ぶ）→ 重み付き回帰<span class="read">読み：LIME は <i>f</i> の勾配や構造を一切使わず、入出力だけで動く。だから NN・勾配ブースティング・ランダムフォレスト・SVM、どんなモデルでも同じ 1 本の手順で説明できる</span></div><div class="desc">この教材の <i>f</i> は NN でしたが、<b>手順は中身を使っていません</b>——「入れて、出てきた答えを見る」だけ。だから <a href="boosting.html">勾配ブースティング</a>・<a href="forest.html">ランダムフォレスト</a>・<a href="svm.html">SVM</a>、どんなモデルでも<b>同じ 1 本の手順</b>で説明できる。これが model-agnostic（モデル不問）。中身にアクセスできる場合は勾配を直接使う手法もありますが、LIME は<b>API 越しの他社モデルさえ説明できる</b>のが強みです。</div>';},
+ draw(){drawBoundary();drawData();if(lime)drawStar(star,starPred(star));
+   ctx.fillStyle='rgba(255,253,246,0.92)';ctx.fillRect(20,y0m(),320,84);ctx.strokeStyle=getCSS('--line');ctx.strokeRect(20,y0m(),320,84);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('中身に依らない 3 手順',30,y0m()+18);
+   ctx.font='10.5px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');
+   ctx.fillText('1. ★の周りに撒く（摂動）',30,y0m()+38);
+   ctx.fillText('2. f に入れて答えをもらう（黒箱のまま）',30,y0m()+54);
+   ctx.fillText('3. 距離で重み付けして線形回帰 → 係数',30,y0m()+70);}},
+/* 14 */{title:'まとめ：どこに立って聞くかを決める',legend:'LIME＝局所・単純・モデル不問。限界も込みで使う',live:false,
+ html(){return'<h3>まとめ：どこに立って聞くかを決める</h3><div class="desc">LIME の芯は 1 つ——<b>複雑な判断を、知りたい 1 点の近所だけで単純な線形モデルに写す</b>。係数がそのまま「この 1 件での効き目」になり、モデルの中身に依らず（model-agnostic）使えます。使うときは限界も込みで：<b>局所の定義（σ・サンプル）で説明が動く</b>・<b>乱数でぶれる</b>・<b>遠くへは効かない</b>。実務では表形式・テキスト（単語オン/オフ）・画像（スーパーピクセル）に同じ発想で適用されます。貢献配分に公平性の保証を与える親戚が SHAP（Shapley 値）です。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・大域は無理でも、近所だけなら線形で言える<br>・摂動 → 距離重み → 重み付きリッジ回帰 → 係数<br>・局所性（隣で反転）・ぶれ・当てはまり R² を必ず確認</div>';},
+ draw(){drawBoundary();drawData();if(lime){drawLocalLine(lime,getCSS('--upd'),2.4);drawStar(star,starPred(star));}caption('複雑さは大域、説明は局所——立つ場所を決めて聞く',CH-8);}},
+];
+function y0m(){return 300;}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx,b=lime?lime.beta:[0,0,0];
+  if(s<=2){m.innerHTML='<div>点 <b>'+data.X.length+'</b>・クラス <b>2</b></div><div class="best">NN 精度 <b>'+(nnAcc*100).toFixed(0)+'%</b></div>';}
+  else if(s===3||s===4){m.innerHTML='<div>★ <b>('+star[0].toFixed(2)+', '+star[1].toFixed(2)+')</b></div><div>p1 <b>'+p1(star).toFixed(2)+'</b></div><div>撒く数 <b>'+NSAMP+'</b></div>';}
+  else if(s===5||s===10){m.innerHTML='<div>σ <b>'+sKer.toFixed(2)+'</b></div><div>|β| <b>'+Math.hypot(b[1],b[2]).toFixed(2)+'</b></div><div>p1 <b>'+p1(star).toFixed(2)+'</b></div>';}
+  else if(s===11){const st=varStats(star,sKer,8);m.innerHTML='<div>β1 <b>'+b[1].toFixed(2)+'</b></div><div class="best">ぶれ σ(β1) <b>'+st.s1.toFixed(2)+'</b></div>';}
+  else if(s===12){m.innerHTML='<div class="best">R² <b>'+(lime?lime.r2.toFixed(2):'—')+'</b></div><div>β=(<b>'+b[1].toFixed(2)+', '+b[2].toFixed(2)+'</b>)</div>';}
+  else if(s<=9){m.innerHTML='<div>β1 <b>'+b[1].toFixed(2)+'</b></div><div>β2 <b>'+b[2].toFixed(2)+'</b></div><div>R² <b>'+(lime?lime.r2.toFixed(2):'—')+'</b></div>';}
+  else{m.innerHTML='<div class="best">局所・単純・モデル不問</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;
+  document.getElementById('sig').disabled=!SLIDES[slideIdx].live;}
+function draw_(){ctx.clearRect(0,0,CW,CH);SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(SLIDES[i].live)recompute();
+  if(i===9)runAB();
+  renderAll();draw_();}
+function runAB(){anim=true;if(window.__prefersReducedMotion){star=[...PRESET_A];recompute();renderAll();draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==9)return;if(t0===null)t0=ts;
+    const ph=((ts-t0)/2600)%1;const tt=ph<0.5?(ph*2):(2-ph*2);      // 0→1→0 の往復
+    star=[PRESET_A[0]+(PRESET_B[0]-PRESET_A[0])*tt,PRESET_A[1]+(PRESET_B[1]-PRESET_A[1])*tt];
+    recompute();renderMini();renderExplain();draw_();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx>=SLIDES.length-1){stopAuto();return;}
+  goSlide(slideIdx+1);
+  const dwell=(slideIdx===9)?5400:3600;                 // 9=A⇄B の往復を1周見せる
+  autoT=setTimeout(autoTick,dwell);}
+function reset(){stopAuto();anim=false;star=[...PRESET_B];sKer=0.40;limeSeed=100;
+  document.getElementById('sig').value=40;slideIdx=0;recompute();renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{limeSeed=100+((limeSeed-100+37)%900);recompute();renderMini();renderExplain();draw_();};
+document.getElementById('sig').oninput=e=>{sKer=(+e.target.value)/100;if(SLIDES[slideIdx].live)recompute();renderMini();renderExplain();draw_();};
+
+/* ドラッグ */
+let dragging=false;
+function evPos(e){const r=cv.getBoundingClientRect(),sx=(e.touches?e.touches[0].clientX:e.clientX)-r.left,sy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;const sc=CW/r.width;return[sx*sc,sy*sc];}
+function setStar(e){const[sx,sy]=evPos(e);star=[Math.max(-RGx,Math.min(RGx,fromX(sx))),Math.max(-RGy,Math.min(RGy,fromY(sy)))];recompute();renderMini();renderExplain();draw_();}
+cv.addEventListener('pointerdown',e=>{if(!SLIDES[slideIdx].live)return;stopAuto();anim=false;dragging=true;cv.setPointerCapture(e.pointerId);setStar(e);});
+cv.addEventListener('pointermove',e=>{if(dragging){e.preventDefault();setStar(e);}});
+cv.addEventListener('pointerup',()=>dragging=false);
+
+trainNet();recompute();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
