@@ -213,7 +213,8 @@
       <a class="mapcard" href="viz/logreg.html"><div class="tag">分類の最小単位</div><div class="t">ロジスティック回帰</div><div class="d">直線をシグモイドで確率に。交差エントロピーで学習。1ニューロン＝NNの最小単位。</div><div class="dep"><b>前提:</b> 線形回帰・勾配降下 ／ <b>次:</b> 決定境界</div></a>
       <a class="mapcard spineCard" href="viz/classify.html"><div class="tag">分類の基本</div><div class="t">決定境界</div><div class="d">2 クラスを分ける境界が学習で形成。softmax＋交差エントロピー。</div><div class="dep"><b>前提:</b> ロジスティック回帰・誤差逆伝播 ／ <b>次:</b> 数字認識・CNN</div></a>
       <a class="mapcard" href="viz/digit.html"><div class="tag">解釈つき分類</div><div class="t">数字認識</div><div class="d">描いた数字を分類し、判断の根拠（注目画素）を saliency で表示。</div><div class="dep"><b>前提:</b> 決定境界</div></a>
-      <a class="mapcard" href="viz/metrics.html"><div class="tag">分類器の測り方</div><div class="t">評価指標</div><div class="d">混同行列→適合率/再現率/F1。しきい値でトレードオフ。正答率だけでは不均衡で誤解。</div><div class="dep"><b>前提:</b> 分類全般 ／ <b>関連:</b> 全分類器</div></a>
+      <a class="mapcard" href="viz/metrics.html"><div class="tag">分類器の測り方</div><div class="t">評価指標</div><div class="d">混同行列→適合率/再現率/F1。しきい値でトレードオフ。正答率だけでは不均衡で誤解。</div><div class="dep"><b>前提:</b> 分類全般 ／ <b>次:</b> 交差検証</div></a>
+      <a class="mapcard" href="viz/crossval.html"><div class="tag">評価の作法</div><div class="t">交差検証</div><div class="d">解いた問題で実力を測らない。holdoutの運ゲー vs 5-foldの安定を実測、リークの罠（見かけ82%・実力50%）も実演。</div><div class="dep"><b>前提:</b> 評価指標・正則化 ／ <b>関連:</b> 全モデル共通</div></a>
     </div>
     <div class="branchnote">↓ NN 以外の分類器（別アプローチ・寄り道。境界の作り方を比べると理解が深まる）</div>
     <div class="mapgrid">
@@ -233,7 +234,8 @@
       <a class="mapcard branchCard" href="viz/hmm.html"><div class="tag">系列・確率</div><div class="t">隠れマルコフモデル</div><div class="d">見えない状態の遷移を、見える出力列から推理。トレリスで forward / Viterbi を実計算。</div><div class="dep"><b>前提:</b> 確率の基礎 ／ <b>関連:</b> RNN・カルマン</div></a>
       <a class="mapcard branchCard" href="viz/kalman.html"><div class="tag">状態推定</div><div class="t">カルマンフィルタ</div><div class="d">予測と観測を不確かさで重み付けして混ぜる。観測/モデル/KF の三者対決を RMSE 実測で。</div><div class="dep"><b>前提:</b> 確率の基礎 ／ <b>関連:</b> HMM・ガウス過程</div></a>
       <a class="mapcard branchCard" href="viz/gnn.html"><div class="tag">グラフ・つながり</div><div class="t">グラフNN（GNN）</div><div class="d">「隣から集めて混ぜる」を繰り返し、つながりの形から学ぶ。ラベル2個の半教師ありノード分類を実学習。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> CNN（格子グラフのGNN）・自己注意</div></a>
-      <a class="mapcard branchCard" href="viz/gnnflow.html"><div class="tag">⚡特別講演・応用</div><div class="t">GNN × 潮流計算</div><div class="d">送電網の潮流計算をGNNが写し取り、一瞬の過負荷スクリーニングを実演。全15枚の講演形式。</div><div class="dep"><b>前提:</b> グラフNN・サロゲート② ／ <b>関連:</b> 応用研究の入門</div></a>
+      <a class="mapcard branchCard" href="viz/gnnflow.html"><div class="tag">⚡特別講演・応用</div><div class="t">GNN × 潮流計算</div><div class="d">送電網の潮流計算をGNNが写し取り、一瞬の過負荷スクリーニングを実演。全15枚の講演形式。</div><div class="dep"><b>前提:</b> グラフNN・サロゲート② ／ <b>次:</b> PINN</div></a>
+      <a class="mapcard branchCard" href="viz/pinn.html"><div class="tag">物理×NN</div><div class="t">物理情報NN（PINN）</div><div class="d">物理法則を損失に足す。データの隙間でRMSE13倍・外挿40倍の改善を実測。潮流GNNの予告の回収編。</div><div class="dep"><b>前提:</b> 逆伝播 ／ <b>関連:</b> 潮流GNN・サロゲート②</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 5</span><span class="ttl">Attention と言語モデル</span><span class="badge">系列を一度に見る → Transformer → GPT。</span></div>
@@ -261,6 +263,7 @@
     <div class="mapgrid">
       <a class="mapcard" href="viz/pca.html"><div class="tag">線形・次元削減</div><div class="t">PCA（主成分分析）</div><div class="d">最も広がる方向（主成分）へ射影して次元圧縮。寄与率で評価。</div><div class="dep"><b>前提:</b> 分散・共分散 ／ <b>次:</b> t-SNE</div></a>
       <a class="mapcard" href="viz/tsne.html"><div class="tag">非線形・可視化</div><div class="t">t-SNE</div><div class="d">高次元データを 2 次元へ。近さを保ちクラスタ構造を浮かび上がらせる。</div><div class="dep"><b>前提:</b> PCA（次元削減の動機）</div></a>
+      <a class="mapcard branchCard" href="viz/recommend.html"><div class="tag">推薦・埋め込み</div><div class="t">協調フィルタリング</div><div class="d">穴だらけの評価行列を「ユーザー因子×アイテム因子」の積で埋める。因子空間に映画が並ぶ。word2vecの親戚。</div><div class="dep"><b>前提:</b> 勾配降下 ／ <b>関連:</b> 単語埋め込み・正則化</div></a>
       <a class="mapcard" href="viz/autoencoder.html"><div class="tag">NN・表現学習</div><div class="t">オートエンコーダ</div><div class="d">入力をボトルネック z に圧縮して復元。NN による次元削減。</div><div class="dep"><b>前提:</b> 誤差逆伝播</div></a>
       <a class="mapcard" href="viz/contrastive.html"><div class="tag">NN・自己教師あり</div><div class="t">対照学習（自己教師あり）</div><div class="d">ラベル無しで、同じものの別ビュー(正例)を近く・他(負例)を遠くに。InfoNCEで埋め込みがクラスタ分離。SimCLR/CLIP系。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> オートエンコーダ・word2vec</div></a>
       <a class="mapcard" href="viz/vae.html"><div class="tag">NN・生成モデル</div><div class="t">VAE（変分AE）</div><div class="d">潜在を確率分布にしKLでN(0,1)へ整える。z～N(0,1)を復号して新データを生成。</div><div class="dep"><b>前提:</b> オートエンコーダ ／ <b>関連:</b> 生成モデル</div></a>

@@ -147,6 +147,7 @@
       { href: 'classify.html',    label: '決定境界' },
       { href: 'digit.html',       label: '数字認識' },
       { href: 'metrics.html',     label: '評価指標' },
+      { href: 'crossval.html',    label: '交差検証' },
     ]},
     { name: '木・カーネル', items: [
       { href: 'dtree.html',       label: '決定木' },
@@ -164,6 +165,7 @@
       { href: 'kalman.html',      label: 'カルマン' },
       { href: 'gnn.html',         label: 'グラフNN' },
       { href: 'gnnflow.html',     label: '⚡潮流GNN(講演)' },
+      { href: 'pinn.html',        label: 'PINN' },
     ]},
     { name: '言語', items: [
       { href: 'word2vec.html',    label: '単語埋め込み' },
@@ -185,6 +187,7 @@
     { name: '次元・生成', items: [
       { href: 'pca.html',         label: 'PCA' },
       { href: 'tsne.html',        label: 't-SNE' },
+      { href: 'recommend.html',   label: '推薦・行列分解' },
       { href: 'autoencoder.html', label: 'オートエンコーダ' },
       { href: 'contrastive.html', label: '対照学習' },
       { href: 'vae.html',         label: 'VAE' },
