@@ -206,6 +206,7 @@
       <a class="mapcard" href="viz/batchnorm.html"><div class="tag">NN・訓練安定化</div><div class="t">バッチ正規化</div><div class="d">各層の活性をバッチごとに平均0分散1へ正規化＋γβで戻す。分布が安定し速く学習。</div><div class="dep"><b>前提:</b> 誤差逆伝播・勾配消失 ／ <b>関連:</b> Layer Norm</div></a>
       <a class="mapcard" href="viz/resnet.html"><div class="tag">NN・深さの突破</div><div class="t">残差接続（ResNet）</div><div class="d">差分だけ学び、skip を勾配が素通り。同条件32層の一騎打ちで「深くしても壊れない」を実測。勾配消失の解答編。</div><div class="dep"><b>前提:</b> 勾配消失 ／ <b>関連:</b> バッチ正規化・Transformer</div></a>
       <a class="mapcard" href="viz/transfer.html"><div class="tag">NN・実務の型</div><div class="t">転移学習</div><div class="d">土台を凍らせ頭だけ替える。12点の少データで ゼロから59% vs 凍結99% の実測、データ量で逆転する曲線つき。</div><div class="dep"><b>前提:</b> CNN・逆伝播 ／ <b>関連:</b> 残差接続・LoRA</div></a>
+      <a class="mapcard" href="viz/distill.html"><div class="tag">NN・圧縮</div><div class="t">知識蒸留</div><div class="d">先生のソフトラベルは情報が濃い。1/25サイズの生徒が 正解のみ64% vs 蒸留78%、暗黒知識と温度Tを実演。</div><div class="dep"><b>前提:</b> 分類・softmax ／ <b>関連:</b> サロゲート②・転移学習</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 3</span><span class="ttl">教師あり学習・分類</span><span class="badge">ラベル付きデータから決定境界を学ぶ。</span></div>

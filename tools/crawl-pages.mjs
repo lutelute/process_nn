@@ -1,6 +1,6 @@
 // tools/crawl-pages.mjs — 全ページを実ブラウザで開き、実行時の異常を検出する（ローカル用）。
 //
-// console error / pageerror（未捕捉例外）/ requestfailed を全 50 ページで収集する。
+// console error / pageerror（未捕捉例外）/ requestfailed を全ページで収集する。
 // CI には入れない（ブラウザ取得が重い）— リリース前・大きな変更後にローカルで回す。
 //
 // 使い方:
