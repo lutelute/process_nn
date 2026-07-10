@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知識蒸留 — 先生の「自信の形」を小さな生徒へ（動くインフォグラフ）</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ok b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:78px;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>知識蒸留 — 先生の「自信の形」を小さな生徒へ</h1>
+  <div class="lead">大きなモデルは強いけれど<b>重い</b>——スマホや現場には載りません。小さく作り直すと弱い。そこで<b>大先生（大NN）に小生徒（小NN）を教えさせます</b>。渡すのは正解ラベルでなく、先生の<b>確率分布（ソフトラベル）</b>——「これは0。でも1にもちょっと似てる」という<b>間違いの構造</b>まで含む濃い情報。<a href="surrogate2.html">サロゲート②</a>（開かずの箱を写し取る）の親戚です。「次へ ▶」で進んでください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>巨大モデルを<b>スマホやエッジに載る大きさ</b>へ縮める、実務の定番手法（DistilBERT など）。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>先生の<b>確率分布（軟らかい答え）</b>を、温度で軟らかくして小さな生徒に写す。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>スマホの音声認識・オンデバイス翻訳・<b>LLM の小型化</b>・エッジ AI。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>温度T <input type="range" id="Tslider" min="1" max="8" step="1" value="3"><span id="Tval" style="font-family:var(--mono);min-width:1.2em">3</span></label>
+      <label>蒸留β <input type="range" id="Bslider" min="0" max="100" step="10" value="50"><span id="Bval" style="font-family:var(--mono);min-width:2.2em">0.5</span></label>
+      <button id="diceBtn">🎲 別データ</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>正解ラベルは「答え」しか教えないが、先生の確率分布は<b>「答えの間の関係」</b>——どのクラスとどのクラスが似ているか——まで教える。生徒が写しているのは<b>答えではなく、先生が世界をどう見ているか（自信の形）</b>だ。だから同じ大きさでも、正解ラベルだけの生徒より賢くなれる。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>蒸留＝モデルを圧縮した「劣化コピー」を作ること</div>
+    <div class="row"><span class="o">✓</span>同じ大きさでも、<b>正解ラベルだけで学んだ生徒より賢くなります</b>。写しているのは答えではなく<b>「答えの間の関係」</b>（暗黒知識）。単なる縮小コピーではありません。</div>
+    <div class="row"><span class="x">✗</span>先生に教わる生徒は、先生を超えられない</div>
+    <div class="row"><span class="o">✓</span>実務では<b>生徒が先生を上回る</b>例もあります（ソフトラベルの正則化効果、複数先生のアンサンブル蒸留など）。写すのは弱点だけではありません（詳しくは下の「もっと詳しく」）。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：温度 T² の意味・蒸留と surrogate②・生徒が先生を超えるとき・限界</summary>
+    <div class="det">蒸留の損失は <b>L = CE(ハード) + β·T²·KL(先生‖生徒)</b>（Hinton ら 2015）。ソフト項に <b>T²</b> を掛けるのは、温度で軟化すると勾配が 1/T² に縮むのを打ち消して、ハード項と釣り合わせるため（微分すると T·(生徒−先生) になり、スケールが揃う）。<b><a href="surrogate2.html">サロゲート②</a>との血縁</b>：あちらは入出力の<b>関数値</b>を小 NN で写し取る、こちらは出力の<b>確率分布（自信の形）</b>ごと写す——どちらも「開けられない/重いモデルを、軽い替え玉に写す」写し取りファミリー。<b>生徒が先生を超える</b>ことがあるのは、ソフトラベルが<b>正則化</b>として働き（過信を防ぐ）、また複数の先生を平均した<b>アンサンブルの知恵</b>を 1 つの生徒に注げるから。<b>限界</b>：先生の<b>間違いや偏りもそのまま写る</b>（先生がショートカット学習をしていれば生徒も継ぐ→<a href="xai.html">XAI</a> で根拠を点検）。また生徒の<b>容量を超える知識は写らない</b>（小さすぎる生徒は何を教えても限界がある）。関連：<a href="surrogate2.html">サロゲート②</a>・<a href="classify.html">決定境界</a>・<a href="reg.html">正則化</a>。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=5;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== 3クラス螺旋データ（隣接クラスが似ている構造） ===== */
+const TURNS=1.8,NOISE=0.12;
+function genData(nPer,sd){seed=sd;const X=[],Y=[];
+  for(let k=0;k<3;k++)for(let i=0;i<nPer;i++){const t=i/(nPer-1);const r=0.15+0.82*t;const th=t*TURNS*Math.PI+k*2*Math.PI/3+randn()*NOISE;X.push([r*Math.cos(th),r*Math.sin(th)]);Y.push(k);}
+  return {X,Y};}
+
+/* ===== 汎用MLP（ReLU隠れ / softmax出力 / Adam） ===== */
+function makeMLP(sizes,sd){seed=sd;const Ln=sizes.length-1;const layers=[];
+  for(let l=0;l<Ln;l++){const nin=sizes[l],nout=sizes[l+1],s=Math.sqrt(2/nin);
+    layers.push({W:Array.from({length:nout},()=>Array.from({length:nin},()=>randn()*s)),b:new Float64Array(nout),
+      mW:Array.from({length:nout},()=>new Float64Array(nin)),vW:Array.from({length:nout},()=>new Float64Array(nin)),
+      mb:new Float64Array(nout),vb:new Float64Array(nout),nin,nout});}
+  return {sizes,L:Ln,layers,t:0};}
+function forward(net,x){const acts=[x],pres=[];let a=x;
+  for(let l=0;l<net.L;l++){const ly=net.layers[l];const z=new Float64Array(ly.nout);
+    for(let j=0;j<ly.nout;j++){let s=ly.b[j];const Wj=ly.W[j];for(let k=0;k<ly.nin;k++)s+=Wj[k]*a[k];z[j]=s;}
+    pres.push(z);if(l<net.L-1){const h=new Float64Array(ly.nout);for(let j=0;j<ly.nout;j++)h[j]=Math.max(0,z[j]);a=h;acts.push(h);}else{a=z;acts.push(z);}}
+  return {logits:a,acts,pres};}
+function softmaxT(z,T){const m=Math.max(z[0],z[1],z[2]);const e0=Math.exp((z[0]-m)/T),e1=Math.exp((z[1]-m)/T),e2=Math.exp((z[2]-m)/T),s=e0+e1+e2;return [e0/s,e1/s,e2/s];}
+function predict(net,x){return softmaxT(forward(net,x).logits,1);}
+function argmax3(p){return p[0]>=p[1]?(p[0]>=p[2]?0:2):(p[1]>=p[2]?1:2);}
+function accuracy(net,data){let hit=0;for(let i=0;i<data.X.length;i++)if(argmax3(predict(net,data.X[i]))===data.Y[i])hit++;return hit/data.X.length;}
+function zeroGrad(net){return net.layers.map(ly=>({W:Array.from({length:ly.nout},()=>new Float64Array(ly.nin)),b:new Float64Array(ly.nout)}));}
+function backprop(net,x,dLogits,g){const{acts,pres}=forward(net,x);let d=dLogits;
+  for(let l=net.L-1;l>=0;l--){const ly=net.layers[l],ain=acts[l];
+    for(let j=0;j<ly.nout;j++){g[l].b[j]+=d[j];const Wj=g[l].W[j];for(let k=0;k<ly.nin;k++)Wj[k]+=d[j]*ain[k];}
+    if(l>0){const dprev=new Float64Array(ly.nin);const zprev=pres[l-1];
+      for(let k=0;k<ly.nin;k++){let s=0;for(let j=0;j<ly.nout;j++)s+=ly.W[j][k]*d[j];dprev[k]=zprev[k]>0?s:0;}d=dprev;}}}
+function adam(net,g,lr,bs){net.t++;const B1=0.9,B2=0.999,E=1e-8,bc1=1-Math.pow(B1,net.t),bc2=1-Math.pow(B2,net.t);
+  for(let l=0;l<net.L;l++){const ly=net.layers[l],gl=g[l];
+    for(let j=0;j<ly.nout;j++){for(let k=0;k<ly.nin;k++){let gr=gl.W[j][k]/bs;ly.mW[j][k]=B1*ly.mW[j][k]+(1-B1)*gr;ly.vW[j][k]=B2*ly.vW[j][k]+(1-B2)*gr*gr;ly.W[j][k]-=lr*(ly.mW[j][k]/bc1)/(Math.sqrt(ly.vW[j][k]/bc2)+E);}
+      let gb=gl.b[j]/bs;ly.mb[j]=B1*ly.mb[j]+(1-B1)*gb;ly.vb[j]=B2*ly.vb[j]+(1-B2)*gb*gb;ly.b[j]-=lr*(ly.mb[j]/bc1)/(Math.sqrt(ly.vb[j]/bc2)+E);}}}
+function ceLoss(net,data){let s=0;for(let i=0;i<data.X.length;i++){const p=predict(net,data.X[i]);s+=-Math.log(p[data.Y[i]]+1e-12);}return s/data.X.length;}
+// 先生: ハードラベルCE
+function stepTeacher(net,data,lr){const g=zeroGrad(net);for(let i=0;i<data.X.length;i++){const p=predict(net,data.X[i]);const dL=p.slice();dL[data.Y[i]]-=1;backprop(net,data.X[i],dL,g);}adam(net,g,lr,data.X.length);}
+// 生徒: mode 'hard' or 'distill'。加算形 dL = (p_s−onehot) + β·T·(q_s−q_t)
+function stepStudent(net,data,teacherLogits,lr,mode,T,beta){const g=zeroGrad(net);
+  for(let i=0;i<data.X.length;i++){const{logits}=forward(net,data.X[i]);const ps=softmaxT(logits,1);const dL=[ps[0],ps[1],ps[2]];dL[data.Y[i]]-=1;
+    if(mode==='distill'){const qs=softmaxT(logits,T),qt=softmaxT(teacherLogits[i],T);for(let j=0;j<3;j++)dL[j]+=beta*T*(qs[j]-qt[j]);}
+    backprop(net,data.X[i],dL,g);}
+  adam(net,g,lr,data.X.length);}
+function nparams(net){return net.layers.reduce((s,ly)=>s+ly.nout*ly.nin+ly.nout,0);}
+function entropy(p){let h=0;for(const v of p)if(v>1e-9)h-=v*Math.log(v);return h;}
+
+/* ===== 状態 ===== */
+const TEACH_SIZE=[2,32,32,3], STUD_SIZE=[2,8,3];
+const TITER=800, SITER=1200, TLR=0.02, SLR=0.02;
+let dataSeed=300, T=3, beta=0.5;
+let teachTrain=null,studTrain=null,test=null,teacher=null,teacherReady=false,teachLogits=null;
+let studH=null,studD=null,itS=0,accHist={h:[],d:[]},lossHist={h:[],d:[]},studReady=false;
+let hardPoint=null;   // 暗黒知識を見せる「最も迷っている」点
+
+function genAll(){teachTrain=genData(60,dataSeed);studTrain=genData(8,dataSeed+1);test=genData(80,dataSeed+2);}
+function ensureTeacher(){if(!teachTrain)genAll();if(!teacherReady){teacher=makeMLP(TEACH_SIZE,11);for(let it=0;it<TITER;it++)stepTeacher(teacher,teachTrain,TLR);teacherReady=true;
+    teachLogits=studTrain.X.map(x=>forward(teacher,x).logits);
+    // 先生が「正しく分類できるが最も迷う」点（＝隣クラスに似ている点）を選ぶ
+    let best=-1,bh=-1;for(let i=0;i<test.X.length;i++){const p=softmaxT(forward(teacher,test.X[i]).logits,3);if(argmax3(p)!==test.Y[i])continue;const h=entropy(p);if(h>bh){bh=h;best=i;}}
+    if(best<0){for(let i=0;i<test.X.length;i++){const h=entropy(softmaxT(forward(teacher,test.X[i]).logits,3));if(h>bh){bh=h;best=i;}}}hardPoint=best;}}
+function trainStudents(){ensureTeacher();studH=makeMLP(STUD_SIZE,23);studD=makeMLP(STUD_SIZE,23);itS=0;accHist={h:[],d:[]};lossHist={h:[],d:[]};
+  for(let it=0;it<SITER;it++){stepStudent(studH,studTrain,teachLogits,SLR,'hard',T,beta);stepStudent(studD,studTrain,teachLogits,SLR,'distill',T,beta);itS++;
+    if(it%20===0){accHist.h.push(accuracy(studH,test));accHist.d.push(accuracy(studD,test));lossHist.h.push(ceLoss(studH,studTrain));lossHist.d.push(ceLoss(studD,studTrain));}}
+  studReady=true;}
+function ensureStudents(){ensureTeacher();if(!studReady)trainStudents();}
+
+/* ===== 描画部品 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const CLS=['--accent','--loss','--upd'];   // クラス0=teal, 1=amber, 2=purple
+function clsRGB(k){const c=getCSS(CLS[k]);return c;}
+const CLSRGB=[[31,158,138],[194,137,27],[111,84,196]];
+function drawGridBg(){ctx.lineWidth=1;for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.06)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.06)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+const DOM=1.15;
+// 決定場＋点。net=null なら点だけ。res=グリッド解像度
+function drawField(net,x0,y0,w,h,pts,opt){opt=opt||{};const res=opt.res||34;const cw=w/res,ch=h/res;
+  const px=u=>x0+w*(u+DOM)/(2*DOM), py=v=>y0+h*(1-(v+DOM)/(2*DOM));
+  if(net){for(let a=0;a<res;a++)for(let b=0;b<res;b++){const ux=-DOM+2*DOM*(a+0.5)/res, uy=-DOM+2*DOM*(b+0.5)/res;
+    const p=predict(net,[ux,uy]);const k=argmax3(p);const conf=Math.max(p[0],p[1],p[2]);
+    const rgb=CLSRGB[k];const al=0.12+0.32*(conf-0.34)/0.66;
+    ctx.fillStyle='rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+al.toFixed(3)+')';
+    ctx.fillRect(px(ux)-cw/2-0.5,py(uy)-ch/2-0.5,cw+1,ch+1);}}
+  // 点
+  if(pts)for(let i=0;i<pts.X.length;i++){const rgb=CLSRGB[pts.Y[i]];ctx.beginPath();ctx.arc(px(pts.X[i][0]),py(pts.X[i][1]),opt.dotR||3,0,7);
+    ctx.fillStyle='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';ctx.fill();ctx.lineWidth=0.8;ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.stroke();}
+  ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  if(opt.star){const rgb=[26,26,23];ctx.beginPath();ctx.arc(px(opt.star[0]),py(opt.star[1]),5.5,0,7);ctx.fillStyle='#1a1a17';ctx.fill();ctx.strokeStyle='#fffdf6';ctx.lineWidth=1.5;ctx.stroke();}
+  if(opt.title){ctx.fillStyle=opt.titleCol||getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(opt.title,x0+w/2,y0-6);}}
+function drawSoftBars(x0,y0,w,h,probs,hl){const bw=w/3*0.62,gap=w/3;
+  const names=['クラス0','クラス1','クラス2'];
+  for(let k=0;k<3;k++){const bx=x0+k*gap+(gap-bw)/2;const bh=h*probs[k];
+    ctx.fillStyle='rgb('+CLSRGB[k][0]+','+CLSRGB[k][1]+','+CLSRGB[k][2]+')';ctx.fillRect(bx,y0+h-bh,bw,bh);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText((probs[k]*100).toFixed(0)+'%',bx+bw/2,y0+h-bh-6);
+    ctx.fillStyle=(hl===k)?getCSS('--text'):getCSS('--muted');ctx.font=(hl===k?'700 ':'')+'10.5px '+getCSS('--gothic');ctx.fillText(names[k],bx+bw/2,y0+h+15);}
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0+h);ctx.lineTo(x0+w,y0+h);ctx.stroke();}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-12);}
+function drawBigNet(cx,cy,sizes,col,label,sub){const nl=sizes.length,dx=64,x0=cx-(nl-1)*dx/2;
+  const pos=[];for(let l=0;l<nl;l++){const n=Math.min(sizes[l],6),col2=[];const yh=Math.min(70,n*12);for(let j=0;j<n;j++)col2.push([x0+l*dx, cy-yh/2+ (n>1?yh*j/(n-1):0)]);pos.push({col2,real:sizes[l]});}
+  ctx.strokeStyle='rgba(26,26,23,0.18)';ctx.lineWidth=0.8;
+  for(let l=0;l<nl-1;l++)for(const a of pos[l].col2)for(const b of pos[l+1].col2){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  for(let l=0;l<nl;l++)for(const p of pos[l].col2){ctx.beginPath();ctx.arc(p[0],p[1],3.2,0,7);ctx.fillStyle=col;ctx.fill();}
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(label,cx,cy+58);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText(sub,cx,cy+73);}
+
+/* ===== スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:4},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:11}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false;
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'小ささと賢さの両立',legend:'大きいモデルは強いが重い。小さくすると弱い',dice:false,
+ html(){return'<h3>小ささと賢さの両立</h3><div class="eq curr">大モデル：強い・でも<b>重い</b>（スマホ✗）　⇔　小モデル：軽い・でも<b>弱い</b><span class="read">読み：精度と軽さは基本トレードオフ。大きいから賢い、小さいから載る——この 2 つを<b>両取り</b>したい、が今日の問い</span></div><div class="desc">深いネットは強い。でも<b>重くて遅い</b>——スマホや車載チップ、現場のマイコンには載りません。ならば小さく作り直せばいい……が、<b>小さいと弱い</b>のが普通です。この行き詰まりを破るのが<b>知識蒸留</b>：大きな先生に、小さな生徒を<b>賢く教えさせる</b>。ただ縮めるのではなく、知識を<b>注ぐ</b>。</div>';},
+ draw(){drawBigNet(CW/2,120,[2,32,32,3],getCSS('--upd'),'大モデル（先生）','強い・重い');
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 22px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('↓ 縮めたい',CW/2,224);
+   drawBigNet(CW/2,300,[2,8,3],getCSS('--accent'),'小モデル（生徒）','軽い・弱い？');
+   caption('大きさを保てないなら、知識だけ移せないか？',CH-12);}},
+{title:'課題：3クラスの渦巻き分類',legend:'●=各クラスの点。3本の腕が絡み合う（隣が似ている）',dice:true,
+ html(){return'<h3>課題：3クラスの渦巻き分類</h3><div class="eq curr">入力 <i>x</i> ∈ ℝ²　→　クラス ∈ { 0, 1, 2 }（3 本の渦巻き）<span class="read">読み：2 次元平面を 3 クラスに分ける。渦巻きなので境界は曲がりくねり、<b>隣り合う腕どうしは似ている</b>——この「似ている構造」が後で効く</span></div><div class="desc">題材は<b>3 本の渦巻き</b>（🎲 で引き直せます）。腕が絡み合うので境界は複雑。大事なのは<b>クラス間に「似ている度合い」の構造</b>があること——ある点はクラス 0 でも、隣の腕（クラス 1）に近ければ「1 にも少し似ている」。この構造こそ、先生が生徒に渡せる<b>濃い情報</b>の正体です。</div>';},
+ draw(){drawField(null,50,45,260,260,mergedTrain(),{dotR:2.6});caption('3クラスが渦巻きで絡む（境界は曲線）',CH-14);}},
+{title:'大先生を実学習する',legend:'大MLP(2-32-32-3)が渦巻きをなめらかに分ける',dice:false,
+ html(){ensureTeacher();const a=(accuracy(teacher,test)*100).toFixed(0);
+   return'<h3>大先生を実学習する</h3><div class="eq curr">先生 = MLP(2-32-32-3)　テスト精度 = '+a+'%　パラメータ '+nparams(teacher)+' 個<span class="read">読み：隠れ層 32×2 の大きめのネットを正解ラベルで実学習。渦巻きを<b>なめらかに</b>正しく分ける「専門家」になった</span></div><div class="desc">まず<b>大きな先生</b>（2-32-32-3、パラメータ '+nparams(teacher)+' 個）を正解ラベルで実学習しました。テスト精度 <b>'+a+'%</b>——渦巻きの複雑な境界を<b>なめらかに</b>捉えています（背景の色＝先生の判定領域）。この先生の<b>賢さ</b>を、次に小さな生徒へ移します。ただし渡すのは「正解」ではなく、先生の<b>確率分布</b>です。</div>';},
+ draw(){ensureTeacher();drawField(teacher,50,45,260,260,mergedTrain(),{dotR:2.6,res:40});caption('先生の判定領域＝なめらかな渦巻き境界',CH-14);}},
+{title:'小生徒の壁：正解だけでは弱い',legend:'小MLP(2-8-3)を正解ラベルだけで学習→カクカク',dice:true,
+ html(){ensureStudents();const a=(accuracy(studH,test)*100).toFixed(0);
+   return'<h3>小生徒の壁：正解だけでは弱い</h3><div class="eq curr">生徒 = MLP(2-8-3)・パラメータ '+nparams(studH)+' 個（先生の '+(nparams(teacher)/nparams(studH)).toFixed(0)+' 分の 1）→ 正解ラベルのみ '+a+'%<span class="read">読み：うんと小さい生徒を、いつも通り<b>正解ラベルだけ</b>で学習。しかも手本は少数（24 点）。境界がカクつき精度が伸びない</span></div><div class="desc">同じ課題を、<b>小さな生徒</b>（2-8-3、パラメータ '+nparams(studH)+' 個＝先生の <b>'+(nparams(teacher)/nparams(studH)).toFixed(0)+' 分の 1</b>）に、<b>正解ラベルだけ</b>で少数の手本（24 点）から学ばせると——境界は<b>カクカク</b>、精度 <b>'+a+'%</b> どまり（背景）。小さいうえに手本も少ないので、渦巻きを描き切れません。ここに「濃い情報」を足せないか？</div>';},
+ draw(){ensureStudents();drawField(studH,50,45,260,260,studTrain,{dotR:3.2,res:38});caption('正解ラベルだけの小生徒＝境界がカクつく',CH-14);}},
+// ---- Ⅱ 仕組み ----
+{title:'硬い情報 vs 軟らかい情報',legend:'正解ラベル=1点だけ／先生の分布=関係まで含む',dice:false,
+ html(){return'<h3>硬い情報 vs 軟らかい情報</h3><div class="eq curr">正解ラベル（硬い）：[ 1, 0, 0 ]　⇔　先生の分布（軟らかい）：[ 0.7, 0.27, 0.03 ]<span class="read">読み：正解ラベルは 1 つだけ 1 の<b>one-hot</b>＝「0 だ」しか言わない。先生の分布は「主に 0、でも 1 にも似て、2 は無い」と<b>関係</b>まで言う</span></div><div class="desc">情報量が違います。<b>正解ラベル</b>は「これはクラス 0」と 1 点だけ光る<b>硬い</b>情報。一方<b>先生の確率分布</b>は「主に 0、でも 1 にもけっこう似ていて、2 ではない」と、<b>クラス間の関係</b>まで含む<b>軟らかい</b>情報——これが <b>暗黒知識（dark knowledge）</b>。生徒は「答え」より「答えの間の関係」から、ずっと多くを学べます。</div>';},
+ draw(){
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('正解ラベル（硬い・one-hot）',CW/2,60);
+   drawSoftBars(60,74,240,80,[1,0,0],0);
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('先生の分布（軟らかい・暗黒知識）',CW/2,230);
+   drawSoftBars(60,244,240,80,[0.7,0.27,0.03],0);
+   caption('「0 にも 1 にも似ている」まで教えるのが軟らかい情報',CH-14);}},
+{title:'暗黒知識：先生の迷いを覗く',legend:'★=最も迷う点。先生のソフトラベル棒グラフ',dice:true,
+ html(){ensureTeacher();const s=softmaxT(forward(teacher,test.X[hardPoint]).logits,T);const y=test.Y[hardPoint];const nd=[0,1,2].filter(k=>k!==y).sort((a,b)=>s[b]-s[a])[0];
+   return'<h3>暗黒知識：先生の迷いを覗く</h3><div class="eq curr">★の点（真のクラス '+y+'）の先生ソフトラベル（T='+T+'）：[ '+s.map(v=>v.toFixed(2)).join(', ')+' ]<span class="read">読み：真のクラスは '+y+'。でも先生は「'+(s[nd]*100).toFixed(0)+'% はクラス '+nd+' にも似ている」と言う——<b>どの腕が近いか</b>を数字で教えてくれる</span></div><div class="desc">境界近くで<b>先生が最も迷う点</b>（★）を選び、その確率分布を棒で見ます。真のクラスは <b>'+y+'</b> ですが、先生は<b>クラス '+nd+' にも '+(s[nd]*100).toFixed(0)+'% の重み</b>を置いています——「これは '+y+'、でも隣の '+nd+' にも似てる」。この<b>「どのクラスと似ているか」</b>こそ、正解ラベルには無い暗黒知識。🎲 で別のデータでも確かめられます。</div>';},
+ draw(){ensureTeacher();const s=softmaxT(forward(teacher,test.X[hardPoint]).logits,T);
+   drawField(teacher,50,40,180,180,null,{res:30,star:test.X[hardPoint],title:'先生の判定＋★'});
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('★の先生ソフトラベル',CW/2,244);
+   drawSoftBars(60,258,240,84,s,test.Y[hardPoint]);
+   caption('境界の点ほど「似ている隣」を強く含む',CH-10);}},
+{title:'温度 T：小さな差を拡大する',legend:'softmax(z/T)。Tを上げるほど分布が軟らかく',dice:false,
+ html(){ensureTeacher();const z=forward(teacher,test.X[hardPoint]).logits;const eN=entropy(softmaxT(z,1)),eT=entropy(softmaxT(z,T));
+   return'<h3>温度 T：小さな差を拡大する</h3><div class="eq curr">軟化した確率　<i>q</i><sub>k</sub> = softmax(<i>z</i><sub>k</sub> / <i>T</i>)　（<i>z</i>＝ロジット、<i>T</i>＝温度）<span class="read">読み：ロジットを T で割ってから softmax。<b>T=1</b> は普通の確率（尖る）、<b>T を上げる</b>と差が縮まり分布が<b>平ら＝軟らかく</b>なる＝小さな差（似ている度合い）が見えてくる</span></div><div class="desc">先生の分布をそのまま（T=1）使うと、正解クラスがほぼ 1 で<b>ほかは 0 に潰れ</b>、暗黒知識が見えません（エントロピー '+eN.toFixed(2)+'）。そこで<b>温度 T で割って軟らかく</b>します：T を上げるほど「クラス 1 にも似てる」といった<b>小さな差が拡大</b>して伝わる（いま T='+T+'、エントロピー '+eT.toFixed(2)+'）。下は同じ点を T=1,2,4,8 で見た分布。右下の<b>温度 T</b> スライダで動かせます。</div>';},
+ draw(){ensureTeacher();const z=forward(teacher,test.X[hardPoint]).logits;const Ts=[1,2,4,8];
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ点を温度別に見る（右ほど軟らかい）',CW/2,36);
+   for(let i=0;i<4;i++){const s=softmaxT(z,Ts[i]);const x0=24+i*84;
+     for(let k=0;k<3;k++){const bh=70*s[k],bw=18;const bx=x0+k*22;ctx.fillStyle='rgb('+CLSRGB[k][0]+','+CLSRGB[k][1]+','+CLSRGB[k][2]+')';ctx.fillRect(bx,150-bh,bw,bh);}
+     ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.beginPath();ctx.moveTo(x0-2,150);ctx.lineTo(x0+68,150);ctx.stroke();
+     ctx.fillStyle=(Ts[i]===T)?getCSS('--upd'):getCSS('--muted');ctx.font=(Ts[i]===T?'700 ':'')+'11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('T='+Ts[i],x0+33,168);}
+   // エントロピー曲線
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('平均エントロピー（軟らかさ）が T とともに増える',CW/2,206);
+   const gx=50,gy=224,gw=CW-100,gh=150,maxH=Math.log(3);
+   ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(gx,gy,gw,gh);
+   ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.beginPath();
+   for(let tt=1;tt<=8;tt+=0.25){let e=0;for(let i=0;i<test.X.length;i++)e+=entropy(softmaxT(forward(teacher,test.X[i]).logits,tt));e/=test.X.length;const X=gx+gw*(tt-1)/7,Y=gy+gh-gh*e/maxH;(tt===1?ctx.moveTo(X,Y):ctx.lineTo(X,Y));}ctx.stroke();
+   const curE=(()=>{let e=0;for(let i=0;i<test.X.length;i++)e+=entropy(softmaxT(forward(teacher,test.X[i]).logits,T));return e/test.X.length;})();
+   const cx2=gx+gw*(T-1)/7,cy2=gy+gh-gh*curE/maxH;ctx.beginPath();ctx.arc(cx2,cy2,4,0,7);ctx.fillStyle=getCSS('--upd');ctx.fill();
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('T=1',gx+2,gy+gh-4);ctx.textAlign='right';ctx.fillText('T=8',gx+gw-2,gy+gh-4);
+   caption('温度が高いほど「似ている度合い」が伝わる',CH-8);}},
+{title:'蒸留の損失：2つの目標を混ぜる',legend:'正解に合わせる＋先生の分布に合わせる',dice:false,
+ html(){return'<h3>蒸留の損失：2 つの目標を混ぜる</h3><div class="eq curr"><i>L</i> = CE(生徒, <b>正解</b>) + <i>β</i> · <i>T</i>² · KL(<b>先生</b><sub>T</sub> ‖ 生徒<sub>T</sub>)<span class="read">読み：第 1 項＝いつもの「正解に合わせる」。第 2 項＝「先生の軟化分布に合わせる」（KL＝分布の違い）。<i>β</i> でソフトの強さ、<i>T</i>² で温度の目減りを補正</span></div><div class="desc">生徒の学習目標を<b>2 つ混ぜます</b>——(1) いつもの<b>正解ラベルに合わせる</b>（CE）、(2) <b>先生の軟化分布に合わせる</b>（KL）。第 2 項の <b>T²</b> は、温度で軟らかくすると勾配が縮む分を打ち消して両者を釣り合わせるおまじない。<b>β</b> が蒸留の強さ（右下スライダ、β=0 なら正解だけ＝ふつうの学習）。この式ひとつで、生徒は<b>正解も先生の勘も</b>同時に学びます。</div>';},
+ draw(){
+   // 図: 正解ラベル(硬)＋先生分布(軟) → 生徒
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('① 正解ラベル',96,60);
+   drawSoftBars(30,72,130,56,[1,0,0],0);
+   ctx.fillStyle=getCSS('--upd');ctx.fillText('② 先生の分布',264,60);
+   drawSoftBars(200,72,130,56,[0.62,0.32,0.06],0);
+   // 生徒
+   drawBigNet(CW/2,236,[2,8,3],getCSS('--accent'),'生徒','2つの目標で学ぶ');
+   ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.4;
+   ctx.beginPath();ctx.moveTo(96,150);ctx.lineTo(CW/2-30,196);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(264,150);ctx.lineTo(CW/2+30,196);ctx.stroke();
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('CE',CW/2-34,182);
+   ctx.fillStyle=getCSS('--upd');ctx.textAlign='left';ctx.fillText('β·T²·KL',CW/2+34,182);
+   caption('L = 正解に合わせる ＋ β·T²·先生に合わせる',CH-12);}},
+// ---- Ⅲ ライブ実験 ----
+{title:'2人の生徒を同時に育てる',legend:'同じ小ささ・同じ手本。ハード vs 蒸留を同時学習',dice:false,
+ html(){const a=studReady?(accuracy(studH,test)*100).toFixed(0):'…',b=studReady?(accuracy(studD,test)*100).toFixed(0):'…';
+   return'<h3>2 人の生徒を同時に育てる</h3><div class="eq curr">生徒A：正解のみ（β=0）　⇔　生徒B：蒸留（β='+beta.toFixed(1)+', T='+T+'）　同じ 2-8-3・同じ 24 手本<span class="read">読み：まったく同じ小さな生徒・同じ初期値・同じ少数の手本。違いは<b>先生の分布を混ぜるか否か</b>だけ。フェアな一騎打ち</span></div><div class="desc">いよいよ本番。<b>まったく同じ小さな生徒</b>を 2 人用意し、<b>先生の分布を混ぜるかどうかだけ</b>を変えて、いまライブで学習します（'+SITER+' 反復）。生徒A＝<b>正解ラベルのみ</b>（赤）、生徒B＝<b>蒸留</b>（緑）。テスト精度がどう伸びるか——A '+a+'% / B '+b+'%。境界は次で見比べます。</div>';},
+ draw(){ensureTeacher();
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('テスト精度の伸び（同時学習）',CW/2,44);
+   const gx=44,gy=60,gw=CW-84,gh=210,base=gy+gh;
+   ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(gx,gy,gw,gh);
+   // 50%,100%グリッド
+   ctx.strokeStyle='rgba(150,143,127,0.4)';ctx.setLineDash([3,3]);for(const v of [0.5,1.0]){const y=base-gh*v;ctx.beginPath();ctx.moveTo(gx,y);ctx.lineTo(gx+gw,y);ctx.stroke();}ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('100%',gx-3,base-gh+3);ctx.fillText('50%',gx-3,base-gh*0.5+3);
+   const drawC=(hist,col)=>{if(hist.length<2)return;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();hist.forEach((v,i)=>{const X=gx+gw*i/Math.max(1,(SITER/20-1)),Y=base-gh*v;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();};
+   drawC(accHist.h,getCSS('--neg'));drawC(accHist.d,getCSS('--accent'));
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('― A 正解のみ',gx+6,base-14);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('― B 蒸留',gx+130,base-14);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('学習 '+itS+'/'+SITER,gx+gw-4,base-14);
+   caption('違いは「先生の分布を混ぜるか」だけ',CH-8);}},
+{title:'A/B：決定境界の写り方',legend:'左=正解のみ（カクカク）／右=蒸留（先生に似る）',dice:true,
+ html(){ensureStudents();const a=(accuracy(studH,test)*100).toFixed(0),b=(accuracy(studD,test)*100).toFixed(0);
+   return'<h3>A/B：決定境界の写り方</h3><div class="eq curr">生徒A 正解のみ '+a+'%　⇔　生徒B 蒸留 '+b+'%（同じ小ささ）<span class="read">読み：左（A）は手本の点は合わせられても<b>境界がカクつく</b>。右（B）は先生の<b>なめらかな渦巻き境界</b>を写し取り、精度も高い</span></div><div class="desc">同じ小さな生徒でも、境界の質がまるで違います。<b>生徒A（正解のみ・左）</b>は手本の 24 点は覚えても、間の境界が<b>カクカク</b>で外れます（'+a+'%）。<b>生徒B（蒸留・右）</b>は先生の<b>なめらかな渦巻き</b>を写し取り、精度も高い（'+b+'%）。<b>先生の「自信の形」を渡した</b>だけで、小さな生徒が賢くなりました。🎲 で別データでも同じ傾向です。</div>';},
+ draw(){ensureStudents();
+   drawField(studH,18,64,158,158,studTrain,{res:30,dotR:2.6,title:'A 正解のみ',titleCol:getCSS('--neg')});
+   drawField(studD,184,64,158,158,studTrain,{res:30,dotR:2.6,title:'B 蒸留',titleCol:getCSS('--accent')});
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText((accuracy(studH,test)*100).toFixed(0)+'%',97,244);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText((accuracy(studD,test)*100).toFixed(0)+'%',263,244);
+   drawField(teacher,101,272,158,110,null,{res:26,title:'（参考）先生の境界',titleCol:getCSS('--muted')});
+   caption('蒸留は先生のなめらかな境界を写し取る',CH-8);}},
+{title:'精度で並べる：先生 > B > A',legend:'先生に迫る蒸留、置いていかれる正解のみ',dice:false,
+ html(){ensureStudents();const at=(accuracy(teacher,test)*100).toFixed(0),ah=(accuracy(studH,test)*100).toFixed(0),ad=(accuracy(studD,test)*100).toFixed(0);
+   return'<h3>精度で並べる：先生 > B > A</h3><div class="eq curr">先生 '+at+'%（大）　＞　生徒B 蒸留 '+ad+'%（小）　＞　生徒A 正解のみ '+ah+'%（小）<span class="read">読み：生徒は先生の '+(nparams(teacher)/nparams(studH)).toFixed(0)+' 分の 1 の大きさ。それでも蒸留（B）は正解のみ（A）を明確に上回り、<b>先生に近づく</b></span></div><div class="desc">3 者を並べると差が歴然。<b>先生 '+at+'%</b>（大きい）＞ <b>生徒B 蒸留 '+ad+'%</b> ＞ <b>生徒A 正解のみ '+ah+'%</b>。生徒 A も B も<b>同じ小ささ（先生の '+(nparams(teacher)/nparams(studH)).toFixed(0)+' 分の 1）</b>・同じ手本なのに、先生の分布を渡した B だけが<b>先生に迫ります</b>。<b>大きさは同じでも、教え方で賢さが変わる</b>——これが蒸留の効き目です。</div>';},
+ draw(){ensureStudents();const vals=[accuracy(teacher,test),accuracy(studD,test),accuracy(studH,test)];
+   const cols=[getCSS('--upd'),getCSS('--accent'),getCSS('--neg')],labs=['先生\n(大)','生徒B\n蒸留(小)','生徒A\n正解のみ(小)'];
+   const x0=54,bw=64,gap=38,base=310,bh=230;
+   ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0-8,base);ctx.lineTo(CW-24,base);ctx.stroke();
+   ctx.strokeStyle='rgba(150,143,127,0.5)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x0-8,base-bh);ctx.lineTo(CW-24,base-bh);ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('100%',CW-24,base-bh-4);
+   for(let i=0;i<3;i++){const bx=x0+i*(bw+gap),hh=bh*vals[i];ctx.fillStyle=cols[i];ctx.fillRect(bx,base-hh,bw,hh);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 15px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText((vals[i]*100).toFixed(0)+'%',bx+bw/2,base-hh-8);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');const pr=labs[i].split('\n');ctx.fillText(pr[0],bx+bw/2,base+16);ctx.fillText(pr[1],bx+bw/2,base+30);}
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ小ささでも、蒸留(B)は正解のみ(A)を上回る',CW/2,52);
+   caption('大きさは同じ。教え方で賢さが変わる',CH-10);}},
+// ---- Ⅳ まとめ ----
+{title:'サロゲート②との血縁',legend:'関数を写す vs 確率分布を写す＝同じ写し取り',dice:false,
+ html(){return'<h3>サロゲート②との血縁</h3><div class="eq curr"><a href="surrogate2.html">サロゲート②</a>：入出力の<b>関数値</b>を写す　⇔　蒸留：出力の<b>確率分布（自信の形）</b>を写す<span class="read">読み：どちらも「重い/開けられないモデルを、軽い替え玉に写し取る」同じ発想。写す対象が<b>数値</b>か<b>分布</b>かの違い</span></div><div class="desc">知識蒸留は、<a href="surrogate2.html">サロゲート②（ブラックボックスの複製）</a>と<b>同じ写し取りファミリー</b>です。サロゲート②は開けられない箱の<b>入出力（関数値）</b>を小 NN で写す。蒸留は先生の<b>確率分布＝自信の形</b>ごと写す——「これは 0、でも 1 にも似てる」という<b>迷いまで</b>受け継ぐぶん、分類では情報が濃い。<b>重いものを軽い替え玉に写す</b>という設計思想は共通です。</div>';},
+ draw(){
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';
+   // surrogate2
+   ctx.fillText('サロゲート②：関数値を写す',CW/2,54);
+   ctx.fillStyle='#1a1a17';ctx.fillRect(70,70,40,40);ctx.fillStyle='#faf8f1';ctx.font='700 13px '+getCSS('--mono');ctx.fillText('?',90,95);
+   ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(118,90);ctx.lineTo(158,90);ctx.stroke();
+   ctx.strokeStyle=getCSS('--accent');ctx.strokeRect(160,70,40,40);ctx.fillStyle=getCSS('--accent');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('NN',180,95);
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText('y = f(x)（数値）を写す',255,94);
+   // 蒸留
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('蒸留：確率分布を写す',CW/2,176);
+   drawBigNet(84,232,[2,16,3],getCSS('--upd'),'先生','分布を出す');
+   ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(140,232);ctx.lineTo(182,232);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(182,232);ctx.lineTo(176,228);ctx.lineTo(176,236);ctx.closePath();ctx.fillStyle=getCSS('--upd');ctx.fill();
+   const sp=[0.62,0.3,0.08],baseY=256;for(let k=0;k<3;k++){const bh=60*sp[k],bx=196+k*42;ctx.fillStyle='rgb('+CLSRGB[k][0]+','+CLSRGB[k][1]+','+CLSRGB[k][2]+')';ctx.fillRect(bx,baseY-bh,28,bh);}
+   ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(192,baseY);ctx.lineTo(324,baseY);ctx.stroke();
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('「自信の形」ごと写す',258,282);
+   caption('重いものを軽い替え玉に写す＝同じファミリー',CH-12);}},
+{title:'どこで出会うか',legend:'スマホ・DistilBERT・エッジAI・LLM小型化',dice:false,
+ html(){return'<h3>どこで出会うか</h3><div class="eq curr">大先生（クラウド・巨大）→ 蒸留 → 小生徒（スマホ・エッジ・省電力）<span class="read">読み：巨大モデルをそのまま配れないとき、蒸留で<b>載る大きさ</b>の生徒を作って現場へ。品質はできるだけ保つ</span></div><div class="desc">蒸留は研究だけの話ではありません。<b>スマホの音声認識・オンデバイス翻訳</b>は、クラウドの巨大モデルを蒸留した小型版が動いています。言語では <b>DistilBERT</b>（BERT を蒸留し約 40% 小さく・60% 速く・性能 97% 維持）が有名。近年は<b>大規模言語モデル（LLM）の小型化</b>にも広く使われます。<b>「大きく学んで、小さく配る」</b>——蒸留は AI を現場へ届ける実務の定番です。</div>';},
+ draw(){
+   const items=[['スマホ音声認識','クラウドの巨大モデルを蒸留'],['DistilBERT','BERTを40%小型・97%性能維持'],['エッジ/省電力AI','電池・チップに載せる'],['LLMの小型化','巨大LLM→軽量版']];
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('大きく学んで、小さく配る',CW/2,48);
+   items.forEach(([t,s],i)=>{const by=68+i*76;ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.2;ctx.strokeRect(46,by,CW-92,58);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(t,62,by+24);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(s,62,by+43);});
+   caption('巨大モデルを現場へ届ける実務の定番',CH-12);}},
+{title:'まとめ：答えでなく、関係を写す',legend:'蒸留の要点と限界',dice:false,
+ html(){return'<h3>まとめ：答えでなく、関係を写す</h3><div class="desc">今日の芯：<b>正解ラベル（硬い）でなく、先生の確率分布（軟らかい）を写す</b>。分布には「どのクラスとどのクラスが似ているか」という<b>暗黒知識</b>が含まれ、温度 T で軟らかくして取り出す。同じ小ささでも、正解だけの生徒より賢くなれました。ただし<b>限界</b>も：先生の<b>間違いや偏りもそのまま写る</b>（<a href="xai.html">XAI</a> で根拠を点検）、そして<b>生徒の容量を超える知識は写らない</b>。<a href="surrogate2.html">サロゲート②</a>と同じ「写し取り」の思想が、分類の世界での姿です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・写すのは答えでなく<b>「答えの間の関係」</b>（暗黒知識）<br>・温度 T で小さな差を拡大：<i>q</i>=softmax(<i>z</i>/T)<br>・L = CE(正解) + β·T²·KL(先生‖生徒)</div>';},
+ draw(){ensureStudents();const at=accuracy(teacher,test),ad=accuracy(studD,test),ah=accuracy(studH,test);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('先生の「自信の形」を小さな生徒へ',CW/2,44);
+   drawField(teacher,30,66,150,150,null,{res:26,title:'先生（大・'+(at*100).toFixed(0)+'%）',titleCol:getCSS('--upd')});
+   drawField(studD,180,66,150,150,studTrain,{res:26,dotR:2.2,title:'生徒B 蒸留（小・'+(ad*100).toFixed(0)+'%）',titleCol:getCSS('--accent')});
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('小さな生徒(B)が先生のなめらかな境界を受け継いだ',CW/2,242);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('（正解のみの生徒A は '+(ah*100).toFixed(0)+'%）',CW/2,262);
+   caption('ご覧いただきありがとうございました',CH-12);}},
+];
+function mergedTrain(){return teachTrain;}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
+  if(s===0){m.innerHTML='<div>大=強い・重い</div><div>小=軽い・弱い</div>';}
+  else if(s===1){m.innerHTML='<div>クラス <b>3</b></div><div>形 <b>渦巻き</b></div>';}
+  else if(s===2){ensureTeacher();m.innerHTML='<div class="ok">先生 <b>'+(accuracy(teacher,test)*100).toFixed(0)+'%</b></div><div>params <b>'+nparams(teacher)+'</b></div>';}
+  else if(s===3){ensureStudents();m.innerHTML='<div class="bad">正解のみ <b>'+(accuracy(studH,test)*100).toFixed(0)+'%</b></div><div>params <b>'+nparams(studH)+'</b></div>';}
+  else if(s===4){m.innerHTML='<div>硬 <b>[1,0,0]</b></div><div class="ok">軟 <b>関係を含む</b></div>';}
+  else if(s===5){ensureTeacher();m.innerHTML='<div>暗黒知識</div><div>真'+test.Y[hardPoint]+'でも隣に似る</div>';}
+  else if(s===6){m.innerHTML='<div>T=<b>'+T+'</b></div><div>q=softmax(z/T)</div>';}
+  else if(s===7){m.innerHTML='<div>L=CE+β·T²·KL</div><div>β=<b>'+beta.toFixed(1)+'</b></div>';}
+  else if(s===8){ensureTeacher();m.innerHTML='<div>学習 <b>'+itS+'/'+SITER+'</b></div><div>違いは先生の分布だけ</div>';}
+  else if(s===9){ensureStudents();m.innerHTML='<div class="bad">A <b>'+(accuracy(studH,test)*100).toFixed(0)+'%</b></div><div class="ok">B <b>'+(accuracy(studD,test)*100).toFixed(0)+'%</b></div>';}
+  else if(s===10){ensureStudents();m.innerHTML='<div>先生>B>A</div><div class="ok">B蒸留 <b>'+(accuracy(studD,test)*100).toFixed(0)+'%</b></div>';}
+  else if(s===11){m.innerHTML='<div>関数を写す</div><div>⇔ 分布を写す</div>';}
+  else if(s===12){m.innerHTML='<div>DistilBERT</div><div>エッジ・LLM小型化</div>';}
+  else{m.innerHTML='<div class="ok">関係を写す</div><div>限界も知る</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===8){runTrain();}
+  else if(i>=2)ensureStudents();
+  renderAll();draw_();}
+function runTrain(){ensureTeacher();studH=makeMLP(STUD_SIZE,23);studD=makeMLP(STUD_SIZE,23);itS=0;accHist={h:[],d:[]};lossHist={h:[],d:[]};studReady=false;
+  if(window.__prefersReducedMotion){trainStudents();renderAll();draw_();return;}
+  anim=true;
+  function go(){if(!anim||slideIdx!==8)return;
+    for(let s=0;s<40&&itS<SITER;s++){stepStudent(studH,studTrain,teachLogits,SLR,'hard',T,beta);stepStudent(studD,studTrain,teachLogits,SLR,'distill',T,beta);itS++;
+      if(itS%20===0){accHist.h.push(accuracy(studH,test));accHist.d.push(accuracy(studD,test));lossHist.h.push(ceLoss(studH,studTrain));lossHist.d.push(ceLoss(studD,studTrain));}}
+    draw_();renderMini();
+    if(itS>=SITER){studReady=true;anim=false;renderMini();renderExplain();draw_();return;}
+    requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===8);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?1400:3800);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;dataSeed=300;T=3;beta=0.5;
+  document.getElementById('Tslider').value=3;document.getElementById('Tval').textContent='3';
+  document.getElementById('Bslider').value=50;document.getElementById('Bval').textContent='0.5';
+  teachTrain=null;teacherReady=false;studReady=false;genAll();slideIdx=0;renderAll();draw_();}
+function reroll(){dataSeed=(dataSeed*1103515245+12345)>>>0%99999+3;teachTrain=null;teacherReady=false;studReady=false;genAll();
+  if(slideIdx>=2)ensureStudents();renderMini();renderExplain();draw_();}
+function retrainStudentsIfNeeded(){ // T/β変更時: 生徒だけ再学習（先生は不変）
+  if(slideIdx>=3){studReady=false;if(slideIdx===8){runTrain();}else{ensureStudents();}}
+  renderMini();renderExplain();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{if(SLIDES[slideIdx].dice)reroll();};
+document.getElementById('Tslider').oninput=(e)=>{T=+e.target.value;document.getElementById('Tval').textContent=T;stopAuto();retrainStudentsIfNeeded();};
+document.getElementById('Bslider').oninput=(e)=>{beta=(+e.target.value)/100;document.getElementById('Bval').textContent=beta.toFixed(1);stopAuto();retrainStudentsIfNeeded();};
+genAll();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

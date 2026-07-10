@@ -172,7 +172,7 @@ function biggestGap(merges){let gi=merges.length-1,gv=-1;
 
 /* ===== 状態 ===== */
 const KINDS=['parallel','bridge','blobs','moons'];
-const KLABEL={parallel:'平行な2本の帯',bridge:'2塊＋橋',blobs:'3つの丸い塊',moons:'二日月'};
+const KLABEL={parallel:'平行な2本の帯',bridge:'2塊＋橋',blobs:'3つの丸い塊',moons:'三日月'};
 let curKind='parallel',P=[],merges=[],dendro=null,linkage='complete';
 let mergeStep=0,cutH=null;
 function rebuild(){P=genData(curKind);merges=agglomerate(P,linkage);dendro=buildDendro(merges,P.length);

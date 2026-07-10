@@ -61,12 +61,12 @@
 <div class="wrap">
   <div class="nav"></div>
   <h1>Actor-Critic を理解する</h1>
-  <div class="lead"><b>動く人（Actor＝方策）</b>と<b>批評家（Critic＝価値）</b>の分業。<a href="qlearning.html">Q学習</a>が「行動の価値」だけ、方策勾配が「方策」だけを学ぶのに対し、Actor-Critic は<b>両方を同時に</b>学びます。鍵は <b>TD 誤差 δ</b>——「思ったより良かった／悪かった」という一言が、Actor と Critic 双方の共通の学習信号になる。舞台は <a href="qlearning.html">Q学習</a>と似た 5×5 のグリッド。下の流れを「次へ ▶」で追ってください。</div>
+  <div class="lead"><b>動く人（Actor＝方策）</b>と<b>批評家（Critic＝価値）</b>の分業。<a href="qlearning.html">Q学習</a>が「行動の価値」だけ、<a href="policygrad.html">方策勾配</a>が「方策」だけを学ぶのに対し、Actor-Critic は<b>両方を同時に</b>学びます。鍵は <b>TD 誤差 δ</b>——「思ったより良かった／悪かった」という一言が、Actor と Critic 双方の共通の学習信号になる。舞台は <a href="qlearning.html">Q学習</a>と似た 5×5 のグリッド。下の流れを「次へ ▶」で追ってください。</div>
 
   <div class="purpose">
     <div class="prow"><span class="pq">なぜ学ぶ?</span><span>現代強化学習（<b>A2C・A3C・PPO</b>）の背骨。方策と価値を同時に学ぶ設計の原型。</span></div>
     <div class="prow"><span class="pq">一言で言うと</span><span>動く人（方策）と批評家（価値）の分業。<b>TD 誤差 δ が両者共通の学習信号</b>。</span></div>
-    <div class="prow"><span class="pq">どこで使われる?</span><span>ゲーム AI・ロボット制御・<b>RLHF</b>（言語モデルの調整）の内側。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ゲーム AI・ロボット制御・<a href="rlhf.html"><b>RLHF</b></a>（言語モデルの調整）の内側。</span></div>
   </div>
 
   <div class="stage">
@@ -104,7 +104,7 @@
 
   <details>
     <summary>もっと詳しく：A2C / A3C / PPO・連続行動・GAE</summary>
-    <div class="det">このページの実装は<b>1 ステップの Actor-Critic（表形式）</b>。現代版はこの骨格の拡張です。<b>A2C</b>（Advantage Actor-Critic）は複数の環境を並列に回して勾配を安定化、<b>A3C</b>はそれを非同期に。<b>PPO</b>（Proximal Policy Optimization）は方策が一度に動きすぎないよう「更新幅にクリップの箍（たが）」をはめた Actor-Critic で、いまの実務標準（<a href="../gpt2/">言語モデル</a>の RLHF もこれ）。<b>連続行動</b>（ロボットの関節トルクなど）では Actor が softmax でなくガウス分布の平均・分散を出力します。1 ステップの δ は「速いが少し偏る」、末尾まで待つ <a href="qlearning.html">モンテカルロ</a>は「偏らないが分散大」——その間を数手先までで折り合わせるのが <b>GAE</b>（Generalized Advantage Estimation）。土台の価値学習は <a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>、方策側の素の形は方策勾配（REINFORCE）です。</div>
+    <div class="det">このページの実装は<b>1 ステップの Actor-Critic（表形式）</b>。現代版はこの骨格の拡張です。<b>A2C</b>（Advantage Actor-Critic）は複数の環境を並列に回して勾配を安定化、<b>A3C</b>はそれを非同期に。<b>PPO</b>（Proximal Policy Optimization）は方策が一度に動きすぎないよう「更新幅にクリップの箍（たが）」をはめた Actor-Critic で、いまの実務標準（<a href="../gpt2/">言語モデル</a>の <a href="rlhf.html">RLHF</a> もこれ）。<b>連続行動</b>（ロボットの関節トルクなど）では Actor が softmax でなくガウス分布の平均・分散を出力します。1 ステップの δ は「速いが少し偏る」、末尾まで待つ <a href="policygrad.html">モンテカルロ</a>は「偏らないが分散大」——その間を数手先までで折り合わせるのが <b>GAE</b>（Generalized Advantage Estimation）。土台の価値学習は <a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>、方策側の素の形は<a href="policygrad.html">方策勾配（REINFORCE）</a>です。</div>
   </details>
 </div>
 
@@ -342,7 +342,7 @@ const SLIDES=[
  draw(){drawBackbone();}},
 /* 13 ── どこで出会う＋要点 ── */
 {title:'どこで出会うか・要点',legend:'ゲーム AI・ロボット・RLHF——Actor-Critic は至る所に',
- html(){return'<h3>どこで出会うか・要点</h3><div class="desc">Actor-Critic はいま、<b>ゲーム AI</b>（リアルタイム対戦の行動選択）、<b>ロボット制御</b>（連続的な関節トルク——Actor がガウス分布を出力）、そして <b>RLHF</b>（<a href="../gpt2/">言語モデル</a>を人の好みに合わせる PPO）の内側で動いています。共通するのは「<b>動く人と批評家の分業</b>」という一つの発想です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・Actor＝方策 π、Critic＝価値 V の分業<br>・TD 誤差 δ = r+γV(s′)−V(s) が<b>両者共通の学習信号</b><br>・δ は advantage の推定＝ベースライン内蔵で<b>分散が約 9 倍小さい</b><br>・A2C / A3C / PPO・RLHF はこの骨格の拡張</div>';},
+ html(){return'<h3>どこで出会うか・要点</h3><div class="desc">Actor-Critic はいま、<b>ゲーム AI</b>（リアルタイム対戦の行動選択）、<b>ロボット制御</b>（連続的な関節トルク——Actor がガウス分布を出力）、そして <a href="rlhf.html"><b>RLHF</b></a>（<a href="../gpt2/">言語モデル</a>を人の好みに合わせる PPO）の内側で動いています。共通するのは「<b>動く人と批評家の分業</b>」という一つの発想です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・Actor＝方策 π、Critic＝価値 V の分業<br>・TD 誤差 δ = r+γV(s′)−V(s) が<b>両者共通の学習信号</b><br>・δ は advantage の推定＝ベースライン内蔵で<b>分散が約 9 倍小さい</b><br>・A2C / A3C / PPO・RLHF はこの骨格の拡張</div>';},
  draw(){drawApps();}},
 ];
 

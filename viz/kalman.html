@@ -101,7 +101,7 @@
   <div class="myth">
     <div class="myth-h">⚠ よくある誤解</div>
     <div class="row"><span class="x">✗</span>カルマンフィルタは、観測をなめらかにする「ノイズ除去フィルタ」だ</div>
-    <div class="row"><span class="o">✓</span>本質は<b>予測（モデル）と観測（センサ）の融合</b>。ただ平滑化するのではなく、<b>運動モデルで先を予想し</b>、そこにセンサを不確かさで混ぜる。だから観測が一瞬欠けても<b>予測で補える</b>し、生の観測より誤差が小さくなる（このデモで観測だけより約 3 割改善）。</div>
+    <div class="row"><span class="o">✓</span>本質は<b>予測（モデル）と観測（センサ）の融合</b>。ただ平滑化するのではなく、<b>運動モデルで先を予想し</b>、そこにセンサを不確かさで混ぜる。だから観測が一瞬欠けても<b>予測で補える</b>し、生の観測より誤差が小さくなる（このデモで観測だけより約 4 割改善）。</div>
     <div class="row"><span class="x">✗</span>カルマンゲイン K は、調整して決める固定のパラメータだ</div>
     <div class="row"><span class="o">✓</span>K は毎ステップ<b>不確かさから自動で計算</b>される。予測が当てにならない序盤は K が大（センサ寄り）、情報が溜まると<b>最適な配分へ収束</b>（このデモで約 0.38）。人が回すのは K でなく、モデルとセンサの<b>不確かさ Q・R</b> の方です。</div>
   </div>
@@ -340,7 +340,7 @@ const SLIDES=[
   draw(){drawGaussProduct();}},
 /* 14 */{title:'まとめと限界',legend:'線形・ガウスなら最適。非線形は EKF/UKF、肝は Q・R',
   html(){const re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])).toFixed(3):'—';
-    return'<h3>⑮ まとめ：進む・測る・直す</h3><div class="desc">カルマンフィルタは<b>予測（モデルで進む）</b>と<b>更新（観測で直す）</b>を、<b>不確かさで重み付けして</b>毎ステップ繰り返す状態推定でした。混ぜた結果は<b>両方より確か</b>（このデモで観測だけより約 3 割改善、RMSE '+re+'）。<b>限界</b>：<b>線形・ガウス</b>の仮定が要で、そこでは最適（最小分散）ですが、現実の非線形には <b>EKF・UKF・粒子フィルタ</b>で対応。性能は <b>Q・R の設定</b>次第で、外すと自信過剰／過小になります。<b>関連</b>：離散状態版の <a href="hmm.html">隠れマルコフモデル（HMM）</a>、空間版の <a href="gp.html">ガウス過程</a>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・予測＝進む＋楕円が膨らむ（Q）／更新＝直す＋楕円が縮む（R）<br>・カルマンゲイン K＝不確かさによる信頼の配分（自動計算）<br>・混ぜると両方より確か（ガウスの積）。線形・ガウスで最適</div>';},
+    return'<h3>⑮ まとめ：進む・測る・直す</h3><div class="desc">カルマンフィルタは<b>予測（モデルで進む）</b>と<b>更新（観測で直す）</b>を、<b>不確かさで重み付けして</b>毎ステップ繰り返す状態推定でした。混ぜた結果は<b>両方より確か</b>（このデモで観測だけより約 4 割改善、RMSE '+re+'）。<b>限界</b>：<b>線形・ガウス</b>の仮定が要で、そこでは最適（最小分散）ですが、現実の非線形には <b>EKF・UKF・粒子フィルタ</b>で対応。性能は <b>Q・R の設定</b>次第で、外すと自信過剰／過小になります。<b>関連</b>：離散状態版の <a href="hmm.html">隠れマルコフモデル（HMM）</a>、空間版の <a href="gp.html">ガウス過程</a>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・予測＝進む＋楕円が膨らむ（Q）／更新＝直す＋楕円が縮む（R）<br>・カルマンゲイン K＝不確かさによる信頼の配分（自動計算）<br>・混ぜると両方より確か（ガウスの積）。線形・ガウスで最適</div>';},
   draw(){drawTrue();if(meas)drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
     if(steps)drawTrack(steps.map(s=>[s.xUpd[0],s.xUpd[1]]),getCSS('--accent'),N,2.6);
     caption('進む・測る・直すの繰り返し＝状態推定',CH-10);}},
@@ -382,7 +382,7 @@ function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
     11:'<div>定常ゲイン K <b>'+Kf.toFixed(2)+'</b></div><div class="best">RMSE <b>'+re.toFixed(3)+'</b></div>',
     12:'<div>融合 <b>GPS+IMU</b></div><div>欠落は <b>予測で補完</b></div>',
     13:'<div>更新 <b>= ガウスの積</b></div><div class="best">分散は両方より小</div>',
-    14:'<div class="best">観測比 約3割改善</div><div>線形・ガウスで最適</div>'};
+    14:'<div class="best">観測比 約4割改善</div><div>線形・ガウスで最適</div>'};
   m.innerHTML=M[s]||'';}
 function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
 function renderExplain(){const el=document.getElementById('explain'),ch=CHAPTERS[chOf(slideIdx)];
