@@ -156,10 +156,10 @@ const NC=30, HH=0.06;
 let coll=[];for(let i=0;i<NC;i++)coll.push(HH+(TFULL-2*HH)*i/(NC-1));
 const c1=1/(HH*HH)-A/(2*HH), c2=-2/(HH*HH)+B, c3=1/(HH*HH)+A/(2*HH);   // r=c1 U(t-h)+c2 U(t)+c3 U(t+h)
 function residual(net,tc){const um=predict(net,tc-HH),u0=predict(net,tc),up=predict(net,tc+HH);return c1*um+c2*u0+c3*up;}
-function trainSteps(net,lam,k){for(let s=0;s<k;s++){const grad=zeroGrad(net);
+function trainSteps(net,lam,k,cset){const C=cset||coll;for(let s=0;s<k;s++){const grad=zeroGrad(net);
     for(const o of obs){const{y,cache}=forward(net,tn(o.t));backwardAccum(net,grad,cache,2*(y-o.y)/obs.length);}
-    if(lam>0)for(const tc of coll){const fm=forward(net,tn(tc-HH)),f0=forward(net,tn(tc)),fp=forward(net,tn(tc+HH));
-      const r=c1*fm.y+c2*f0.y+c3*fp.y,sd=2*lam*r/coll.length;
+    if(lam>0)for(const tc of C){const fm=forward(net,tn(tc-HH)),f0=forward(net,tn(tc)),fp=forward(net,tn(tc+HH));
+      const r=c1*fm.y+c2*f0.y+c3*fp.y,sd=2*lam*r/C.length;
       backwardAccum(net,grad,fm.cache,sd*c1);backwardAccum(net,grad,f0.cache,sd*c2);backwardAccum(net,grad,fp.cache,sd*c3);}
     adam(net,grad,LR);net.it++;}}
 function dataLoss(net){let e=0;for(const o of obs){const d=predict(net,o.t)-o.y;e+=d*d;}return e/obs.length;}
@@ -170,13 +170,33 @@ function rmseObs(net){return Math.sqrt((rmse(net,0,1.2)**2+rmse(net,2.6,3.6)**2)
 /* ===== 状態 ===== */
 const LAM=0.1, TARGET=2500;
 let netPlain=null, netPINN=null, netSeed=101;
-let lamSweep=null;                 // slide9: {lams:[], errs:[]}
+let lamSweep=null;                 // λスイープ: {lams:[], errs:[]}
+let ncAB=null;                     // 検問所5 vs 30: {c5,n5,n30,e5,e30}
+let inv=null;                      // 逆問題: {net,aH,hist,err}
 function freshNets(){netPlain=makeNet(netSeed);netPINN=makeNet(netSeed);}
 function ensureTrained(){if(!netPlain){freshNets();}
   while(netPINN.it<TARGET){trainSteps(netPlain,0,50);trainSteps(netPINN,LAM,50);}}
 function ensureSweep(){if(lamSweep)return;const lams=[0,0.02,0.1,0.5,3,30],errs=[];
   for(const lm of lams){const n=makeNet(netSeed+7);trainSteps(n,lm,1500);errs.push(rmse(n,0,TFULL,80));}
   lamSweep={lams,errs};}
+function ensureNcAB(){if(ncAB)return;const mk=n=>{const cs=[];for(let i=0;i<n;i++)cs.push(HH+(TFULL-2*HH)*i/(n-1));return cs;};
+  const c5=mk(5),n5=makeNet(netSeed+3),n30=makeNet(netSeed+3);
+  trainSteps(n5,LAM,1500,c5);trainSteps(n30,LAM,1500);
+  ncAB={c5,n5,n30,e5:rmse(n5,0,TFULL,80),e30:rmse(n30,0,TFULL,80)};}
+function ensureInv(){if(inv)return;const net=makeNet(netSeed+11);
+  let aH=1.5,mA=0,vA=0,tA=0;const hist=[aH];const B1=0.9,B2=0.999,E=1e-8,STEPS=3500;
+  for(let s=0;s<STEPS;s++){const grad=zeroGrad(net);let gA=0;
+    for(const o of obs){const{y,cache}=forward(net,tn(o.t));backwardAccum(net,grad,cache,2*(y-o.y)/obs.length);}
+    const k1=1/(HH*HH)-aH/(2*HH),k3=1/(HH*HH)+aH/(2*HH);   // a が動くので係数を毎回計算（b は既知）
+    for(const tc of coll){const fm=forward(net,tn(tc-HH)),f0=forward(net,tn(tc)),fp=forward(net,tn(tc+HH));
+      const r=k1*fm.y+c2*f0.y+k3*fp.y,sd=2*LAM*r/coll.length;
+      backwardAccum(net,grad,fm.cache,sd*k1);backwardAccum(net,grad,f0.cache,sd*c2);backwardAccum(net,grad,fp.cache,sd*k3);
+      gA+=sd*(fp.y-fm.y)/(2*HH);}                          // ∂r/∂a = u'（有限差分）
+    adam(net,grad,LR);
+    tA++;mA=B1*mA+(1-B1)*gA;vA=B2*vA+(1-B2)*gA*gA;
+    aH-=LR*(mA/(1-Math.pow(B1,tA)))/(Math.sqrt(vA/(1-Math.pow(B2,tA)))+E);
+    if(s%25===24)hist.push(aH);}
+  inv={net,aH,hist,err:rmse(net,0,TFULL,80)};}
 
 /* ===== 描画 ===== */
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
@@ -238,9 +258,19 @@ function drawLambda(y0){ensureSweep();const h=92,x0=44,w=CW-2*x0;const S=lamSwee
     ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('λ='+S.lams[i],lx(i),y0+h+11);});
   ctx.fillStyle=getCSS('--loss');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('← データのみ(ただのNN)',x0+2,y0+12);
   ctx.textAlign='right';ctx.fillText('物理を過信→データ無視 →',x0+w-2,y0+12);}
+function drawInvTraj(y0){ensureInv();const h=88,x0=44,w=CW-2*x0,S=inv.hist;
+  const mx=Math.max.apply(null,S)*1.08;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('摩擦係数 a の推定値の推移（横=学習ステップ）',x0-6,y0-6);
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const lx=i=>x0+w*i/(S.length-1),ly=v=>y0+4+(h-8)*(1-Math.max(0,Math.min(mx,v))/mx);
+  ctx.strokeStyle='rgba(120,116,105,0.6)';ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(x0,ly(A));ctx.lineTo(x0+w,ly(A));ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.beginPath();S.forEach((v,i)=>{const X=lx(i),Y=ly(v);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+  ctx.fillStyle=getCSS('--upd');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('出発 a=1.5',x0+4,y0+12);
+  ctx.fillStyle=getCSS('--muted');ctx.fillText('真値 a='+A.toFixed(2),x0+4,ly(A)-5);
+  ctx.fillStyle=getCSS('--upd');ctx.textAlign='right';ctx.fillText('収束 '+inv.aH.toFixed(2),x0+w-4,ly(inv.aH)-6);}
 
-/* ===== スライド定義（4章 × 13枚）===== */
-const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 物理を足す',c:'var(--upd)',start:2},{t:'Ⅲ ライブA/B',c:'var(--loss)',start:6},{t:'Ⅳ まとめ',c:'var(--accent)',start:10}];
+/* ===== スライド定義（4章 × 15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 物理を足す',c:'var(--upd)',start:2},{t:'Ⅲ ライブA/B',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
 function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
 let slideIdx=0,anim=false,auto=false;
 
@@ -283,7 +313,15 @@ const SLIDES=[
  html(){return'<h3>法則は「観測ゼロの場所」にも課せる</h3><div class="eq curr"><i>t</i><sub>c</sub> ∈ [0, '+TFULL+']　を '+NC+' 点（観測とは無関係に配置）<span class="read">読み：物理損失を課す点＝<b>コロケーション点</b>は、<b>観測がなくても</b>どこにでも置ける。すき間にも外挿域にも。そこで「法則を満たせ」と要求できる＝<b>タダの追加情報</b></span></div><div class="desc">ここが PINN の勘所。データ損失は<b>観測点でしか</b>効きませんが、<b>物理損失は好きな場所に課せます</b>。<b>すき間（赤帯）にも外挿域（紫帯）にも</b>コロケーション点（緑）を並べ、「ここでも方程式を満たせ」と要求する。観測ゼロの場所を、<b>法則が埋める</b>のです。8 個の観測が、<b>「全時刻で法則を満たす」という無数の制約</b>で補強される——これが少データでも効く理由。</div>';},
  draw(){plotAxes({gap:true,ext:true});regionLabels({gap:true,ext:true});drawTrue();drawColl();drawObs();
    caption('緑（法則の点）は、すき間にも外にも置ける',CH-10);}},
-/* 6 ── ライブ学習 ── */
+/* 6 ── 検問所の数 ── */
+{title:'コロケーション点＝法則の検問所',legend:'縦破線=検問所5個の位置。橙=5個で学習したPINN、緑=30個。数をけちると検問の間をすり抜ける',
+ html(){ensureNcAB();const r=Math.round(ncAB.e5/ncAB.e30);
+   return'<h3>コロケーション点＝法則の検問所</h3><div class="eq curr">検問所 M 個：L<sub>phys</sub> = (1/M) Σ <i>r</i>(<i>t</i><sub>c</sub>)²　—— M=5 と M=30 を実測<span class="read">読み：コロケーション点は「<b>ここで法則を満たしているか</b>」を検査する<b>検問所</b>。数 M と配置は自由。ただし少なすぎると、<b>検問と検問の間</b>で法則が破られても誰も気づけない</span></div><div class="desc">検問所はタダで置けます——でも<b>数をけちると監視網に穴</b>が空く。同じ λ・同じ学習で<b>検問所 5 個と 30 個</b>を比べた実測が上の図。全域 RMSE は <b>'+ncAB.e5.toFixed(2)+' 対 '+ncAB.e30.toFixed(3)+'</b>（約 <b>'+r+' 倍</b>の差）。橙（5 個）は検問所の上では法則を守るのに、<b>検問の間で真の波からすり抜け</b>ます。緑（30 個）は全域で貼りつく。目安は「<b>波の変化を捉えられる密度</b>」——この波（半周期 約1.6）に 5 個/7秒 では粗すぎるのです。観測と違って<b>いくらでも増やせる</b>のが救い（その分計算は増える）。</div>';},
+ draw(){plotAxes({gap:true,ext:true});drawTrue();ensureNcAB();
+   ncAB.c5.forEach(tc=>{ctx.strokeStyle=getCSS('--accent');ctx.globalAlpha=0.4;ctx.setLineDash([3,3]);ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px(tc),PY0);ctx.lineTo(px(tc),PY1);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;});
+   drawNet(ncAB.n5,getCSS('--loss'),2.0);drawNet(ncAB.n30,getCSS('--accent'),2.4);drawObs();
+   caption('検問所（縦破線）の間で、橙＝5個版がすり抜ける',CH-10);}},
+/* 7 ── ライブ学習 ── */
 {title:'ライブ学習：PINN が波に吸い付く',legend:'緑=PINN の予測が学習で真の波（灰破線）へ近づく実況',
  html(){const it=netPINN?netPINN.it:0;
    return'<h3>ライブ学習：PINN が波に吸い付く</h3><div class="eq curr">L = L<sub>data</sub> + λ·L<sub>phys</sub>　を Adam で最小化（λ='+LAM+'）<span class="read">読み：いまこの場で <i>u</i><sub>θ</sub>(<i>t</i>) を学習中。観測に合わせながら、全域で残差を 0 へ。<b>データと法則の両方に</b>引かれて曲線が育つ</span></div><div class="desc">PINN を<b>この場で本当に学習</b>します（重みを Adam で更新）。最初はぐにゃぐにゃの緑線が、<b>観測点を通り</b>つつ<b>方程式を満たす</b>方向へ引っぱられ、<b>すき間も外挿域も真の波（灰破線）に吸い付いて</b>いきます。物理損失が全時刻で効くから、<b>データのない場所でも正しい形</b>に。学習 <b>'+it+'</b>/'+TARGET+'。「🎲 別のノイズ」で観測を取り直しても同様に収束します。</div>';},
@@ -291,32 +329,36 @@ const SLIDES=[
    if(netPINN)drawNet(netPINN,getCSS('--accent'),2.4);drawObs();
    if(netPINN)drawLoss(netPINN,LAM,318);},
  dice:true},
-/* 7 ── A/B 重ね ── */
+/* 8 ── A/B 重ね ── */
 {title:'A/B：普通の NN vs PINN',legend:'橙=普通NN／緑=PINN／灰破線=真の波。すき間と外で差が開く',
  html(){ensureTrained();return'<h3>A/B：普通の NN vs PINN</h3><div class="eq curr">同じ 8 観測・同じネット。違いは <b>物理損失を足すかどうか</b>だけ<span class="read">読み：<b>橙＝普通の NN</b>（L<sub>data</sub> のみ）、<b>緑＝PINN</b>（L<sub>data</sub>+λL<sub>phys</sub>）。観測域ではどちらも通るが、<b>すき間・外挿で運命が分かれる</b></span></div><div class="desc">両者を重ねます。<b>観測点（橙丸）ではどちらも一致</b>——しかし<b>すき間（赤帯）</b>では橙が真の波を大きく外れ、<b>外挿（紫帯）</b>では橙が完全に暴走。一方<b>緑（PINN）は全域で灰破線に貼りついた</b>まま。差を生んだのは<b>物理損失ただ一つ</b>。同じデータ・同じネットでも、<b>法則を知っているかどうか</b>で、見たことのない場所での振る舞いがまるで違う。</div>';},
  draw(){plotAxes({gap:true,ext:true});regionLabels({gap:true,ext:true});drawTrue();ensureTrained();
    drawNet(netPlain,getCSS('--loss'),2.2);drawNet(netPINN,getCSS('--accent'),2.4);drawObs();
    caption('観測点では一致。間と外でくっきり分かれる',CH-10);}},
-/* 8 ── 数字（RMSE） ── */
+/* 9 ── 数字（RMSE） ── */
 {title:'数字で：すき間 13 倍・外挿 43 倍',legend:'区間ごとの誤差。すき間と外挿で PINN が桁違いに正確',
  html(){ensureTrained();const gp=rmse(netPlain,GAP[0],GAP[1]),gq=rmse(netPINN,GAP[0],GAP[1]),ep=rmse(netPlain,EXT[0],EXT[1]),eq=rmse(netPINN,EXT[0],EXT[1]);
    return'<h3>数字で：すき間 '+Math.round(gp/gq)+' 倍・外挿 '+Math.round(ep/eq)+' 倍</h3><div class="eq curr">区間別 RMSE：観測域はほぼ互角／すき間・外挿で大差<span class="read">読み：観測がある所は両者とも合う。差が出るのは<b>データが語らない場所</b>——そこを法則で埋めた PINN が圧勝する</span></div><div class="desc">誤差を区間ごとに測りました（下の棒）。<b>観測域</b>は両者ともほぼ互角。ところが<b>すき間</b>で普通NN '+gp.toFixed(2)+' 対 PINN '+gq.toFixed(3)+'（約 <b>'+Math.round(gp/gq)+' 倍</b>の差）、<b>外挿</b>で '+ep.toFixed(2)+' 対 '+eq.toFixed(3)+'（約 <b>'+Math.round(ep/eq)+' 倍</b>）。<b>データが足りない所ほど、物理が効く</b>。PINN の価値は「観測が濃い所」ではなく「<b>観測が薄い所</b>」で光ります。</div>';},
  draw(){plotAxes({gap:true,ext:true});drawTrue();ensureTrained();drawNet(netPlain,getCSS('--loss'),1.8);drawNet(netPINN,getCSS('--accent'),2.2);drawObs();drawRMSEbars(316);}},
-/* 9 ── λの効き ── */
+/* 10 ── λの効き ── */
 {title:'λ の効き：データ過信 ↔ 物理過信',legend:'物理の重み λ を変えて全域の誤差を実測。谷が最良',
  html(){return'<h3>λ の効き：データ過信 ↔ 物理過信</h3><div class="eq curr">L = L<sub>data</sub> + <b>λ</b>·L<sub>phys</sub>　の λ を 0 → 大 へ<span class="read">読み：λ=0＝ただの NN（データ過信でぶれる）。λ 大＝<b>データを無視</b>して法則だけに従い、振幅や位相を外す。<b>ちょうど良い谷</b>がある</span></div><div class="desc">物理を足せば足すほど良い、わけではありません。<b>λ を振って全域の誤差を実測</b>したのが下の曲線。<b>λ=0（左端）はただの NN で誤差大</b>。λ を上げると急に良くなり——しかし<b>上げすぎ（右端）は物理を過信してデータを無視</b>し、また悪化します（法則だけでは振幅・位相が決まらない。それを<b>データが釘付け</b>にする）。<b>データと法則、両方を聞く</b>中庸が最良。谷は広く（実測の底は λ≈0.5）、このページは谷の中の λ='+LAM+' を採用しています。</div>';},
  draw(){plotAxes({});drawTrue();ensureTrained();drawNet(netPINN,getCSS('--accent'),2.2);drawObs();drawLambda(320);}},
-/* 10 ── なぜ効く ── */
+/* 11 ── 逆問題 ── */
+{title:'逆問題：法則の中の未知数まで当てる',legend:'上=推定された波（緑）。下=未知の摩擦係数 a の推定値が真値 0.30 へ収束する推移（実測）',
+ html(){ensureInv();return'<h3>逆問題：法則の中の未知数まで当てる</h3><div class="eq curr"><i>a</i> を未知数に昇格：L(θ, <b><i>a</i></b>) = L<sub>data</sub> + λ·L<sub>phys</sub>(<b><i>a</i></b>)　→　<i>a</i> も勾配降下<span class="read">読み：残差 <i>r</i> = <i>u</i>″ + <i>a u</i>′ + <i>b u</i> の <i>a</i> を「学習変数」として扱う。∂<i>r</i>/∂<i>a</i> = <i>u</i>′ だから、<b>重みと同じように <i>a</i> にも勾配が流れる</b>。観測と法則がつじつまの合う <i>a</i> へ降りていく（<i>b</i> は既知のまま）</span></div><div class="desc">ここまで法則の係数は既知でした。現実は逆が多い——<b>式の形は分かるが、係数（摩擦や拡散率）が不明</b>。PINN なら摩擦係数 <i>a</i> を<b>学習変数に足すだけ</b>。でたらめな出発値 <b><i>a</i>=1.5</b> から同じ勾配降下で回すと、序盤は迷走し、やがて<b>真値 '+A.toFixed(2)+' のそば（実測 '+inv.aH.toFixed(2)+'）に収束</b>します（下の推移）。<b>観測データが、法則の中身まで教えてくれる</b>——解を求める<b>順問題</b>に対し、係数を求めるこれが<b>逆問題</b>。計測しにくい物性値を現場の観測から同定できる、PINN の真骨頂です。</div>';},
+ draw(){plotAxes({gap:true,ext:true});drawTrue();ensureInv();drawNet(inv.net,getCSS('--accent'),2.2);drawObs();drawInvTraj(318);}},
+/* 12 ── なぜ効く ── */
 {title:'なぜ効く＝物理は無料の無限データ',legend:'法則が解空間を絞る＝帰納バイアス。少データでも決まる',
  html(){return'<h3>なぜ効く＝物理は無料の無限データ</h3><div class="eq curr">8 点の観測　＋　「全時刻で <i>r</i>=0」という無数の制約<span class="read">読み：物理損失は、時間軸の<b>あらゆる点</b>で「法則を満たせ」と要求する＝<b>実質、無限個の追加データ</b>。それが可能な波の形を<b>ごく一部に絞り込む</b></span></div><div class="desc">普通の NN は「8 点を通る波」なら<b>無数の候補</b>を許します（だからすき間で暴走）。物理損失は「<b>方程式を満たす波</b>」だけに候補を絞る——これは<b>帰納バイアス</b>（事前知識で解空間を狭める）そのもの。観測が足りない分を、<b>法則がタダで埋めて</b>くれる。<a href="gnnflow.html">GNN×潮流</a>で見た「<b>物理の形と学習器の形を合わせる</b>」の、損失関数版です。データが高価な科学・工学で、これは強力な武器になります。</div>';},
  draw(){drawWhyEffective();}},
-/* 11 ── どこで出会う ── */
+/* 13 ── どこで出会う ── */
 {title:'どこで出会うか',legend:'流体・熱・材料・医療・電力——少データ×既知の方程式の現場',
- html(){return'<h3>どこで出会うか</h3><div class="eq curr">少ない実測　×　既知の支配方程式　→　PINN<span class="read">読み：センサが少ない・実験が高価・でも支配する物理方程式は分かっている——そんな現場で、観測とモデルを橋渡しする</span></div><div class="desc">PINN が活きるのは「<b>データは少ないが、法則は分かっている</b>」場面です。<b>流体</b>（Navier–Stokes で流れを補完）、<b>熱・拡散</b>、<b>材料・構造</b>、<b>医療</b>（血流・電気生理）、そして<a href="gnnflow.html">電力系統</a>（潮流方程式で状態推定）。共通するのは<b>実測が高価で疎</b>なこと。さらに<b>逆問題</b>——観測から<b>未知の物理パラメータ（減衰係数や拡散率）を同定</b>する——も PINN の得意技です（詳しくは下の折りたたみ）。</div>';},
+ html(){return'<h3>どこで出会うか</h3><div class="eq curr">少ない実測　×　既知の支配方程式　→　PINN<span class="read">読み：センサが少ない・実験が高価・でも支配する物理方程式は分かっている——そんな現場で、観測とモデルを橋渡しする</span></div><div class="desc">PINN が活きるのは「<b>データは少ないが、法則は分かっている</b>」場面です。<b>流体</b>（Navier–Stokes で流れを補完）、<b>熱・拡散</b>、<b>材料・構造</b>、<b>医療</b>（血流・電気生理）、そして<a href="gnnflow.html">電力系統</a>（潮流方程式で状態推定）。共通するのは<b>実測が高価で疎</b>なこと。さらに<b>逆問題</b>——観測から<b>未知の物理パラメータ（減衰係数や拡散率）を同定</b>する——も、先ほど実演した通り PINN の得意技です。</div>';},
  draw(){drawApps();}},
-/* 12 ── 閉演・要点 ── */
+/* 14 ── 閉演・要点 ── */
 {title:'閉演：法則を損失に足すということ',legend:'データと物理の合流点。少データを法則で縛る',
- html(){return'<h3>閉演：法則を損失に足すということ</h3><div class="desc">今日の芯は 1 つ——<b>既知の物理法則を損失に足すだけで、少ないデータでも NN を正しく縛れる</b>。観測が語らないすき間や外挿域を、<b>「全時刻で方程式を満たせ」という制約が埋める</b>。<a href="surrogate2.html">サロゲート②</a>で見た「データだけの NN は外挿で創作する」弱点を、物理が補う姿でもあります。次に微分方程式が出てくる問題に出会ったら、思い出してください——<b>その法則は、損失に足せる</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・PINN ＝ L<sub>data</sub> ＋ λ·L<sub>phys</sub>（法則を損失に足すだけ）<br>・物理損失は<b>観測ゼロの場所にも課せる</b>＝すき間・外挿を埋める<br>・実測：すき間・外挿で普通NNの<b>十数〜数十倍</b>正確<br>・λ は<b>データと法則のバランス</b>。過信は禁物</div>';},
+ html(){return'<h3>閉演：法則を損失に足すということ</h3><div class="desc">今日の芯は 1 つ——<b>既知の物理法則を損失に足すだけで、少ないデータでも NN を正しく縛れる</b>。観測が語らないすき間や外挿域を、<b>「全時刻で方程式を満たせ」という制約が埋める</b>。<a href="surrogate2.html">サロゲート②</a>で見た「データだけの NN は外挿で創作する」弱点を、物理が補う姿でもあります。次に微分方程式が出てくる問題に出会ったら、思い出してください——<b>その法則は、損失に足せる</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・PINN ＝ L<sub>data</sub> ＋ λ·L<sub>phys</sub>（法則を損失に足すだけ）<br>・物理損失は<b>観測ゼロの場所にも課せる</b>＝すき間・外挿を埋める（検問所は<b>十分な密度</b>で）<br>・実測：すき間・外挿で普通NNの<b>十数〜数十倍</b>正確<br>・λ は<b>データと法則のバランス</b>。過信は禁物<br>・<b>逆問題</b>：法則の未知係数まで、観測から同定できる</div>';},
  draw(){drawClosing();}},
 ];
 
@@ -366,12 +408,14 @@ function renderMini(){const m=document.getElementById('mini'),s=slideIdx;let h='
   else if(s===3)h='<div>コロケーション <b>'+NC+'</b> 点</div><div>微分＝<b>有限差分</b></div>';
   else if(s===4)h='<div>L=<b>L_data+λL_phys</b></div><div>λ=<b>'+LAM+'</b></div>';
   else if(s===5)h='<div>物理は<b>観測ゼロでも課せる</b></div>';
-  else if(s===6)h='<div>学習 <b>'+(netPINN?netPINN.it:0)+'</b>/'+TARGET+'</div><div class="best">物理損失 <b>'+(netPINN&&netPINN.it?physLoss(netPINN).toExponential(1):'—')+'</b></div>';
-  else if(s===7){ensureTrained();h='<div>橙=普通NN</div><div class="best">緑=PINN</div>';}
-  else if(s===8){ensureTrained();h='<div>すき間 <b>'+rmse(netPlain,GAP[0],GAP[1]).toFixed(2)+'→'+rmse(netPINN,GAP[0],GAP[1]).toFixed(2)+'</b></div><div class="best">外挿 <b>'+rmse(netPlain,EXT[0],EXT[1]).toFixed(2)+'→'+rmse(netPINN,EXT[0],EXT[1]).toFixed(2)+'</b></div>';}
-  else if(s===9){ensureSweep();const mi=lamSweep.errs.indexOf(Math.min.apply(null,lamSweep.errs));h='<div>最良 <b>λ='+lamSweep.lams[mi]+'</b></div><div>両端は悪化</div>';}
-  else if(s===10)h='<div class="best">物理＝無料の無限データ</div>';
-  else if(s===11)h='<div>少データ×<b>既知の方程式</b></div>';
+  else if(s===6){ensureNcAB();h='<div>全域RMSE 5個 <b>'+ncAB.e5.toFixed(2)+'</b></div><div class="best">30個 <b>'+ncAB.e30.toFixed(3)+'</b></div>';}
+  else if(s===7)h='<div>学習 <b>'+(netPINN?netPINN.it:0)+'</b>/'+TARGET+'</div><div class="best">物理損失 <b>'+(netPINN&&netPINN.it?physLoss(netPINN).toExponential(1):'—')+'</b></div>';
+  else if(s===8){ensureTrained();h='<div>橙=普通NN</div><div class="best">緑=PINN</div>';}
+  else if(s===9){ensureTrained();h='<div>すき間 <b>'+rmse(netPlain,GAP[0],GAP[1]).toFixed(2)+'→'+rmse(netPINN,GAP[0],GAP[1]).toFixed(2)+'</b></div><div class="best">外挿 <b>'+rmse(netPlain,EXT[0],EXT[1]).toFixed(2)+'→'+rmse(netPINN,EXT[0],EXT[1]).toFixed(2)+'</b></div>';}
+  else if(s===10){ensureSweep();const mi=lamSweep.errs.indexOf(Math.min.apply(null,lamSweep.errs));h='<div>最良 <b>λ='+lamSweep.lams[mi]+'</b></div><div>両端は悪化</div>';}
+  else if(s===11){ensureInv();h='<div>真値 a=<b>'+A.toFixed(2)+'</b></div><div class="best">推定 <b>'+inv.aH.toFixed(2)+'</b>（出発 1.5）</div>';}
+  else if(s===12)h='<div class="best">物理＝無料の無限データ</div>';
+  else if(s===13)h='<div>少データ×<b>既知の方程式</b></div>';
   else h='<div class="best">法則は損失に足せる</div>';
   m.innerHTML=h;}
 function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
@@ -386,28 +430,30 @@ function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
 /* ===== スライド制御 ===== */
 function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
 function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
-  if(i===6){freshNets();netPINN._lossHist=[];runLive();}
-  else if(i===7||i===8)ensureTrained();
-  else if(i===9)ensureSweep();
+  if(i===7){freshNets();netPINN._lossHist=[];runLive();}
+  else if(i===6)ensureNcAB();
+  else if(i===8||i===9)ensureTrained();
+  else if(i===10)ensureSweep();
+  else if(i===11)ensureInv();
   renderAll();draw_();}
 function runLive(){anim=true;
   if(window.__prefersReducedMotion){ensureTrained();netPINN._lossHist=[dataLoss(netPINN)+LAM*physLoss(netPINN)];anim=false;renderMini();renderExplain();draw_();return;}
-  function go(){if(!anim||slideIdx!==6)return;
+  function go(){if(!anim||slideIdx!==7)return;
     trainSteps(netPlain,0,40);trainSteps(netPINN,LAM,40);
     (netPINN._lossHist=netPINN._lossHist||[]).push(dataLoss(netPINN)+LAM*physLoss(netPINN));
     draw_();renderMini();renderExplain();
-    if(netPINN.it<TARGET)requestAnimationFrame(go);else anim=false;}
+    if(netPINN.it<TARGET&&slideIdx===7)requestAnimationFrame(go);else anim=false;}
   requestAnimationFrame(go);}
 let autoT=null;
 function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
-  const wait=()=>{if(!auto)return;const heavy=(slideIdx===6);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===6?900:3600);};
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===7);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===7?900:3600);};
   requestAnimationFrame(wait);}else stopAuto();}
-function reset(){stopAuto();anim=false;netSeed=101;genObs(3);netPlain=null;netPINN=null;lamSweep=null;slideIdx=0;renderAll();draw_();}
+function reset(){stopAuto();anim=false;netSeed=101;genObs(3);netPlain=null;netPINN=null;lamSweep=null;ncAB=null;inv=null;slideIdx=0;renderAll();draw_();}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
-document.getElementById('diceBtn').onclick=()=>{netSeed=101+((netSeed-101+1)%9)+1;genObs(3+((netSeed)%7));freshNets();netPINN._lossHist=[];lamSweep=null;runLive();};
+document.getElementById('diceBtn').onclick=()=>{netSeed=101+((netSeed-101+1)%9)+1;genObs(3+((netSeed)%7));freshNets();netPINN._lossHist=[];lamSweep=null;ncAB=null;inv=null;runLive();};
 
 /* ===== 初期化 ===== */
 genObs(3);renderAll();draw_();
