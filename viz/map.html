@@ -52,7 +52,7 @@
 
   <div class="stage">
     <div class="maphost">
-      <canvas id="cv" width="1160" height="884"></canvas>
+      <canvas id="cv" width="1160" height="1140"></canvas>
       <span class="axis x">教師あり・最適化 →</span>
       <span class="axis x2">← 教師なし</span>
       <span class="axis y">↑ 深層・言語</span>
@@ -87,84 +87,89 @@ const CATS={
   xai:{label:'説明可能AI',color:'#a1583c'},
 };
 // n:名, h:リンク, c:カテゴリ, x,y:概念座標(0..1), mo:ミニ可視化モチーフ
+// 領土の設計図（ブループリント）: カテゴリごとに重ならない区画を割り当てる
+//   unsup=左下(0.02-0.24, 0.08-0.50) / dimred=左上(0.03-0.32, 0.58-0.96)
+//   xai=下端中央左(0.22-0.38, 0.02-0.10)=評価の隣 / supervised=中下(0.38-0.72, 0.02-0.30)
+//   nnbasic=中央帯(0.33-0.60, 0.24-0.80) / imgseq=中右(0.58-0.86, 0.32-0.50)
+//   opt=右中(0.70-0.94, 0.54-0.68) / rl=右下(0.76-0.96, 0.06-0.34) / lang=右上(0.66-0.96, 0.70-0.94)
 const M=[
-  {n:'勾配降下',h:'gradient.html',c:'opt',x:0.80,y:0.45,mo:'descent'},
-  {n:'遺伝的AL',h:'ga.html',c:'opt',x:0.92,y:0.54,mo:'pop'},
-  {n:'サロゲート',h:'surrogate.html',c:'opt',x:0.86,y:0.50,mo:'gp'},
-  {n:'サロゲート②',h:'surrogate2.html',c:'opt',x:0.82,y:0.56,mo:'mimic'},
-  {n:'Q学習',h:'qlearning.html',c:'rl',x:0.90,y:0.27,mo:'grid'},
-  {n:'DQN',h:'dqn.html',c:'rl',x:0.92,y:0.40,mo:'grid'},
-  {n:'k-means',h:'kmeans.html',c:'unsup',x:0.15,y:0.30,mo:'cluster'},
-  {n:'GMM',h:'gmm.html',c:'unsup',x:0.24,y:0.20,mo:'cluster'},
-  {n:'DBSCAN',h:'dbscan.html',c:'unsup',x:0.09,y:0.18,mo:'cluster'},
-  {n:'SOM',h:'som.html',c:'unsup',x:0.21,y:0.42,mo:'cluster'},
-  {n:'Hopfield',h:'hopfield.html',c:'unsup',x:0.09,y:0.48,mo:'pattern'},
-  {n:'PCA',h:'pca.html',c:'dimred',x:0.15,y:0.62,mo:'proj'},
-  {n:'t-SNE',h:'tsne.html',c:'dimred',x:0.25,y:0.70,mo:'proj'},
-  {n:'オートエンコーダ',h:'autoencoder.html',c:'dimred',x:0.16,y:0.80,mo:'net'},
-  {n:'対照学習',h:'contrastive.html',c:'dimred',x:0.07,y:0.70,mo:'cluster'},
-  {n:'VAE',h:'vae.html',c:'dimred',x:0.27,y:0.83,mo:'proj'},
-  {n:'GAN',h:'gan.html',c:'dimred',x:0.37,y:0.90,mo:'pop'},
-  {n:'拡散モデル',h:'diffusion.html',c:'dimred',x:0.25,y:0.94,mo:'pop'},
-  {n:'信号の流れ',h:'index.html',c:'nnbasic',x:0.44,y:0.46,mo:'net'},
-  {n:'パーセプトロン',h:'perceptron.html',c:'nnbasic',x:0.37,y:0.35,mo:'boundary'},
-  {n:'線形回帰',h:'linreg.html',c:'nnbasic',x:0.33,y:0.22,mo:'curve'},
-  {n:'ロジスティック回帰',h:'logreg.html',c:'nnbasic',x:0.41,y:0.28,mo:'sigmoid'},
-  {n:'誤差逆伝播',h:'backprop.html',c:'nnbasic',x:0.48,y:0.53,mo:'net'},
-  {n:'正則化',h:'reg.html',c:'nnbasic',x:0.39,y:0.61,mo:'curve'},
-  {n:'ドロップアウト',h:'dropout.html',c:'nnbasic',x:0.50,y:0.64,mo:'net'},
-  {n:'勾配消失',h:'vanishing.html',c:'nnbasic',x:0.56,y:0.58,mo:'bars'},
-  {n:'バッチ正規化',h:'batchnorm.html',c:'nnbasic',x:0.58,y:0.66,mo:'bars'},
-  {n:'決定境界',h:'classify.html',c:'supervised',x:0.50,y:0.37,mo:'boundary'},
-  {n:'数字認識',h:'digit.html',c:'supervised',x:0.58,y:0.45,mo:'pixel'},
-  {n:'評価指標',h:'metrics.html',c:'supervised',x:0.45,y:0.17,mo:'confusion'},
-  {n:'決定木',h:'dtree.html',c:'supervised',x:0.61,y:0.22,mo:'tree'},
-  {n:'ランダムフォレスト',h:'forest.html',c:'supervised',x:0.68,y:0.29,mo:'tree'},
-  {n:'勾配ブースティング',h:'boosting.html',c:'supervised',x:0.70,y:0.37,mo:'tree'},
-  {n:'kNN',h:'knn.html',c:'supervised',x:0.56,y:0.15,mo:'boundary'},
-  {n:'SVM',h:'svm.html',c:'supervised',x:0.63,y:0.13,mo:'boundary'},
-  {n:'ナイーブベイズ',h:'naivebayes.html',c:'supervised',x:0.49,y:0.09,mo:'boundary'},
-  {n:'CNN',h:'cnn.html',c:'imgseq',x:0.62,y:0.56,mo:'filter'},
-  {n:'RNN',h:'rnn.html',c:'imgseq',x:0.70,y:0.63,mo:'seq'},
-  {n:'LSTM',h:'lstm.html',c:'imgseq',x:0.78,y:0.58,mo:'seq'},
-  {n:'グラフNN',h:'gnn.html',c:'imgseq',x:0.68,y:0.50,mo:'graphnet'},
-  {n:'潮流GNN⚡',h:'gnnflow.html',c:'imgseq',x:0.64,y:0.44,mo:'powerflow'},
-  {n:'単語埋め込み',h:'word2vec.html',c:'lang',x:0.74,y:0.70,mo:'proj'},
-  {n:'位置エンコーディング',h:'positional.html',c:'lang',x:0.81,y:0.66,mo:'wave'},
-  {n:'自己注意',h:'attention.html',c:'lang',x:0.83,y:0.77,mo:'attn'},
-  {n:'Transformer',h:'transformer.html',c:'lang',x:0.89,y:0.81,mo:'attn'},
-  {n:'GPT-2',h:'../gpt2/',c:'lang',x:0.94,y:0.88,mo:'attn'},
-  {n:'RAG',h:'rag.html',c:'lang',x:0.86,y:0.92,mo:'proj'},
-  {n:'バンディット',h:'bandit.html',c:'rl',x:0.84,y:0.18,mo:'bars'},
-  {n:'方策勾配',h:'policygrad.html',c:'rl',x:0.95,y:0.33,mo:'grid'},
-  {n:'ガウス過程',h:'gp.html',c:'opt',x:0.76,y:0.48,mo:'gp'},
-  {n:'XAI入門',h:'xai.html',c:'xai',x:0.52,y:0.28,mo:'pixel'},
-  {n:'LIME',h:'lime.html',c:'xai',x:0.46,y:0.33,mo:'boundary'},
-  {n:'残差接続',h:'resnet.html',c:'nnbasic',x:0.62,y:0.62,mo:'net'},
-  {n:'HMM',h:'hmm.html',c:'imgseq',x:0.74,y:0.56,mo:'seq'},
-  {n:'カルマン',h:'kalman.html',c:'imgseq',x:0.80,y:0.72,mo:'curve'},
-  {n:'MCTS',h:'mcts.html',c:'rl',x:0.86,y:0.14,mo:'tree'},
-  {n:'RLHF',h:'rlhf.html',c:'rl',x:0.95,y:0.48,mo:'seq'},
-  {n:'Actor-Critic',h:'actorcritic.html',c:'rl',x:0.91,y:0.36,mo:'grid'},
-  {n:'SHAP',h:'shap.html',c:'xai',x:0.57,y:0.33,mo:'bars'},
-  {n:'異常検知',h:'anomaly.html',c:'unsup',x:0.05,y:0.30,mo:'cluster'},
-  {n:'階層クラスタ',h:'hierarchical.html',c:'unsup',x:0.17,y:0.12,mo:'tree'},
-  {n:'転移学習',h:'transfer.html',c:'nnbasic',x:0.55,y:0.72,mo:'net'},
-  {n:'交差検証',h:'crossval.html',c:'supervised',x:0.40,y:0.12,mo:'confusion'},
-  {n:'MoE',h:'moe.html',c:'lang',x:0.62,y:0.88,mo:'net'},
-  {n:'知識蒸留',h:'distill.html',c:'nnbasic',x:0.47,y:0.76,mo:'net'},
-  {n:'PINN',h:'pinn.html',c:'imgseq',x:0.60,y:0.38,mo:'curve'},
-  {n:'推薦・行列分解',h:'recommend.html',c:'dimred',x:0.33,y:0.66,mo:'pixel'},
+  {n:'勾配降下',h:'gradient.html',c:'opt',x:0.79,y:0.56,mo:'descent'},
+  {n:'遺伝的AL',h:'ga.html',c:'opt',x:0.93,y:0.60,mo:'pop'},
+  {n:'サロゲート',h:'surrogate.html',c:'opt',x:0.86,y:0.60,mo:'gp'},
+  {n:'サロゲート②',h:'surrogate2.html',c:'opt',x:0.87,y:0.66,mo:'mimic'},
+  {n:'Q学習',h:'qlearning.html',c:'rl',x:0.80,y:0.16,mo:'grid'},
+  {n:'DQN',h:'dqn.html',c:'rl',x:0.88,y:0.16,mo:'grid'},
+  {n:'k-means',h:'kmeans.html',c:'unsup',x:0.14,y:0.30,mo:'cluster'},
+  {n:'GMM',h:'gmm.html',c:'unsup',x:0.22,y:0.21,mo:'cluster'},
+  {n:'DBSCAN',h:'dbscan.html',c:'unsup',x:0.06,y:0.20,mo:'cluster'},
+  {n:'SOM',h:'som.html',c:'unsup',x:0.20,y:0.41,mo:'cluster'},
+  {n:'Hopfield',h:'hopfield.html',c:'unsup',x:0.08,y:0.48,mo:'pattern'},
+  {n:'PCA',h:'pca.html',c:'dimred',x:0.10,y:0.60,mo:'proj'},
+  {n:'t-SNE',h:'tsne.html',c:'dimred',x:0.20,y:0.66,mo:'proj'},
+  {n:'オートエンコーダ',h:'autoencoder.html',c:'dimred',x:0.12,y:0.78,mo:'net'},
+  {n:'対照学習',h:'contrastive.html',c:'dimred',x:0.04,y:0.70,mo:'cluster'},
+  {n:'VAE',h:'vae.html',c:'dimred',x:0.21,y:0.88,mo:'proj'},
+  {n:'GAN',h:'gan.html',c:'dimred',x:0.30,y:0.95,mo:'pop'},
+  {n:'拡散モデル',h:'diffusion.html',c:'dimred',x:0.12,y:0.94,mo:'pop'},
+  {n:'信号の流れ',h:'index.html',c:'nnbasic',x:0.40,y:0.44,mo:'net'},
+  {n:'パーセプトロン',h:'perceptron.html',c:'nnbasic',x:0.33,y:0.36,mo:'boundary'},
+  {n:'線形回帰',h:'linreg.html',c:'nnbasic',x:0.33,y:0.24,mo:'curve'},
+  {n:'ロジスティック回帰',h:'logreg.html',c:'nnbasic',x:0.40,y:0.30,mo:'sigmoid'},
+  {n:'誤差逆伝播',h:'backprop.html',c:'nnbasic',x:0.47,y:0.51,mo:'net'},
+  {n:'正則化',h:'reg.html',c:'nnbasic',x:0.36,y:0.58,mo:'curve'},
+  {n:'ドロップアウト',h:'dropout.html',c:'nnbasic',x:0.44,y:0.64,mo:'net'},
+  {n:'勾配消失',h:'vanishing.html',c:'nnbasic',x:0.53,y:0.57,mo:'bars'},
+  {n:'バッチ正規化',h:'batchnorm.html',c:'nnbasic',x:0.52,y:0.68,mo:'bars'},
+  {n:'決定境界',h:'classify.html',c:'supervised',x:0.50,y:0.30,mo:'boundary'},
+  {n:'数字認識',h:'digit.html',c:'supervised',x:0.55,y:0.36,mo:'pixel'},
+  {n:'評価指標',h:'metrics.html',c:'supervised',x:0.42,y:0.17,mo:'confusion'},
+  {n:'決定木',h:'dtree.html',c:'supervised',x:0.60,y:0.16,mo:'tree'},
+  {n:'ランダムフォレスト',h:'forest.html',c:'supervised',x:0.68,y:0.22,mo:'tree'},
+  {n:'勾配ブースティング',h:'boosting.html',c:'supervised',x:0.68,y:0.30,mo:'tree'},
+  {n:'kNN',h:'knn.html',c:'supervised',x:0.54,y:0.10,mo:'boundary'},
+  {n:'SVM',h:'svm.html',c:'supervised',x:0.62,y:0.07,mo:'boundary'},
+  {n:'ナイーブベイズ',h:'naivebayes.html',c:'supervised',x:0.46,y:0.06,mo:'boundary'},
+  {n:'CNN',h:'cnn.html',c:'imgseq',x:0.60,y:0.48,mo:'filter'},
+  {n:'RNN',h:'rnn.html',c:'imgseq',x:0.74,y:0.42,mo:'seq'},
+  {n:'LSTM',h:'lstm.html',c:'imgseq',x:0.81,y:0.42,mo:'seq'},
+  {n:'グラフNN',h:'gnn.html',c:'imgseq',x:0.67,y:0.46,mo:'graphnet'},
+  {n:'潮流GNN⚡',h:'gnnflow.html',c:'imgseq',x:0.67,y:0.36,mo:'powerflow'},
+  {n:'単語埋め込み',h:'word2vec.html',c:'lang',x:0.68,y:0.72,mo:'proj'},
+  {n:'位置エンコーディング',h:'positional.html',c:'lang',x:0.76,y:0.76,mo:'wave'},
+  {n:'自己注意',h:'attention.html',c:'lang',x:0.80,y:0.84,mo:'attn'},
+  {n:'Transformer',h:'transformer.html',c:'lang',x:0.87,y:0.80,mo:'attn'},
+  {n:'GPT-2',h:'../gpt2/',c:'lang',x:0.93,y:0.88,mo:'attn'},
+  {n:'RAG',h:'rag.html',c:'lang',x:0.82,y:0.92,mo:'proj'},
+  {n:'バンディット',h:'bandit.html',c:'rl',x:0.78,y:0.08,mo:'bars'},
+  {n:'方策勾配',h:'policygrad.html',c:'rl',x:0.84,y:0.24,mo:'grid'},
+  {n:'ガウス過程',h:'gp.html',c:'opt',x:0.72,y:0.60,mo:'gp'},
+  {n:'XAI入門',h:'xai.html',c:'xai',x:0.30,y:0.04,mo:'pixel'},
+  {n:'LIME',h:'lime.html',c:'xai',x:0.23,y:0.08,mo:'boundary'},
+  {n:'残差接続',h:'resnet.html',c:'nnbasic',x:0.60,y:0.64,mo:'net'},
+  {n:'HMM',h:'hmm.html',c:'imgseq',x:0.74,y:0.34,mo:'seq'},
+  {n:'カルマン',h:'kalman.html',c:'imgseq',x:0.81,y:0.34,mo:'curve'},
+  {n:'MCTS',h:'mcts.html',c:'rl',x:0.86,y:0.08,mo:'tree'},
+  {n:'RLHF',h:'rlhf.html',c:'rl',x:0.93,y:0.32,mo:'seq'},
+  {n:'Actor-Critic',h:'actorcritic.html',c:'rl',x:0.92,y:0.24,mo:'grid'},
+  {n:'SHAP',h:'shap.html',c:'xai',x:0.36,y:0.10,mo:'bars'},
+  {n:'異常検知',h:'anomaly.html',c:'unsup',x:0.04,y:0.31,mo:'cluster'},
+  {n:'階層クラスタ',h:'hierarchical.html',c:'unsup',x:0.14,y:0.11,mo:'tree'},
+  {n:'転移学習',h:'transfer.html',c:'nnbasic',x:0.52,y:0.78,mo:'net'},
+  {n:'交差検証',h:'crossval.html',c:'supervised',x:0.38,y:0.10,mo:'confusion'},
+  {n:'MoE',h:'moe.html',c:'lang',x:0.72,y:0.86,mo:'net'},
+  {n:'知識蒸留',h:'distill.html',c:'nnbasic',x:0.43,y:0.78,mo:'net'},
+  {n:'PINN',h:'pinn.html',c:'imgseq',x:0.61,y:0.40,mo:'curve'},
+  {n:'推薦・行列分解',h:'recommend.html',c:'dimred',x:0.28,y:0.60,mo:'pixel'},
 ];
 const SPINE=['信号の流れ','勾配降下','誤差逆伝播','決定境界','CNN','RNN','自己注意','Transformer','GPT-2'];
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
-const PAD=66, CWH=47, CHH=32; // card half-width / half-height
+const PAD=66, CWH=44, CHH=30; // card half-width / half-height
 function toPx(m){return{x:PAD+m.x*(CW-2*PAD), y:CH-PAD-m.y*(CH-2*PAD)};}
 M.forEach(m=>{const p=toPx(m);m.px=p.x;m.py=p.y;});
-// AABB 反発で重なり回避
-function relax(){const gx=18,gy=24;for(let it=0;it<320;it++){let moved=false;
-  for(let i=0;i<M.length;i++)for(let j=i+1;j<M.length;j++){const a=M[i],b=M[j];const dx=b.px-a.px,dy=b.py-a.py;const ox=(CWH+gx)-Math.abs(dx),oy=(CHH+gy)-Math.abs(dy);
+// AABB 反発で重なり回避（カード全幅＋余白ぶんの分離を保証する）
+function relax(){const gx=14,gy=18;for(let it=0;it<600;it++){let moved=false;
+  for(let i=0;i<M.length;i++)for(let j=i+1;j<M.length;j++){const a=M[i],b=M[j];const dx=b.px-a.px,dy=b.py-a.py;const ox=(CWH*2+gx)-Math.abs(dx),oy=(CHH*2+gy)-Math.abs(dy);
     if(ox>0&&oy>0){moved=true;if(ox<oy){const s=(dx<0?-1:1)*ox/2;a.px-=s;b.px+=s;}else{const s=(dy<0?-1:1)*oy/2;a.py-=s;b.py+=s;}}}
   for(const m of M){m.px=Math.max(PAD-2,Math.min(CW-PAD+2,m.px));m.py=Math.max(PAD+6,Math.min(CH-PAD,m.py));}
   if(!moved)break;}}
@@ -241,9 +246,11 @@ function drawGrid(){const step=29;ctx.lineWidth=1;
   for(let x=PAD%step;x<CW;x+=step){const major=Math.round((x-PAD%step)/step)%5===0;ctx.strokeStyle=major?'rgba(150,143,127,0.28)':'rgba(150,143,127,0.13)';ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,CH);ctx.stroke();}
   for(let y=PAD%step;y<CH;y+=step){const major=Math.round((y-PAD%step)/step)%5===0;ctx.strokeStyle=major?'rgba(150,143,127,0.28)':'rgba(150,143,127,0.13)';ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(CW,y+.5);ctx.stroke();}}
 function drawHulls(){for(const k in CATS){if(off[k])continue;const pts=M.filter(m=>m.c===k).map(m=>({x:m.px,y:m.py}));if(!pts.length)continue;const[r,g,b]=hex2rgb(CATS[k].color);
-  let poly;if(pts.length>=3)poly=expand(hull(pts),38);else{const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;poly=[];for(let a=0;a<14;a++)poly.push({x:cx+Math.cos(a/14*6.283)*(CWH+26),y:cy+Math.sin(a/14*6.283)*(CHH+22)});}
+  let poly;if(pts.length>=3)poly=expand(hull(pts),30);else{const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;poly=[];for(let a=0;a<14;a++)poly.push({x:cx+Math.cos(a/14*6.283)*(CWH+26),y:cy+Math.sin(a/14*6.283)*(CHH+22)});}
   ctx.beginPath();poly.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=`rgba(${r},${g},${b},0.06)`;ctx.fill();ctx.strokeStyle=`rgba(${r},${g},${b},0.45)`;ctx.setLineDash([5,4]);ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
-  let tx=poly[0].x,ty=poly[0].y;for(const p of poly)if(p.y<ty){ty=p.y;tx=p.x;}ctx.fillStyle=`rgba(${r},${g},${b},0.95)`;ctx.font='600 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(CATS[k].label,tx,ty-6);}}
+  let tx=poly[0].x,ty=poly[0].y;for(const p of poly)if(p.y<ty){ty=p.y;tx=p.x;}ctx.font='600 11px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(255,253,246,0.9)';ctx.strokeText(CATS[k].label,tx,ty-6);
+  ctx.fillStyle=`rgba(${r},${g},${b},0.95)`;ctx.fillText(CATS[k].label,tx,ty-6);}}
 function drawPath(){const pts=SPINE.map(n=>M.find(m=>m.n===n)).filter(m=>m&&!off[m.c]);if(pts.length<2)return;
   ctx.strokeStyle='rgba(26,26,23,0.55)';ctx.lineWidth=1.8;ctx.setLineDash([2,5]);ctx.beginPath();pts.forEach((m,i)=>i?ctx.lineTo(m.px,m.py):ctx.moveTo(m.px,m.py));ctx.stroke();ctx.setLineDash([]);
   pts.forEach((m,i)=>{const bx=m.px-CWH+8,by=m.py-CHH+8;ctx.beginPath();ctx.arc(bx,by,8,0,7);ctx.fillStyle='#1a1a17';ctx.fill();ctx.fillStyle='#fff';ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i+1,bx,by+.5);});}
@@ -252,7 +259,7 @@ function drawCard(m,i){if(off[m.c])return;const[r,g,b]=hex2rgb(CATS[m.c].color);
   rr(x,y,w,h,3);ctx.lineWidth=hl?2:1;ctx.strokeStyle=hl?'#1a1a17':'rgba(26,26,23,0.32)';ctx.stroke();
   ctx.fillStyle=CATS[m.c].color;rr(x,y,w,3.2,2);ctx.fill(); // category top bar
   const vx=x+5,vy=y+8,vw=w-10,vh=h-24; clipCard(vx,vy,vw,vh,()=>MOT[m.mo](vx,vy,vw,vh,CATS[m.c].color));
-  ctx.fillStyle=hl?'#1a1a17':'rgba(26,26,23,0.9)';ctx.font=(hl?'700 ':'600 ')+'9.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle=hl?'#1a1a17':'rgba(26,26,23,0.9)';ctx.font=(hl?'700 ':'600 ')+'9px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
   let nm=m.n;if(nm.length>9)nm=nm.slice(0,8)+'…';ctx.fillText(nm,m.px,y+h-8);}
 function draw(){ctx.clearRect(0,0,CW,CH);drawGrid();drawHulls();if(showPath)drawPath();
   for(let i=0;i<M.length;i++)if(i!==hover)drawCard(M[i],i);if(hover>=0)drawCard(M[hover],hover);
