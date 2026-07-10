@@ -226,7 +226,7 @@ function drawRMSEbars(y0){ensureTrained();const groups=[
     ctx.fillStyle=getCSS('--loss');roundRect(gx+gw*0.16,y0+h-bp,bw,bp,2);ctx.fill();
     ctx.fillStyle=getCSS('--accent');roundRect(gx+gw*0.54,y0+h-bq,bw,bq,2);ctx.fill();
     ctx.fillStyle=getCSS('--loss');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(g.p.toFixed(2),gx+gw*0.16+bw/2,y0+h-bp-4);
-    ctx.fillStyle=getCSS('--accent');ctx.fillText(g.q.toFixed(2),gx+gw*0.54+bw/2,y0+h-bq-4);
+    ctx.fillStyle=getCSS('--accent');ctx.fillText(g.q.toFixed(3),gx+gw*0.54+bw/2,y0+h-bq-4);
     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText(g.name,gx+gw/2,y0+h+14);});}
 function drawLambda(y0){ensureSweep();const h=92,x0=44,w=CW-2*x0;const S=lamSweep;
   const errs=S.errs,mx=Math.max.apply(null,errs)*1.05;
@@ -300,11 +300,11 @@ const SLIDES=[
 /* 8 ── 数字（RMSE） ── */
 {title:'数字で：すき間 13 倍・外挿 43 倍',legend:'区間ごとの誤差。すき間と外挿で PINN が桁違いに正確',
  html(){ensureTrained();const gp=rmse(netPlain,GAP[0],GAP[1]),gq=rmse(netPINN,GAP[0],GAP[1]),ep=rmse(netPlain,EXT[0],EXT[1]),eq=rmse(netPINN,EXT[0],EXT[1]);
-   return'<h3>数字で：すき間 '+Math.round(gp/gq)+' 倍・外挿 '+Math.round(ep/eq)+' 倍</h3><div class="eq curr">区間別 RMSE：観測域はほぼ互角／すき間・外挿で大差<span class="read">読み：観測がある所は両者とも合う。差が出るのは<b>データが語らない場所</b>——そこを法則で埋めた PINN が圧勝する</span></div><div class="desc">誤差を区間ごとに測りました（下の棒）。<b>観測域</b>は両者ともほぼ互角。ところが<b>すき間</b>で普通NN '+gp.toFixed(2)+' 対 PINN '+gq.toFixed(2)+'（約 <b>'+Math.round(gp/gq)+' 倍</b>の差）、<b>外挿</b>で '+ep.toFixed(2)+' 対 '+eq.toFixed(2)+'（約 <b>'+Math.round(ep/eq)+' 倍</b>）。<b>データが足りない所ほど、物理が効く</b>。PINN の価値は「観測が濃い所」ではなく「<b>観測が薄い所</b>」で光ります。</div>';},
+   return'<h3>数字で：すき間 '+Math.round(gp/gq)+' 倍・外挿 '+Math.round(ep/eq)+' 倍</h3><div class="eq curr">区間別 RMSE：観測域はほぼ互角／すき間・外挿で大差<span class="read">読み：観測がある所は両者とも合う。差が出るのは<b>データが語らない場所</b>——そこを法則で埋めた PINN が圧勝する</span></div><div class="desc">誤差を区間ごとに測りました（下の棒）。<b>観測域</b>は両者ともほぼ互角。ところが<b>すき間</b>で普通NN '+gp.toFixed(2)+' 対 PINN '+gq.toFixed(3)+'（約 <b>'+Math.round(gp/gq)+' 倍</b>の差）、<b>外挿</b>で '+ep.toFixed(2)+' 対 '+eq.toFixed(3)+'（約 <b>'+Math.round(ep/eq)+' 倍</b>）。<b>データが足りない所ほど、物理が効く</b>。PINN の価値は「観測が濃い所」ではなく「<b>観測が薄い所</b>」で光ります。</div>';},
  draw(){plotAxes({gap:true,ext:true});drawTrue();ensureTrained();drawNet(netPlain,getCSS('--loss'),1.8);drawNet(netPINN,getCSS('--accent'),2.2);drawObs();drawRMSEbars(316);}},
 /* 9 ── λの効き ── */
 {title:'λ の効き：データ過信 ↔ 物理過信',legend:'物理の重み λ を変えて全域の誤差を実測。谷が最良',
- html(){return'<h3>λ の効き：データ過信 ↔ 物理過信</h3><div class="eq curr">L = L<sub>data</sub> + <b>λ</b>·L<sub>phys</sub>　の λ を 0 → 大 へ<span class="read">読み：λ=0＝ただの NN（データ過信でぶれる）。λ 大＝<b>データを無視</b>して法則だけに従い、振幅や位相を外す。<b>ちょうど良い谷</b>がある</span></div><div class="desc">物理を足せば足すほど良い、わけではありません。<b>λ を振って全域の誤差を実測</b>したのが下の曲線。<b>λ=0（左端）はただの NN で誤差大</b>。λ を上げると急に良くなり——しかし<b>上げすぎ（右端）は物理を過信してデータを無視</b>し、また悪化します（法則だけでは振幅・位相が決まらない。それを<b>データが釘付け</b>にする）。<b>データと法則、両方を聞く</b>中庸が最良。ここでは λ='+LAM+' を採用。</div>';},
+ html(){return'<h3>λ の効き：データ過信 ↔ 物理過信</h3><div class="eq curr">L = L<sub>data</sub> + <b>λ</b>·L<sub>phys</sub>　の λ を 0 → 大 へ<span class="read">読み：λ=0＝ただの NN（データ過信でぶれる）。λ 大＝<b>データを無視</b>して法則だけに従い、振幅や位相を外す。<b>ちょうど良い谷</b>がある</span></div><div class="desc">物理を足せば足すほど良い、わけではありません。<b>λ を振って全域の誤差を実測</b>したのが下の曲線。<b>λ=0（左端）はただの NN で誤差大</b>。λ を上げると急に良くなり——しかし<b>上げすぎ（右端）は物理を過信してデータを無視</b>し、また悪化します（法則だけでは振幅・位相が決まらない。それを<b>データが釘付け</b>にする）。<b>データと法則、両方を聞く</b>中庸が最良。谷は広く（実測の底は λ≈0.5）、このページは谷の中の λ='+LAM+' を採用しています。</div>';},
  draw(){plotAxes({});drawTrue();ensureTrained();drawNet(netPINN,getCSS('--accent'),2.2);drawObs();drawLambda(320);}},
 /* 10 ── なぜ効く ── */
 {title:'なぜ効く＝物理は無料の無限データ',legend:'法則が解空間を絞る＝帰納バイアス。少データでも決まる',

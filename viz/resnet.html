@@ -446,7 +446,7 @@ function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideId
   const wait=()=>{if(!auto)return;const heavy=(slideIdx===8);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?1400:3800);};
   requestAnimationFrame(wait);}else stopAuto();}
 function reset(){stopAuto();anim=false;initSeed=101;plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;slideIdx=0;ensureNets();renderAll();draw_();}
-function reroll(){initSeed=(initSeed*1103515245+12345)>>>0>>>0%100000+2;if(initSeed<2)initSeed=2;
+function reroll(){initSeed=((initSeed*1103515245+12345)>>>0)%100000+2;if(initSeed<2)initSeed=2;
   plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;ensureNets();
   if(slideIdx>=10)ensureTrained();renderMini();renderExplain();draw_();}
 function setDepth(d){L=d;plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;
