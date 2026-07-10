@@ -9,3 +9,6 @@ gpt2/assets/*.bin
 # Playwright 等での検証スクリーンショット（リポジトリ直下）と一時生成物
 /*.png
 .playwright-mcp/
+
+# Claude作業引き継ぎ（個人的な作業記録）
+.claude/
