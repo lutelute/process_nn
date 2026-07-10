@@ -104,7 +104,7 @@
 
   <details>
     <summary>もっと詳しく：Swift の実装・PPO・sim-to-real・本ページの簡略化</summary>
-    <div class="det">本物の <b>Swift</b>（Kaufmann ら, Nature 2023）は、カメラ画像から VIO（視覚慣性オドメトリ）とゲート検出で<b>自機とゲートの相対状態を推定</b>し、それを入力に <b>PPO</b>（クリップ付き Actor-Critic、<a href="actorcritic.html">Actor-Critic</a> の現代標準形）で学習した方策が<b>各モーターの推力指令</b>を出します。学習は<b>ほぼ全てシミュレータ内</b>——実機データで空力の残差を補正し、観測ノイズを注入して<b>現実とのズレに頑健化</b>（sim-to-real）してから実機に載せる。人間チャンピオン相手に複数回勝利し、<b>最速ラップも記録</b>しました。本ページは構図を残して大幅に簡略化しています：2 次元・質点・8 方向の推力・観測は真値（画像でなく座標）・<a href="policygrad.html">REINFORCE</a>＋ベースライン（PPO でなく素の方策勾配）。それでも「<b>ルール制御の調整限界を試行錯誤が超える</b>」という本質は同じ形で再現できます。関連：<a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>・<a href="rlhf.html">RLHF</a>（同じ方策勾配ファミリーが言語モデルを調整する話）。</div>
+    <div class="det">本物の <b>Swift</b>（Kaufmann ら, Nature 2023）は、カメラ画像から VIO（視覚慣性オドメトリ）とゲート検出で<b>自機とゲートの相対状態を推定</b>し、それを入力に <b>PPO</b>（クリップ付き Actor-Critic、<a href="actorcritic.html">Actor-Critic</a> の現代標準形）で学習した方策が<b>各モーターの推力指令</b>を出します。学習は<b>ほぼ全てシミュレータ内</b>——実機データで空力の残差を補正し、観測ノイズを注入して<b>現実とのズレに頑健化</b>（sim-to-real）してから実機に載せる。人間チャンピオン相手に複数回勝利し、<b>最速ラップも記録</b>しました。本ページは構図を残して大幅に簡略化しています：2 次元・質点・8 方向の推力・観測は真値（画像でなく座標）・<a href="policygrad.html">REINFORCE</a>＋ベースライン（PPO でなく素の方策勾配）。それでも「<b>ルール制御の調整限界を試行錯誤が超える</b>」という本質は同じ形で再現できます。続編 <a href="dronerace2.html">ドローンレース②</a> では、学んだ操縦が<b>別コースや風で崩れる（分布シフト）</b>のを、再学習とドメインランダム化で乗り越えます（sim-to-real の入口）。関連：<a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>・<a href="rlhf.html">RLHF</a>（同じ方策勾配ファミリーが言語モデルを調整する話）。</div>
   </details>
 </div>
 
