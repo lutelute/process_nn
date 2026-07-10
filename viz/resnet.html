@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>残差接続（ResNet）— 差分を学ぶと深くできる（動くインフォグラフ）</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .ok b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>残差接続（ResNet）— 差分を学ぶと深くできる</h1>
+  <div class="lead">層を深くするほど強いはず——なのに昔の深いネットは<b>深くすると逆に悪化</b>しました（<a href="vanishing.html">勾配消失</a>の回の続き＝解答編）。答えは発想の転換：変換そのものでなく<b>「変換との差分」</b>を学び、<b>恒等の近道（skip）で勾配を通す</b>。同じ 32 層のネットを skip の有無だけ変えて実学習し、勾配と loss の差をこの場で見ます。「次へ ▶」で進んでください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「深いほど強い」を<b>本当に実現した</b>仕掛け。画像の ResNet から<a href="transformer.html">Transformer</a>まで、巨大モデルの土台。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>変換 H(x) でなく<b>差分 F(x)=H(x)−x</b> を学び、<b>y = x + F(x)</b>。恒等の近道が勾配を素通しする。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ResNet（画像）・Transformer（言語）・拡散モデル…<b>深いネットのほぼ全部</b>に入っている標準部品。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の初期値</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>残差接続とは<b>掛け算に足し算を割り込ませる発明</b>だ。勾配は逆伝播で各層の微分を掛け算していくから消える——ところが <b>∂y/∂x = 1 + ∂F/∂x</b> の「<b>1</b>」が、消えも爆発もしない<b>勾配の一本道</b>を作る。深層学習が"深く"なれたのは、変換そのものでなく<b>変換との差分</b>を学ぶ、という視点の転換から。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>残差接続とは「層をスキップして浅くする」ことだ</div>
+    <div class="row"><span class="o">✓</span>層は<b>飛ばしません</b>。全層をちゃんと通しつつ、入力を出力に<b>足す近道を"追加"</b>する。深さは保ったまま、勾配だけに直通路を用意する仕掛けです。</div>
+    <div class="row"><span class="x">✗</span>層を深くすれば精度は必ず上がる</div>
+    <div class="row"><span class="o">✓</span>素の（plain）ネットは<b>深いほど悪化しうる</b>（degradation）。残差接続が「<b>最悪でも恒等＝悪くならない</b>」を保証して初めて、深さが力になります。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：なぜ恒等がよい・BatchNorm・pre-activation・Transformer</summary>
+    <div class="det">残差ブロックの逆伝播では ∂loss/∂x = ∂loss/∂y·(1 + ∂F/∂x)。この <b>+1</b> のおかげで、たとえ ∂F が小さくても勾配は下限 ∂loss/∂y を保ち、深く積んでも消えません（<b>勾配の高速道路 / gradient highway</b>）。さらに順伝播でも「何もしないのが正解」の層は <b>F=0</b>（重みを 0 にするだけ）で恒等写像を作れるので、深くしても<b>最悪で現状維持</b>——これが degradation（劣化）を止める本質です。実際の ResNet はこれに <a href="batchnorm.html">BatchNorm</a>（各層の分布を整えて安定化。ここでは省き、残差ブランチを小さめに初期化して代用）と <b>ReLU</b> を組み合わせ、He 初期化で 152 層まで学習しました。<b>pre-activation ResNet</b>（正規化・活性化をブランチ内へ）や、全層を密結合する <b>DenseNet</b>、そして <a href="transformer.html">Transformer</a> の各サブ層（自己注意・FFN）を包む residual + LayerNorm も同じ発明の系譜です。関連：<a href="vanishing.html">勾配消失</a>（この回の問題編）・<a href="backprop.html">誤差逆伝播</a>・<a href="batchnorm.html">バッチ正規化</a>。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=3;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const tanh=Math.tanh,dtanh=a=>1-a*a;
+
+/* ===== plain網 と 残差網（唯一の違いは skip 接続） ===== */
+const WD=8,L=32,ALPHA=0.4,ITERS=400,LR=0.01;
+let initSeed=101;
+function makeNet(resid){seed=initSeed;const sc=Math.sqrt(1/WD);
+  const Win=Array.from({length:WD},()=>randn()*0.8);
+  const blocks=[];for(let l=0;l<L;l++)blocks.push({Wl:Array.from({length:WD},()=>Array.from({length:WD},()=>randn()*sc)),bl:new Float64Array(WD),
+    mWl:Array.from({length:WD},()=>new Float64Array(WD)),vWl:Array.from({length:WD},()=>new Float64Array(WD)),mbl:new Float64Array(WD),vbl:new Float64Array(WD)});
+  const Wout=Array.from({length:WD},()=>randn()*sc);
+  return{resid,Win,blocks,Wout,bout:0,mWin:new Float64Array(WD),vWin:new Float64Array(WD),mWout:new Float64Array(WD),vWout:new Float64Array(WD),mbout:0,vbout:0,t:0};}
+function forward(net,x){const hs=[];let h=net.Win.map(w=>w*x);hs.push(h.slice());const pre=[];
+  for(let l=0;l<L;l++){const b=net.blocks[l];const a=new Float64Array(WD);
+    for(let j=0;j<WD;j++){let s=b.bl[j];const Wj=b.Wl[j];for(let k=0;k<WD;k++)s+=Wj[k]*h[k];a[j]=tanh(s);}
+    pre.push(a);const nh=new Float64Array(WD);for(let j=0;j<WD;j++)nh[j]=net.resid?h[j]+ALPHA*a[j]:a[j];h=nh;hs.push(Array.from(h));}
+  let y=net.bout;for(let j=0;j<WD;j++)y+=net.Wout[j]*h[j];return{y,hs,pre};}
+function backward(net,x,t,g,hg){const{y,hs,pre}=forward(net,x);const dy=2*(y-t);
+  g.bout+=dy;for(let j=0;j<WD;j++)g.Wout[j]+=dy*hs[L][j];
+  let dh=new Float64Array(WD);for(let j=0;j<WD;j++)dh[j]=dy*net.Wout[j];
+  for(let l=L-1;l>=0;l--){if(hg){let n=0;for(let j=0;j<WD;j++)n+=dh[j]*dh[j];hg[l+1]+=Math.sqrt(n);}
+    const a=pre[l],b=net.blocks[l];const dz=new Float64Array(WD);for(let j=0;j<WD;j++)dz[j]=(net.resid?ALPHA:1)*dh[j]*dtanh(a[j]);
+    for(let j=0;j<WD;j++){g.blocks[l].bl[j]+=dz[j];const Wj=g.blocks[l].Wl[j];for(let k=0;k<WD;k++)Wj[k]+=dz[j]*hs[l][k];}
+    const din=new Float64Array(WD);for(let k=0;k<WD;k++){let s=0;for(let j=0;j<WD;j++)s+=b.Wl[j][k]*dz[j];din[k]=s+(net.resid?dh[k]:0);}dh=din;}
+  if(hg){let n=0;for(let j=0;j<WD;j++)n+=dh[j]*dh[j];hg[0]+=Math.sqrt(n);}
+  for(let j=0;j<WD;j++)g.Win[j]+=dh[j]*x;return(y-t)*(y-t);}
+function zeroGrad(){return{Win:new Float64Array(WD),blocks:Array.from({length:L},()=>({Wl:Array.from({length:WD},()=>new Float64Array(WD)),bl:new Float64Array(WD)})),Wout:new Float64Array(WD),bout:0};}
+function adam(net,g,lr,bs){net.t++;const B1=0.9,B2=0.999,E=1e-8,bc1=1-Math.pow(B1,net.t),bc2=1-Math.pow(B2,net.t);
+  const u1=(P,M,V,i,gr)=>{gr/=bs;M[i]=B1*M[i]+(1-B1)*gr;V[i]=B2*V[i]+(1-B2)*gr*gr;P[i]-=lr*(M[i]/bc1)/(Math.sqrt(V[i]/bc2)+E);};
+  for(let j=0;j<WD;j++)u1(net.Win,net.mWin,net.vWin,j,g.Win[j]);
+  for(let l=0;l<L;l++){const b=net.blocks[l],gb=g.blocks[l];for(let j=0;j<WD;j++){for(let k=0;k<WD;k++){let gr=gb.Wl[j][k]/bs;b.mWl[j][k]=B1*b.mWl[j][k]+(1-B1)*gr;b.vWl[j][k]=B2*b.vWl[j][k]+(1-B2)*gr*gr;b.Wl[j][k]-=lr*(b.mWl[j][k]/bc1)/(Math.sqrt(b.vWl[j][k]/bc2)+E);}
+    let grb=gb.bl[j]/bs;b.mbl[j]=B1*b.mbl[j]+(1-B1)*grb;b.vbl[j]=B2*b.vbl[j]+(1-B2)*grb*grb;b.bl[j]-=lr*(b.mbl[j]/bc1)/(Math.sqrt(b.vbl[j]/bc2)+E);}}
+  for(let j=0;j<WD;j++)u1(net.Wout,net.mWout,net.vWout,j,g.Wout[j]);
+  {let gr=g.bout/bs;net.mbout=B1*net.mbout+(1-B1)*gr;net.vbout=B2*net.vbout+(1-B2)*gr*gr;net.bout-=lr*(net.mbout/bc1)/(Math.sqrt(net.vbout/bc2)+E);}}
+const target=x=>Math.sin(2.5*x)*0.6;
+let data=null;function genData(){seed=7;const xs=[],ys=[];for(let i=0;i<40;i++){const x=-1.2+2.4*i/39;xs.push(x);ys.push(target(x)+randn()*0.02);}data={xs,ys};}
+function layerGrads(net){const hg=new Float64Array(L+1);const g=zeroGrad();for(let i=0;i<data.xs.length;i++)backward(net,data.xs[i],data.ys[i],g,hg);for(let i=0;i<hg.length;i++)hg[i]/=data.xs.length;return hg;}
+function lossOf(net){let s=0;for(let i=0;i<data.xs.length;i++){const e=forward(net,data.xs[i]).y-data.ys[i];s+=e*e;}return s/data.xs.length;}
+
+/* ===== 状態 ===== */
+let plainNet=null,resNet=null,hgP=null,hgR=null,trained=false,it=0,lossP=[],lossR=[];
+function ensureNets(){if(!data)genData();if(!plainNet){plainNet=makeNet(false);resNet=makeNet(true);hgP=layerGrads(plainNet);hgR=layerGrads(resNet);it=0;lossP=[];lossR=[];trained=false;}}
+function resetNets(){if(!data)genData();plainNet=makeNet(false);resNet=makeNet(true);hgP=layerGrads(plainNet);hgR=layerGrads(resNet);it=0;lossP=[lossOf(plainNet)];lossR=[lossOf(resNet)];trained=false;}
+function trainAll(){ensureNets();while(it<ITERS){let g=zeroGrad();for(let i=0;i<data.xs.length;i++)backward(plainNet,data.xs[i],data.ys[i],g,null);adam(plainNet,g,LR,data.xs.length);
+    g=zeroGrad();for(let i=0;i<data.xs.length;i++)backward(resNet,data.xs[i],data.ys[i],g,null);adam(resNet,g,LR,data.xs.length);it++;
+    if(it%8===0){lossP.push(lossOf(plainNet));lossR.push(lossOf(resNet));}}trained=true;}
+function ensureTrained(){ensureNets();if(!trained)trainAll();}
+function ratio(hg){return hg[1]/(hg[L]+1e-30);}
+
+/* ===== 描画部品 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function drawGridBg(){ctx.lineWidth=1;for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+const LGMIN=-2.2,LGMAX=0.4;
+// 層別勾配ノルムの対数バーチャート
+function drawBars(x0,y0,w,h,hg,rgb,title,titleCol){
+  const bw=w/L, sy=g=>{const lg=Math.max(LGMIN,Math.min(LGMAX,Math.log10(g+1e-30)));return y0+h-(lg-LGMIN)/(LGMAX-LGMIN)*h;};
+  // 目盛線
+  ctx.strokeStyle='rgba(150,143,127,0.25)';ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='right';ctx.lineWidth=1;
+  for(let e=0;e>=-2;e--){const y=sy(Math.pow(10,e));ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+w,y);ctx.stroke();ctx.fillText('1e'+e,x0-2,y+3);}
+  for(let l=1;l<=L;l++){const g=hg[l],x=x0+(l-1)*bw,yb=sy(g);
+    ctx.fillStyle='rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+',0.85)';ctx.fillRect(x+bw*0.14,yb,bw*0.72,y0+h-yb);}
+  // 枠
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.strokeRect(x0,y0,w,h);
+  if(title){ctx.fillStyle=titleCol||getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(title,x0+2,y0-6);}
+  // 軸ラベル
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('入力側',x0+bw*2,y0+h+11);ctx.fillText('出力側',x0+w-bw*2,y0+h+11);}
+function drawLoss(x0,y0,w,h){ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const all=lossP.concat(lossR).filter(v=>v>0);if(all.length<2)return;
+  const lgMax=Math.log10(Math.max(...all)),lgMin=Math.log10(Math.min(...all))-0.1;
+  const sy=v=>y0+h-(Math.log10(v)-lgMin)/(lgMax-lgMin)*h;
+  // 目盛
+  ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='right';ctx.strokeStyle='rgba(150,143,127,0.2)';
+  for(let e=Math.ceil(lgMax);e>=Math.floor(lgMin);e--){const y=sy(Math.pow(10,e));if(y<y0||y>y0+h)continue;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+w,y);ctx.stroke();ctx.fillText('1e'+e,x0-2,y+3);}
+  const drawC=(hist,col)=>{if(hist.length<2)return;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();
+    hist.forEach((v,i)=>{const X=x0+w*i/(Math.max(1,hist.length-1)),Y=sy(v);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();};
+  drawC(lossP,getCSS('--neg'));drawC(lossR,getCSS('--accent'));
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('loss↓（対数）',x0+4,y0+12);}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-12);}
+// 残差ブロックの図（x→F→(+)→y、skip弧つき）。幅360に収まる固定レイアウト
+function drawResBlock(cy,showSkip,hlSkip){
+  const boxL=98,boxR=172,py=cy,px=214;
+  // 入力線＋x
+  ctx.strokeStyle=getCSS('--muted');ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(40,cy);ctx.lineTo(boxL,cy);ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('x',28,cy+4);
+  // Fボックス
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.strokeRect(boxL,cy-24,boxR-boxL,48);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 13px '+getCSS('--mono');ctx.fillText('F(x)',(boxL+boxR)/2,cy-3);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--gothic');ctx.fillText('学ぶのは差分',(boxL+boxR)/2,cy+14);
+  // F→+
+  ctx.strokeStyle=getCSS('--upd');ctx.beginPath();ctx.moveTo(boxR,cy);ctx.lineTo(px-12,py);ctx.stroke();
+  // (+)ノード
+  ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fillStyle='#fffdf6';ctx.fill();ctx.strokeStyle=getCSS('--text');ctx.lineWidth=1.6;ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 15px '+getCSS('--mono');ctx.fillText('+',px,py+5);
+  // +→y
+  ctx.strokeStyle=getCSS('--muted');ctx.beginPath();ctx.moveTo(px+12,py);ctx.lineTo(298,py);ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mono');ctx.fillText('y',312,py+4);
+  // skip 弧（x の手前から + の下へ）
+  if(showSkip){const col=hlSkip?getCSS('--accent'):'rgba(31,158,138,0.78)';
+    ctx.strokeStyle=col;ctx.lineWidth=hlSkip?2.8:2;
+    ctx.beginPath();ctx.moveTo(68,cy);ctx.bezierCurveTo(68,cy+46,px,cy+46,px,py+12);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(px,py+12);ctx.lineTo(px-4,py+20);ctx.lineTo(px+4,py+20);ctx.closePath();ctx.fillStyle=col;ctx.fill();
+    ctx.fillStyle=getCSS('--accent');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('恒等の近道（skip）',140,cy+60);}}
+
+/* ===== スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ アイデア',c:'var(--upd)',start:4},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0;
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'深さの逆説：深くしたら悪化した',legend:'「深い＝強い」のはずが、素のネットは深いほど誤差が増えた',dice:false,
+ html(){return'<h3>深さの逆説：深くしたら悪化した</h3><div class="eq curr">層を増やす → 表現力は増える　なのに　訓練誤差まで<b>増える</b>（degradation＝劣化）<span class="read">読み：過学習の話ではない。<b>訓練データですら</b>深い方が当てられない、という不思議。表現できるのに最適化が失敗している</span></div><div class="desc"><a href="vanishing.html">勾配消失</a>の回で見たとおり、深いネットは学習が難しい。実は ReLU を使っても、<b>ただ層を積むだけ</b>だと 20 層より 56 層の方が<b>訓練誤差が高い</b>——という現象が知られています（degradation）。深ければ浅いネットを再現できるはずなのに、それすら学べない。この行き詰まりを破ったのが<b>残差接続</b>です。</div>';},
+ draw(){ // 概念図: 深さ↑で誤差↑（plain） vs 平ら（res）
+   const x0=48,y0=70,w=CW-84,h=210,base=y0+h;
+   ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x0,base);ctx.lineTo(x0+w,base);ctx.stroke();
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('深さ →',x0+w/2,base+22);ctx.save();ctx.translate(x0-26,y0+h/2);ctx.rotate(-Math.PI/2);ctx.fillText('訓練誤差 →',0,0);ctx.restore();
+   // plain: 上がる曲線
+   ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=2.4;ctx.beginPath();
+   for(let i=0;i<=100;i++){const t=i/100;const X=x0+w*t;const Y=base-h*(0.5-0.34*Math.cos(Math.PI*Math.min(1,t*1.05))*0+0)-0;const yv=base-h*(0.22+0.5*t*t);i?ctx.lineTo(X,yv):ctx.moveTo(X,yv);}ctx.stroke();
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('plain（素のネット）↑劣化',x0+w*0.30,base-h*0.72);
+   // res: 下がって平ら
+   ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.4;ctx.beginPath();
+   for(let i=0;i<=100;i++){const t=i/100;const X=x0+w*t;const yv=base-h*(0.30-0.16*t);i?ctx.lineTo(X,yv):ctx.moveTo(X,yv);}ctx.stroke();
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('ResNet（残差接続）↓改善',x0+w*0.30,base-h*0.22);
+   caption('（概念図）深くするほど plain は悪化、ResNet は改善',CH-14);}},
+{title:'復習：勾配消失は掛け算の宿命',legend:'逆伝播は各層の微分を掛け算していく → 1未満なら消える',dice:false,
+ html(){return'<h3>復習：勾配消失は掛け算の宿命</h3><div class="eq curr"><span class="frac"><span>∂loss</span><span>∂x</span></span> = <span class="frac"><span>∂loss</span><span>∂h<sub>L</sub></span></span> · <big>Π</big><sub>l</sub> <span class="frac"><span>∂h<sub>l+1</sub></span><span>∂h<sub>l</sub></span></span>　（各層の微分の<b>掛け算</b>）<span class="read">読み：入力側の層に届く勾配は、出力からそこまでの各層の微分を全部掛けたもの。1 未満の数を何十回も掛ければ<b>指数的に 0</b>——これが勾配消失</span></div><div class="desc"><a href="vanishing.html">勾配消失</a>の核心：学習の信号（勾配）は出力から入力へ<b>各層の微分を掛け算</b>されながら遡ります。1 つ 1 つが 1 より小さいと、深い層まで来る間に<b>指数的に消え</b>、入力側の層は<b>信号が届かず学習が止まる</b>。次に、この掛け算を実際に測ってみます。</div>';},
+ draw(){ // 掛け算が縮む概念: 粒が小さくなる列
+   const y=CH/2-30,n=10,x0=40,dx=(CW-80)/(n-1);let s=1;
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('出力側 →→→ 入力側（勾配が層ごとに ×0.7 と目減り）',CW/2,y-64);
+   for(let i=0;i<n;i++){const x=CW-40-i*dx;const r=4+26*s;
+     ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle='rgba(207,79,95,'+(0.25+0.55*s)+')';ctx.fill();
+     if(i<n-1){ctx.strokeStyle=getCSS('--faint');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-r-2,y);ctx.lineTo(x-dx+4+26*s*0.7,y);ctx.stroke();}
+     s*=0.7;}
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('×0.7 を 9 回 → 0.7⁹ ≈ 0.04',CW/2,y+70);
+   caption('伝言ゲームで声が毎回小さくなり、奥に届かない',CH-14);}},
+{title:'実測：plain 網の層別勾配',legend:'32層 plain 網。バー=各層に届く勾配（対数）。入力側が低い',dice:true,
+ html(){ensureNets();const r=ratio(hgP);return'<h3>実測：plain 網の層別勾配</h3><div class="eq curr">入力側の勾配 / 出力側の勾配 = '+r.toExponential(1)+'<span class="read">読み：一番左（入力側）のブロックに届く勾配は、一番右（出力側）の '+r.toExponential(1)+' 倍しかない。対数目盛で右肩下がり＝入力側ほど信号が弱い</span></div><div class="desc">本物の 32 層 plain 網（近道なし）で逆伝播を流し、各ブロックに届いた勾配の大きさを測ったのが左のバー（<b>対数目盛＝1 目盛で 10 倍</b>）。<b>入力側（左）ほど低く</b>、出力側の <b>'+r.toExponential(1)+' 倍</b>まで目減りしています。この差が「入力側の層は学習が進まない」の正体。🎲 で初期値を変えても傾向は同じです。</div>';},
+ draw(){ensureNets();drawBars(44,60,CW-70,300,hgP,[207,79,95],'plain 網（近道なし）の層別勾配',getCSS('--neg'));
+   caption('入力側ほど勾配が小さい＝学習信号が届かない',CH-12);}},
+{title:'その帰結：入力側の層が凍りつく',legend:'信号が届かない層は初期値のまま。深いほど"死んだ層"が増える',dice:false,
+ html(){return'<h3>その帰結：入力側の層が凍りつく</h3><div class="eq curr">勾配 ≈ 0 の層　⇒　更新量 ≈ 0　⇒　初期値のまま<span class="read">読み：勾配が届かない層は、Adam でどれだけ回しても<b>ほとんど動かない</b>。学習しているのは出力側の数層だけ——深く積んだ意味が消える</span></div><div class="desc">勾配が消える＝更新の指示が来ない、ということ。入力側の層は<b>ランダムな初期値のまま凍りつき</b>、実質はたらくのは出力側の数層だけ。だから「深くしたのに賢くならない（むしろ悪化）」。——ではどうするか。<b>信号が消えない一本道</b>を、ネットの作りそのものに用意すればいい。それが次の発想です。</div>';},
+ draw(){ // 層の帯: 出力側は明るく学習, 入力側は凍結
+   const n=L,x0=40,w=CW-80,bw=w/n,y0=120,h=110;
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('32 個のブロック（左=入力側 / 右=出力側）',CW/2,y0-16);
+   for(let i=0;i<n;i++){const t=i/(n-1);const live=t;const x=x0+i*bw;
+     ctx.fillStyle=t<0.5?'rgba(120,135,155,'+(0.10+0.20*t)+')':'rgba(31,158,138,'+(0.25+0.6*(t-0.5))+')';
+     ctx.fillRect(x+0.5,y0,bw-1,h);}
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('❄ 凍結（初期値のまま）',x0+2,y0+h+18);
+   ctx.textAlign='right';ctx.fillStyle=getCSS('--accent');ctx.fillText('学習している ↑',x0+w-2,y0+h+18);
+   caption('はたらくのは出力側だけ。深さが無駄になる',CH-14);}},
+// ---- Ⅱ アイデア ----
+{title:'発想の転換：差分を学ぶ',legend:'目標 H(x) を直接でなく、入力との「差」F(x)=H(x)−x を学ぶ',dice:false,
+ html(){return'<h3>発想の転換：差分を学ぶ</h3><div class="eq curr">ふつう： 層は <i>H</i>(<i>x</i>) を学ぶ　　残差： 層は <b>F(<i>x</i>) = <i>H</i>(<i>x</i>) − <i>x</i></b> を学ぶ<span class="read">読み：出力 H を丸ごと作るのでなく、入力からの<b>変化量（差分・residual）</b>だけを学ぶ。あとで x を足し戻せば H(x)=x+F(x) になる</span></div><div class="desc">鍵は問いの立て方を変えること。「この層の<b>出力そのもの</b> H(x) を作れ」ではなく、「入力から<b>どれだけ変えるか</b> F(x)=H(x)−x を作れ」。もし「何もしないのが正解」なら、ふつうの層は恒等写像 H(x)=x を<b>ゼロから学ぶ</b>必要がありますが、差分なら <b>F(x)=0</b>（重みを 0 にするだけ）で済む。<b>「現状維持」が一番簡単</b>になる——ここが効きます。</div>';},
+ draw(){ // H(x) を直接 vs x+F(x)
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('ふつうの層：出力を丸ごと作る',CW/2,80);
+   ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6;ctx.strokeRect(CW/2-45,96,90,44);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 13px '+getCSS('--mono');ctx.fillText('H(x)',CW/2,123);
+   ctx.strokeStyle=getCSS('--muted');ctx.beginPath();ctx.moveTo(CW/2-95,118);ctx.lineTo(CW/2-45,118);ctx.moveTo(CW/2+45,118);ctx.lineTo(CW/2+95,118);ctx.stroke();
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--mono');ctx.fillText('x',CW/2-105,122);ctx.fillText('H',CW/2+105,122);
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('残差ブロック：差分だけ作って足す',CW/2,206);
+   drawResBlock(262,true,false);
+   caption('「現状維持」は F=0 で作れる＝最も簡単',CH-12);}},
+{title:'残差ブロック：y = x + F(x)',legend:'F を通した結果に、入力 x をそのまま足し戻す（skip接続）',dice:false,
+ html(){return'<h3>残差ブロック：y = x + F(x)</h3><div class="eq curr"><i>y</i> = <i>x</i> + F(<i>x</i>)　　F(<i>x</i>) = σ(<i>W</i><i>x</i> + <i>b</i>)<span class="read">読み：入力 x を層 F に通し、その出力に<b>元の x をそのまま足す</b>。この「足し戻す配線」が skip 接続（近道）。F が主役、x が保険</span></div><div class="desc">残差接続の本体はこれだけ——層の出力 F(x) に、<b>入力 x をショートカットで足し戻す</b>（緑の弧）。層を飛ばすのではありません：<b>F はちゃんと全部通る</b>。ただ、その脇に「何もしない道」を 1 本足しておく。この単純な配線が、順伝播では「現状維持のしやすさ」を、逆伝播では次に見る「勾配の高速道路」を生みます。</div>';},
+ draw(){drawResBlock(190,true,true);
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('緑の弧＝skip 接続。x を出力にそのまま足す',CW/2,310);
+   caption('層は飛ばさない。近道を"足す"だけ',CH-12);}},
+{title:'なぜ効く：勾配の高速道路',legend:'∂y/∂x = 1 + ∂F/∂x。この「1」が直通路になる',dice:false,
+ html(){return'<h3>なぜ効く：勾配の高速道路</h3><div class="eq curr"><span class="frac"><span>∂y</span><span>∂x</span></span> = 1 + <span class="frac"><span>∂F</span><span>∂x</span></span>　⇒　勾配は少なくとも <b>×1</b> で通る<span class="read">読み：y=x+F を x で微分すると、x の分の <b>1</b> と F の分 ∂F/∂x が足し算で出る。∂F がどれだけ小さくても、<b>1</b> が残るので勾配は消えない</span></div><div class="desc">残差ブロックを逆伝播すると、微分は <b>1 + ∂F/∂x</b>。ふつうの層なら ∂F/∂x（1 未満）だけが掛かって消えていきますが、残差では<b>「1」が必ず足される</b>。だから勾配は<b>最低でも素通し（×1）</b>で入力側へ届く——これが<b>勾配の高速道路（gradient highway）</b>。掛け算に足し算の「1」が割り込むことで、消失の連鎖が断ち切られます。</div>';},
+ draw(){ // 高速道路: 直通のレーン(×1) + 脇道(∂F)
+   const y=170,x0=40,x1=CW-40;
+   ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('恒等の直通レーン（×1）勾配はここを素通し',CW/2,y-16);
+   // 脇道
+   ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x0+50,y);ctx.bezierCurveTo(x0+90,y+50,x1-90,y+50,x1-50,y);ctx.stroke();
+   ctx.fillStyle=getCSS('--upd');ctx.fillText('脇道 ∂F/∂x（小さくてもよい）',CW/2,y+66);
+   // 粒: 一定サイズで流れる（消えない）を静止表現
+   for(let i=0;i<7;i++){const t=i/6;const x=x1-(x1-x0)*t;ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fillStyle='rgba(31,158,138,0.9)';ctx.fill();}
+   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('粒（勾配）が縮まず入力側まで届く',CW/2,y+96);
+   caption('「1」が消えない一本道を作る',CH-12);}},
+{title:'掛け算 vs 足し算',legend:'plain は Π(∂F) で消える／res は Π(1+∂F) で 1 が生き残る',dice:false,
+ html(){return'<h3>掛け算 vs 足し算</h3><div class="eq curr">plain： <big>Π</big>(∂F) → 0　　　res： <big>Π</big>(1 + ∂F) ≈ 1<span class="read">読み：plain は「1 未満」の掛け算だけ→指数的に 0。res は各項に 1 が入るので、掛け合わせても<b>おおよそ 1 のまま</b>（勾配が保たれる）</span></div><div class="desc">深さ方向に何が起きるかを一行で。plain は 1 未満の微分を掛け続けるので<b>指数的に消える</b>。残差は各層の微分が <b>1 + ∂F</b> になり、掛け合わせても<b>1 の周りに留まる</b>——消えも爆発もしにくい。<b>掛け算の宿命を、足し算の「1」で断ち切る</b>。これが残差接続の一撃です。次はこの理屈を、同条件の 2 ネットで実測します。</div>';},
+ draw(){ // 2列比較: plainは縮む、resは一定
+   const yA=90,yB=250,x0=44,n=9,dx=(CW-88)/(n-1);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('plain：×(∂F<1) の連鎖 → 消える',x0,yA-30);
+   let s=1;for(let i=0;i<n;i++){const x=CW-44-i*dx;const r=3+22*s;ctx.beginPath();ctx.arc(x,yA,r,0,7);ctx.fillStyle='rgba(207,79,95,'+(0.3+0.5*s)+')';ctx.fill();s*=0.68;}
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('res：×(1+∂F) の連鎖 → 保たれる',x0,yB-30);
+   for(let i=0;i<n;i++){const x=CW-44-i*dx;const r=15;ctx.beginPath();ctx.arc(x,yB,r,0,7);ctx.fillStyle='rgba(31,158,138,0.8)';ctx.fill();}
+   caption('足し算の「1」が勾配を守る',CH-12);}},
+// ---- Ⅲ ライブ実験 ----
+{title:'2 つのネットを実学習する',legend:'同じ深さ32・同じ初期値・唯一の違いは skip の有無',dice:false,
+ html(){const p=lossP.length?lossP[lossP.length-1]:null,r=lossR.length?lossR[lossR.length-1]:null;
+   return'<h3>2 つのネットを実学習する</h3><div class="eq curr">損失 = mean(<i>ŷ</i> − <i>y</i>)²　→ Adam で最小化（plain と res を同時に）<span class="read">読み：同じ 32 層・同じ初期値・同じデータ（sin 曲線の回帰）。違いは各ブロックが y=σ(Wx) か y=x+σ(Wx) かだけ。フェアな一騎打ち</span></div><div class="desc">いよいよ本番。<b>まったく同じ 32 層</b>のネットを 2 つ用意し、<b>skip 接続の有無だけ</b>を変えて、同じ sin 曲線の回帰を<b>いまライブで学習</b>します（'+ITERS+' 反復）。初期値もデータも共通のフェアな比較。赤=plain、緑=res。loss がどう下がるか（下がらないか）を見てください。plain '+(p!=null?p.toExponential(1):'…')+' / res '+(r!=null?r.toExponential(1):'…')+'。</div>';},
+ draw(){
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ 32 層・skip の有無だけ違う 2 ネットを同時に学習',CW/2,52);
+   drawResBlock(96,true,false);
+   drawLoss(40,180,CW-70,180);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('― plain',52,378);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('― res',148,378);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('学習 '+it+' / '+ITERS+' 反復',CW-42,378);
+   caption('違いは skip だけ。あとは全部同じ',CH-8);}},
+{title:'A/B：層別勾配の流れ方',legend:'上=plain（右肩下がり）／下=res（平ら）。同じ初期値での比較',dice:true,
+ html(){ensureNets();const rp=ratio(hgP),rr=ratio(hgR);
+   return'<h3>A/B：層別勾配の流れ方</h3><div class="eq curr">入力側/出力側の比：　plain '+rp.toExponential(1)+'　⇔　res '+rr.toExponential(1)+'<span class="read">読み：plain は入力側で勾配が '+rp.toExponential(1)+' 倍に消える（右肩下がり）。res はどの層もほぼ同じ '+rr.toExponential(1)+'（平ら）＝全層に信号が届く</span></div><div class="desc">学習開始時（初期値）の層別勾配を上下で並べました。<b>plain（上・赤）は入力側へ向かって激減</b>（比 '+rp.toExponential(1)+'）。<b>res（下・緑）はほぼ真っ平ら</b>（比 '+rr.toExponential(1)+'）——恒等の近道が、どの層にも同じ強さで勾配を届けています。<b>これが勾配の高速道路の実測</b>。同じネット・同じ初期値で、skip の有無だけでこの差。🎲 で初期値を変えても同じ。</div>';},
+ draw(){ensureNets();drawBars(44,54,CW-70,138,hgP,[207,79,95],'plain（近道なし）',getCSS('--neg'));
+   drawBars(44,258,CW-70,138,hgR,[31,158,138],'res（残差接続）',getCSS('--accent'));
+   caption('上=消える／下=平ら。skip の有無だけの差',CH-10);}},
+{title:'A/B：loss の下がり方',legend:'plain は頭打ち／res は収束。同条件での訓練誤差',dice:false,
+ html(){ensureTrained();const p=lossP[lossP.length-1],r=lossR[lossR.length-1];
+   return'<h3>A/B：loss の下がり方</h3><div class="eq curr">最終 loss：　plain '+p.toExponential(2)+'　⇔　res '+r.toExponential(2)+'（<b>'+(p/r).toFixed(0)+' 倍</b>の差）<span class="read">読み：同じ回数・同じ初期値で学習しても、plain は早々に<b>頭打ち</b>（入力側が凍結）、res は桁違いに低い loss まで<b>収束</b>する</span></div><div class="desc">結果は歴然。<b>plain（赤）は途中で頭打ち</b>になり、それ以上下がりません（入力側の層が凍りついたまま）。<b>res（緑）はぐんぐん下がって収束</b>。最終 loss は plain '+p.toExponential(2)+' 対 res '+r.toExponential(2)+'＝約 <b>'+(p/r).toFixed(0)+' 倍</b>の差。<b>skip 接続を足しただけ</b>で、深いネットが学習可能になりました。まさに degradation の解消です。</div>';},
+ draw(){ensureTrained();drawLoss(40,90,CW-70,220);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('― plain（頭打ち）',48,116);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('― res（収束）',48,134);
+   caption('同条件・skipの有無だけで loss が桁違い',CH-12);}},
+{title:'A/B：当てはまりの良さ',legend:'灰破線=真の関数。plain は粗く、res はぴったり',dice:false,
+ html(){ensureTrained();const p=Math.sqrt(lossP[lossP.length-1]),r=Math.sqrt(lossR[lossR.length-1]);
+   return'<h3>A/B：当てはまりの良さ</h3><div class="eq curr">RMSE（誤差の目安）：　plain '+p.toFixed(2)+'　⇔　res '+r.toFixed(2)+'<span class="read">読み：予測が真の曲線からどれだけ外れるか。plain は '+p.toFixed(2)+'＝形をなぞる程度、res は '+r.toFixed(2)+'＝ほぼ重なる</span></div><div class="desc">同じ課題（sin 曲線のフィット）を予測させると、違いが目で見えます。<b>plain（赤）は真の曲線（灰破線）を粗くなぞる</b>のが精一杯（RMSE '+p.toFixed(2)+'）。<b>res（緑）はほぼぴったり</b>重なります（RMSE '+r.toFixed(2)+'）。深さを活かせるかどうかの差が、そのまま表現力の差になりました。<b>アーキテクチャの一工夫が、性能を決める</b>。</div>';},
+ draw(){ensureTrained();
+   const x0=42,y0=60,w=CW-70,h=270,base=y0+h,mid=y0+h/2;
+   const px=x=>x0+w*(x+1.2)/2.4, py=v=>mid-v*h*0.62;
+   ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,mid);ctx.lineTo(x0+w,mid);ctx.stroke();
+   ctx.strokeRect(x0,y0,w,h);
+   // 真の関数
+   ctx.strokeStyle='rgba(133,149,168,0.6)';ctx.lineWidth=1.6;ctx.setLineDash([5,4]);ctx.beginPath();
+   for(let i=0;i<=120;i++){const x=-1.2+2.4*i/120;i?ctx.lineTo(px(x),py(target(x))):ctx.moveTo(px(x),py(target(x)));}ctx.stroke();ctx.setLineDash([]);
+   // データ点
+   for(let i=0;i<data.xs.length;i++){ctx.beginPath();ctx.arc(px(data.xs[i]),py(data.ys[i]),2,0,7);ctx.fillStyle='rgba(120,135,155,0.6)';ctx.fill();}
+   const curve=(net,col)=>{ctx.strokeStyle=col;ctx.lineWidth=2.2;ctx.beginPath();for(let i=0;i<=120;i++){const x=-1.2+2.4*i/120;const y=forward(net,x).y;i?ctx.lineTo(px(x),py(y)):ctx.moveTo(px(x),py(y));}ctx.stroke();};
+   curve(plainNet,getCSS('--neg'));curve(resNet,getCSS('--accent'));
+   ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='left';
+   ctx.fillStyle=getCSS('--faint');ctx.fillText('灰破線=真の関数',x0+6,y0+14);
+   ctx.fillStyle=getCSS('--neg');ctx.fillText('赤=plain',x0+6,y0+28);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('緑=res',x0+90,y0+28);
+   caption('res は真の曲線にほぼ重なる',CH-12);}},
+// ---- Ⅳ まとめ ----
+{title:'恒等写像という保険',legend:'最悪でも F=0 で恒等＝深くしても悪くならない、が保証される',dice:false,
+ html(){return'<h3>恒等写像という保険</h3><div class="eq curr">F(<i>x</i>) = 0 のとき　<i>y</i> = <i>x</i>（恒等）　⇒　層を足しても<b>悪化しない</b><span class="read">読み：もし追加した層が不要なら、F を 0 にするだけで「素通り」になる。だから深くすることの<b>下振れリスクが消える</b></span></div><div class="desc">残差接続のもう一つの贈り物は<b>保険</b>です。ある層が要らなければ、ネットは <b>F=0</b> を学ぶだけで<b>恒等写像（素通り）</b>を作れる——つまり<b>「最悪でも現状維持」</b>が保証される。だから安心して深くできる。degradation（深いほど悪化）が起きたのは、plain 網では恒等写像すら学びにくかったから。残差はそれを<b>タダで</b>用意します。</div>';},
+ draw(){ // F=0 → 恒等
+   drawResBlock(150,true,true);
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('もし F(x) = 0 なら…',CW/2,248);
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 15px '+getCSS('--mono');ctx.fillText('y = x + 0 = x（素通り）',CW/2,272);
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('要らない層は「何もしない」に倒せる＝悪化しない',CW/2,300);
+   caption('深くする下振れリスクが消える',CH-12);}},
+{title:'発展：この一手が超深層を開いた',legend:'ResNet-152 から Transformer まで、residual は標準部品',dice:false,
+ html(){return'<h3>発展：この一手が超深層を開いた</h3><div class="eq curr">残差接続 → 100 層超が学習可能 → 現代の巨大モデルの土台<span class="read">読み：2015 年の ResNet は 152 層で画像認識を一変させた。以後、深いネットにはほぼ必ず residual が入っている</span></div><div class="desc">残差接続（He らの ResNet, 2015）は、それまで無理だった<b>100 層超</b>の学習を可能にし、画像認識を塗り替えました。以後この発明は広がり続けています——各層の分布を整える <b>BatchNorm</b>、全層を密結合する <b>DenseNet</b>、そして<a href="transformer.html">Transformer</a> の自己注意・FFN を包む <b>residual + 正規化</b>。<b>いまの巨大モデルは、ほぼ全部この「差分＋近道」の上に立っています</b>。</div>';},
+ draw(){
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('残差接続の系譜',CW/2,50);
+   const items=[['ResNet-152','画像・152層で登場(2015)'],['BatchNorm','各層の分布を整え安定化'],['DenseNet','全層を密に結合'],['Transformer','各サブ層を residual で包む']];
+   items.forEach(([t,s],i)=>{const by=72+i*76;ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.2;ctx.strokeRect(46,by,CW-92,58);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(t,62,by+24);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(s,62,by+43);
+     if(i<items.length-1){ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(CW/2,by+58);ctx.lineTo(CW/2,by+76);ctx.stroke();}});
+   caption('「差分＋近道」が深層の標準になった',CH-12);}},
+{title:'まとめ：掛け算を足し算に',legend:'残差接続の要点。vanishing の解答編',dice:false,
+ html(){return'<h3>まとめ：掛け算を足し算に</h3><div class="desc">今日の芯：<b>変換そのものでなく、変換との差分 F(x)=H(x)−x を学び、y=x+F(x) と足し戻す</b>。たったこれだけで——(1) 逆伝播では ∂y/∂x=1+∂F/∂x の<b>「1」が勾配の高速道路</b>になり消失を断ち、(2) 順伝播では <b>F=0 で恒等</b>＝「最悪でも現状維持」を保証。<a href="vanishing.html">勾配消失</a>で見た「掛け算の宿命」を、<b>足し算の 1 で断ち切る</b>解答編でした。同じ 32 層でも、skip の有無だけで loss は桁違い。<b>アーキテクチャの一工夫が、深さを力に変える</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・差分を学ぶ：y = x + F(x)（skip 接続）<br>・勾配の高速道路：∂y/∂x = 1 + ∂F/∂x の「1」が消失を断つ<br>・恒等の保険：F=0 で素通り＝深くしても悪化しない</div>';},
+ draw(){ensureTrained();
+   ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ 32 層・skip の有無だけ',CW/2,46);
+   // 2つの結果を並べる
+   const rp=ratio(hgP),rr=ratio(hgR),p=lossP[lossP.length-1],r=lossR[lossR.length-1];
+   const box=(x,title,col,g,l)=>{ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.strokeRect(x,70,120,130);
+     ctx.fillStyle=col;ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(title,x+60,94);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('勾配 入力/出力',x+60,120);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mono');ctx.fillText(g.toExponential(1),x+60,138);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('最終 loss',x+60,166);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mono');ctx.fillText(l.toExponential(1),x+60,184);};
+   box(46,'plain',getCSS('--neg'),rp,p);box(CW-166,'res',getCSS('--accent'),rr,r);
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 14px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('loss 約'+(p/r).toFixed(0)+'倍の差',CW/2,240);
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('掛け算の宿命を、足し算の「1」で断つ',CW/2,268);
+   caption('ご覧いただきありがとうございました',CH-12);}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
+  if(s===0){m.innerHTML='<div>深さ↑</div><div class="bad">plain <b>劣化</b></div><div class="ok">res <b>改善</b></div>';}
+  else if(s===1){m.innerHTML='<div>勾配 <b>= Π 微分</b></div><div class="bad">1未満↑ <b>消失</b></div>';}
+  else if(s===2){ensureNets();m.innerHTML='<div>plain 32層</div><div class="bad">入力/出力 <b>'+ratio(hgP).toExponential(1)+'</b></div>';}
+  else if(s===3){m.innerHTML='<div class="bad">入力側 <b>凍結</b></div><div>働くのは出力側だけ</div>';}
+  else if(s===4){m.innerHTML='<div>学ぶ <b>F=H−x</b></div><div>恒等は <b>F=0</b></div>';}
+  else if(s===5){m.innerHTML='<div>残差ブロック</div><div><b>y = x + F(x)</b></div>';}
+  else if(s===6){m.innerHTML='<div>∂y/∂x <b>= 1+∂F/∂x</b></div><div class="ok">「1」が直通</div>';}
+  else if(s===7){m.innerHTML='<div class="bad">plain Π∂F→0</div><div class="ok">res Π(1+∂F)≈1</div>';}
+  else if(s===8){m.innerHTML='<div>学習 <b>'+it+'/'+ITERS+'</b></div><div>同深さ32・skipだけ違う</div>';}
+  else if(s===9){ensureNets();m.innerHTML='<div class="bad">plain <b>'+ratio(hgP).toExponential(1)+'</b></div><div class="ok">res <b>'+ratio(hgR).toExponential(1)+'</b></div>';}
+  else if(s===10){ensureTrained();m.innerHTML='<div class="bad">plain <b>'+lossP[lossP.length-1].toExponential(1)+'</b></div><div class="ok">res <b>'+lossR[lossR.length-1].toExponential(1)+'</b></div>';}
+  else if(s===11){ensureTrained();m.innerHTML='<div class="bad">RMSE '+Math.sqrt(lossP[lossP.length-1]).toFixed(2)+'</div><div class="ok">RMSE '+Math.sqrt(lossR[lossR.length-1]).toFixed(2)+'</div>';}
+  else if(s===12){m.innerHTML='<div class="ok">F=0 <b>で恒等</b></div><div>悪化しない保証</div>';}
+  else if(s===13){m.innerHTML='<div>ResNet→<b>Transformer</b></div><div>深層の標準部品</div>';}
+  else{ensureTrained();m.innerHTML='<div class="ok">skipだけで</div><div>loss <b>'+(lossP[lossP.length-1]/lossR[lossR.length-1]).toFixed(0)+'倍</b>の差</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===8){runTrain();}
+  else if(i>=2)ensureNets();
+  if(i>=10&&i<=11)ensureTrained();
+  if(i===14)ensureTrained();
+  renderAll();draw_();}
+function runTrain(){resetNets();
+  if(window.__prefersReducedMotion){trainAll();renderAll();draw_();return;}
+  anim=true;
+  function go(){if(!anim||slideIdx!==8)return;
+    for(let s=0;s<6&&it<ITERS;s++){let g=zeroGrad();for(let i=0;i<data.xs.length;i++)backward(plainNet,data.xs[i],data.ys[i],g,null);adam(plainNet,g,LR,data.xs.length);
+      g=zeroGrad();for(let i=0;i<data.xs.length;i++)backward(resNet,data.xs[i],data.ys[i],g,null);adam(resNet,g,LR,data.xs.length);it++;
+      if(it%8===0){lossP.push(lossOf(plainNet));lossR.push(lossOf(resNet));}}
+    draw_();renderMini();
+    if(it>=ITERS){trained=true;anim=false;renderMini();renderExplain();draw_();return;}
+    requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===8);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?1400:3800);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;initSeed=101;plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;slideIdx=0;ensureNets();renderAll();draw_();}
+function reroll(){initSeed=(initSeed*1103515245+12345)>>>0>>>0%100000+2;if(initSeed<2)initSeed=2;
+  plainNet=null;resNet=null;trained=false;it=0;lossP=[];lossR=[];hgP=null;hgR=null;ensureNets();
+  if(slideIdx>=10)ensureTrained();renderMini();renderExplain();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{if(SLIDES[slideIdx].dice)reroll();};
+ensureNets();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
