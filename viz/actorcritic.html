@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actor-Critic を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>Actor-Critic を理解する</h1>
+  <div class="lead"><b>動く人（Actor＝方策）</b>と<b>批評家（Critic＝価値）</b>の分業。<a href="qlearning.html">Q学習</a>が「行動の価値」だけ、方策勾配が「方策」だけを学ぶのに対し、Actor-Critic は<b>両方を同時に</b>学びます。鍵は <b>TD 誤差 δ</b>——「思ったより良かった／悪かった」という一言が、Actor と Critic 双方の共通の学習信号になる。舞台は <a href="qlearning.html">Q学習</a>と似た 5×5 のグリッド。下の流れを「次へ ▶」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>現代強化学習（<b>A2C・A3C・PPO</b>）の背骨。方策と価値を同時に学ぶ設計の原型。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>動く人（方策）と批評家（価値）の分業。<b>TD 誤差 δ が両者共通の学習信号</b>。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ゲーム AI・ロボット制御・<b>RLHF</b>（言語モデルの調整）の内側。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別のシード</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>δ（TD 誤差）は「<b>予想と現実のズレ</b>」ひとつきり。この一言が、行動を選ぶ Actor と未来を見積もる Critic の<b>両方を同時に</b>育てる——<b>驚きこそが学習の通貨</b>だ。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>Critic は Actor の上司で、正解の行動を教えている</div>
+    <div class="row"><span class="o">✓</span>Critic も<b>間違いながら育つ相棒</b>。正解など持っていません。教師は<b>環境の報酬だけ</b>。Critic は「自分の予想」と「実際に起きたこと」のズレ（δ）を計算するだけで、そのズレが Actor への助言にもなる。</div>
+    <div class="row"><span class="x">✗</span>価値ベース（Q学習）と方策ベース（方策勾配）は別世界の手法だ</div>
+    <div class="row"><span class="o">✓</span>Actor-Critic は<b>両者の合流点</b>。<a href="qlearning.html">価値</a>を見積もる Critic と、方策を持つ Actor が、<b>TD 誤差という同じ信号</b>で同時に更新される。二つの流儀は対立ではなく組み合わせられる。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：A2C / A3C / PPO・連続行動・GAE</summary>
+    <div class="det">このページの実装は<b>1 ステップの Actor-Critic（表形式）</b>。現代版はこの骨格の拡張です。<b>A2C</b>（Advantage Actor-Critic）は複数の環境を並列に回して勾配を安定化、<b>A3C</b>はそれを非同期に。<b>PPO</b>（Proximal Policy Optimization）は方策が一度に動きすぎないよう「更新幅にクリップの箍（たが）」をはめた Actor-Critic で、いまの実務標準（<a href="../gpt2/">言語モデル</a>の RLHF もこれ）。<b>連続行動</b>（ロボットの関節トルクなど）では Actor が softmax でなくガウス分布の平均・分散を出力します。1 ステップの δ は「速いが少し偏る」、末尾まで待つ <a href="qlearning.html">モンテカルロ</a>は「偏らないが分散大」——その間を数手先までで折り合わせるのが <b>GAE</b>（Generalized Advantage Estimation）。土台の価値学習は <a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>、方策側の素の形は方策勾配（REINFORCE）です。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+/* ===== 乱数（mulberry32）: 全体用 rng と、独立シード用 factory ===== */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let baseSeed=7;
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== 環境：5×5 グリッドワールド（疎報酬：ゴール+1・落とし穴−1・他0）===== */
+const GW=5,GH=5,NA=4,NS=25;
+const MAP=["S....",".....","..#..",".X...","....G"];   // S=(0,0) G=(4,4) X=(3,1) 壁=(2,2)
+const ACT=[[-1,0],[1,0],[0,-1],[0,1]];                  // 上下左右
+const R_GOAL=1,R_PIT=-1,GAM=0.97,MAXSTEP=80;
+const AAC=0.2,ACR=0.4,ARF=0.2;                          // Actor学習率(AC)・Critic学習率・Actor学習率(REINFORCE)
+let START=0,GOAL=0,PIT=0;
+for(let r=0;r<GH;r++)for(let c=0;c<GW;c++){const ch=MAP[r][c];if(ch==='S')START=r*GW+c;if(ch==='G')GOAL=r*GW+c;if(ch==='X')PIT=r*GW+c;}
+function isWall(r,c){return r<0||c<0||r>=GH||c>=GW||MAP[r][c]==='#';}
+function chOfS(s){return MAP[(s/GW|0)][s%GW];}
+function stepEnv(s,a){const r=(s/GW)|0,c=s%GW;let nr=r+ACT[a][0],nc=c+ACT[a][1];if(isWall(nr,nc)){nr=r;nc=c;}const ns=nr*GW+nc,ch=MAP[nr][nc];
+  if(ch==='G')return{ns,reward:R_GOAL,done:true};if(ch==='X')return{ns,reward:R_PIT,done:true};return{ns,reward:0,done:false};}
+function policy(theta,s){const b=s*NA;let mx=-1e9;for(let a=0;a<NA;a++)mx=Math.max(mx,theta[b+a]);   // max引きでオーバーフロー防止
+  let sum=0;const p=[0,0,0,0];for(let a=0;a<NA;a++){p[a]=Math.exp(theta[b+a]-mx);sum+=p[a];}for(let a=0;a<NA;a++)p[a]/=sum;return p;}
+function sampleA(p,rnd){let x=rnd(),acc=0;for(let a=0;a<NA;a++){acc+=p[a];if(x<acc)return a;}return NA-1;}
+
+/* ===== 学習器：Actor-Critic（1ステップTD, オンライン）と REINFORCE（MC）===== */
+function newLearner(){return{theta:new Float64Array(NS*NA),V:new Float64Array(NS),ep:0,succWin:[],deltaField:new Float64Array(NS),lastPath:null};}
+function acEpisode(M,rnd){let s=START,done=false,steps=0,reached=false;const deltas=[],path=[s];
+  for(let k=0;k<NS;k++)M.deltaField[k]*=0.9;                                     // 表示用δの残光を減衰
+  while(!done&&steps<MAXSTEP){const p=policy(M.theta,s);const a=sampleA(p,rnd);const{ns,reward,done:d}=stepEnv(s,a);
+    const delta=reward+(d?0:GAM*M.V[ns])-M.V[s];                                 // TD誤差 δ = r + γV(s') − V(s)
+    M.V[s]+=ACR*delta;                                                          // Critic: V(s) ← V(s) + αc·δ
+    const b=s*NA;for(let k=0;k<NA;k++)M.theta[b+k]+=AAC*delta*((k===a?1:0)-p[k]);// Actor:  θ ← θ + αθ·δ·∇logπ
+    M.deltaField[s]=delta;deltas.push(delta);path.push(ns);if(d&&reward===R_GOAL)reached=true;s=ns;done=d;steps++;}
+  M.ep++;M.succWin.push(reached?1:0);if(M.succWin.length>30)M.succWin.shift();M.lastPath=path;return{reached,deltas,steps};}
+function rfEpisode(M,rnd){let s=START,done=false,steps=0,reached=false;const tr=[],path=[s];
+  while(!done&&steps<MAXSTEP){const p=policy(M.theta,s);const a=sampleA(p,rnd);const{ns,reward,done:d}=stepEnv(s,a);
+    tr.push({s,a,p,reward});path.push(ns);if(d&&reward===R_GOAL)reached=true;s=ns;done=d;steps++;}
+  let Gt=0;const Gs=new Array(tr.length);for(let t=tr.length-1;t>=0;t--){Gt=tr[t].reward+GAM*Gt;Gs[t]=Gt;} // リターン G_t
+  const sigs=[];for(let t=0;t<tr.length;t++){const{s:ss,a:aa,p}=tr[t],b=ss*NA;                            // θ ← θ + α·G_t·∇logπ
+    for(let k=0;k<NA;k++)M.theta[b+k]+=ARF*Gs[t]*((k===aa?1:0)-p[k]);sigs.push(Gs[t]);}
+  M.ep++;M.succWin.push(reached?1:0);if(M.succWin.length>30)M.succWin.shift();M.lastPath=path;return{reached,sigs,G:Gs.length?Gs[0]:0,steps};}
+function rolloutPath(theta,rnd){let s=START,done=false,steps=0;const path=[s];let G=0,disc=1,reached=false;
+  while(!done&&steps<MAXSTEP){const p=policy(theta,s);const a=sampleA(p,rnd);const{ns,reward,done:d}=stepEnv(s,a);G+=disc*reward;disc*=GAM;path.push(ns);if(d&&reward===R_GOAL)reached=true;s=ns;done=d;steps++;}
+  return{path,G,reached,steps};}
+function greedyPath(theta){let s=START;const path=[s];for(let g=0;g<40;g++){const p=policy(theta,s);let a=0,mx=-1;for(let k=0;k<NA;k++)if(p[k]>mx){mx=p[k];a=k;}const r=(s/GW)|0,c=s%GW;let nr=r+ACT[a][0],nc=c+ACT[a][1];if(isWall(nr,nc)){nr=r;nc=c;}s=nr*GW+nc;path.push(s);const ch=chOfS(s);if(ch==='G'||ch==='X')break;}return path;}
+function succRate(M){return M.succWin.length?Math.round(100*M.succWin.reduce((a,b)=>a+b,0)/M.succWin.length):0;}
+function smoothLast(a,w){const n=Math.min(a.length,w);let s=0;for(let i=a.length-n;i<a.length;i++)s+=a[i];return s/n;}
+function variance(a){if(!a.length)return 0;const m=a.reduce((x,y)=>x+y,0)/a.length;return a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length;}
+function stdev(a){return Math.sqrt(variance(a));}
+
+/* ===== 事前計算：REF（収束済み・概念スライド用）／サンプル分布／デモ軌跡 ===== */
+let REF=null,sampG=[],sampD=[],trajDemo=null;
+function buildRef(){const r=mulberry(1);REF=newLearner();while(REF.ep<300)acEpisode(REF,r);}
+function buildSamples(){const r=mulberry(3);const M=newLearner();while(M.ep<8)acEpisode(M,r);   // 中程度に訓練した方策
+  sampG=[];for(let k=0;k<30;k++)sampG.push(rolloutPath(M.theta,mulberry(500+k)).G);              // リターン G の分布（広く散る）
+  trajDemo=null;for(let k=0;k<200&&!trajDemo;k++){const ro=rolloutPath(M.theta,mulberry(500+k));if(ro.reached)trajDemo=ro;}
+  if(!trajDemo)trajDemo={path:greedyPath(REF.theta),G:REF.V[START],reached:true,steps:8};
+  sampD=[];for(let k=0;k<8;k++){let s=START,done=false,steps=0;const rr=mulberry(700+k);   // 同じ方策 M のロールアウトに沿って 1歩ごとの δ（M.V を批評家に）
+    while(!done&&steps<MAXSTEP){const p=policy(M.theta,s);const a=sampleA(p,rr);const{ns,reward,done:d}=stepEnv(s,a);sampD.push(reward+(d?0:GAM*M.V[ns])-M.V[s]);s=ns;done=d;steps++;}}
+}
+
+/* ===== A/B：REINFORCE vs Actor-Critic（複数シードの学習曲線）===== */
+const AB_SEEDS=[11,12,13,14,15],AB_EP=200;
+let AB=null,abOff=0;
+function ensureAB(){if(AB)return;const acC=[],rfC=[],acSig=[],rfSig=[];
+  for(const sd of AB_SEEDS){const M=newLearner();const r=mulberry(sd+abOff);const sw=[],cur=[];
+    for(let e=0;e<AB_EP;e++){const res=acEpisode(M,r);sw.push(res.reached?1:0);if(e>=20&&e<120)for(const d of res.deltas)acSig.push(d);cur.push(smoothLast(sw,20));}
+    acC.push(cur);
+    const M2=newLearner();const r2=mulberry(sd+100+abOff);const sw2=[],cur2=[];
+    for(let e=0;e<AB_EP;e++){const res=rfEpisode(M2,r2);sw2.push(res.reached?1:0);if(e>=20&&e<120)for(const g of res.sigs)rfSig.push(g);cur2.push(smoothLast(sw2,20));}
+    rfC.push(cur2);}
+  const meanCurve=set=>{const out=[];for(let e=0;e<AB_EP;e++){let s=0;for(const c of set)s+=c[e];out.push(s/set.length);}return out;};
+  AB={acC,rfC,acMean:meanCurve(acC),rfMean:meanCurve(rfC),varAC:variance(acSig),varRF:variance(rfSig)};
+  AB.ratio=AB.varRF/Math.max(1e-9,AB.varAC);}
+
+/* ===== ライブ学習器（スライドⅢ）===== */
+let L=null,rngLive=mulberry(7);
+const LIVE_EP=160;
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const cs=56,gx0=40,gy0=16;
+function gx(c){return gx0+c*cs;} function gy(r){return gy0+r*cs;}
+function drawGridBg(){ctx.lineWidth=1;for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,10);ctx.lineTo(x+.5,CH-10);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(10,y+.5);ctx.lineTo(CW-10,y+.5);ctx.stroke();}}
+function vAbsMax(V){let m=1e-6;for(let s=0;s<NS;s++){const ch=chOfS(s);if(ch==='#'||ch==='G'||ch==='X')continue;m=Math.max(m,Math.abs(V[s]));}return m;}
+function vColor(v,vm){const t=Math.max(-1,Math.min(1,v/vm));if(t>=0)return'rgba(31,158,138,'+(0.05+0.5*t).toFixed(3)+')';return'rgba(207,79,95,'+(0.05+0.5*(-t)).toFixed(3)+')';}
+function drawPolicyCell(x,y,p){const cx=x+cs/2,cy=y+cs/2,mL=cs*0.34;
+  for(let a=0;a<NA;a++){const dy=ACT[a][0],dx=ACT[a][1];const len=5+mL*p[a];const ex=cx+dx*len,ey=cy+dy*len;
+    ctx.strokeStyle=getCSS('--upd');ctx.globalAlpha=0.22+0.7*p[a];ctx.lineWidth=1+3.4*p[a];
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
+    const hs=2.5+2.6*p[a];ctx.beginPath();ctx.moveTo(ex+dx*hs,ey+dy*hs);ctx.lineTo(ex-dy*hs*0.9,ey+dx*hs*0.9);ctx.lineTo(ex+dy*hs*0.9,ey-dx*hs*0.9);ctx.closePath();ctx.fillStyle=getCSS('--upd');ctx.fill();}
+  ctx.globalAlpha=1;}
+function drawGrid(o){o=o||{};const V=o.V,theta=o.theta,vm=V?vAbsMax(V):1;
+  for(let r=0;r<GH;r++)for(let c=0;c<GW;c++){const s=r*GW+c,ch=MAP[r][c],x=gx(c),y=gy(r);
+    let bg='#fffdf6';if(ch==='#')bg='#3b382f';else if(V&&ch!=='G'&&ch!=='X')bg=vColor(V[s],vm);
+    ctx.fillStyle=bg;ctx.fillRect(x,y,cs-2,cs-2);
+    ctx.strokeStyle='rgba(26,26,23,0.12)';ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,cs-2,cs-2);
+    if(o.deltaHl&&o.deltaHl===s){ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.6;ctx.strokeRect(x+2,y+2,cs-6,cs-6);}
+    if(ch==='G'){ctx.fillStyle='rgba(31,158,138,0.20)';ctx.fillRect(x,y,cs-2,cs-2);ctx.fillStyle=getCSS('--accent');ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 15px '+getCSS('--gothic');ctx.fillText('G',x+cs/2,y+cs/2-7);ctx.font='9px '+getCSS('--mono');ctx.fillText('+1',x+cs/2,y+cs/2+10);}
+    else if(ch==='X'){ctx.fillStyle='rgba(207,79,95,0.18)';ctx.fillRect(x,y,cs-2,cs-2);ctx.fillStyle=getCSS('--neg');ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 15px '+getCSS('--gothic');ctx.fillText('✕',x+cs/2,y+cs/2-7);ctx.font='9px '+getCSS('--mono');ctx.fillText('−1',x+cs/2,y+cs/2+10);}
+    else if(ch==='#'){}
+    else{if(theta&&o.policy)drawPolicyCell(x,y,policy(theta,s));
+      if(o.showV&&V){ctx.fillStyle='rgba(26,26,23,0.5)';ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(V[s].toFixed(2),x+cs/2,y+cs-9);}
+      if(ch==='S'){ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('S',x+3,y+3);}}}
+  if(o.trail){const p=o.trail;ctx.strokeStyle=o.trailColor||'rgba(194,137,27,0.9)';ctx.lineWidth=3;ctx.beginPath();
+    for(let i=0;i<p.length;i++){const X=gx(p[i]%GW)+cs/2,Y=gy((p[i]/GW|0))+cs/2;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();}
+  if(o.agent!==undefined&&o.agent!==null){const X=gx(o.agent%GW)+cs/2,Y=gy((o.agent/GW|0))+cs/2;ctx.beginPath();ctx.arc(X,Y,cs*0.22,0,7);ctx.fillStyle=getCSS('--loss');ctx.shadowColor=getCSS('--loss');ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;}}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+
+/* --- 下部パネル: 成功率カーブ・分散バー・分布・各種図 --- */
+function drawSuccPanel(M,label){const x0=34,y0=312,w=CW-64,h=98;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(label||'成功率（直近30エピソード）',x0,y0-4);
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const hist=M._succCurve||[];const px=i=>x0+w*i/Math.max(1,LIVE_EP-1),py=v=>y0+h-3-(h-6)*v;
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.8;ctx.beginPath();hist.forEach((v,i)=>{const X=px(i),Y=py(v);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.setLineDash([3,3]);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,py(0.9));ctx.lineTo(x0+w,py(0.9));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('90%',x0+w-2,py(0.9)-3);
+  ctx.textAlign='left';ctx.fillText('エピソード →',x0+2,y0+h+11);}
+function drawCurves(reveal){ensureAB();const x0=34,y0=312,w=CW-64,h=98;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('成功率（直近20エピソード）　橙=REINFORCE  緑=Actor-Critic',x0,y0-4);
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const px=e=>x0+w*e/(AB_EP-1),py=v=>y0+h-3-(h-6)*v;
+  const set=(curs,col,al,lw)=>{curs.forEach(cur=>{ctx.strokeStyle=col;ctx.globalAlpha=al;ctx.lineWidth=lw;ctx.beginPath();for(let e=0;e<=reveal&&e<cur.length;e++){const X=px(e),Y=py(cur[e]);e?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();});ctx.globalAlpha=1;};
+  set(AB.rfC,getCSS('--loss'),0.30,1);set(AB.acC,getCSS('--accent'),0.30,1);
+  set([AB.rfMean],getCSS('--loss'),1,2.4);set([AB.acMean],getCSS('--accent'),1,2.4);
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('エピソード →',x0+2,y0+h+11);}
+function drawSpread(dots,y0,col,label){const x0=40,w=CW-80,mid=y0;const lo=-1,hi=1;const px=g=>x0+w*(g-lo)/(hi-lo);
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,mid);ctx.lineTo(x0+w,mid);ctx.stroke();
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(px(0),mid-14);ctx.lineTo(px(0),mid+14);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('−1',px(-1),mid+20);ctx.fillText('0',px(0),mid+20);ctx.fillText('+1',px(1),mid+20);
+  const m=dots.reduce((a,b)=>a+b,0)/dots.length;
+  dots.forEach((g,i)=>{const jy=mid+((i%2)?-1:1)*(3+5*(i%3));ctx.beginPath();ctx.arc(px(g),jy,3.2,0,7);ctx.fillStyle=g>=0?getCSS('--accent'):getCSS('--neg');ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;});
+  ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(px(m),mid-16);ctx.lineTo(px(m),mid+16);ctx.stroke();
+  ctx.fillStyle=col;ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(label+'（std '+stdev(dots).toFixed(2)+'）',x0,y0-16);}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawHist(samps,y0,h,col,label,citeStd,axis){const x0=44,w=CW-88,lo=-1,hi=1,B=16;
+  const bins=new Array(B).fill(0);samps.forEach(v=>{let b=Math.floor((v-lo)/(hi-lo)*B);b=Math.max(0,Math.min(B-1,b));bins[b]++;});
+  const mx=Math.max.apply(null,bins)||1,bw=w/B,zx=x0+w*(0-lo)/(hi-lo);
+  ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0+h);ctx.lineTo(x0+w,y0+h);ctx.stroke();
+  ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(zx,y0);ctx.lineTo(zx,y0+h);ctx.stroke();ctx.setLineDash([]);
+  bins.forEach((c,i)=>{if(!c)return;const bh=h*c/mx;ctx.fillStyle=col;ctx.globalAlpha=0.78;ctx.fillRect(x0+i*bw+0.5,y0+h-bh,bw-1,bh);ctx.globalAlpha=1;});
+  ctx.fillStyle=col;ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(label+'（std '+citeStd.toFixed(2)+'）',x0,y0-4);
+  if(axis){ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('−1',x0,y0+h+11);ctx.fillText('0',zx,y0+h+11);ctx.fillText('+1',x0+w,y0+h+11);}}
+
+/* ===== スライド定義（4章 × 14枚）===== */
+const CHAPTERS=[{t:'Ⅰ 遅い信号',c:'var(--neg)',start:0},{t:'Ⅱ 批評家と誤差',c:'var(--upd)',start:3},{t:'Ⅲ ライブ学習',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:11}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0;
+
+const SLIDES=[
+/* 0 ── 開演・方策を直接学ぶ ── */
+{title:'方策を直接学ぶ',legend:'紫の矢印＝方策 π(a|s)。学習前はどの向きも同じ確率（矢印がそろう）',
+ html(){return'<h3>方策を直接学ぶ</h3><div class="eq curr">π(<i>a</i>|<i>s</i>) = softmax(<i>θ</i><sub>s,·</sub>) ＝ e<sup><i>θ</i>sa</sup> ⁄ Σ<sub>b</sub> e<sup><i>θ</i>sb</sup><span class="read">読み：各マス <i>s</i> に「4 方向それぞれの好み <i>θ</i>」を持ち、softmax で<b>行動の確率</b>に変換。<i>θ</i> を直接いじって、良い向きの確率を太らせるのが<b>方策の学習</b></span></div><div class="desc"><a href="qlearning.html">Q学習</a>は「行動の価値」を見積もってから方策を導きました。ここでは<b>方策そのもの</b>（各マスでどっちへ行く確率か）を直接学びます。学習前は <b>π=0.25 ずつ</b>——4 本の矢印が同じ長さ（下図）。目標は、報酬だけを頼りにこの矢印を<b>ゴールへ向ける</b>こと。舞台は 5×5、ゴール +1・落とし穴 −1、それ以外の報酬は 0 です。</div>';},
+ draw(){const flat=new Float64Array(NS*NA);drawGrid({theta:flat,policy:true});caption('学習前：どの向きも確率 0.25（矢印がそろう）',CH-30);}},
+/* 1 ── REINFORCE：末リターン ── */
+{title:'REINFORCE：エピソード末まで待つ',legend:'橙＝1エピソードの道のり。報酬 +1 は最後の一歩でしか入らない',
+ html(){const g=trajDemo?trajDemo.G.toFixed(2):'—',st=trajDemo?trajDemo.steps:'—';
+   return'<h3>REINFORCE：エピソード末まで待つ</h3><div class="eq curr"><i>θ</i> ← <i>θ</i> + α·<b><i>G</i><sub>t</sub></b>·∇log π(<i>a</i><sub>t</sub>|<i>s</i><sub>t</sub>),　<i>G</i><sub>t</sub> = Σ<sub>k≥0</sub> γ<sup>k</sup> <i>r</i><sub>t+k</sub><span class="read">読み：<i>G</i><sub>t</sub>＝時刻 t から先で<b>実際に集めた報酬の合計</b>（割引 γ つき）。良かった（<i>G</i> 大）行動の確率を太らせる。ただし <i>G</i> は<b>エピソードが終わるまで確定しない</b></span></div><div class="desc">素朴な方策勾配（REINFORCE）は、<b>1 エピソードを最後まで走らせて</b>から更新します。今回の道のりは <b>'+st+' 歩</b>、集めたリターンは <b>G='+g+'</b>。問題は 2 つ——(1) ゴールの +1 は<b>最後の一歩でしか入らない</b>ので、途中の一手が良かったか<b>終わるまで分からない</b>（信号が遅い）。(2) 同じ最初の一手でも、その後の運で <i>G</i> が大きく振れる（次のスライド）。</div>';},
+ draw(){const p=trajDemo?trajDemo.path:greedyPath(REF.theta);drawGrid({trail:p,agent:p[p.length-1]});caption('報酬 +1 が入るのは最後の一歩だけ',CH-30);}},
+/* 2 ── 分散：信号がぶれる（Ⅱへ渡す前の問題提起は章Ⅰ内）── */
+{title:'その信号は「ぶれる」',legend:'点＝同じ方策からの各エピソードのリターン G。緑=正・赤=負に大きく散る',
+ html(){return'<h3>その信号は「ぶれる」</h3><div class="eq curr">同じ方策 π から　<i>G</i><sup>(1)</sup>, <i>G</i><sup>(2)</sup>, … ＝ 大きく散らばる（分散大）<span class="read">読み：まったく同じ方策でも、たまたまゴールに着けば <i>G</i>&gt;0、落とし穴や迷子なら <i>G</i>&lt;0。<b>運任せの符号</b>が学習信号に混じる＝勾配が<b>ぶれる</b></span></div><div class="desc">同じ方策から '+sampG.length+' エピソードを走らせ、リターン <i>G</i> を並べたのが下の点。<b>−0.8 から +0.6 まで散らばり</b>（std ≈ '+stdev(sampG).toFixed(2)+'）。同じ一手が、あるときは「大成功の一部」、あるときは「大失敗の一部」として数えられる。この<b>大きな分散</b>のせいで、REINFORCE は学習がぶれ、収束が遅い。<b>もっと早く・毎歩・落ち着いて学べないか？</b>——ここに Critic が登場します。</div>';},
+ draw(){drawGrid({});caption('',CH-10);ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('同じ方策から走らせた各エピソードのリターン G',40,300);drawSpread(sampG,352,getCSS('--upd'),'リターン G');}},
+/* 3 ── Critic 登場：V(s) ── */
+{title:'Critic 登場：期待成績表 V(s)',legend:'背景の色＝Critic の価値 V(s)。緑=先が明るい／赤=落とし穴が近い',
+ html(){return'<h3>Critic 登場：期待成績表 V(s)</h3><div class="eq curr"><i>V</i>(<i>s</i>) = E[ <i>G</i><sub>t</sub> | <i>s</i><sub>t</sub>=<i>s</i> ] ＝ そのマスから先で見込める報酬の合計<span class="read">読み：<i>V</i>(<i>s</i>)＝マス <i>s</i> に立ったときの「<b>期待成績</b>」。ゴールに近いほど高く、落とし穴に近いほど低い。行動ごとではなく<b>マス（状態）ごと</b>の見積もり</span></div><div class="desc"><b>Critic（批評家）</b>は、各マスの「<b>期待成績表</b>」<i>V</i>(<i>s</i>) を持ちます。下の背景色がそれ——学習後の Critic は、開始マスで <b>'+REF.V[START].toFixed(2)+'</b>、ゴール隣で <b>'+REF.V[23].toFixed(2)+'</b>、落とし穴の隣で <b>'+REF.V[15].toFixed(2)+'</b> と見積もっています。Critic は行動を選びません。ただ「このマスは先が明るいか暗いか」を採点するだけ。この採点が、次のスライドで Actor への<b>助言</b>に化けます。</div>';},
+ draw(){drawGrid({V:REF.V,showV:true});caption('学習後の Critic：ゴールが近いほど高い（緑）',CH-30);}},
+/* 4 ── TD 誤差 δ ── */
+{title:'TD 誤差 δ：予想と現実のズレ',legend:'橙枠＝いま動いたマス。δ＝「一歩進んで分かった予想の外れ」',
+ html(){const s=17,a=3;const ns=stepEnv(s,a).ns;const delta=(0+GAM*REF.V[ns]-REF.V[s]);
+   return'<h3>TD 誤差 δ：予想と現実のズレ</h3><div class="eq curr"><b>δ</b> = <i>r</i> + γ·<i>V</i>(<i>s</i>′) − <i>V</i>(<i>s</i>)<span class="read">読み：<i>r</i>＝いまもらった報酬、<i>V</i>(<i>s</i>′)＝一歩進んだ先の期待成績、<i>V</i>(<i>s</i>)＝いたマスの期待成績。<b>「実際＋次の見込み」と「元の見込み」の差</b>＝予想の外れ。δ&gt;0＝思ったより良い</span></div><div class="desc">Critic は一歩ごとに「<b>思ったより良かった／悪かった</b>」を一言で言えます。それが <b>TD 誤差 δ</b>。いたマスの見込み <i>V</i>(<i>s</i>) と、一歩進んで分かった「報酬＋次の見込み」を比べた差です。例：あるマスから隣へ進むと δ = <b>'+delta.toFixed(2)+'</b>。エピソードの終わり（G の確定）を<b>待ちません</b>——たった一歩で、その一手が予想より良かったかを判定できる。これが「毎歩学べる」の正体。</div>';},
+ draw(){const s=17,a=3;const ns=stepEnv(s,a).ns;drawGrid({V:REF.V,showV:true,deltaHl:s});
+   const X1=gx(s%GW)+cs/2,Y1=gy((s/GW|0))+cs/2,X2=gx(ns%GW)+cs/2,Y2=gy((ns/GW|0))+cs/2;
+   ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(X1,Y1);ctx.lineTo(X2,Y2);ctx.stroke();
+   const ang=Math.atan2(Y2-Y1,X2-X1);ctx.beginPath();ctx.moveTo(X2,Y2);ctx.lineTo(X2-8*Math.cos(ang-0.4),Y2-8*Math.sin(ang-0.4));ctx.lineTo(X2-8*Math.cos(ang+0.4),Y2-8*Math.sin(ang+0.4));ctx.closePath();ctx.fillStyle=getCSS('--loss');ctx.fill();
+   caption('この一歩で δ = r + γV(s′) − V(s) を計算',CH-30);}},
+/* 5 ── 2本の更新式：δが共通信号 ── */
+{title:'2 本の更新：δ が共通の信号',legend:'同じ δ が、Actor（方策）と Critic（価値）の両方を同時に動かす',
+ html(){return'<h3>2 本の更新：δ が共通の信号</h3><div class="eq curr"><b>Actor</b>：<i>θ</i> ← <i>θ</i> + α<sub>θ</sub>·<b>δ</b>·∇log π(<i>a</i>|<i>s</i>)<br><b>Critic</b>：<i>V</i>(<i>s</i>) ← <i>V</i>(<i>s</i>) + α<sub>v</sub>·<b>δ</b><span class="read">読み：<b>同じ δ</b> が 2 か所へ。Actor は「δ&gt;0 なら選んだ行動 <i>a</i> の確率を太らせる」、Critic は「δ の分だけ見込み <i>V</i> を上げ下げ」。δ ひとつで方策と価値が同時に育つ</span></div><div class="desc">Actor-Critic の心臓がこの<b>2 行</b>です。δ が正（思ったより良い）なら——Actor は<b>その行動を太らせ</b>、Critic は<b>その予想を上げる</b>。δ が負なら逆。<b>役割は違うのに、動かす信号は同じ δ</b>。Critic が δ を計算し、それが自分（価値）と相棒（方策）の両方の教師になる。上司と部下ではなく、<b>同じ驚きを分け合う相棒</b>です。</div>';},
+ draw(){drawActorCritic();}},
+/* 6 ── advantage：なぜ G でなく δ か ── */
+{title:'なぜ G でなく δ か＝ベースライン内蔵',legend:'左=REINFORCE の信号 G（広い）／右=Actor-Critic の信号 δ（狭い）',
+ html(){return'<h3>なぜ G でなく δ か＝ベースライン内蔵</h3><div class="eq curr"><b>A</b>(<i>s</i>,<i>a</i>) = <i>Q</i>(<i>s</i>,<i>a</i>) − <i>V</i>(<i>s</i>) ≈ <i>r</i>+γ<i>V</i>(<i>s</i>′) − <i>V</i>(<i>s</i>) = <b>δ</b><span class="read">読み：<b>advantage（優位性）</b>＝その行動が<b>平均（V）より</b>どれだけ良いか。δ はその 1 ステップ推定。V を引く＝「基準からの差」だけ見る＝<b>ベースラインが内蔵</b>されている</span></div><div class="desc">REINFORCE は<b>リターン G そのもの</b>（前スライドの広い散らばり）を信号にしました。Actor-Critic は G の代わりに <b>δ</b> を使う——これは「<i>V</i>(<i>s</i>) という<b>基準からの差</b>」なので、当たり前の良さは差し引かれ、<b>本当に予想外だった分だけ</b>が残る。結果、信号の散らばりが激減します（下図：G std '+stdev(sampG).toFixed(2)+' 対 δ std '+stdev(sampD).toFixed(2)+'）。δ の大半は<b>0 付近</b>（驚きが小さい）で、たまに跳ねるだけ。<b>V を引くこと＝分散を下げること</b>。これが「批評家を雇う」ご利益です。</div>';},
+ draw(){drawGrid({V:REF.V});ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('学習信号の分布（横=信号の値／縦=頻度）',40,302);
+   drawHist(sampG,318,40,getCSS('--loss'),'REINFORCE の G（広く散る）',stdev(sampG),false);
+   drawHist(sampD,372,40,getCSS('--accent'),'Actor-Critic の δ（0 付近に集中）',stdev(sampD),true);}},
+/* 7 ── ライブ学習：矢印＋ヒートマップが同時に育つ ── */
+{title:'ライブ学習：方策と価値が同時に育つ',legend:'背景＝Critic の価値 V が育つ／紫矢印＝Actor の方策がゴールを向く',
+ html(){const ep=L?L.ep:0,sr=L?succRate(L):0;
+   return'<h3>ライブ学習：方策と価値が同時に育つ</h3><div class="eq curr">毎歩：δ を計算 → Critic 更新 → 同じ δ で Actor 更新<span class="read">読み：エピソードの終わりを待たず、<b>一歩ごと</b>に δ を作って両方を更新。背景（価値）と矢印（方策）が<b>同時に</b>育つのを見てください</span></div><div class="desc">いまこの場で Actor-Critic を学習中（表形式 θ と V を本当に更新）。ゴールの +1 が Critic の <i>V</i> に取り込まれ、<b>背景の緑がゴールから染み出し</b>、同時に Actor の<b>紫矢印がゴール方向へ太って</b>いきます。両者は別々に学ぶのではなく、<b>同じ δ で足並みをそろえて</b>育つ。エピソード <b>'+ep+'</b> / '+LIVE_EP+'・直近の成功率 <b>'+sr+'%</b>。「🎲 別のシード」で運を変えても同じように収束します。</div>';},
+ draw(){const M=L||REF;drawGrid({V:M.V,theta:M.theta,policy:true});
+   if(L)drawSuccPanel(L);else caption('学習を待っています…',CH-30);},
+ dice:true},
+/* 8 ── δ の伝播 ── */
+{title:'δ が価値を後ろへ運ぶ',legend:'橙＝ゴールの「驚き」が一歩ずつ手前へ後退し、価値をつくる',
+ html(){return'<h3>δ が価値を後ろへ運ぶ</h3><div class="eq curr">ゴールで δ 大 → <i>V</i>(手前) 上がる → 次はそこで δ 大 → さらに手前へ…<span class="read">読み：最初はゴールの一歩手前だけが「思ったより良い（δ 大）」。そこの <i>V</i> が上がると、<b>その一歩手前</b>が次の驚きの発生源になる。驚きが<b>後ろへ後退</b>しながら価値の坂道を作る</span></div><div class="desc">なぜ「毎歩の δ」だけで遠いゴールの情報が開始地点まで届くのか。<b>バケツリレー</b>だからです。まずゴール直前のマスで δ が立ち、Critic がそこの <i>V</i> を上げる。すると次の周回では、その<b>一歩手前</b>で「進んだ先の <i>V</i> が高い＝思ったより良い」と δ が立つ。こうして<b>驚きがゴールから手前へ一歩ずつ後退</b>し、価値の坂道（下の緑のグラデーション）ができる。Q学習の「価値が染み出す」と同じ現象を、δ が担っています。</div>';},
+ draw(){drawGrid({V:REF.V});const path=greedyPath(REF.theta);
+   const n=path.length;let upto;
+   if(window.__prefersReducedMotion){upto=n;}else{upto=1+Math.floor((animT%1)*(n));}
+   // ゴール側から後退する矢印
+   for(let i=n-1;i>=Math.max(1,n-upto);i--){const a=path[i],b=path[i-1];
+     const Xa=gx(a%GW)+cs/2,Ya=gy((a/GW|0))+cs/2,Xb=gx(b%GW)+cs/2,Yb=gy((b/GW|0))+cs/2;
+     ctx.strokeStyle=getCSS('--loss');ctx.globalAlpha=0.85;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(Xa,Ya);ctx.lineTo(Xb,Yb);ctx.stroke();
+     const ang=Math.atan2(Yb-Ya,Xb-Xa);ctx.beginPath();ctx.moveTo(Xb,Yb);ctx.lineTo(Xb-8*Math.cos(ang-0.4),Yb-8*Math.sin(ang-0.4));ctx.lineTo(Xb-8*Math.cos(ang+0.4),Yb-8*Math.sin(ang+0.4));ctx.closePath();ctx.fillStyle=getCSS('--loss');ctx.fill();ctx.globalAlpha=1;}
+   caption('ゴールの驚きが手前へ後退して価値をつくる',CH-30);}},
+/* 9 ── A/B 学習曲線 ── */
+{title:'A/B：REINFORCE vs Actor-Critic',legend:'細線＝各シード／太線＝平均。橙=REINFORCE, 緑=Actor-Critic',
+ html(){return'<h3>A/B：REINFORCE vs Actor-Critic</h3><div class="eq curr">同じ環境・同じ Actor 学習率で、両者の成功率カーブを実測<span class="read">読み：<b>橙＝REINFORCE</b>（G で更新）、<b>緑＝Actor-Critic</b>（δ で更新）。細線が各シード、太線が平均。<b>線の散らばり＝分散</b></span></div><div class="desc">'+AB_SEEDS.length+' 個のシードで両者を同時に走らせた実測です（いまブラウザ内で計算）。<b>橙（REINFORCE）はギザギザで、シードごとに大きくばらける</b>——リターン G のぶれがそのまま曲線に出ます。<b>緑（Actor-Critic）は滑らかに揃って立ち上がる</b>——δ が分散を抑えるからです。同じ学習率でも、<b>信頼できる信号を持つ方が落ち着いて登れる</b>。次でその差を数字にします。</div>';},
+ draw(){ensureAB();drawGrid({V:REF.V,theta:REF.theta,policy:false});
+   let reveal;if(window.__prefersReducedMotion)reveal=AB_EP-1;else reveal=Math.min(AB_EP-1,Math.floor((animT)* (AB_EP-1)));
+   drawCurves(reveal);},
+ dice:true},
+/* 10 ── 分散の数字 ── */
+{title:'分散を数字で：δ は約9倍おだやか',legend:'棒＝学習信号の分散（小さいほど落ち着いた学習）',
+ html(){ensureAB();const ratio=AB.ratio.toFixed(1);
+   return'<h3>分散を数字で：δ は約 '+Math.round(AB.ratio)+' 倍おだやか</h3><div class="eq curr">Var[ 学習信号 ]：　G（REINFORCE） ／ δ（Actor-Critic） ≈ <b>'+ratio+' 倍</b><span class="read">読み：更新に使う信号の分散を実測して比べた比。値が大きいほど<b>ぶれる</b>。δ は G の約 '+ratio+' 分の 1 に収まっている</span></div><div class="desc">A/B の実測から、学習信号の分散は <b>REINFORCE ≈ '+ratio+' 倍</b>（下の棒）。この差が効くのは——<b>ジレンマ</b>があるからです。REINFORCE で速く学ぼうと歩幅を大きくすると<b>ギザギザで不安定</b>、安定させようと歩幅を小さくすると<b>収束が遅い</b>（実測：同じ滑らかさに揃えると約 51ep → 109ep へ倍増）。Actor-Critic は Critic の内蔵ベースラインで分散を断つので、<b>大きく確信を持って踏み出しつつ落ち着いていられる</b>——ジレンマの外にいます。</div>';},
+ draw(){ensureAB();drawGrid({V:REF.V});const x0=60,y0=316,h=86,bw=64,gap=70;
+   const mx=Math.max(AB.varRF,AB.varAC);
+   const bar=(v,i,col,lab)=>{const bh=h*v/mx,X=x0+i*gap;ctx.fillStyle=col;roundRect(X,y0+h-bh,bw,bh,3);ctx.fill();
+     ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(v.toFixed(3),X+bw/2,y0+h-bh-5);
+     ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText(lab,X+bw/2,y0+h+13);};
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('学習信号の分散（小さいほど落ち着く）',40,300);
+   bar(AB.varRF,0,getCSS('--loss'),'REINFORCE (G)');bar(AB.varAC,1,getCSS('--accent'),'Actor-Critic (δ)');
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('≈ '+AB.ratio.toFixed(1)+' 倍',x0+2*gap-2,y0+h/2);}},
+/* 11 ── 三つ巴 ── */
+{title:'三つ巴：価値／方策／その合流',legend:'価値だけ（Q学習）・方策だけ（REINFORCE）・両方（Actor-Critic）',
+ html(){return'<h3>三つ巴：価値／方策／その合流</h3><div class="eq curr">価値ベース　＋　方策ベース　→　Actor-Critic（両方）<span class="read">読み：強化学習の 3 つの流儀。<b>価値だけ</b>学ぶ（Q学習・DQN）、<b>方策だけ</b>学ぶ（REINFORCE）、そして<b>両方</b>を δ でつなぐ Actor-Critic</span></div><div class="desc">強化学習の地図を 1 枚に。<b>価値ベース</b>（<a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>）は行動の価値表を作り、そこから方策を導く——連続的な行動が苦手。<b>方策ベース</b>（REINFORCE）は方策を直接学ぶ——素直だが分散大。<b>Actor-Critic</b>は両者の良いとこ取り：方策を直接持ちつつ、価値（Critic）を分散低減の道具に使う。対立していた二流派が、<b>TD 誤差という一本の信号</b>で握手した姿です。</div>';},
+ draw(){drawTriad();}},
+/* 12 ── 現代RLの背骨 ── */
+{title:'現代 RL の背骨：A2C / A3C / PPO',legend:'Actor-Critic の骨格から、実務標準までひと続き',
+ html(){return'<h3>現代 RL の背骨：A2C / A3C / PPO</h3><div class="eq curr">Actor-Critic → A2C（並列）→ A3C（非同期）→ PPO（更新幅にたが）<span class="read">読み：いま見た 1 ステップ Actor-Critic が原型。並列化・安定化を重ねたのが現代の主力アルゴリズム群。骨は同じ「方策＋価値＋advantage」</span></div><div class="desc">この 14 枚で見た仕組みは、そのまま現代強化学習の<b>背骨</b>です。<b>A2C</b>＝複数環境を並列に回して勾配を安定化。<b>A3C</b>＝それを非同期に走らせた版。<b>PPO</b>＝方策が一度に動きすぎないよう更新幅を<b>クリップ</b>した Actor-Critic で、いまの実務標準。<a href="../gpt2/">言語モデル</a>を人の好みに合わせる <b>RLHF</b> の内側も、この PPO です。名前は違えど、<b>「Actor＋Critic＋advantage」という骨格</b>は一貫している。</div>';},
+ draw(){drawBackbone();}},
+/* 13 ── どこで出会う＋要点 ── */
+{title:'どこで出会うか・要点',legend:'ゲーム AI・ロボット・RLHF——Actor-Critic は至る所に',
+ html(){return'<h3>どこで出会うか・要点</h3><div class="desc">Actor-Critic はいま、<b>ゲーム AI</b>（リアルタイム対戦の行動選択）、<b>ロボット制御</b>（連続的な関節トルク——Actor がガウス分布を出力）、そして <b>RLHF</b>（<a href="../gpt2/">言語モデル</a>を人の好みに合わせる PPO）の内側で動いています。共通するのは「<b>動く人と批評家の分業</b>」という一つの発想です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・Actor＝方策 π、Critic＝価値 V の分業<br>・TD 誤差 δ = r+γV(s′)−V(s) が<b>両者共通の学習信号</b><br>・δ は advantage の推定＝ベースライン内蔵で<b>分散が約 9 倍小さい</b><br>・A2C / A3C / PPO・RLHF はこの骨格の拡張</div>';},
+ draw(){drawApps();}},
+];
+
+/* ===== 概念図の描画 ===== */
+function drawActorCritic(){ctx.textAlign='center';ctx.textBaseline='middle';
+  const acc=getCSS('--accent'),upd=getCSS('--upd'),loss=getCSS('--loss'),mut=getCSS('--muted'),ink=getCSS('--text');
+  // Env box (top center)
+  ctx.fillStyle='#fffdf6';ctx.strokeStyle=mut;ctx.lineWidth=1.4;roundRect(120,24,120,44,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle=ink;ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('環境（グリッド）',180,40);ctx.font='9px '+getCSS('--mono');ctx.fillStyle=mut;ctx.fillText('r, s′ を返す',180,55);
+  // Actor box (left)
+  ctx.fillStyle='rgba(111,84,196,0.08)';ctx.strokeStyle=upd;ctx.lineWidth=1.8;roundRect(28,150,120,70,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=upd;ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('Actor',88,168);ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=ink;ctx.fillText('方策 π(a|s)',88,186);ctx.font='9px '+getCSS('--mono');ctx.fillStyle=mut;ctx.fillText('θ←θ+αδ∇logπ',88,203);
+  // Critic box (right)
+  ctx.fillStyle='rgba(31,158,138,0.08)';ctx.strokeStyle=acc;ctx.lineWidth=1.8;roundRect(212,150,120,70,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=acc;ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('Critic',272,168);ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=ink;ctx.fillText('価値 V(s)',272,186);ctx.font='9px '+getCSS('--mono');ctx.fillStyle=mut;ctx.fillText('V←V+αδ',272,203);
+  // delta node (center bottom)
+  ctx.fillStyle=loss;roundRect(150,272,60,40,20);ctx.fill();ctx.fillStyle='#fff';ctx.font='700 18px '+getCSS('--mono');ctx.fillText('δ',180,289);ctx.font='8px '+getCSS('--mono');ctx.fillText('TD誤差',180,304);
+  // arrows: env -> actor & critic (state s)
+  ctx.strokeStyle=mut;ctx.lineWidth=1.3;
+  arrow(150,60,95,148);arrow(210,60,265,148);
+  ctx.fillStyle=mut;ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('s',120,110);ctx.fillText('s',240,110);
+  // actor -> env (action a)
+  arrow(120,158,150,52);ctx.fillStyle=mut;ctx.fillText('a',128,96);
+  // critic computes delta (critic -> delta)
+  ctx.strokeStyle=acc;ctx.lineWidth=1.6;arrow(262,222,205,278);
+  // delta -> actor & delta -> critic (highlight)
+  ctx.strokeStyle=loss;ctx.lineWidth=2.2;arrow(150,286,120,214);arrow(210,286,240,214);
+  ctx.fillStyle=loss;ctx.font='700 10px '+getCSS('--mono');ctx.fillText('同じ δ',180,250);
+  // caption
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('Critic が δ を計算 → Actor と Critic の両方へ',180,CH-14);
+  ctx.textBaseline='alphabetic';}
+function arrow(x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();const a=Math.atan2(y2-y1,x2-x1);ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-8*Math.cos(a-0.4),y2-8*Math.sin(a-0.4));ctx.lineTo(x2-8*Math.cos(a+0.4),y2-8*Math.sin(a+0.4));ctx.closePath();ctx.fill();}
+function drawTriad(){ctx.textAlign='center';ctx.textBaseline='middle';const mut=getCSS('--muted'),ink=getCSS('--text');
+  const cards=[{x:20,c:getCSS('--accent'),t:'価値ベース',s:'Q学習・DQN',d:['価値表を作る','→方策を導く','連続行動は苦手']},
+    {x:130,c:getCSS('--loss'),t:'方策ベース',s:'REINFORCE',d:['方策を直接学ぶ','素直だが','分散が大きい']},
+    {x:240,c:getCSS('--upd'),t:'Actor-Critic',s:'両方の合流',d:['方策＋価値','δ で分散を断つ','良いとこ取り']}];
+  cards.forEach(cd=>{ctx.fillStyle='#fffdf6';ctx.strokeStyle=cd.c;ctx.lineWidth=1.8;roundRect(cd.x,60,100,150,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=cd.c;ctx.font='700 12.5px '+getCSS('--gothic');ctx.fillText(cd.t,cd.x+50,84);
+    ctx.fillStyle=mut;ctx.font='9.5px '+getCSS('--mono');ctx.fillText(cd.s,cd.x+50,102);
+    ctx.strokeStyle='rgba(26,26,23,0.15)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cd.x+12,114);ctx.lineTo(cd.x+88,114);ctx.stroke();
+    ctx.fillStyle=ink;ctx.font='10px '+getCSS('--gothic');cd.d.forEach((line,i)=>ctx.fillText(line,cd.x+50,134+i*22));});
+  // plus / arrow
+  ctx.fillStyle=mut;ctx.font='700 16px '+getCSS('--mono');ctx.fillText('+',125,135);ctx.fillText('→',235,135);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('TD 誤差 δ が二つの流儀をつなぐ',CW/2,CH-14);ctx.textBaseline='alphabetic';}
+function drawBackbone(){ctx.textAlign='center';ctx.textBaseline='middle';const mut=getCSS('--muted'),ink=getCSS('--text'),acc=getCSS('--accent');
+  // core node
+  ctx.fillStyle='rgba(31,158,138,0.10)';ctx.strokeStyle=acc;ctx.lineWidth=2;roundRect(110,40,140,52,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=acc;ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('Actor-Critic',180,58);ctx.fillStyle=mut;ctx.font='9px '+getCSS('--mono');ctx.fillText('方策＋価値＋advantage',180,76);
+  const nodes=[{x:30,t:'A2C',s:'複数環境を並列',y:150},{x:135,t:'A3C',s:'非同期に走らせる',y:150},{x:240,t:'PPO',s:'更新幅にクリップ',y:150}];
+  nodes.forEach(n=>{ctx.strokeStyle=mut;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(180,92);ctx.lineTo(n.x+45,n.y);ctx.stroke();
+    ctx.fillStyle='#fffdf6';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;roundRect(n.x,n.y,90,54,8);ctx.fill();ctx.stroke();
+    ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText(n.t,n.x+45,n.y+18);ctx.fillStyle=ink;ctx.font='9px '+getCSS('--gothic');ctx.fillText(n.s,n.x+45,n.y+37);});
+  // PPO -> RLHF
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.6;arrowFill(285,204,300,250,getCSS('--loss'));
+  ctx.fillStyle='rgba(194,137,27,0.10)';ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.6;roundRect(150,250,180,46,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('RLHF（言語モデルの調整）',240,268);ctx.fillStyle=mut;ctx.font='9px '+getCSS('--mono');ctx.fillText('中身は PPO＝Actor-Critic',240,284);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('骨は同じ。名前と安定化の工夫が違うだけ',CW/2,CH-14);ctx.textBaseline='alphabetic';}
+function arrowFill(x1,y1,x2,y2,col){ctx.strokeStyle=col;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();const a=Math.atan2(y2-y1,x2-x1);ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-8*Math.cos(a-0.4),y2-8*Math.sin(a-0.4));ctx.lineTo(x2-8*Math.cos(a+0.4),y2-8*Math.sin(a+0.4));ctx.closePath();ctx.fill();}
+function drawApps(){ctx.textAlign='center';ctx.textBaseline='middle';const mut=getCSS('--muted'),ink=getCSS('--text');
+  const apps=[{e:'🎮',t:'ゲーム AI',d:'リアルタイム対戦の行動選択',y:40},{e:'🤖',t:'ロボット制御',d:'連続トルク（Actor＝ガウス分布）',y:118},{e:'💬',t:'RLHF',d:'言語モデルを人の好みに合わせる',y:196}];
+  apps.forEach(a=>{ctx.fillStyle='#fffdf6';ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1.4;roundRect(36,a.y,288,62,10);ctx.fill();ctx.stroke();
+    ctx.font='26px serif';ctx.fillText(a.e,72,a.y+31);
+    ctx.textAlign='left';ctx.fillStyle=ink;ctx.font='700 13px '+getCSS('--gothic');ctx.fillText(a.t,108,a.y+24);ctx.fillStyle=mut;ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(a.d,108,a.y+44);ctx.textAlign='center';});
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('共通するのは「動く人と批評家の分業」',CW/2,CH-16);ctx.textBaseline='alphabetic';}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;let h='';
+  if(s===0)h='<div>状態 <b>'+NS+'</b>マス</div><div>行動 <b>4</b>方向</div><div>報酬 <b>G+1 / ✕−1</b></div>';
+  else if(s===1)h='<div>道のり <b>'+(trajDemo?trajDemo.steps:'—')+'</b>歩</div><div>リターン <b>G='+(trajDemo?trajDemo.G.toFixed(2):'—')+'</b></div>';
+  else if(s===2)h='<div>試行 <b>'+sampG.length+'</b>本</div><div>リターンの散らばり <b>std '+stdev(sampG).toFixed(2)+'</b></div>';
+  else if(s===3)h='<div>V(開始) <b>'+REF.V[START].toFixed(2)+'</b></div><div class="best">V(ゴール隣) <b>'+REF.V[23].toFixed(2)+'</b></div>';
+  else if(s===4)h='<div>δ＝<b>予想の外れ</b></div><div>エピソード末を<b>待たない</b></div>';
+  else if(s===5)h='<div>Actor <b>δ·∇logπ</b></div><div>Critic <b>δ</b></div><div class="best">共通信号 <b>δ</b></div>';
+  else if(s===6)h='<div>G の散らばり <b>std '+stdev(sampG).toFixed(2)+'</b></div><div class="best">δ の散らばり <b>std '+stdev(sampD).toFixed(2)+'</b></div>';
+  else if(s===7)h='<div>エピソード <b>'+(L?L.ep:0)+'</b>/'+LIVE_EP+'</div><div class="best">成功率 <b>'+(L?succRate(L):0)+'%</b></div>';
+  else if(s===8)h='<div>価値が<b>手前へ後退</b></div><div>最短 <b>'+(greedyPath(REF.theta).length-1)+'</b>歩</div>';
+  else if(s===9){ensureAB();h='<div>シード <b>'+AB_SEEDS.length+'</b>本×'+AB_EP+'ep</div><div class="best">緑=滑らか・橙=ギザギザ</div>';}
+  else if(s===10){ensureAB();h='<div>Var[G] <b>'+AB.varRF.toFixed(3)+'</b></div><div class="best">Var[δ] <b>'+AB.varAC.toFixed(3)+'</b></div><div>比 <b>≈'+AB.ratio.toFixed(1)+'倍</b></div>';}
+  else if(s===11)h='<div>価値 <b>+</b> 方策 <b>→</b> Actor-Critic</div>';
+  else if(s===12)h='<div>A2C / A3C / <b>PPO</b></div><div class="best">RLHF の内側</div>';
+  else h='<div class="best">δ ひとつで方策と価値を同時に学ぶ</div>';
+  m.innerHTML=h;}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===7){rngLive=mulberry(baseSeed);L=newLearner();L._succCurve=[];runLive();}
+  else if(i===8)runPulse();
+  else if(i===9){ensureAB();runRace();}
+  else if(i===10)ensureAB();
+  renderAll();draw_();}
+function runLive(){anim=true;
+  if(window.__prefersReducedMotion){while(L.ep<LIVE_EP){acEpisode(L,rngLive);L._succCurve.push(smoothLast(L.succWin,30));}anim=false;renderMini();renderExplain();draw_();return;}
+  function go(){if(!anim||slideIdx!==7)return;
+    for(let e=0;e<3&&L.ep<LIVE_EP;e++){acEpisode(L,rngLive);L._succCurve.push(smoothLast(L.succWin,30));}
+    draw_();renderMini();renderExplain();
+    if(L.ep<LIVE_EP)requestAnimationFrame(go);else anim=false;}
+  requestAnimationFrame(go);}
+function runPulse(){anim=true;if(window.__prefersReducedMotion){animT=1;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==8)return;if(t0===null)t0=ts;animT=((ts-t0)/2600)%1;draw_();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runRace(){anim=true;if(window.__prefersReducedMotion){animT=1;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==9)return;if(t0===null)t0=ts;animT=Math.min(1,(ts-t0)/2600);draw_();if(animT<1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===7);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===7?900:3600);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;baseSeed=7;abOff=0;AB=null;L=null;buildSamples();slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{
+  if(slideIdx===7){baseSeed=7+((baseSeed-7+1)%7)+1;rngLive=mulberry(baseSeed);L=newLearner();L._succCurve=[];runLive();}
+  else if(slideIdx===9){abOff+=17;AB=null;ensureAB();runRace();}};
+
+/* ===== 初期化 ===== */
+buildRef();buildSamples();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
