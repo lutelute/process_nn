@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>階層的クラスタリング — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);touch-action:none;}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>階層的クラスタリング</h1>
+  <div class="lead"><b>いくつのグループに分けるか（k）を先に決めずに</b>、1 点ずつを出発点として<b>近い塊から順にくっつけていく</b>教師なし学習。併合の履歴が<b>デンドログラム（樹形図）</b>という入れ子の地図になり、<b>切る高さ</b>を選ぶだけで粒度を後から決められます。<a href="kmeans.html">k-means</a>（k を先に決める）や <a href="dbscan.html">DBSCAN</a>（密度で分ける）と見比べてください。下の流れを「次へ」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span><b>k を決め打ちできない</b>データを、粒度を変えながら構造ごと眺められる教師なし学習。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>近い塊を順に併合し、<b>入れ子の樹形図</b>を作る。切る高さがクラスタ数。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>系統樹・遺伝子発現のヒートマップ・文書の話題階層・顧客セグメント。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別のデータ</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>階層的クラスタリングは<b>「答え（k 個の分割）」ではなく「地図（入れ子の全階層）」を返す</b>。デンドログラムを一度作れば、<b>切る高さを変えるだけで 2 個にも 5 個にも</b>分けられる——クラスタ数は結果を見てから選べばよい。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>デンドログラムの縦線の長さ（枝の高さ）に意味はなく、形だけの飾りだ</div>
+    <div class="row"><span class="o">✓</span>高さは<b>併合したときのクラスタ間距離</b>そのもの。急に<b>長く伸びた縦線</b>は「遠い者どうしを無理にくっつけた」印で、<b>そのすぐ下が切りどころ</b>のヒント。だから高さは読むべき情報です。</div>
+    <div class="row"><span class="x">✗</span>階層的クラスタリングは <a href="kmeans.html">k-means</a> の上位互換（いつでも上）だ</div>
+    <div class="row"><span class="o">✓</span>そうとは限りません。併合は<b>貪欲</b>で、一度くっつけたら<b>取り消せない</b>（早い段階の失敗が尾を引く）。距離計算は <b>O(n²〜n³)</b> と重く<b>大規模に弱い</b>。数万点なら <a href="kmeans.html">k-means</a> が現実的。目的と規模で使い分けます。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：Lance-Williams・Ward 法・計算量・k-means との使い分け</summary>
+    <div class="det">併合ごとにクラスタ間距離を測り直す部分は、<b>Lance-Williams の漸化式</b>で効率化できます（単・完全・平均・Ward を統一的に更新）。<b>Ward 法</b>は「併合で増える群内平方和」を最小化する定番で、球状で大きさの揃ったクラスタを作りやすい。素朴な実装は距離計算が <b>O(n²〜n³)</b> と重く、点数が数千を超えると <a href="kmeans.html">k-means</a>（O(n·k·反復)）や <a href="dbscan.html">DBSCAN</a> に譲ります。<b>使い分け</b>：階層＝k が不明で構造ごと見たい・任意の形・少〜中規模／k-means＝k が決まり球状・大規模高速／DBSCAN＝密度が鍵でノイズ除外したいとき。デンドログラムは <a href="tsne.html">t-SNE</a> と同じく「高次元データの構造を目で見る」道具で、遺伝子発現のヒートマップに添えられているのをよく見かけます。関連: <a href="kmeans.html">k-means</a>・<a href="dbscan.html">DBSCAN</a>・<a href="gmm.html">GMM</a>。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=5;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const RM=()=>!!window.__prefersReducedMotion;
+const dist=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);
+
+/* ===== データ生成 ===== */
+function genData(kind){const gauss=()=>{let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+  const P=[];
+  if(kind==='parallel'){for(let i=0;i<8;i++)P.push([-0.75+1.5*i/7+gauss()*0.035,0.4+gauss()*0.05]);
+    for(let i=0;i<8;i++)P.push([-0.75+1.5*i/7+gauss()*0.035,-0.4+gauss()*0.05]);}
+  else if(kind==='bridge'){for(let i=0;i<7;i++)P.push([-0.62+gauss()*0.11,0.15+gauss()*0.13]);
+    for(let i=0;i<7;i++)P.push([0.62+gauss()*0.11,-0.15+gauss()*0.13]);
+    for(let i=0;i<4;i++){const t=i/3;P.push([-0.5+t*1.0,0.15-t*0.30+gauss()*0.03]);}}
+  else if(kind==='moons'){for(let i=0;i<10;i++){const a=Math.PI*(i/9);P.push([Math.cos(a)*0.72-0.32+gauss()*0.04,Math.sin(a)*0.5-0.12+gauss()*0.04]);}
+    for(let i=0;i<10;i++){const a=Math.PI*(i/9);P.push([Math.cos(a+Math.PI)*0.72+0.32+gauss()*0.04,Math.sin(a+Math.PI)*0.5+0.12+gauss()*0.04]);}}
+  else{const c=[[-0.55,0.5],[0.6,0.45],[0.0,-0.55]];for(const[cx,cy]of c)for(let i=0;i<6;i++)P.push([cx+gauss()*0.11,cy+gauss()*0.11]);}
+  return P;}
+
+/* ===== 凝集型クラスタリング（本物）===== */
+function agglomerate(P,linkage){const n=P.length;
+  const D=Array.from({length:n},()=>new Array(n).fill(0));
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)D[i][j]=D[j][i]=dist(P[i],P[j]);
+  let clusters=P.map((_,i)=>({id:i,members:[i]}));let nextId=n;const merges=[];
+  const linkDist=(A,B)=>{let acc=linkage==='single'?Infinity:linkage==='complete'?-Infinity:0,c=0;
+    for(const i of A.members)for(const j of B.members){const d=D[i][j];
+      if(linkage==='single')acc=Math.min(acc,d);else if(linkage==='complete')acc=Math.max(acc,d);else{acc+=d;c++;}}
+    return linkage==='average'?acc/c:acc;};
+  while(clusters.length>1){let bi=0,bj=1,bd=Infinity;
+    for(let i=0;i<clusters.length;i++)for(let j=i+1;j<clusters.length;j++){const d=linkDist(clusters[i],clusters[j]);if(d<bd){bd=d;bi=i;bj=j;}}
+    const A=clusters[bi],B=clusters[bj],merged={id:nextId++,members:[...A.members,...B.members]};
+    merges.push({height:bd,left:A.id,right:B.id,id:merged.id,size:merged.members.length,leftMembers:A.members.slice(),rightMembers:B.members.slice(),members:merged.members.slice()});
+    clusters=clusters.filter((_,k)=>k!==bi&&k!==bj);clusters.push(merged);}
+  return merges;}
+function labelsAtStep(merges,n,step){ // step 回併合した後のラベル
+  const applied=merges.slice(0,step);
+  const usedAsChild=new Set();applied.forEach(m=>{usedAsChild.add(m.left);usedAsChild.add(m.right);});
+  const labels=new Array(n).fill(-1);let lab=0;
+  applied.forEach(m=>{if(!usedAsChild.has(m.id)){m.members.forEach(x=>labels[x]=lab);lab++;}});
+  for(let i=0;i<n;i++)if(labels[i]===-1)labels[i]=lab++;
+  return labels;}
+function labelsAtHeight(merges,n,h){let step=0;for(const m of merges){if(m.height<=h+1e-9)step++;else break;}return labelsAtStep(merges,n,step);}
+function metrics(P,labels){const g={};labels.forEach((l,i)=>{(g[l]=g[l]||[]).push(i);});
+  let maxDiam=0;const sizes=[];for(const idx of Object.values(g)){sizes.push(idx.length);let d=0;
+    for(let a=0;a<idx.length;a++)for(let b=a+1;b<idx.length;b++)d=Math.max(d,dist(P[idx[a]],P[idx[b]]));maxDiam=Math.max(maxDiam,d);}
+  return{k:sizes.length,sizes:sizes.sort((a,b)=>b-a),maxDiam};}
+// デンドログラムのレイアウト（葉順・x座標）
+function buildDendro(merges,n){const nodes={};
+  for(let i=0;i<n;i++)nodes[i]={id:i,leaf:true,height:0};
+  merges.forEach(m=>nodes[m.id]={id:m.id,leaf:false,height:m.height,left:m.left,right:m.right});
+  const root=merges.length?merges[merges.length-1].id:0;const order=[];
+  (function dfs(id){const nd=nodes[id];if(!nd)return;if(nd.leaf)order.push(id);else{dfs(nd.left);dfs(nd.right);}})(root);
+  const leafPos={};order.forEach((id,i)=>leafPos[id]=i);
+  const X={};function nx(id){const nd=nodes[id];if(nd.leaf)return leafPos[id];return (nx(nd.left)+nx(nd.right))/2;}
+  order.forEach(id=>X[id]=leafPos[id]);merges.forEach(m=>X[m.id]=nx(m.id));
+  return{nodes,order,X,root};}
+// 併合高さの最大ジャンプ → 自然なクラスタ数
+function biggestGap(merges){let gi=merges.length-1,gv=-1;
+  for(let i=1;i<merges.length;i++){const gap=merges[i].height-merges[i-1].height;if(gap>gv){gv=gap;gi=i;}}
+  return{cutBetween:gi,height:(merges[gi].height+merges[gi-1].height)/2,k:merges.length+1-gi};}
+
+/* ===== 状態 ===== */
+const KINDS=['parallel','bridge','blobs','moons'];
+const KLABEL={parallel:'平行な2本の帯',bridge:'2塊＋橋',blobs:'3つの丸い塊',moons:'二日月'};
+let curKind='parallel',P=[],merges=[],dendro=null,linkage='complete';
+let mergeStep=0,cutH=null;
+function rebuild(){P=genData(curKind);merges=agglomerate(P,linkage);dendro=buildDendro(merges,P.length);
+  mergeStep=merges.length;const g=biggestGap(merges);cutH=g.height;}
+
+/* ===== 描画基盤 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const CLR=['--accent','--upd','--warm','--neg','--loss'];
+function clusterColor(l){return getCSS(CLR[l%CLR.length]);}
+const GRAY='rgba(26,26,23,0.42)';
+// 単点クラスタは灰、サイズ2以上のクラスタだけ安定した色を割り当てる（label→色）
+function clusterColorMap(labels){const g={};labels.forEach((l,i)=>{(g[l]=g[l]||[]).push(i);});
+  const multi=Object.entries(g).filter(([,idx])=>idx.length>=2).sort((a,b)=>Math.min(...a[1])-Math.min(...b[1]));
+  const cmap={};Object.keys(g).forEach(l=>cmap[l]=GRAY);multi.forEach(([l],k)=>cmap[l]=clusterColor(k));return cmap;}
+function drawGridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(x+.5,12);ctx.lineTo(x+.5,CH-12);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(12,y+.5);ctx.lineTo(CW-12,y+.5);ctx.stroke();}}
+// 散布図（box: x0,y0,w,h）
+function drawScatter(box,pts,labels,opt){opt=opt||{};const[x0,y0,w,h]=box;
+  const SX=x=>x0+(x+1)/2*w,SY=y=>y0+(1-(y+1)/2)*h;
+  if(opt.frame){ctx.strokeStyle='rgba(26,26,23,0.12)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);}
+  // 併合ペアの結び線
+  if(opt.pair){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.setLineDash([4,3]);
+    for(const a of opt.pair[0])for(const b of opt.pair[1]){}
+    // 代表点同士を結ぶ
+    const ca=centroid(opt.pair[0]),cb=centroid(opt.pair[1]);
+    ctx.beginPath();ctx.moveTo(SX(ca[0]),SY(ca[1]));ctx.lineTo(SX(cb[0]),SY(cb[1]));ctx.stroke();ctx.setLineDash([]);}
+  const cmap=labels?clusterColorMap(labels):null;
+  for(let i=0;i<pts.length;i++){const l=labels?labels[i]:-1;
+    ctx.beginPath();ctx.arc(SX(pts[i][0]),SY(pts[i][1]),4.2,0,7);
+    ctx.fillStyle=(l<0||!cmap)?GRAY:cmap[l];ctx.fill();
+    ctx.lineWidth=1;ctx.strokeStyle='rgba(255,253,246,0.9)';ctx.stroke();}}
+function centroid(idx){let x=0,y=0;idx.forEach(i=>{x+=P[i][0];y+=P[i][1];});return[x/idx.length,y/idx.length];}
+// デンドログラム（box）。upTo=描く併合数。cutHi=切断高さ or null
+function drawDendro(box,upTo,opt){opt=opt||{};const[x0,y0,w,h]=box;const n=P.length;
+  const Hmax=Math.max(...merges.map(m=>m.height))*1.08||1;
+  const LX=i=>x0+14+(w-28)*(dendro.order.length>1?dendro.X[i]/(dendro.order.length-1):0.5);
+  const HY=hh=>y0+h-16-(h-26)*(hh/Hmax);
+  // 高さ軸
+  ctx.strokeStyle='rgba(26,26,23,0.18)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0+8,y0+6);ctx.lineTo(x0+8,y0+h-16);ctx.lineTo(x0+w-6,y0+h-16);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('高さ=併合距離',x0+12,y0+13);
+  // 切断より下でクラスタを色分けするためラベル
+  const labels=(cutH!=null&&opt.color)?labelsAtHeight(merges,n,cutH):null;
+  const cmap=labels?clusterColorMap(labels):null;
+  const leafLabel={};if(labels)dendro.order.forEach(id=>leafLabel[id]=labels[id]);
+  // ノードの色（切断より下の枝は所属クラスタ色）
+  function nodeColor(id){if(!labels)return 'rgba(26,26,23,0.55)';const nd=dendro.nodes[id];
+    if(nd.leaf)return cmap[leafLabel[id]];
+    if(nd.height<=cutH+1e-9){const any=firstLeaf(id);return cmap[leafLabel[any]];}
+    return 'rgba(26,26,23,0.45)';}
+  function firstLeaf(id){let nd=dendro.nodes[id];while(!nd.leaf)nd=dendro.nodes[nd.left];return nd.id;}
+  // 併合ブラケット
+  for(let s=0;s<Math.min(upTo,merges.length);s++){const m=merges[s];
+    const xl=LX(m.left),xr=LX(m.right),yl=HY(dendro.nodes[m.left].height),yr=HY(dendro.nodes[m.right].height),ym=HY(m.height);
+    ctx.strokeStyle=nodeColor(m.id);ctx.lineWidth=(opt.hlStep===s)?2.8:1.6;
+    if(opt.hlStep===s)ctx.strokeStyle=getCSS('--upd');
+    ctx.beginPath();ctx.moveTo(xl,yl);ctx.lineTo(xl,ym);ctx.lineTo(xr,ym);ctx.lineTo(xr,yr);ctx.stroke();}
+  // 葉
+  dendro.order.forEach(id=>{const x=LX(id),y=HY(0);ctx.beginPath();ctx.arc(x,y,3,0,7);
+    ctx.fillStyle=labels?cmap[leafLabel[id]]:'rgba(26,26,23,0.5)';ctx.fill();});
+  // 切断線
+  if(cutH!=null&&opt.cutline){const yc=HY(cutH);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.8;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(x0+8,yc);ctx.lineTo(x0+w-6,yc);ctx.stroke();ctx.setLineDash([]);
+    const k=labels?metrics(P,labels).k:'—';
+    ctx.fillStyle=getCSS('--neg');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('切断→ '+k+'クラスタ',x0+w-8,yc-5);
+    // ドラッグつまみ
+    ctx.beginPath();ctx.arc(x0+w-6,yc,4,0,7);ctx.fillStyle=getCSS('--neg');ctx.fill();}
+  return{HY,LX,Hmax};}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+
+/* ===== 概念図 ===== */
+function drawIntro(){ // 全体像: 散布(上) + 完成デンドロ(下)
+  const lab=labelsAtHeight(merges,P.length,cutH);
+  drawScatter([20,14,320,150],P,lab,{frame:true});
+  drawDendro([20,180,320,240],merges.length,{color:true,cutline:true});
+  caption('上=データ／下=デンドログラム。切断線が粒度を決める',CH-6);}
+function drawKMeansCompare(){ctx.textAlign='left';const x0=22;
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('k-means',x0,40);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('階層的クラスタリング',x0,222);
+  const a=['・k を先に決める（例: 3個）','・球状の塊を前提','・大規模・高速 O(n·k·反復)','・毎回ランダム初期化で結果ぶれ','・「答え」1つを返す'];
+  const b=['・k は後から切る高さで選ぶ','・任意の形（帯・鎖）も表現','・重い O(n²〜n³)・中規模まで','・決定的（同じ入力→同じ木）','・「地図」＝全階層を返す'];
+  ctx.font='11px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');
+  a.forEach((t,i)=>ctx.fillText(t,x0,62+i*20));b.forEach((t,i)=>ctx.fillText(t,x0,244+i*20));
+  ctx.strokeStyle='rgba(26,26,23,0.15)';ctx.beginPath();ctx.moveTo(x0,170);ctx.lineTo(CW-22,170);ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('k 既知で大規模なら k-means／構造を見たいなら階層',CW/2,CH-16);}
+function drawApps(){ctx.textAlign='left';const items=[
+  ['🧬','系統樹・遺伝子発現','種や遺伝子を似た順に並べ、ヒートマップに樹形図を添える'],
+  ['📄','文書の話題階層','ニュースや論文を話題→サブ話題の入れ子に整理'],
+  ['🛒','顧客セグメント','購買傾向が近い客をまとめ、粒度を変えて施策を検討'],
+  ['🗣️','言語の系統','語彙の類似から言語family（語族）の木を推定']];
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mincho');ctx.fillText('どこで出会うか',22,34);
+  items.forEach((it,i)=>{const y=64+i*88;
+    ctx.font='24px serif';ctx.fillText(it[0],26,y+6);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText(it[1],62,y);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');
+    wrap(it[2],62,y+20,290,15);});
+  caption('「似た順に並べて入れ子にする」あらゆる場面で',CH-8);}
+function wrap(t,x,y,maxw,lh){const cs=t.split('');let line='',yy=y;ctx.textAlign='left';
+  for(const c of cs){if(ctx.measureText(line+c).width>maxw){ctx.fillText(line,x,yy);line=c;yy+=lh;}else line+=c;}ctx.fillText(line,x,yy);}
+function drawSummary(){const lab=labelsAtHeight(merges,P.length,cutH);
+  drawScatter([20,14,320,140],P,lab,{frame:true});
+  drawDendro([20,168,320,180],merges.length,{color:true,cutline:true});
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--mincho');ctx.textAlign='center';
+  ctx.fillText('近い塊を併合 → 樹形図 → 切る高さで粒度を選ぶ',CW/2,CH-8);}
+
+/* ===== スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:2},{t:'Ⅲ 切って読む',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false;
+
+const SLIDES=[
+// Ⅰ 問題
+{title:'いくつに分ける? を後回しにできる',legend:'同じデータ・同じ木でも、切る高さで 2〜5 クラスタに変わる',dice:true,cut:true,
+ html(){const k=metrics(P,labelsAtHeight(merges,P.length,cutH)).k;
+   return'<h3>「いくつに分ける?」を後回しにできる</h3><div class="eq curr">クラスタ数 <i>k</i> を先に決めない → 併合の履歴（デンドログラム）から後で選ぶ<span class="read">読み：<a href="kmeans.html">k-means</a> は <i>k</i> を最初に決める。階層法は<b>全部の階層をまとめて作り</b>、切る高さで <i>k</i> を後から選ぶ</span></div><div class="desc">「このデータ、3 個に分ける? 5 個?」——最初から <i>k</i> を決めるのは難しい。階層的クラスタリングは<b>先に木（デンドログラム）を作ってしまい</b>、あとから<b>切る高さ</b>で粒度を選びます。いまの切断は <b>'+k+' クラスタ</b>。右下の樹形図の赤い線を<b>上下にドラッグ</b>すると、同じ木のまま分け方が変わります。「🎲 別のデータ」で形も変えられます。</div>';},
+ draw(){drawIntro();},cut:true},
+{title:'アイデア：近い塊から順にくっつける',legend:'各点を出発点に、最も近い2つを1つに——n−1回で全体が1つに',dice:true,
+ html(){return'<h3>アイデア：近い塊から順にくっつける</h3><div class="eq curr">各点 = 1 クラスタ　→　最も近い 2 つを併合　→ … →　全体が 1 つ<span class="read">読み：ボトムアップ（凝集型）。小さな塊をくっつけて大きくしていく。逆に大きな塊を割っていく分割型もあるが、凝集型が定番</span></div><div class="desc">やることは単純です。最初は <b>点の数だけクラスタ</b>があり（各点が自分だけの塊）、そこから<b>いちばん近い 2 つの塊をくっつける</b>のを、全体が 1 つになるまでくり返す。このくっつけた順番と距離を記録したものが<b>デンドログラム</b>。<b>ボトムアップ（凝集型）</b>と呼びます。まず出発点から見ていきましょう。</div>';},
+ draw(){drawScatter([20,14,320,150],P,labelsAtStep(merges,P.length,merges.length),{frame:true});
+   drawDendro([20,180,320,240],merges.length,{color:true});caption('併合の履歴が樹形図になる',CH-6);}},
+// Ⅱ 仕組み
+{title:'出発点：全部バラバラ',legend:'n個の点＝n個のクラスタ。まず全ペアの距離を測る',dice:true,
+ html(){return'<h3>出発点：全部バラバラ</h3><div class="eq curr"><i>d</i>(<i>i</i>,<i>j</i>) = √( (x<sub>i</sub>−x<sub>j</sub>)² + (y<sub>i</sub>−y<sub>j</sub>)² )　… 全ペアを計算<span class="read">読み：まず点と点のユークリッド距離を全ペア分そろえる。これが「近さ」の土台。<i>n</i> 点なら約 <i>n</i>²/2 通り</span></div><div class="desc">スタート時は <b>'+P.length+' 個の点が、それぞれ 1 つのクラスタ</b>です（下の樹形図はまだ葉だけ）。まず全ペアの<b>距離</b>を測ります。ここでは点どうしの距離ですが、次のステップで問題になるのは「<b>塊と塊の距離</b>をどう測るか」——それがリンク法です。</div>';},
+ draw(){drawScatter([20,14,320,150],P,P.map((_,i)=>i%CLR.length===0?-1:-1),{frame:true});
+   // 各点を別クラスタ色（薄く）ではなく無彩色に近く: バラバラを強調
+   drawScatterMono([20,14,320,150],P);
+   drawDendro([20,180,320,240],0,{});caption('いまは葉だけ（'+P.length+'クラスタ）',CH-6);}},
+{title:'ステップ：最も近い2つを併合',legend:'紫の破線＝今くっつく2クラスタ。樹形図に最初のブラケットが生える',dice:true,
+ html(){const m0=merges[0];return'<h3>ステップ：最も近い 2 つを併合</h3><div class="eq curr">(A*, B*) = argmin<sub>A,B</sub> <i>D</i>(A, B)　を 1 つの塊に<span class="read">読み：全クラスタ対の中で距離 <i>D</i> が最小の組を選んで合体。合体した高さ＝そのときの距離が、樹形図の枝の高さになる</span></div><div class="desc">いちばん近い 2 クラスタ（紫の破線）を選んで<b>1 つに併合</b>します。最初の併合はいちばん近い 2 点どうし——距離 <b>'+m0.height.toFixed(2)+'</b> で結ばれました。樹形図では、その 2 枚の葉をつなぐ<b>ブラケット（∏ 型の枝）</b>が高さ '+m0.height.toFixed(2)+' に生えます。<b>近いほど低い位置で</b>つながる、が読み方の鍵。</div>';},
+ draw(){drawScatter([20,14,320,150],P,labelsAtStep(merges,P.length,1),{frame:true,pair:[merges[0].leftMembers,merges[0].rightMembers]});
+   drawDendro([20,180,320,240],1,{color:false,hlStep:0});caption('最初の併合＝最も近い2点',CH-6);}},
+{title:'くり返す：樹形図が下から育つ',legend:'併合が進むほど枝が高く伸びる。近いものは低く、遠いものは高くつながる',dice:true,
+ html(){return'<h3>くり返す：樹形図が下から育つ</h3><div class="eq curr">これを <b>'+(P.length-1)+' 回</b>（= <i>n</i>−1 回）くり返す → 木が完成<span class="read">読み：併合するたびクラスタ数が1つ減る。<i>n</i> 個から始めて <i>n</i>−1 回で 1 つに。低い枝＝早く（近くて）くっついた仲間</span></div><div class="desc">「最も近い 2 つを併合」を<b>くり返す</b>だけ。近い点どうしは早く（低い高さで）、遠い塊どうしは遅く（高い高さで）つながります。だから樹形図は<b>下から上へ育ち</b>、高さがそのまま「どれだけ無理にくっつけたか」を表す。いま <b>'+mergeStep+' / '+(P.length-1)+'</b> 回。自動再生で最後まで育つ様子を見てください。</div>';},
+ draw(){drawScatter([20,14,320,150],P,labelsAtStep(merges,P.length,mergeStep),{frame:true,pair:mergeStep>0&&mergeStep<=merges.length?[merges[mergeStep-1].leftMembers,merges[mergeStep-1].rightMembers]:null});
+   drawDendro([20,180,320,240],mergeStep,{color:false,hlStep:mergeStep-1});caption('併合 '+mergeStep+' / '+(P.length-1),CH-6);},anim:'grow'},
+{title:'リンク法：塊と塊の距離の測り方',legend:'単連結=最も近い点／完全連結=最も遠い点／平均連結=平均',dice:false,
+ html(){return'<h3>リンク法：塊と塊の距離の測り方</h3><div class="eq curr"><i>D</i><sub>単</sub>=min<sub>i∈A,j∈B</sub> <i>d</i>(i,j)　／　<i>D</i><sub>完</sub>=max <i>d</i>(i,j)　／　<i>D</i><sub>平</sub>=平均 <i>d</i>(i,j)<span class="read">読み：塊どうしの距離を、<b>最も近い1組（単連結）</b>・<b>最も遠い1組（完全連結）</b>・<b>全組の平均（平均連結）</b>のどれで測るか。これが結果の形を左右する</span></div><div class="desc">点と点の距離は決まっても、<b>塊と塊の距離</b>には決め方があります。<b>単連結</b>は 2 塊の<b>いちばん近い点どうし</b>、<b>完全連結</b>は<b>いちばん遠い点どうし</b>、<b>平均連結</b>は<b>全ペアの平均</b>。同じデータでも、この選択でクラスタの形がガラッと変わる——それを次の A/B で実測します。まずは 3 つの測り方のイメージを。</div>';},
+ draw(){drawLinkageIcons();}},
+{title:'デンドログラムの読み方',legend:'高さ=併合したときの距離。低い所ほど「似た仲間」',dice:true,cut:true,
+ html(){return'<h3>デンドログラムの読み方</h3><div class="eq curr">枝の高さ = 2 つの塊を併合したときのクラスタ間距離 <i>D</i><span class="read">読み：低い枝＝近くて早くくっついた＝よく似た仲間。高い枝＝遠くて最後に渋々くっついた＝異質。入れ子の深さが階層を表す</span></div><div class="desc">樹形図は<b>入れ子の地図</b>です。<b>低い所でつながる</b>点どうしは似た仲間、<b>高い所で初めてつながる</b>塊どうしは異質。ある高さで<b>横に切る</b>と、その線をまたがない部分木がそれぞれ 1 クラスタになります。赤い線を<b>ドラッグ</b>してみてください——低く切れば細かく、高く切れば粗く分かれます。</div>';},
+ draw(){drawScatter([20,14,320,150],P,labelsAtHeight(merges,P.length,cutH),{frame:true});
+   drawDendro([20,180,320,240],merges.length,{color:true,cutline:true});caption('赤線をドラッグ＝切る高さを選ぶ',CH-6);},cut:true},
+// Ⅲ 切って読む
+{title:'切る高さ＝クラスタ数',legend:'切断線を下げると細かく、上げると粗く。ドラッグで k が変わる',dice:true,cut:true,
+ html(){const k=metrics(P,labelsAtHeight(merges,P.length,cutH)).k;
+   return'<h3>切る高さ＝クラスタ数</h3><div class="eq curr">高さ <i>h</i> で切る → クラスタ数 <i>k</i>(<i>h</i>) ＝ <b>'+k+'</b><span class="read">読み：切断線を下げるほど枝を多く断ち切り <i>k</i> が増える（細かい）。上げるほど <i>k</i> が減る（粗い）。<i>k</i> を連続的に選べる</span></div><div class="desc">これが階層法の強みです。<b>1 本の樹形図から、切る高さを変えるだけで好きな <i>k</i></b> を取り出せる。いま <b>'+k+' クラスタ</b>。上の散布図の色は切断結果です。赤線をドラッグして、データの色分けが変わるのを見てください。「<b>どこで切ればいい?</b>」——次のスライドでヒントを。</div>';},
+ draw(){drawScatter([20,14,320,150],P,labelsAtHeight(merges,P.length,cutH),{frame:true});
+   drawDendro([20,180,320,240],merges.length,{color:true,cutline:true});},cut:true},
+{title:'どこで切る? 高さのジャンプが目印',legend:'併合高さが大きく飛ぶ所＝自然な切れ目。そこで切ると素直な分割',dice:true,
+ html(){const g=biggestGap(merges);return'<h3>どこで切る? 高さのジャンプが目印</h3><div class="eq curr">最大ギャップ = max<sub>i</sub>( <i>h</i><sub>i</sub> − <i>h</i><sub>i−1</sub> ) → その間で切る（自然な <i>k</i>=<b>'+g.k+'</b>）<span class="read">読み：併合高さを低い順に並べ、<b>いちばん大きく飛ぶ</b>ところの下で切る。急に遠い塊を無理やり併合し始める＝それ以上は別グループの合図</span></div><div class="desc">切る高さの定番ヒント：<b>併合の高さが急に大きく飛ぶ</b>ところで切ること。低い併合は「近い仲間の合流」、そこから<b>ガクッと高い併合</b>に移るのは「本来別グループを無理にくっつけ始めた」印。この最大ジャンプで切ると、このデータでは <b>'+g.k+' クラスタ</b>。赤線を最大ジャンプの位置に置いてあります。</div>';},
+ draw(){const g=biggestGap(merges);cutH=g.height;drawScatter([20,14,320,150],P,labelsAtHeight(merges,P.length,cutH),{frame:true});
+   const d=drawDendro([20,180,320,240],merges.length,{color:true,cutline:true});
+   // 最大ジャンプを注記
+   const m1=merges[g.cutBetween],m0=merges[g.cutBetween-1];
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='left';
+   ctx.fillText('↕ 最大ジャンプ',26,d.HY((m1.height+m0.height)/2)+3);caption('大きな段差の下で切る',CH-6);}},
+{title:'A/B：単連結 vs 完全連結',legend:'同じデータ・同じk。単連結=細長い帯を復元／完全連結=丸い塊に割る',dice:true,
+ html(){const ls=metrics(P,labelsAtStep(agglomerate(P,'single'),P.length,P.length-2));
+   const lc=metrics(P,labelsAtStep(agglomerate(P,'complete'),P.length,P.length-2));
+   return'<h3>A/B：単連結 vs 完全連結</h3><div class="eq curr">単連結（最も近い点で測る）＝<b>鎖状</b>　⇔　完全連結（最も遠い点）＝<b>丸い</b><span class="read">読み：同じデータ・同じ k=2。測り方を変えるだけでクラスタの形が変わる。最大直径（クラスタの広がり）を比べる</span></div><div class="desc">同じデータを <b>k=2</b> で切り、リンク法だけ変えました。<b>単連結</b>（左）は近い点を次々つなぐので<b>細長い形</b>も素直に拾い、<b>完全連結</b>（右）は遠い点まで近い塊を好むので<b>丸くまとまり</b>ます。最大直径は 単連結 <b>'+ls.maxDiam.toFixed(2)+'</b> vs 完全連結 <b>'+lc.maxDiam.toFixed(2)+'</b>——完全連結の方がコンパクト。'+(curKind==='parallel'?'いまの「平行な2本の帯」では、単連結が帯を、完全連結が左右の塊を作ります。':'🎲で「平行な2本の帯」を選ぶと差が最も鮮明です。')+'</div>';},
+ draw(){const n=P.length;
+   const ms=agglomerate(P,'single'),mc=agglomerate(P,'complete');
+   const ls=labelsAtStep(ms,n,n-2),lc=labelsAtStep(mc,n,n-2);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('単連結（min）',95,26);ctx.fillText('完全連結（max）',270,26);
+   drawScatter([16,34,168,180],P,ls,{frame:true});drawScatter([192,34,168,180],P,lc,{frame:true});
+   const md=(lab)=>metrics(P,lab).maxDiam;
+   ctx.font='10px '+getCSS('--mono');ctx.fillStyle=getCSS('--muted');
+   ctx.fillText('最大直径 '+md(ls).toFixed(2),95,232);ctx.fillText('最大直径 '+md(lc).toFixed(2),270,232);
+   // 小デンドロ2つ
+   dendroInto([16,250,168,168],ms,ls);dendroInto([192,250,168,168],mc,lc);
+   caption('鎖状（細長い）か、丸いか——測り方が形を決める',CH-6);}},
+{title:'単連結の光と影：chaining',legend:'橋やノイズがあると単連結は鎖でつながり、孤立点が置き去りに',dice:true,
+ html(){return'<h3>単連結の光と影：chaining（鎖効果）</h3><div class="eq curr">単連結：近い点さえあれば連鎖的に併合 → 非球状OK ／ ノイズの橋で暴走<span class="read">読み：単連結は「最も近い1組」だけ見るので、点が数珠つなぎに並ぶと遠い端まで1クラスタに連結してしまう＝chaining</span></div><div class="desc">単連結の<b>光</b>：三日月やらせん状の<b>非球状クラスタ</b>も、近い点をたどって拾えます（<a href="dbscan.html">DBSCAN</a> と似た強み）。<b>影</b>：塊の間に点が<b>橋のように</b>並ぶと、それを鎖にして<b>本来別の 2 塊を 1 つに連結</b>してしまい、逆に外れ値が<b>孤立点（サイズ1）</b>として最後まで残る。'+(curKind==='bridge'?'いまの「2塊＋橋」がまさにその罠。':'🎲で「2塊＋橋」を選ぶと chaining が見えます。')+' 完全連結や平均連結はこの暴走に強い。</div>';},
+ draw(){const n=P.length;const ms=agglomerate(P,'single');
+   // 単連結 k=3 で孤立点が出るか
+   const ls=labelsAtStep(ms,n,n-3);
+   drawScatter([20,14,320,150],P,ls,{frame:true});
+   const sz=metrics(P,ls).sizes;
+   drawDendro([20,180,320,240],merges.length,{color:false});
+   ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('単連結 k=3 のクラスタサイズ: ['+sz+']',CW/2,CH-8);}},
+{title:'データ次第で使い分ける',legend:'球状に分離した blobs はどのリンクも一致。帯や橋では分岐',dice:true,
+ html(){const same=isAgree();return'<h3>データ次第で使い分ける</h3><div class="eq curr">きれいに分離した球状 → どのリンクも一致 ／ 帯・橋・非球状 → 分岐<span class="read">読み：クラスタが丸くよく離れていれば測り方は結果に効かない。形が入り組むほどリンク法の選択が効いてくる</span></div><div class="desc">いつでもリンク法で悩む必要はありません。<b>丸い塊がよく離れている</b>なら、単連結でも完全連結でも<b>同じ答え</b>（いまのデータ: '+(same?'<b>3手法一致</b>':'<b>手法で分岐</b>')+'）。差が出るのは<b>帯・橋・非球状</b>など形が入り組むとき。分離した 3 群（blobs）では、単・完全・平均のどれで切っても<b>純度 100%</b>で真の 3 群を復元します（実測）。「🎲 別のデータ」で '+Object.values(KLABEL).join(' / ')+' を切り替え、どこで一致し・どこで割れるかを確かめてください。現在: <b>'+KLABEL[curKind]+'</b>。</div>';},
+ draw(){const n=P.length;const kk=curKind==='blobs'?3:2;
+   const ms=agglomerate(P,'single'),mc=agglomerate(P,'complete'),ma=agglomerate(P,'average');
+   ctx.fillStyle=getCSS('--text');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('単連結',68,24);ctx.fillText('完全連結',180,24);ctx.fillText('平均連結',292,24);
+   drawScatter([14,32,110,150],P,labelsAtStep(ms,n,n-kk),{frame:true});
+   drawScatter([126,32,110,150],P,labelsAtStep(mc,n,n-kk),{frame:true});
+   drawScatter([238,32,110,150],P,labelsAtStep(ma,n,n-kk),{frame:true});
+   ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');
+   ctx.fillText('現在のデータ: '+KLABEL[curKind]+'（k='+kk+'）',CW/2,206);
+   const same=isAgree();ctx.fillStyle=same?getCSS('--accent'):getCSS('--neg');ctx.font='700 12px '+getCSS('--gothic');
+   ctx.fillText(same?'✓ 3手法とも同じ分割':'✗ 手法によって分割が違う',CW/2,232);
+   // 補助: 大きめデンドロ(complete)
+   dendroInto([20,250,320,168],mc,labelsAtStep(mc,n,n-kk));caption('形が素直なら測り方は効かない',CH-6);}},
+// Ⅳ まとめ
+{title:'k-means との対比',legend:'k を先に決め球状前提の k-means と、k 後決め・任意形状の階層',dice:false,
+ html(){return'<h3>k-means との対比</h3><div class="eq curr"><a href="kmeans.html">k-means</a>：<i>k</i> 事前・球状・高速　⇔　階層：<i>k</i> 後決め・任意形状・重い<span class="read">読み：どちらも教師なしでグループを見つける。違いは <i>k</i> を先に決めるか／形の前提／計算量／出力（1つの分割か、全階層の木か）</span></div><div class="desc"><a href="kmeans.html">k-means</a> は <i>k</i> を先に決めて<b>球状の塊</b>を高速に分ける実務の定番。階層法は <i>k</i> を後から選べて<b>任意の形</b>や<b>入れ子構造</b>を見せますが、距離計算が重く中規模まで。<b>使い分け</b>：<i>k</i> が分かって大規模なら k-means、<b>構造ごと眺めたい・k が不明</b>なら階層。<a href="dbscan.html">DBSCAN</a>（密度）も選択肢。道具は目的で選びます。</div>';},
+ draw(){drawKMeansCompare();}},
+{title:'どこで出会うか',legend:'系統樹・遺伝子ヒートマップ・文書階層・顧客セグメント',dice:false,
+ html(){return'<h3>どこで出会うか</h3><div class="eq curr">「似た順に並べて入れ子にする」＝デンドログラム付きヒートマップ<span class="read">読み：階層クラスタリングは分析だけでなく<b>可視化の道具</b>。行と列を似た順に並べ替え、樹形図を添えると構造が一目で分かる</span></div><div class="desc">デンドログラムは<b>データの構造を目で見る</b>道具として、様々な分野に登場します。<b>生物</b>では種や遺伝子の系統樹・発現ヒートマップ、<b>自然言語</b>では文書や話題の階層、<b>マーケティング</b>では顧客セグメント。<a href="tsne.html">t-SNE</a> が点の地図を作るのに対し、階層法は<b>入れ子の木</b>で「どの粒度でも読める地図」を返します。</div>';},
+ draw(){drawApps();}},
+{title:'まとめ：地図を作ってから粒度を選ぶ',legend:'近い塊を併合→樹形図→切る高さで k を選ぶ',dice:true,cut:true,
+ html(){return'<h3>まとめ：地図を作ってから粒度を選ぶ</h3><div class="desc">階層的クラスタリングは、<b>近い塊を順に併合</b>して<b>デンドログラム</b>という入れ子の地図を作り、<b>切る高さ</b>で <i>k</i> を後から選ぶ教師なし学習でした。塊どうしの距離の測り方（<b>リンク法</b>）が形を左右し、<b>単連結＝鎖状／完全連結＝丸い</b>。<i>k</i> を決め打ちできない探索的な分析や、構造を見せる可視化で活躍します。赤線をドラッグして、最後にもう一度粒度を選んでみてください。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・各点→近い塊を併合を n−1 回＝樹形図<br>・高さ＝併合距離、切る高さ＝クラスタ数<br>・単連結=鎖状／完全連結=丸い（測り方が効く）<br>・k を後から選べる＝<a href="kmeans.html">k-means</a>との違い</div>';},
+ draw(){drawSummary();},cut:true},
+];
+
+/* ===== 補助描画 ===== */
+function drawScatterMono(box,pts){const[x0,y0,w,h]=box;const SX=x=>x0+(x+1)/2*w,SY=y=>y0+(1-(y+1)/2)*h;
+  for(let i=0;i<pts.length;i++){ctx.beginPath();ctx.arc(SX(pts[i][0]),SY(pts[i][1]),4.2,0,7);
+    ctx.fillStyle='#fffdf6';ctx.fill();ctx.lineWidth=1.4;ctx.strokeStyle=getCSS('--faint');ctx.stroke();}}
+function dendroInto(box,ms,labels){const[x0,y0,w,h]=box;const n=P.length;const dd=buildDendro(ms,n);
+  const Hmax=Math.max(...ms.map(m=>m.height))*1.08||1;
+  const LX=i=>x0+10+(w-20)*(dd.order.length>1?dd.X[i]/(dd.order.length-1):0.5);
+  const HY=hh=>y0+h-12-(h-20)*(hh/Hmax);
+  const leafLabel={};dd.order.forEach(id=>leafLabel[id]=labels[id]);const cmap=clusterColorMap(labels);
+  function firstLeaf(id){let nd=dd.nodes[id];while(!nd.leaf)nd=dd.nodes[nd.left];return nd.id;}
+  // 切断高さ = k クラスタになる境界
+  const k=metrics(P,labels).k;const step=n-k;const cutHi=step>0&&step<ms.length?(ms[step].height+ms[step-1].height)/2:(ms.length?ms[ms.length-1].height*1.05:1);
+  for(let s=0;s<ms.length;s++){const m=ms[s];const xl=LX(m.left),xr=LX(m.right),yl=HY(dd.nodes[m.left].height),yr=HY(dd.nodes[m.right].height),ym=HY(m.height);
+    const below=m.height<=cutHi;ctx.strokeStyle=below?cmap[leafLabel[firstLeaf(m.id)]]:'rgba(26,26,23,0.4)';ctx.lineWidth=1.3;
+    ctx.beginPath();ctx.moveTo(xl,yl);ctx.lineTo(xl,ym);ctx.lineTo(xr,ym);ctx.lineTo(xr,yr);ctx.stroke();}
+  dd.order.forEach(id=>{ctx.beginPath();ctx.arc(LX(id),HY(0),2.4,0,7);ctx.fillStyle=cmap[leafLabel[id]];ctx.fill();});
+  ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.4;ctx.setLineDash([5,3]);ctx.beginPath();ctx.moveTo(x0+6,HY(cutHi));ctx.lineTo(x0+w-4,HY(cutHi));ctx.stroke();ctx.setLineDash([]);}
+function drawLinkageIcons(){const cy=[95,215,335];const labels=[['単連結','最も近い1組で測る'],['完全連結','最も遠い1組で測る'],['平均連結','全ペアの平均で測る']];
+  const cols=['--accent','--neg','--warm'];
+  ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('塊 A と 塊 B の距離をどう測る?',22,34);
+  for(let r=0;r<3;r++){const y=cy[r];
+    // 2つの塊（左寄せ）
+    const A=[[52,y-16],[68,y-2],[46,y+10]],B=[[170,y-10],[186,y+6],[160,y-2]];
+    A.forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],4,0,7);ctx.fillStyle=getCSS('--muted');ctx.fill();});
+    B.forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],4,0,7);ctx.fillStyle=getCSS('--muted');ctx.fill();});
+    ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('A',57,y+26);ctx.fillText('B',173,y+26);
+    // 測る線
+    let pa,pb;if(r===0){pa=A[1];pb=B[2];}else if(r===1){pa=A[0];pb=B[1];}else{pa=[(A[0][0]+A[1][0]+A[2][0])/3,(A[0][1]+A[1][1]+A[2][1])/3];pb=[(B[0][0]+B[1][0]+B[2][0])/3,(B[0][1]+B[1][1]+B[2][1])/3];}
+    ctx.strokeStyle=getCSS(cols[r]);ctx.lineWidth=2;if(r===2)ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=getCSS(cols[r]);ctx.font='700 14px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(labels[r][0],210,y-3);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(labels[r][1],210,y+15);
+    ctx.strokeStyle='rgba(26,26,23,0.1)';ctx.beginPath();ctx.moveTo(20,y+42);ctx.lineTo(CW-20,y+42);if(r<2)ctx.stroke();}
+  caption('同じ2塊でも「どの1組で測るか」で距離が変わる',CH-8);}
+function isAgree(){const n=P.length;const kk=curKind==='blobs'?3:2;
+  const parts=['single','complete','average'].map(lk=>labelsAtStep(agglomerate(P,lk),n,n-kk));
+  const key=lab=>{const g={};lab.forEach((l,i)=>{(g[l]=g[l]||[]).push(i);});return Object.values(g).map(a=>a.slice().sort((x,y)=>x-y).join(',')).sort().join('|');};
+  return key(parts[0])===key(parts[1])&&key(parts[1])===key(parts[2]);}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;const n=P.length;
+  if(s===0||s===6||s===7){const k=metrics(P,labelsAtHeight(merges,n,cutH)).k;m.innerHTML='<div>点 <b>'+n+'</b></div><div class="best">切断→ <b>'+k+'</b> クラスタ</div>';}
+  else if(s===1||s===2){m.innerHTML='<div>点 <b>'+n+'</b></div><div>初期クラスタ <b>'+n+'</b></div>';}
+  else if(s===3){m.innerHTML='<div>最初の併合距離 <b>'+merges[0].height.toFixed(2)+'</b></div>';}
+  else if(s===4){m.innerHTML='<div>併合 <b>'+mergeStep+'</b>/'+(n-1)+'</div><div>残りクラスタ <b>'+(n-mergeStep)+'</b></div>';}
+  else if(s===5){m.innerHTML='<div>リンク法 <b>3種</b></div><div>単/完全/平均</div>';}
+  else if(s===8){const g=biggestGap(merges);m.innerHTML='<div class="best">自然な k <b>'+g.k+'</b></div><div>最大ジャンプで切る</div>';}
+  else if(s===9){const ls=metrics(P,labelsAtStep(agglomerate(P,'single'),n,n-2)),lc=metrics(P,labelsAtStep(agglomerate(P,'complete'),n,n-2));
+    m.innerHTML='<div>単連結 直径 <b>'+ls.maxDiam.toFixed(2)+'</b></div><div class="best">完全連結 <b>'+lc.maxDiam.toFixed(2)+'</b></div>';}
+  else if(s===10){const sz=metrics(P,labelsAtStep(agglomerate(P,'single'),n,n-3)).sizes;m.innerHTML='<div>単連結 k=3 サイズ <b>['+sz+']</b></div>';}
+  else if(s===11){m.innerHTML='<div>データ <b>'+KLABEL[curKind]+'</b></div><div class="best">'+(isAgree()?'3手法一致':'手法で分岐')+'</div>';}
+  else if(s===12){m.innerHTML='<div>k-means <b>k事前</b></div><div>階層 <b>k後決め</b></div>';}
+  else if(s===13){m.innerHTML='<div class="best">構造を <b>見る</b>道具</div>';}
+  else{const k=metrics(P,labelsAtHeight(merges,n,cutH)).k;m.innerHTML='<div class="best">切断→ <b>'+k+'</b> クラスタ</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===4)runGrow();
+  renderAll();draw_();}
+function runGrow(){anim=true;mergeStep=0;
+  if(RM()){mergeStep=merges.length;draw_();renderMini();renderExplain();anim=false;return;}
+  function go(){if(!anim||slideIdx!==4)return;mergeStep++;draw_();renderMini();renderExplain();
+    if(mergeStep<merges.length){setTimeout(()=>requestAnimationFrame(go),260);}else anim=false;}
+  setTimeout(()=>requestAnimationFrame(go),300);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;if(anim&&slideIdx===4){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===4?1200:4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function newData(){stopAuto();curKind=KINDS[(KINDS.indexOf(curKind)+1)%KINDS.length];seed=(seed+137|0);rebuild();
+  if(slideIdx===4){goSlide(4);}else{renderAll();draw_();}}
+function reset(){stopAuto();anim=false;curKind='parallel';seed=5;linkage='complete';rebuild();slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{if(SLIDES[slideIdx].dice)newData();};
+
+/* ===== 切断線ドラッグ ===== */
+let dragging=false;
+function cutBoxY(){return slideIdx===SLIDES.length-1?[168,180]:[180,240];} // ドラッグ対象デンドロ box の y0,h
+function ptToHeight(clientY){const r=cv.getBoundingClientRect();const scale=cv.height/r.height;const y=(clientY-r.top)*scale;
+  const[y0,h]=cutBoxY();const Hmax=Math.max(...merges.map(m=>m.height))*1.08||1;
+  const hh=(y0+h-16-y)/(h-26)*Hmax;return Math.max(0,Math.min(Hmax*0.999,hh));}
+function onDrag(clientY){if(!SLIDES[slideIdx].cut)return;cutH=ptToHeight(clientY);draw_();renderMini();renderExplain();}
+// 移動と終了は window で受ける（キャンバス外へ出ても追随・キャプチャの癖を避ける）
+cv.addEventListener('pointerdown',e=>{if(!SLIDES[slideIdx].cut)return;dragging=true;e.preventDefault();onDrag(e.clientY);});
+window.addEventListener('pointermove',e=>{if(dragging)onDrag(e.clientY);});
+window.addEventListener('pointerup',()=>{dragging=false;});
+window.addEventListener('pointercancel',()=>{dragging=false;});
+// マウス（pointer 非対応環境のフォールバック）
+cv.addEventListener('mousedown',e=>{if(!SLIDES[slideIdx].cut)return;dragging=true;onDrag(e.clientY);});
+window.addEventListener('mousemove',e=>{if(dragging)onDrag(e.clientY);});
+window.addEventListener('mouseup',()=>{dragging=false;});
+
+rebuild();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
