@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>転移学習・ファインチューニングを理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4; --good:#1f9e8a; --blue:#2f6fae;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>転移学習・ファインチューニング</h1>
+  <div class="lead">少ないデータで一から学ぶのは苦しい。でも<b>前の課題で学んだ「見方（特徴）」は、次の課題でも使い回せます</b>。土台（特徴抽出）を再利用し、頭（分類器）だけ替える——これが転移学習。おなじグリッドで、課題 B を <b>(a) ゼロから／(b) 凍結＋頭だけ／(c) 全体微調整</b> の 3 通りで本当に学習し対決させます。<a href="resnet.html">ResNet</a> や <a href="digit.html">数字認識</a>で学んだ NN が土台になります。「次へ ▶」で進めてください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>手元のデータが少なくても、<b>大きな課題で学んだ特徴を借りて</b>高精度に届く実務の定石。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>学習済みの<b>土台（特徴）を再利用</b>し、頭だけ替える／全体を少し微調整する。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ImageNet 事前学習→医療画像、BERT・GPT →下流タスク、LoRA など現代 AI のほぼ全て。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の少データ</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>データが少ないとき効くのは「モデルの大きさ」ではなく「<b>良い出発点</b>」だ。ゼロからの乱数より、<b>別の課題で鍛えた特徴</b>から始める方がずっと遠くへ行ける——学習とは、白紙からより<b>良い初期値からの一歩</b>であるほうが速い。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>データが少ないなら、モデルを小さくすれば過学習しない</div>
+    <div class="row"><span class="o">✓</span>小さくしても<b>良い特徴は生まれません</b>。効くのは「別の課題で学んだ特徴を借りる」こと。凍結＋頭だけなら<b>学ぶ重みが少数</b>なので、12 点でも高精度に届きます（本編で実測）。</div>
+    <div class="row"><span class="x">✗</span>常に全体を微調整（fine-tune）するのが最善</div>
+    <div class="row"><span class="o">✓</span>データが<b>ごく少ない</b>ときは、全体を動かすと<b>せっかくの特徴を壊して過学習</b>することも。少数なら<b>凍結</b>が手堅く、データが増えるほど<b>微調整</b>が伸びる——量で使い分けます。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：特徴の階層性・学習率・LoRA</summary>
+    <div class="det"><b>なぜ特徴が転移するのか</b>：深い NN の下層は「エッジ・角・質感」といった<b>汎用的な特徴</b>を学び、上層ほど課題固有になります。だから下層（土台）は別課題でもそのまま役立ち、上層（頭）だけ課題に合わせれば済む。<b>学習率の作法</b>：fine-tune では土台を壊さないよう<b>小さめの学習率</b>、頭は大きめ、と層で変えるのが定石。<b>凍結の利点</b>：学ぶパラメータが激減し、少データでの過学習に強く・速い。<b>LoRA</b>（Low-Rank Adaptation）：巨大モデルの重みを凍結したまま、各層に<b>小さな低ランク行列</b>だけを足して学習する現代的な微調整。全体を動かさず、少ないメモリで巨大 LLM を下流課題に適応させます。関連: <a href="resnet.html">ResNet</a>（深い特徴抽出器）・<a href="digit.html">数字認識</a>（特徴と分類の分離）・<a href="reg.html">正則化</a>（過学習の抑制）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function makeRng(s0){let s=s0|0;return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function randn(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* ===== データ：6ブロブ（2シグナル次元）＋ Dn ノイズ次元 ===== */
+const NB=6, R=1.0, SIG=0.16, DN=20, H=16, NIN=2+DN;
+const centers=Array.from({length:NB},(_,i)=>[R*Math.cos(2*Math.PI*i/NB),R*Math.sin(2*Math.PI*i/NB)]);
+function pt(b,rng){const x=[centers[b][0]+randn(rng)*SIG,centers[b][1]+randn(rng)*SIG];for(let d=0;d<DN;d++)x.push(randn(rng));return x;}
+function genA(n,rng){const X=[],Y=[];for(let i=0;i<n;i++){const b=(rng()*NB)|0;X.push(pt(b,rng));Y.push(b);}return{X,Y};}
+function Blabel(b){return centers[b][0]<0?1:0;}        // 右(x>0)=0紫 / 左(x<0)=1金 ＝真の左右2分類
+function genB(n,rng){const X=[],Y=[];for(let i=0;i<n;i++){const b=(rng()*NB)|0;X.push(pt(b,rng));Y.push(Blabel(b));}return{X,Y};}
+function genBbal(perClass,rng){const X=[],Y=[],B=[];for(let b=0;b<NB;b++)for(let k=0;k<perClass;k++){X.push(pt(b,rng));Y.push(Blabel(b));B.push(b);}return{X,Y,B};}
+
+/* ===== MLP（2層 ReLU + softmax）と Adam ===== */
+function initNet(nOut,rng){const r1=()=>randn(rng)*Math.sqrt(2/NIN),r2=()=>randn(rng)*Math.sqrt(2/H);
+  return{W1:Array.from({length:H},()=>Array.from({length:NIN},r1)),b1:new Array(H).fill(0),
+         W2:Array.from({length:nOut},()=>Array.from({length:H},r2)),b2:new Array(nOut).fill(0),nOut};}
+function fwd(net,x){const z1=net.b1.map((b,j)=>{let s=b;const w=net.W1[j];for(let k=0;k<NIN;k++)s+=w[k]*x[k];return s;});
+  const a1=z1.map(v=>v>0?v:0);
+  const z2=net.b2.map((b,j)=>{let s=b;const w=net.W2[j];for(let k=0;k<H;k++)s+=w[k]*a1[k];return s;});
+  let m=-1e9;for(const v of z2)if(v>m)m=v;const e=z2.map(v=>Math.exp(v-m));let Z=0;for(const v of e)Z+=v;
+  return{a1,z1,p:e.map(v=>v/Z)};}
+function zeroLike(net){return{W1:net.W1.map(r=>r.map(()=>0)),b1:net.b1.map(()=>0),W2:net.W2.map(r=>r.map(()=>0)),b2:net.b2.map(()=>0)};}
+function makeTrainer(net,{lr,freeze,seed}){return{net,m:zeroLike(net),v:zeroLike(net),t:0,lr,freeze,rng:makeRng(seed),ep:0};}
+function trainEpochs(tr,X,Y,nEp,bs){const {net,m,v}=tr;const B1=0.9,B2=0.999,E=1e-8;const idx=X.map((_,i)=>i);
+  for(let e=0;e<nEp;e++){for(let i=idx.length-1;i>0;i--){const j=(tr.rng()*(i+1))|0;const tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}
+    for(let s=0;s<idx.length;s+=bs){const batch=idx.slice(s,s+bs);if(!batch.length)continue;tr.t++;
+      const gW2=net.W2.map(r=>r.map(()=>0)),gb2=net.b2.map(()=>0);let gW1=null,gb1=null;
+      if(!tr.freeze){gW1=net.W1.map(r=>r.map(()=>0));gb1=net.b1.map(()=>0);}
+      for(const bi of batch){const x=X[bi],y=Y[bi];const{a1,z1,p}=fwd(net,x);const dz2=p.slice();dz2[y]-=1;
+        for(let j=0;j<net.nOut;j++){for(let k=0;k<H;k++)gW2[j][k]+=dz2[j]*a1[k];gb2[j]+=dz2[j];}
+        if(!tr.freeze){for(let k=0;k<H;k++){let s2=0;for(let j=0;j<net.nOut;j++)s2+=dz2[j]*net.W2[j][k];const d=z1[k]>0?s2:0;for(let dd=0;dd<NIN;dd++)gW1[k][dd]+=d*x[dd];gb1[k]+=d;}}}
+      const n=batch.length,lr=tr.lr;
+      const upd=(P,M,V,g,i,j)=>{M[i][j]=B1*M[i][j]+(1-B1)*g;V[i][j]=B2*V[i][j]+(1-B2)*g*g;P[i][j]-=lr*(M[i][j]/(1-Math.pow(B1,tr.t)))/(Math.sqrt(V[i][j]/(1-Math.pow(B2,tr.t)))+E);};
+      const updv=(P,M,V,g,j)=>{M[j]=B1*M[j]+(1-B1)*g;V[j]=B2*V[j]+(1-B2)*g*g;P[j]-=lr*(M[j]/(1-Math.pow(B1,tr.t)))/(Math.sqrt(V[j]/(1-Math.pow(B2,tr.t)))+E);};
+      for(let j=0;j<net.nOut;j++){for(let k=0;k<H;k++)upd(net.W2,m.W2,v.W2,gW2[j][k]/n,j,k);updv(net.b2,m.b2,v.b2,gb2[j]/n,j);}
+      if(!tr.freeze)for(let k=0;k<H;k++){for(let dd=0;dd<NIN;dd++)upd(net.W1,m.W1,v.W1,gW1[k][dd]/n,k,dd);updv(net.b1,m.b1,v.b1,gb1[k]/n,k);}
+    }tr.ep++;}
+}
+function acc(net,X,Y){let c=0;for(let i=0;i<X.length;i++){const{p}=fwd(net,X[i]);let a=0,mx=-1;for(let j=0;j<p.length;j++)if(p[j]>mx){mx=p[j];a=j;}if(a===Y[i])c++;}return c/X.length;}
+function cloneHead(net,nOut,rng){const n={W1:net.W1.map(r=>r.slice()),b1:net.b1.slice(),W2:Array.from({length:nOut},()=>Array.from({length:H},()=>randn(rng)*Math.sqrt(2/H))),b2:new Array(nOut).fill(0),nOut};return n;}
+
+/* ===== 状態 ===== */
+let netA=null, aTrainer=null, aAccHist=[], aTest=null;
+let Bset=null, Btest=null, bSeed=42;
+let regimes=null;   // {scratch,frozen,finetune} = {net,tr,accHist}
+let curve=null;     // データ量曲線
+function ensureA(){ if(netA&&aTrainer.ep>=A_EPOCHS)return; if(!netA)initA(); while(aTrainer.ep<A_EPOCHS)trainEpochs(aTrainer,Adata.X,Adata.Y,4,16); }
+const A_EPOCHS=70, B_EPOCHS=150;
+let Adata=null;
+function initA(){const rng=makeRng(42);Adata=genA(800,rng);aTest=genA(800,makeRng(7));netA=initNet(NB,rng);aTrainer=makeTrainer(netA,{lr:0.01,freeze:false,seed:314});aAccHist=[];}
+function initB(){const rng=makeRng(bSeed);Bset=genBbal(2,rng);Btest=genB(1600,makeRng(999));}
+function initRegimes(){ensureA();if(!Bset)initB();const rng=makeRng(bSeed*3+1);
+  const sc=initNet(2,rng);const fr=cloneHead(netA,2,rng);const ft=cloneHead(netA,2,rng);
+  regimes={scratch:{net:sc,tr:makeTrainer(sc,{lr:0.01,freeze:false,seed:bSeed+1}),accHist:[]},
+           frozen:{net:fr,tr:makeTrainer(fr,{lr:0.03,freeze:true,seed:bSeed+2}),accHist:[]},
+           finetune:{net:ft,tr:makeTrainer(ft,{lr:0.004,freeze:false,seed:bSeed+3}),accHist:[]}};}
+function trainRegime(key,nEp){const r=regimes[key];trainEpochs(r.tr,Bset.X,Bset.Y,nEp,16);r.accHist.push(acc(r.net,Btest.X,Btest.Y));}
+function ensureRegime(key){if(!regimes)initRegimes();const r=regimes[key];while(r.tr.ep<B_EPOCHS)trainRegime(key,10);}
+function ensureAllRegimes(){['scratch','frozen','finetune'].forEach(ensureRegime);}
+
+/* データ量曲線（増分計算） */
+const CURVE_SIZES=[2,4,8,16], CURVE_REPS=5;
+function initCurve(){curve={sizes:CURVE_SIZES,reps:CURVE_REPS,acc:{scratch:CURVE_SIZES.map(()=>[]),frozen:CURVE_SIZES.map(()=>[]),finetune:CURVE_SIZES.map(()=>[])},si:0,rep:0,done:false};}
+function curveStep(){if(!curve||curve.done)return;ensureA();const si=curve.si,pc=CURVE_SIZES[si],rep=curve.rep;const r2=makeRng(5000+rep*13+pc*101);const B=genBbal(pc,r2);
+  const sc=initNet(2,r2);const ts=makeTrainer(sc,{lr:0.01,freeze:false,seed:6000+rep*7+pc});trainEpochs(ts,B.X,B.Y,120,16);curve.acc.scratch[si].push(acc(sc,Btest.X,Btest.Y));
+  const fr=cloneHead(netA,2,r2);const tf=makeTrainer(fr,{lr:0.03,freeze:true,seed:6100+rep*7+pc});trainEpochs(tf,B.X,B.Y,120,16);curve.acc.frozen[si].push(acc(fr,Btest.X,Btest.Y));
+  const ft=cloneHead(netA,2,r2);const tt=makeTrainer(ft,{lr:0.004,freeze:false,seed:6200+rep*7+pc});trainEpochs(tt,B.X,B.Y,120,16);curve.acc.finetune[si].push(acc(ft,Btest.X,Btest.Y));
+  curve.rep++;if(curve.rep>=CURVE_REPS){curve.rep=0;curve.si++;if(curve.si>=CURVE_SIZES.length)curve.done=true;}}
+function curveMean(key,si){const a=curve.acc[key][si];return a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
+
+/* ===== 描画基盤 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PX0=44,PY0=22,PW=272,PH=272,LO=-1.55,HI=1.55;
+function px(x){return PX0+(x-LO)/(HI-LO)*PW;}
+function py(y){return PY0+(HI-y)/(HI-LO)*PH;}
+const BLOB_COL=['#1f9e8a','#b3812f','#cf4f5f','#6f54c4','#c2891b','#2f6fae'];
+const BCOL=['#6f54c4','#c2891b'];  // B 2クラス（右=紫, 左=金）
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawPlane(){ctx.fillStyle='#fffdf6';ctx.fillRect(PX0,PY0,PW,PH);ctx.strokeStyle='rgba(26,26,23,0.18)';ctx.lineWidth=1;ctx.strokeRect(PX0,PY0,PW,PH);}
+function evalGrid(net,mode,g){g=g||30;const cell=PW/g;const x0=new Array(NIN).fill(0);
+  for(let i=0;i<g;i++)for(let j=0;j<g;j++){const sx=LO+(HI-LO)*(i+0.5)/g,sy=HI-(HI-LO)*(j+0.5)/g;x0[0]=sx;x0[1]=sy;const{p}=fwd(net,x0);
+    if(mode===6){let a=0,mx=-1;for(let c=0;c<NB;c++)if(p[c]>mx){mx=p[c];a=c;}ctx.fillStyle=hexA(BLOB_COL[a],0.13);}
+    else{ctx.fillStyle=p[1]>0.5?hexA(BCOL[1],0.16+0.14*Math.abs(p[1]-0.5)*2):hexA(BCOL[0],0.16+0.14*Math.abs(p[1]-0.5)*2);}
+    ctx.fillRect(PX0+i*cell,PY0+j*cell,cell+0.6,cell+0.6);}}
+function hexA(hex,a){const h=hex.replace('#','');const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return`rgba(${r},${g},${b},${a})`;}
+function drawPointsA(){for(let b=0;b<NB;b++){const c=centers[b];ctx.fillStyle=BLOB_COL[b];
+    // draw a few sample points around center (deterministic)
+    const rng=makeRng(b*97+3);for(let k=0;k<14;k++){const x=c[0]+randn(rng)*SIG,y=c[1]+randn(rng)*SIG;ctx.beginPath();ctx.arc(px(x),py(y),2.4,0,7);ctx.fill();}}}
+function drawBlobLabels(mode){for(let b=0;b<NB;b++){const c=centers[b];ctx.fillStyle=mode===6?BLOB_COL[b]:BCOL[Blabel(b)];ctx.beginPath();ctx.arc(px(c[0]*1.28),py(c[1]*1.28),8,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='700 9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(mode===6?(b+1):(Blabel(b)===0?'右':'左'),px(c[0]*1.28),py(c[1]*1.28));}}
+function drawBset(){if(!Bset)return;for(let i=0;i<Bset.X.length;i++){const x=Bset.X[i],y=Bset.Y[i];ctx.beginPath();ctx.arc(px(x[0]),py(x[1]),4.6,0,7);ctx.fillStyle=BCOL[y];ctx.fill();ctx.strokeStyle='#1a1a17';ctx.lineWidth=1.3;ctx.stroke();}}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+
+/* ===== スライド定義（4章×14枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:6},{t:'Ⅳ まとめ',c:'var(--accent)',start:11}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false;
+
+const SLIDES=[
+/* ---------- Ⅰ 問題 ---------- */
+{legend:'色=6種のブロブ。各点は「2つの見える位置＋20の見えないノイズ特徴」を持つ',
+ html(){return'<h3>① 少ないデータで学ぶ壁</h3><div class="eq curr">入力 <i>x</i> = ( <b>2 個の意味ある特徴</b> ,　20 個のノイズ特徴 )<span class="read">読み：各データは 2 次元の「意味ある位置」に加え、<b>20 個の無関係なノイズ</b>を持つ。少ないデータでは、どれが意味ある特徴か見分けるのが難しい</span></div><div class="desc">現実のデータは<b>意味ある信号と無関係なノイズが混ざっています</b>。ここでは各点が「見える 2 次元の位置」＋「見えない 20 個のノイズ特徴」を持つとします。データが<b>たっぷりあれば</b>NN はどれが信号か学べますが、<b>数点しかない</b>と、ノイズにたまたま合わせて<b>過学習</b>してしまう。少データで一から学ぶのは、この落とし穴が待っています。</div>';},
+ draw(){drawPlane();evalGridBlank();drawPointsA();caption('6ブロブ（＋各点20の隠れノイズ特徴）',CH-10);}},
+
+{legend:'前の課題で学んだ「特徴の見方」は、次の課題でも役立つ',
+ html(){return'<h3>② 特徴は使い回せる</h3><div class="eq curr">課題A で学んだ特徴抽出 <i>f</i>(<i>x</i>) → 課題B でも <b>そのまま使える</b><span class="read">読み：下層が学ぶ「エッジや位置といった見方 <i>f</i>」は課題によらず共通。<b>土台 <i>f</i> を再利用</b>し、上の分類器だけ新しい課題に合わせればよい</span></div><div class="desc">鍵になる発想——<b>「見方（特徴）」は課題をまたいで共通</b>だということ。たくさんデータのある<b>課題 A</b> で「ノイズを捨てて位置を見る」特徴を一度学べば、その<b>土台は課題 B でもそのまま役立ちます</b>。人間も、自転車で覚えたバランス感覚をバイクに流用しますね。ゼロから始める代わりに、<b>学習済みの土台から始める</b>——それが転移学習です。</div>';},
+ draw(){drawTransferConcept();}},
+
+{legend:'3つの道：(a)ゼロから (b)凍結+頭だけ (c)全体微調整',
+ html(){return'<h3>③ 課題Bを解く3つの道</h3><div class="eq curr">(a) 全部ゼロから　／　(b) 土台を凍結＋頭だけ　／　(c) 土台ごと微調整<span class="read">読み：転移の使い方は 3 通り。(a) 何も借りない／(b) 借りた土台を固定し新しい頭だけ学ぶ／(c) 借りた土台を初期値に全体を少し動かす</span></div><div class="desc">同じ課題 B を、3 通りで学習して対決させます。<b>(a) ゼロから</b>：乱数から全部学ぶ（転移なし）。<b>(b) 凍結＋頭</b>：課題 A の土台を<b>固定</b>し、新しい分類器（頭）<b>だけ</b>学ぶ。<b>(c) 全体微調整</b>：A の土台を<b>初期値</b>にして全体を少しだけ動かす。どれが少データで勝つでしょう——本編で実際に走らせます。</div>';},
+ draw(){drawThreeWays();}},
+
+/* ---------- Ⅱ 仕組み ---------- */
+{legend:'NNの構造：入力→特徴抽出（土台）→分類器（頭）。転移は土台を再利用',
+ html(){return'<h3>④ ネットは「土台」と「頭」でできている</h3><div class="eq curr">π: <i>x</i> →〔特徴抽出 <i>f</i>（土台・下層）〕→〔分類器 <i>g</i>（頭・上層）〕→ 予測<span class="read">読み：NN は下層＝汎用の<b>特徴抽出（土台）</b>と上層＝課題固有の<b>分類器（頭）</b>に分けて考えられる。転移＝土台を再利用し頭を替える</span></div><div class="desc">NN を 2 つに分けて見ます——入力から特徴を作る<b>下層（土台 f）</b>と、その特徴から答えを出す<b>上層（頭 g）</b>。下層ほど「位置・エッジ」など<b>汎用的</b>で、上層ほど<b>課題固有</b>。だから転移では<b>土台 f を borrow して、頭 g だけ課題 B 用に替える</b>。凍結は f を固定、微調整は f も少し動かす、の違いです。</div>';},
+ draw(){drawNetSchematic('none');}},
+
+{legend:'ライブ：課題A（6分類）を豊富なデータで学習。土台が良い特徴を獲得',
+ html(){ensureALazy();const a=aAccHist.length?(aAccHist[aAccHist.length-1]*100).toFixed(0):'—';return'<h3>⑤ ライブ：課題Aで土台を鍛える</h3><div class="eq curr">課題A：6 ブロブ分類 ・ データ 800 点　→ test 正答率 <b>'+a+'%</b><span class="read">読み：豊富なデータで 6 分類を学習。この過程で下層が「20 のノイズを捨て、2 つの位置特徴を見る」<b>良い土台</b>を獲得する</span></div><div class="desc">まず<b>課題 A</b>（6 ブロブの分類）を<b>豊富なデータ（800 点）</b>で学習します。色分けの決定領域がくっきり 6 つに分かれていくのが、土台が<b>ノイズを捨てて位置を見る特徴</b>を獲得していく様子。エポック <b>'+(aTrainer?aTrainer.ep:0)+'</b>/'+A_EPOCHS+'・正答率 <b>'+a+'%</b>。この土台を、次章で少データの課題 B に貸します。</div>';},
+ draw(){ensureALazy();drawPlane();if(netA)evalGrid(netA,6);drawPointsA();drawAccSpark(aAccHist,'A 正答率',320);}},
+
+{legend:'課題Aの土台は、ノイズを無視して6ブロブを綺麗に分ける（＝良い特徴）',
+ html(){return'<h3>⑥ 学んだ特徴＝ノイズを捨てた表現</h3><div class="eq curr"><i>f</i>(<i>x</i>)：20 のノイズを無視し、2 つの位置を残す　→ 6 領域に整理<span class="read">読み：良い土台は入力の<b>無関係な変動（ノイズ）を捨て</b>、課題に効く情報（位置）だけを残す。だからこの特徴は別課題でも使える</span></div><div class="desc">課題 A を学び終えた土台の決定領域です——<b>6 つのブロブがくっきり分かれ</b>、しかも 20 のノイズ次元をいくら変えても答えは変わりません（ノイズに<b>鈍感</b>）。これこそ「良い特徴」：<b>本質だけを抜き出し、余計な変動を捨てた表現</b>。課題 B（左右の区別）は、この整理済みの特徴の上なら<b>ほんの数点で学べる</b>——次で確かめます。</div>';},
+ draw(){ensureALazy();drawPlane();if(netA)evalGrid(netA,6);drawPointsA();drawBlobLabels(6);caption('6ブロブが綺麗に分離＝転移できる土台',CH-10);}},
+
+/* ---------- Ⅲ ライブ実験 ---------- */
+{legend:'課題B：右側(x>0)の3ブロブ vs 左側(x<0)の3ブロブの2分類。ラベルはたった12点',
+ html(){initBLazy();return'<h3>⑦ 課題B：新しい2分類、データは12点だけ</h3><div class="eq curr">課題B：ブロブを<b>右半分 / 左半分</b>に 2 分類　・ ラベル付きは <b>12 点</b>のみ<span class="read">読み：新しい課題 B は「右か左か」の 2 分類。ただしラベル付きデータは各ブロブ 2 点ずつ計 12 点＝<b>ごく少数</b>。ここで転移が効くか</span></div><div class="desc">課題 B の登場です——ブロブを<b>右半分（紫）と左半分（金）</b>に分ける新しい 2 分類。ただし<b>ラベル付きデータは 12 点だけ</b>（黒縁の大きな点）。人の目には「縦線で分ければいい」と分かりますが、NN にとっては 12 点＋20 のノイズ次元は<b>過学習しやすい厳しい条件</b>。この 12 点だけで、3 つの道がどこまで届くかを見ます。</div>';},
+ draw(){initBLazy();drawPlane();evalGridBlank();drawFaintBlobs();drawBset();caption('黒縁=学習に使える12点 / 紫=右, 金=左',CH-10);}},
+
+{legend:'(a)ゼロから：12点＋20ノイズ→過学習。境界が乱れ精度が伸びない',
+ html(){ensureRegimeLazy('scratch');const a=regimes?(acc(regimes.scratch.net,Btest.X,Btest.Y)*100).toFixed(0):'—';return'<h3>⑧ (a) ゼロから学習</h3><div class="eq curr">乱数から全部学習（転移なし）　→ test 正答率 <b style="color:var(--neg)">'+a+'%</b><span class="read">読み：土台を借りず、乱数の初期値から 12 点で学習。20 のノイズ次元のどれかに<b>たまたま合わせて過学習</b>し、汎化しない</span></div><div class="desc">まず<b>(a) ゼロから</b>。乱数の初期値から 12 点で学びます。決定領域を見ると——<b>境界が正しい縦線に定まらず傾き</b>、正答率は <b style="color:var(--neg)">'+a+'%</b> 止まり。12 点では「どの 2 次元が信号か」を見抜けず、<b>20 のノイズにたまたま合わせて過学習</b>しています。モデルの表現力ではなく、<b>出発点が白紙</b>なのが効いていません。</div>';},
+ draw(){ensureRegimeLazy('scratch');drawPlane();if(regimes)evalGrid(regimes.scratch.net,2);drawFaintBlobs();drawBset();drawAccSpark(regimes?regimes.scratch.accHist:[],'(a)ゼロから',320,'--neg');}},
+
+{legend:'(b)凍結+頭：Aの土台を固定し頭だけ学習→綺麗な境界・高精度',
+ html(){ensureRegimeLazy('frozen');const a=regimes?(acc(regimes.frozen.net,Btest.X,Btest.Y)*100).toFixed(0):'—';return'<h3>⑨ (b) 凍結＋頭だけ</h3><div class="eq curr">A の土台 <i>f</i> を<b>固定</b>、新しい頭 <i>g</i> <b>だけ</b>学習　→ test 正答率 <b style="color:var(--good)">'+a+'%</b><span class="read">読み：借りた土台を凍結（更新しない）し、その特徴の上に載る<b>小さな分類器だけ</b>学ぶ。学ぶ重みが少ないので 12 点でも過学習しにくい</span></div><div class="desc">次に<b>(b) 凍結＋頭</b>。課題 A の土台を<b>そのまま固定</b>し、その上の<b>頭だけ</b>を 12 点で学びます。決定領域は<b>くっきり左右に分かれ</b>、正答率は <b style="color:var(--good)">'+a+'%</b>！土台がすでにノイズを捨て位置を整理しているので、頭は「その特徴を左右に切る」だけ。<b>学ぶ重みが少数</b>だから、たった 12 点でも過学習せず高精度に届きます。</div>';},
+ draw(){ensureRegimeLazy('frozen');drawPlane();if(regimes)evalGrid(regimes.frozen.net,2);drawFaintBlobs();drawBset();drawAccSpark(regimes?regimes.frozen.accHist:[],'(b)凍結+頭',320,'--good');}},
+
+{legend:'(c)全体微調整：Aを初期値に全体を少し動かす→高精度（少データでは凍結が上のことも）',
+ html(){ensureRegimeLazy('finetune');const a=regimes?(acc(regimes.finetune.net,Btest.X,Btest.Y)*100).toFixed(0):'—';return'<h3>⑩ (c) 全体を微調整</h3><div class="eq curr">A の土台を<b>初期値</b>に、全体を<b>小さめの学習率</b>で微調整　→ test 正答率 <b>'+a+'%</b><span class="read">読み：借りた土台をゼロからでなく<b>初期値</b>として使い、頭も土台も少し動かす。学習率を小さめにして、せっかくの特徴を壊しすぎない</span></div><div class="desc">最後に<b>(c) 全体微調整</b>。A の土台を<b>初期値</b>にして、頭も土台も<b>小さな学習率</b>で少し動かします。正答率 <b>'+a+'%</b>——ゼロからよりずっと良い。ただし<b>データが 12 点と少ないうちは</b>、全体を動かすと<b>せっかくの土台を少し壊して</b>凍結に届かないこともあります。微調整の真価は、<b>データがある程度増えてから</b>。次でデータ量による逆転を見ます。</div>';},
+ draw(){ensureRegimeLazy('finetune');drawPlane();if(regimes)evalGrid(regimes.finetune.net,2);drawFaintBlobs();drawBset();drawAccSpark(regimes?regimes.finetune.accHist:[],'(c)微調整',320,'--upd');}},
+
+{legend:'データ量で使い分け：少データ=凍結が上、増えると微調整が伸び、ゼロも追う',
+ html(){initCurveLazy();const done=curve&&curve.done;const g=(k,i)=>{const m=curveMean(k,i);return m==null?'…':(m*100).toFixed(0);};
+   return'<h3>⑪ A/B/C 対決：データ量で変わる勝者</h3><div class="eq curr">12点: ゼロ <b style="color:var(--neg)">'+g('scratch',0)+'</b> / 凍結 <b style="color:var(--good)">'+g('frozen',0)+'</b> / 微調整 <b style="color:var(--upd)">'+g('finetune',0)+'</b>　（%）<span class="read">読み：B のデータ量を変えて 3 通りの test 正答率を計測。<b>少データでは凍結が圧勝</b>、データが増えると微調整が並び、ゼロからも追いついてくる</span></div><div class="desc">B のデータ量を変えて 3 通りを<b>その場で実測</b>（各点 '+CURVE_REPS+' 回平均）。<b>12 点</b>では凍結 '+g('frozen',0)+'% ≫ 微調整 '+g('finetune',0)+'% ≫ ゼロ '+g('scratch',0)+'%。データが増えると（96 点で）ゼロも '+g('scratch',3)+'% まで追いつき、微調整 '+g('finetune',3)+'% は凍結 '+g('frozen',3)+'% に並びます。<b>少ないほど転移の恩恵が大きく</b>、多いほど差が縮む——これが使い分けの核心。'+(done?'':'（計算中…）')+'</div>';},
+ draw(){initCurveLazy();drawCurve();}},
+
+/* ---------- Ⅳ まとめ ---------- */
+{legend:'使い分けの早見表：データ量とAとの近さで選ぶ',
+ html(){return'<h3>⑫ どれを選ぶ？使い分け</h3><div class="eq curr">データ少 → <b>凍結</b>　／　そこそこ → <b>微調整</b>　／　A と大きく違う → <b>ゼロ寄り</b><span class="read">読み：3 択は状況次第。データ量が少ないほど・課題 A に近いほど、借りた特徴を活かす（凍結）。多いほど・遠いほど、動かす自由度を上げる</span></div><div class="desc">3 つは優劣でなく<b>使い分け</b>です。<b>データがごく少ない</b>→学ぶ重みを絞る<b>凍結</b>が手堅い。<b>そこそこある</b>→土台も課題に馴染ませる<b>微調整</b>が伸びる。<b>課題 A と大きく違う</b>→借りた特徴が合わないので、下層から動かす（またはゼロ寄り）。判断軸は<b>「データ量」と「A との近さ」</b>の 2 つ。迷ったら、まず凍結で当たりを付けるのが実務の定石です。</div>';},
+ draw(){drawUsageTable();}},
+
+{legend:'どこで出会うか：ImageNet→医療画像、BERT/GPT→下流、LoRA',
+ html(){return'<h3>⑬ どこで出会うか</h3><div class="eq curr">巨大データで事前学習 → 少データの下流課題へ<b>転移</b>（＋LoRA で軽く微調整）<span class="read">読み：現代 AI の標準レシピ。巨大データで土台を作り（事前学習）、手元の小さな課題に転移。LoRA は土台を凍結し小さな行列だけ足す軽量微調整</span></div><div class="desc">転移学習は<b>現代 AI のほぼ全て</b>を支えます。画像なら <a href="cnn.html">CNN</a>／<a href="resnet.html">ResNet</a> を <b>ImageNet で事前学習</b>し、医療画像や製造検査へ（手元のデータは少なくてよい）。言語なら <b>BERT・GPT</b> を分類・要約・対話など下流課題へ。巨大 LLM を丸ごと微調整するのは重いので、土台を凍結して小さな行列だけ足す <b>LoRA</b> が主流です。学習済みの土台を<b>小さなモデルへ移す「知識蒸留」</b>も近い発想。<a href="rlhf.html">RLHF</a> も「事前学習→SFT→…」という転移の連鎖の上に立っています。</div>';},
+ draw(){drawWhereConcept();}},
+
+{legend:'転移学習の3行まとめ',
+ html(){return'<h3>⑭ 閉演：白紙より、良い出発点から</h3><div class="eq curr">良い初期値（借りた特徴）＋ 少しの学習 ＞ 白紙からの大量学習<span class="read">読み：少データで効くのはモデルの大きさではなく<b>出発点の良さ</b>。別課題で鍛えた特徴から始めれば、わずかな学習で高精度に届く</span></div><div class="desc">今日の芯——<b>データが少ないときは、白紙から学ぶより「別の課題で鍛えた特徴」から始めるほうがずっと遠くへ行ける</b>。土台は借り、頭だけ替えるか、全体をそっと馴染ませるか。この「良い初期値の再利用」が、少ないデータでも現代 AI が高精度を出せる理由です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・NN＝土台（汎用特徴）＋頭（課題固有）。土台を再利用<br>・少データ：凍結＋頭が過学習に強く高精度（12点で実測）<br>・データ量とAとの近さで 凍結／微調整／ゼロ を使い分け</div>';},
+ draw(){ensureALazy();drawPlane();if(regimes&&regimes.frozen)evalGrid(regimes.frozen.net,2);drawFaintBlobs();drawBset();caption('ご清聴ありがとうございました 🎓',CH-10);}},
+];
+
+/* ===== 概念図 ===== */
+function ensureALazy(){if(!netA)initA();}
+function initBLazy(){if(!Bset)initB();}
+function ensureRegimeLazy(k){if(!regimes)initRegimes();}
+function initCurveLazy(){if(!curve)initCurve();}
+function evalGridBlank(){/* 背景のみ（決定領域なし） */}
+function drawFaintBlobs(){for(let b=0;b<NB;b++){const c=centers[b];const rng=makeRng(b*97+3);ctx.fillStyle='rgba(146,143,132,0.28)';for(let k=0;k<10;k++){const x=c[0]+randn(rng)*SIG,y=c[1]+randn(rng)*SIG;ctx.beginPath();ctx.arc(px(x),py(y),1.9,0,7);ctx.fill();}}}
+function drawAccSpark(hist,label,y0,col){const x0=34,w=CW-64,h=86;ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(label+' 正答率↑（縦 50→100%）',x0+3,y0-4);
+  const Y=v=>y0+h-((v-0.5)/0.5)*(h-6)-3;
+  ctx.strokeStyle='rgba(26,26,23,0.18)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x0,Y(0.5));ctx.lineTo(x0+w,Y(0.5));ctx.stroke();ctx.setLineDash([]);
+  if(hist&&hist.length>1){ctx.strokeStyle=getCSS(col||'--accent');ctx.lineWidth=1.8;ctx.beginPath();for(let i=0;i<hist.length;i++){const X=x0+w*i/Math.max(1,hist.length-1),Yv=Y(Math.max(0.5,Math.min(1,hist[i])));i?ctx.lineTo(X,Yv):ctx.moveTo(X,Yv);}ctx.stroke();
+    ctx.fillStyle=getCSS(col||'--accent');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText((hist[hist.length-1]*100).toFixed(0)+'%',x0+w-4,y0+15);}}
+function drawTransferConcept(){
+  ctx.textBaseline='middle';
+  // 課題A（大） → 特徴 → 課題B（小）
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';
+  // A box
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.6;ctx.fillStyle='rgba(31,158,138,0.08)';roundRect(40,50,120,70,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('課題A（大量データ）',100,72);ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');ctx.fillText('6分類を学ぶ',100,92);ctx.fillText('→ 良い特徴を獲得',100,107);
+  // arrow to features
+  ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(160,85);ctx.lineTo(210,85);ctx.stroke();ctx.fillStyle='rgba(26,26,23,0.5)';ctx.beginPath();ctx.moveTo(212,85);ctx.lineTo(202,80);ctx.lineTo(202,90);ctx.closePath();ctx.fill();
+  // feature box
+  ctx.fillStyle=getCSS('--warm');ctx.strokeStyle=getCSS('--warm');ctx.fillStyle='rgba(179,129,47,0.10)';roundRect(216,55,110,60,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--warm');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('特徴 f(x)',271,74);ctx.font='9.5px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');ctx.fillText('見方（土台）',271,92);ctx.fillText('使い回せる',271,106);
+  // down arrow
+  ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(271,116);ctx.lineTo(271,160);ctx.stroke();ctx.fillStyle='rgba(26,26,23,0.5)';ctx.beginPath();ctx.moveTo(271,162);ctx.lineTo(266,152);ctx.lineTo(276,152);ctx.closePath();ctx.fill();
+  // B box
+  ctx.strokeStyle=getCSS('--upd');ctx.fillStyle='rgba(111,84,196,0.08)';roundRect(150,168,150,74,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('課題B（少データ）',225,188);ctx.font='10px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');ctx.fillText('借りた特徴の上に',225,208);ctx.fillText('頭だけ載せて解く',225,224);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('土台は共通・頭は課題ごと',CW/2,275);ctx.fillText('＝ 前の学びを次に流用する',CW/2,294);}
+function drawThreeWays(){ctx.textBaseline='middle';const ways=[
+    {t:'(a) ゼロから',s:'土台も頭も乱数から',c:getCSS('--neg'),base:'random',head:'new'},
+    {t:'(b) 凍結＋頭',s:'土台=固定 / 頭=学習',c:getCSS('--good'),base:'frozen',head:'new'},
+    {t:'(c) 全体微調整',s:'土台=初期値 / 頭=学習',c:getCSS('--upd'),base:'tune',head:'new'}];
+  ways.forEach((w,i)=>{const y=40+i*118;
+    ctx.fillStyle=w.c;ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(w.t,30,y+10);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(w.s,30,y+30);
+    // 土台ブロック
+    const bx=200,bw=60,bh=34;
+    ctx.fillStyle=w.base==='random'?'rgba(207,79,95,0.16)':w.base==='frozen'?'rgba(31,158,138,0.18)':'rgba(111,84,196,0.16)';roundRect(bx,y-4,bw,bh,6);ctx.fill();ctx.strokeStyle=w.c;ctx.lineWidth=1.4;if(w.base==='frozen')ctx.setLineDash([]);ctx.stroke();
+    ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('土台',bx+bw/2,y+7);ctx.font='8px '+getCSS('--mono');ctx.fillText(w.base==='random'?'乱数':w.base==='frozen'?'🔒固定':'初期値',bx+bw/2,y+19);
+    // 頭ブロック
+    const hx=bx+bw+14;ctx.fillStyle='rgba(179,129,47,0.16)';roundRect(hx,y-4,44,bh,6);ctx.fill();ctx.strokeStyle=getCSS('--warm');ctx.stroke();
+    ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText('頭',hx+22,y+7);ctx.font='8px '+getCSS('--mono');ctx.fillText('学習',hx+22,y+19);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('🔒=凍結（更新しない）',CW/2,CH-16);}
+function drawNetSchematic(mode){ctx.textBaseline='middle';
+  const y=CH/2-20;
+  // 入力
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('入力 x',60,50);
+  ctx.fillStyle='rgba(146,143,132,0.2)';for(let i=0;i<6;i++){ctx.beginPath();ctx.arc(60,80+i*24,7,0,7);ctx.fill();}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.fillText('位置+ノイズ',60,80+6*24-4);
+  // 土台
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.6;ctx.fillStyle='rgba(31,158,138,0.08)';roundRect(120,70,110,180,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('特徴抽出 f',175,90);ctx.font='9.5px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');ctx.fillText('（土台・下層）',175,106);
+  for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(175,135+i*22,7,0,7);ctx.fillStyle='rgba(31,158,138,0.5)';ctx.fill();}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--gothic');ctx.fillText('汎用の見方',175,244);
+  // 頭
+  ctx.strokeStyle=getCSS('--warm');ctx.fillStyle='rgba(179,129,47,0.10)';roundRect(258,110,74,100,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--warm');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('分類器 g',295,128);ctx.font='9.5px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');ctx.fillText('（頭・上層）',295,143);
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(295,165+i*20,6,0,7);ctx.fillStyle='rgba(179,129,47,0.6)';ctx.fill();}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--gothic');ctx.fillText('課題固有',295,205);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('転移＝土台 f を再利用し、頭 g を替える',CW/2,CH-22);}
+function drawUsageTable(){ctx.textBaseline='middle';
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('データ量 と Aとの近さ で選ぶ',CW/2,32);
+  const rows=[['ごく少ない','凍結＋頭','var(--good)','学ぶ重み最小で過学習に強い'],['そこそこ','全体微調整','var(--upd)','土台も馴染ませ精度が伸びる'],['たっぷり','ゼロでも可','var(--neg)','転移の恩恵は小さくなる'],['Aと大きく違う','下層から動かす','var(--warm)','借りた特徴が合わないため']];
+  rows.forEach((r,i)=>{const y=60+i*72;
+    ctx.fillStyle='rgba(26,26,23,0.04)';roundRect(24,y,CW-48,60,8);ctx.fill();
+    ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('データ:'+r[0],38,y+18);
+    ctx.fillStyle=getCSS(r[2]);ctx.font='700 14px '+getCSS('--gothic');ctx.fillText('→ '+r[1],38,y+40);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='right';ctx.fillText(r[3],CW-38,y+30);});}
+function drawWhereConcept(){ctx.textBaseline='middle';ctx.textAlign='center';
+  const items=[{e:'🖼️',t:'ImageNet→医療画像',s:'ResNetの特徴を流用'},{e:'📝',t:'BERT/GPT→下流',s:'分類・要約・対話'},{e:'🧩',t:'LoRA',s:'凍結+小行列だけ学習'},{e:'🔗',t:'事前学習→SFT→RLHF',s:'転移の連鎖'}];
+  items.forEach((it,i)=>{const col=i%2,row=(i/2)|0;const x=CW/2-80+col*160,y=64+row*128;
+    ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;ctx.fillStyle='rgba(31,158,138,0.06)';roundRect(x-64,y-42,128,104,10);ctx.fill();ctx.stroke();
+    ctx.font='26px '+getCSS('--gothic');ctx.fillStyle=getCSS('--text');ctx.fillText(it.e,x,y-16);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11.5px '+getCSS('--gothic');ctx.fillText(it.t,x,y+16);
+    ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText(it.s,x,y+36);});}
+function drawCurve(){const x0=48,y0=40,w=CW-80,h=250;
+  ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('test正答率 vs 課題Bのデータ量',x0+w/2,y0-6);
+  // y axis 50-100%
+  ctx.textAlign='right';ctx.font='9px '+getCSS('--mono');for(const v of [0.5,0.75,1.0]){const Y=y0+h-((v-0.5)/0.5)*h;ctx.fillStyle=getCSS('--faint');ctx.fillText((v*100)+'%',x0-4,Y);ctx.strokeStyle='rgba(26,26,23,0.08)';ctx.beginPath();ctx.moveTo(x0,Y);ctx.lineTo(x0+w,Y);ctx.stroke();}
+  const sizes=CURVE_SIZES.map(pc=>pc*NB);const xAt=i=>x0+w*i/(CURVE_SIZES.length-1);const Y=v=>y0+h-((v-0.5)/0.5)*h;
+  ctx.textAlign='center';ctx.font='9px '+getCSS('--mono');ctx.fillStyle=getCSS('--faint');sizes.forEach((s,i)=>ctx.fillText(s+'点',xAt(i),y0+h+12));
+  const series=[['scratch','--neg','(a) ゼロから'],['finetune','--upd','(c) 微調整'],['frozen','--good','(b) 凍結+頭']];
+  series.forEach(([k,col])=>{const pts=[];for(let i=0;i<CURVE_SIZES.length;i++){const m=curveMean(k,i);if(m==null)break;pts.push([xAt(i),Y(Math.max(0.5,Math.min(1,m)))]);}
+    if(pts.length>1){ctx.strokeStyle=getCSS(col);ctx.lineWidth=2.2;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}
+    ctx.fillStyle=getCSS(col);pts.forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],3.2,0,7);ctx.fill();});});
+  // 凡例（パネル左下）
+  series.slice().reverse().forEach(([k,col,lab],i)=>{const ly=y0+h-16-i*15;ctx.fillStyle=getCSS(col);ctx.fillRect(x0+8,ly-4,14,3);ctx.beginPath();ctx.arc(x0+15,ly-2.5,3,0,7);ctx.fill();ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(lab,x0+28,ly-2);});
+  ctx.textBaseline='alphabetic';
+  if(curve&&!curve.done){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('計算中… '+(curve.si)+'/'+CURVE_SIZES.length,x0+w/2,y0+h+30);}}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  if(s===0){m.innerHTML='<div>ブロブ <b>6</b></div><div>入力 <b>2信号+20ノイズ</b></div>';}
+  else if(s===1||s===2){m.innerHTML='<div>土台 <b>再利用</b></div><div>頭 <b>課題ごと</b></div>';}
+  else if(s===3){m.innerHTML='<div>土台 f <b>汎用特徴</b></div><div>頭 g <b>課題固有</b></div>';}
+  else if(s===4){m.innerHTML='<div>課題A <b>'+(aTrainer?aTrainer.ep:0)+'</b>/'+A_EPOCHS+'</div><div class="best">正答率 <b>'+(aAccHist.length?(aAccHist[aAccHist.length-1]*100).toFixed(0):'—')+'%</b></div>';}
+  else if(s===5){m.innerHTML='<div>特徴 <b>ノイズに鈍感</b></div><div class="best">6ブロブ <b>分離</b></div>';}
+  else if(s===6){m.innerHTML='<div>課題B <b>右/左 2分類</b></div><div class="bad">ラベル <b>12点のみ</b></div>';}
+  else if(s===7){m.innerHTML='<div>(a)ゼロから</div><div class="bad">正答率 <b>'+(regimes?(acc(regimes.scratch.net,Btest.X,Btest.Y)*100).toFixed(0):'—')+'%</b></div>';}
+  else if(s===8){m.innerHTML='<div>(b)凍結+頭</div><div class="best">正答率 <b>'+(regimes?(acc(regimes.frozen.net,Btest.X,Btest.Y)*100).toFixed(0):'—')+'%</b></div>';}
+  else if(s===9){m.innerHTML='<div>(c)微調整</div><div>正答率 <b>'+(regimes?(acc(regimes.finetune.net,Btest.X,Btest.Y)*100).toFixed(0):'—')+'%</b></div>';}
+  else if(s===10){const g=(k)=>{const mm=curveMean(k,0);return mm==null?'…':(mm*100).toFixed(0);};m.innerHTML='<div class="bad">12点ゼロ <b>'+g('scratch')+'</b></div><div class="best">12点凍結 <b>'+g('frozen')+'</b></div>';}
+  else if(s===11){m.innerHTML='<div>少→<b>凍結</b></div><div>多→<b>微調整</b></div>';}
+  else if(s===12){m.innerHTML='<div>ImageNet/BERT</div><div class="best">LoRA・RLHF</div>';}
+  else{m.innerHTML='<div class="best">良い初期値 <b>＞白紙</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=(slideIdx<6||slideIdx>10);}
+function draw_(){ctx.clearRect(0,0,CW,CH);SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===4){if(!netA)initA();runTrainA();}
+  else if(i===5||i===6||i===13){ensureA();}
+  if(i===6)initBLazy();
+  if(i===7){if(!regimes)initRegimes();runRegime('scratch');}
+  if(i===8){if(!regimes)initRegimes();runRegime('frozen');}
+  if(i===9){if(!regimes)initRegimes();runRegime('finetune');}
+  if(i===10){ensureAllRegimes();if(!curve)initCurve();runCurve();}
+  renderAll();draw_();}
+function runTrainA(){anim=true;if(window.__prefersReducedMotion){ensureA();aAccHist=[acc(netA,aTest.X,aTest.Y)];anim=false;draw_();renderMini();renderExplain();return;}
+  function go(){if(!anim||slideIdx!==4)return;if(aTrainer.ep>=A_EPOCHS){anim=false;renderMini();renderExplain();draw_();return;}
+    trainEpochs(aTrainer,Adata.X,Adata.Y,3,16);aAccHist.push(acc(netA,aTest.X,aTest.Y));draw_();renderMini();renderExplain();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runRegime(key){anim=true;const r=regimes[key];if(window.__prefersReducedMotion){ensureRegime(key);anim=false;draw_();renderMini();renderExplain();return;}
+  const sid=slideIdx;function go(){if(!anim||slideIdx!==sid)return;if(r.tr.ep>=B_EPOCHS){anim=false;renderMini();renderExplain();draw_();return;}
+    trainRegime(key,8);draw_();renderMini();renderExplain();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runCurve(){anim=true;if(window.__prefersReducedMotion){while(!curve.done)curveStep();anim=false;draw_();renderMini();renderExplain();return;}
+  function go(){if(!anim||slideIdx!==10)return;if(curve.done){anim=false;renderMini();renderExplain();draw_();return;}
+    curveStep();draw_();renderMini();renderExplain();setTimeout(()=>requestAnimationFrame(go),30);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===4||slideIdx>=7&&slideIdx<=10);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,heavy?1400:4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;netA=null;aTrainer=null;aAccHist=[];Bset=null;regimes=null;curve=null;bSeed=42;slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+let diceN=0;
+document.getElementById('diceBtn').onclick=()=>{diceN++;bSeed=42+diceN*17;Bset=null;regimes=null;curve=null;initB();initRegimes();
+  if(slideIdx===7)runRegime('scratch');else if(slideIdx===8)runRegime('frozen');else if(slideIdx===9)runRegime('finetune');
+  else if(slideIdx===10){initCurve();runCurve();}else{draw_();renderMini();renderExplain();}};
+reset();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
