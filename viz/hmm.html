@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>隠れマルコフモデル — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#fff;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>隠れマルコフモデル — 見えない状態を推理する</h1>
+  <div class="lead">見えるのは友人の<b>行動</b>（散歩・買い物・掃除）だけ。その裏で<b>天気</b>（晴・雨）が確率的に移り変わっています。観測列から<b>隠れた状態列を推理</b>するのが HMM です。<b>forward</b>（全経路の尤度）と <b>Viterbi</b>（最尤の1本）をトレリス図で本当に計算し、「その日だけ見る推定」が<b>前後の文脈で覆る</b>瞬間を見せます。<a href="rnn.html">RNN</a> の隠れ状態や <a href="kalman.html">カルマンフィルタ</a>（連続版）の親戚です。「次へ ▶」で進めてください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>見えるデータの裏で動く<b>「見えない状態」</b>を、観測列だけから確率で推理する——系列データ解析の基礎。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>隠れ状態がマルコフ連鎖で遷移し各状態が観測を確率的に吐く。<b>観測から裏の状態列を逆算</b>するしくみ。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>音声認識・品詞タグ付け・遺伝子配列解析・手書き文字認識・センサからの状態推定。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の日々</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>1 つの観測は「その瞬間のスナップショット」にすぎない。HMM は<b>前後の文脈で 1 点の解釈を上書きする</b>——散歩した日も、雨続きの中なら「雨の日にたまたま散歩した」と読む。<b>系列を読むとは、点でなく筋を読むこと</b>だ。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span><span>各日いちばんありそうな天気を並べれば、最も確からしい天気の並びになる</span></div>
+    <div class="row"><span class="o">✓</span><span>点ごとの最善を貼り合わせた列は、<b>遷移の筋が通らず全体では最善でない</b>（あり得ない並びになることさえある）。<b>並び全体</b>を最尤化するのが Viterbi。<b>点の最善 ≠ 列の最善</b>。</span></div>
+    <div class="row"><span class="x">✗</span><span>「マルコフ」とは観測が 1 つ前だけで決まるという意味</span></div>
+    <div class="row"><span class="o">✓</span><span>マルコフ性は<b>隠れ状態の遷移</b>の話（次の天気は今日の天気だけで決まる）。観測は<b>今の状態だけ</b>から出る。観測列自体は非マルコフで、<b>遠くの観測も推定に効く</b>——だから文脈推定に意味がある。</span></div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：forward-backward／Baum-Welch（学習）／対数化／RNN・カルマンとの関係</summary>
+    <div class="det">3 つの問題があります。<b>①評価</b>：観測列の尤度 P(O)＝<b>forward</b> で全経路を効率よく足す（各時刻 N 状態を保持するので O(N²T)、素朴な N^T の全列挙を回避）。<b>②復号</b>：最尤の状態列＝<b>Viterbi</b>（forward の和を max に置換＋逆ポインタで経路復元）。<b>③学習</b>：パラメータ（π・遷移 A・出力 B）をデータから推定＝<b>Baum-Welch（forward-backward を使った EM）</b>。潜在変数つき最尤推定なので <a href="gmm.html">GMM</a> の EM と同じ骨格です。<b>平滑化</b>：γ<sub>t</sub>(i)=α<sub>t</sub>(i)β<sub>t</sub>(i)/P(O) は「全観測を見た上での各時刻の状態確率」——このページの「文脈つき推定」。実装上は α が指数的に小さくなり<b>アンダーフロー</b>するので、各時刻で正規化するか<b>対数</b>で計算します。<b>位置づけ</b>：隠れ状態を<b>連続</b>にしてガウスの線形遷移にすると <a href="kalman.html">カルマンフィルタ</a>（forward＝予測+更新に対応）。隠れ状態を<b>ニューラルな連続ベクトル</b>にして非線形にすると <a href="rnn.html">RNN</a>・<a href="lstm.html">LSTM</a>——HMM は「確率で解釈できる、系列の隠れ状態モデル」の原点です。関連：<a href="qlearning.html">Q学習</a>（状態のマルコフ性）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function makeRng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ===== HMM: 天気{晴,雨} × 行動{散歩,買い物,掃除} ===== */
+const S=['晴','雨'], SC=['--loss','--upd'];        // 状態と色（晴=琥珀 / 雨=紫）
+const O=['散歩','買物','掃除'];
+const PI=[0.6,0.4];
+const A=[[0.8,0.2],[0.2,0.8]];                      // A[i][j]=P(次j|今i) 粘り強い天気
+const B=[[0.6,0.3,0.1],[0.1,0.4,0.5]];              // B[i][k]=P(観測k|状態i)
+const N=2;
+let seedCase=7, obs=[2,2,0,2,2], truth=[1,1,1,1,1], T=obs.length;
+
+function forward(o){const Tn=o.length,al=Array.from({length:Tn},()=>[0,0]);
+  for(let i=0;i<N;i++)al[0][i]=PI[i]*B[i][o[0]];
+  for(let t=1;t<Tn;t++)for(let j=0;j<N;j++){let s=0;for(let i=0;i<N;i++)s+=al[t-1][i]*A[i][j];al[t][j]=s*B[j][o[t]];}
+  return{al,L:al[Tn-1][0]+al[Tn-1][1]};}
+function backward(o){const Tn=o.length,be=Array.from({length:Tn},()=>[0,0]);be[Tn-1]=[1,1];
+  for(let t=Tn-2;t>=0;t--)for(let i=0;i<N;i++){let s=0;for(let j=0;j<N;j++)s+=A[i][j]*B[j][o[t+1]]*be[t+1][j];be[t][i]=s;}return be;}
+function viterbi(o){const Tn=o.length,d=Array.from({length:Tn},()=>[0,0]),psi=Array.from({length:Tn},()=>[0,0]);
+  for(let i=0;i<N;i++)d[0][i]=PI[i]*B[i][o[0]];
+  for(let t=1;t<Tn;t++)for(let j=0;j<N;j++){let b=-1,a=0;for(let i=0;i<N;i++){const v=d[t-1][i]*A[i][j];if(v>b){b=v;a=i;}}d[t][j]=b*B[j][o[t]];psi[t][j]=a;}
+  let last=d[Tn-1][0]>=d[Tn-1][1]?0:1;const p=new Array(Tn);p[Tn-1]=last;
+  for(let t=Tn-2;t>=0;t--)p[t]=psi[t+1][p[t+1]];return{d,psi,path:p,prob:d[Tn-1][last]};}
+const emitArgmax=o=>o.map(k=>B[0][k]>=B[1][k]?0:1);
+let st=null;
+function compute(){const f=forward(obs),be=backward(obs),v=viterbi(obs);
+  const g=f.al.map((r,t)=>{const den=f.L;return r.map((x,i)=>x*be[t][i]/den);});
+  st={al:f.al,L:f.L,be,g,d:v.d,psi:v.psi,path:v.path,prob:v.prob,emit:emitArgmax(obs)};}
+compute();
+
+/* 🎲 HMM から新しい系列をサンプル（本物の生成過程・シード付き）。単時点とViterbiが食い違う列を採用 */
+function sampleCase(){const rng=makeRng(seedCase*2654435761>>>0);
+  for(let tries=0;tries<60;tries++){
+    const tr=[],ob=[];let s=rng()<PI[0]?0:1;
+    for(let t=0;t<T;t++){if(t>0)s=rng()<A[tr[t-1]][0]?0:1;tr.push(s);
+      const r=rng();let acc=0,k=0;for(;k<3;k++){acc+=B[s][k];if(r<acc)break;}ob.push(Math.min(2,k));}
+    const em=emitArgmax(ob),vp=viterbi(ob).path;
+    if(ob.some((_,t)=>em[t]!==vp[t])){return{obs:ob,truth:tr};}
+    seedCase++;
+  }
+  return{obs:obs.slice(),truth:truth.slice()};}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function gridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+const PADX=42, TOPY=118, ROWH=80;
+const colX=t=>PADX+(CW-2*PADX)*(T>1?t/(T-1):0.5);
+const rowY=s=>TOPY+s*ROWH;
+const NR=15;
+function obsHeader(upto){ // 上部：日付＋観測ラベル
+  for(let t=0;t<T;t++){const x=colX(t);
+    ctx.fillStyle=(upto!=null&&t>=upto)?getCSS('--faint'):getCSS('--muted');
+    ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    ctx.fillText('Day'+(t+1),x,58);
+    // 観測タグ
+    const w=34,h=17;ctx.globalAlpha=(upto!=null&&t>=upto)?0.35:1;
+    ctx.fillStyle='#fff';ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;rr(x-w/2,66,w,h,5);ctx.fill();ctx.stroke();
+    ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--gothic');ctx.textBaseline='middle';ctx.fillText(O[obs[t]],x,66+h/2+.5);
+    ctx.globalAlpha=1;ctx.textBaseline='alphabetic';}}
+function stateLabels(){ctx.textAlign='left';ctx.textBaseline='middle';
+  for(let s=0;s<N;s++){ctx.fillStyle=getCSS(SC[s]);ctx.font='700 13px '+getCSS('--gothic');ctx.fillText(S[s],12,rowY(s));}
+  ctx.textBaseline='alphabetic';}
+/* トレリス本体。o:{vals:'alpha'|'delta'|'gamma'|null, upto, path, showBackptr, truth, markCol, emit} */
+function drawTrellis(o){o=o||{};const upto=o.upto==null?T:o.upto;
+  obsHeader(o.dimObs?upto:null);stateLabels();
+  const inten=(t,s)=>{if(o.vals==='alpha'){const z=st.al[t][0]+st.al[t][1];return z>0?st.al[t][s]/z:0.5;}
+    if(o.vals==='delta'){const z=st.d[t][0]+st.d[t][1];return z>0?st.d[t][s]/z:0.5;}
+    if(o.vals==='gamma')return st.g[t][s];return 0.5;};
+  // エッジ（遷移）
+  for(let t=1;t<Math.min(upto,T);t++){for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    const x1=colX(t-1),y1=rowY(i),x2=colX(t),y2=rowY(j);
+    let hl=false;
+    if(o.showBackptr&&st.psi[t][j]===i)hl=true;
+    ctx.strokeStyle=hl?'rgba(26,26,23,0.42)':'rgba(26,26,23,0.13)';ctx.lineWidth=hl?1.4:0.8;
+    ctx.beginPath();ctx.moveTo(x1+NR-2,y1);ctx.lineTo(x2-NR+2,y2);ctx.stroke();}}
+  // Viterbi 経路（太線）
+  if(o.path){ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=3;ctx.beginPath();
+    for(let t=0;t<Math.min(upto,T);t++){const x=colX(t),y=rowY(o.path[t]);t?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+  // 真の経路（薄い破線）
+  if(o.truth){ctx.strokeStyle='rgba(207,79,95,0.5)';ctx.lineWidth=1.6;ctx.setLineDash([4,3]);ctx.beginPath();
+    for(let t=0;t<T;t++){const x=colX(t),y=rowY(o.truth[t]);t?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();ctx.setLineDash([]);}
+  // 食い違い列マーク
+  if(o.markCol!=null){const x=colX(o.markCol);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.4;ctx.setLineDash([3,3]);
+    ctx.strokeRect(x-22,TOPY-24,44,ROWH+48);ctx.setLineDash([]);}
+  // ノード
+  for(let t=0;t<T;t++){const shown=t<upto;
+    for(let s=0;s<N;s++){const x=colX(t),y=rowY(s);const col=getCSS(SC[s]);
+      const a=shown?inten(t,s):null;
+      ctx.beginPath();ctx.arc(x,y,NR,0,7);
+      if(a==null){ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.lineWidth=1;ctx.stroke();}
+      else{ctx.fillStyle='#fff';ctx.fill();
+        ctx.globalAlpha=0.20+0.75*a;ctx.fillStyle=col;ctx.fill();ctx.globalAlpha=1;
+        ctx.strokeStyle=col;ctx.lineWidth=a>0.5?2.2:1;ctx.stroke();}
+      // 単時点推定マーク
+      if(o.emit&&shown&&o.emit[t]===s){ctx.beginPath();ctx.arc(x,y,NR+3.5,0,7);ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=1.4;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);}
+      // ラベル
+      ctx.fillStyle=(a!=null&&a>0.55)?'#fff':getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(S[s],x,y);
+      if(o.vals&&shown){ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textBaseline='alphabetic';
+        ctx.fillText((a*100).toFixed(0)+'%',x,y+NR+11);}
+    }}
+  ctx.textBaseline='alphabetic';}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(txt,CW/2,y||CH-12);}
+
+/* モデル図（状態遷移＋出力）slide1 */
+function drawModel(){
+  const cy=110, x0=110, x1=250, r=30;
+  // 状態円
+  [[x0,0],[x1,1]].forEach(([x,s])=>{ctx.beginPath();ctx.arc(x,cy,r,0,7);ctx.fillStyle='#fff';ctx.fill();
+    ctx.globalAlpha=0.18;ctx.fillStyle=getCSS(SC[s]);ctx.fill();ctx.globalAlpha=1;
+    ctx.strokeStyle=getCSS(SC[s]);ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle=getCSS(SC[s]);ctx.font='700 15px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(S[s],x,cy);});
+  // 遷移矢印（晴↔雨）
+  ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1.4;ctx.fillStyle='rgba(26,26,23,0.5)';
+  ctx.beginPath();ctx.moveTo(x0+r,cy-8);ctx.quadraticCurveTo((x0+x1)/2,cy-24,x1-r,cy-8);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x1-r,cy+8);ctx.quadraticCurveTo((x0+x1)/2,cy+24,x0+r,cy+8);ctx.stroke();
+  ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillStyle=getCSS('--muted');
+  ctx.fillText('0.2',(x0+x1)/2,cy-24);ctx.fillText('0.2',(x0+x1)/2,cy+34);
+  // 自己ループ
+  [[x0,-1,0],[x1,1,1]].forEach(([x,d,s])=>{ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.beginPath();ctx.arc(x+d*r*0.1,cy-r-10,12,0.6,Math.PI-0.2,d<0);ctx.stroke();
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.fillText('0.8',x,cy-r-24);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.fillText('遷移A：天気は粘る（同じが0.8）',CW/2,cy+r+22);
+  // 出力確率（各状態の3行動バー）
+  const by=200,bh=15,bw=64;
+  for(let s=0;s<N;s++){const bx=s===0?36:196, ty=by;
+    ctx.fillStyle=getCSS(SC[s]);ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(S[s]+'の日の行動',bx,ty-6);
+    for(let k=0;k<3;k++){const y=ty+k*22;
+      ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(O[k],bx,y+12);
+      ctx.fillStyle='rgba(0,0,0,0.06)';ctx.fillRect(bx+34,y+2,bw,bh);
+      ctx.fillStyle=getCSS(SC[s]);ctx.globalAlpha=0.75;ctx.fillRect(bx+34,y+2,bw*B[s][k],bh);ctx.globalAlpha=1;
+      ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(B[s][k].toFixed(1),bx+34+bw+3,y+12);}}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('出力B：状態ごとに行動の出やすさが違う',CW/2,by+78);
+  // 初期
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.fillText('初期 π = [晴 0.6, 雨 0.4]',CW/2,CH-18);}
+
+/* 生成の物語 slide2：真の天気→行動 */
+function drawGenerative(upto){
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('裏（隠れ）：天気が遷移',CW/2,52);
+  const wy=90, ay=200;
+  for(let t=0;t<T;t++){const x=colX(t),shown=t<upto;const s=truth[t];
+    ctx.globalAlpha=shown?1:0.18;
+    // 天気ノード
+    ctx.beginPath();ctx.arc(x,wy,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.globalAlpha*=1;
+    const gA=ctx.globalAlpha;ctx.globalAlpha=shown?0.85:0.15;ctx.fillStyle=getCSS(SC[s]);ctx.fill();ctx.globalAlpha=gA;
+    ctx.strokeStyle=getCSS(SC[s]);ctx.lineWidth=1.6;ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(S[s],x,wy);
+    if(t>0){ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(colX(t-1)+16,wy);ctx.lineTo(x-16,wy);ctx.stroke();}
+    // 出力矢印
+    if(shown){ctx.strokeStyle=getCSS(SC[s]);ctx.lineWidth=1.2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x,wy+16);ctx.lineTo(x,ay-14);ctx.stroke();ctx.setLineDash([]);}
+    // 行動ノード
+    ctx.textBaseline='middle';const w=36,h=20;ctx.fillStyle='#fff';ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1.2;rr(x-w/2,ay-h/2,w,h,5);ctx.fill();ctx.stroke();
+    ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--gothic');ctx.fillText(O[obs[t]],x,ay+.5);
+    ctx.globalAlpha=1;}
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('表（見える）：友人の行動',CW/2,ay+34);
+  caption('天気は見えない。行動だけが手に入る',CH-14);}
+
+/* 素朴推定 slide3：各日の観測だけから */
+function drawNaive(){
+  obsHeader(null);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('各日、その行動を出しやすい方の天気に賭ける',CW/2,110);
+  const by=130,bh=54;
+  for(let t=0;t<T;t++){const x=colX(t),k=obs[t];const p0=B[0][k],p1=B[1][k],pick=p0>=p1?0:1;
+    // 2択バー
+    ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';
+    for(let s=0;s<N;s++){const y=by+s*(bh/2+4);const p=s===0?p0:p1;
+      ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(x-17,y,34,10);
+      ctx.fillStyle=getCSS(SC[s]);ctx.globalAlpha=(s===pick)?0.9:0.35;ctx.fillRect(x-17,y,34*p/0.6,10);ctx.globalAlpha=1;}
+    // 賭けた天気
+    ctx.fillStyle=getCSS(SC[pick]);ctx.font='700 12px '+getCSS('--gothic');ctx.textBaseline='alphabetic';ctx.fillText(S[pick],x,by+bh+18);}
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('単時点推定：'+st.emit.map(s=>S[s]).join(' '),CW/2,by+bh+44);
+  const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
+  caption(flip>=0?('Day'+(flip+1)+'の散歩を晴と即断。でも本当に？'):'各日バラバラに当てるだけ',CH-14);}
+
+/* γ 棒グラフ slide11 */
+function drawGammaBars(){
+  obsHeader(null);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('全観測を見た上での「その日が晴／雨だった確率」γ',CW/2,102);
+  const by=132,bh=112,bw=26;
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PADX-6,by+bh*0.5);ctx.lineTo(CW-PADX+6,by+bh*0.5);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('50%',PADX-8,by+bh*0.5+3);
+  const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
+  for(let t=0;t<T;t++){const x=colX(t),g0=st.g[t][0];
+    // 晴の確率を積み上げ（下から雨、上に晴）
+    ctx.fillStyle=getCSS(SC[1]);ctx.globalAlpha=0.7;ctx.fillRect(x-bw/2,by,bw,bh);ctx.globalAlpha=1;
+    ctx.fillStyle=getCSS(SC[0]);ctx.globalAlpha=0.85;ctx.fillRect(x-bw/2,by,bw,bh*g0);ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(x-bw/2,by,bw,bh);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    ctx.fillText('晴'+(g0*100).toFixed(0),x,by-4);
+    if(t===flip){ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6;ctx.setLineDash([3,3]);ctx.strokeRect(x-bw/2-4,by-18,bw+8,bh+24);ctx.setLineDash([]);}}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('上=晴の確率 / 下=雨の確率',PADX-6,by+bh+16);
+  if(flip>=0)caption('Day'+(flip+1)+'は晴でも '+(st.g[flip][0]*100).toFixed(0)+'%どまり。文脈が雨に引き戻す',CH-12);}
+
+/* forward vs viterbi 対比 slide12 */
+function drawFvsV(){
+  const y0=70;
+  // forward（和）
+  ctx.fillStyle=getCSS('--loss');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('forward（和 Σ）',CW*0.28,y0);
+  ctx.fillStyle=getCSS('--upd');ctx.fillText('Viterbi（最大 max）',CW*0.74,y0);
+  // 2つのミニ格子
+  function miniTrellis(cx,mode){const cols=3,gx=26,gy=40,ox=cx-gx,oy=110;
+    for(let t=0;t<cols;t++)for(let s=0;s<2;s++){const x=ox+t*gx,y=oy+s*gy;
+      if(t>0)for(let i=0;i<2;i++){const on=(mode==='max')?(i===s?true:false):true;
+        ctx.strokeStyle=on?'rgba(26,26,23,0.5)':'rgba(26,26,23,0.15)';ctx.lineWidth=on?1.4:0.7;
+        ctx.beginPath();ctx.moveTo(ox+(t-1)*gx+7,oy+i*gy);ctx.lineTo(x-7,y);ctx.stroke();}
+      ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.fillStyle=getCSS(SC[s]);ctx.globalAlpha=0.7;ctx.fill();ctx.globalAlpha=1;
+      ctx.strokeStyle=getCSS(SC[s]);ctx.lineWidth=1;ctx.stroke();}
+    ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillText(mode==='max'?'各点は最良の1本だけ残す':'各点は入る枝を全部足す',cx,oy+2*gy+20);}
+  miniTrellis(CW*0.28,'sum');miniTrellis(CW*0.74,'max');
+  // 出力の違い
+  const yb=250;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;rr(28,yb,CW-56,120,10);ctx.fill();ctx.stroke();
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle=getCSS('--loss');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('forward → 尤度 P(O) = '+st.L.toExponential(2),44,yb+26);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('「この観測列の、モデルらしさ」1つの数',44,yb+44);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('Viterbi → 最尤経路 '+st.path.map(s=>S[s]).join(''),44,yb+72);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('「いちばんありそうな状態の並び」1本',44,yb+90);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.fillText('骨格は同じ格子。和をmaxに変えるだけ',44,yb+110);}
+
+/* 応用カード slide13 */
+function drawApps(){const items=[['🎙 音声認識','音の並び（観測）から、発した音素・単語（隠れ状態）を復元'],
+  ['🏷 品詞タグ付け','単語列から各語の品詞（名詞/動詞…）を文脈込みで推定'],
+  ['🧬 遺伝子配列','塩基の並びから、遺伝子/非遺伝子などの領域を区切る'],
+  ['📡 状態推定','センサの観測列から、機器やユーザの隠れ状態を追う']];
+  items.forEach((it,i)=>{const y=40+i*92;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;rr(24,y,CW-48,78,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(it[0],40,y+26);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText(it[1],40,y+50);});}
+
+/* まとめ slide14 */
+function drawSummary(){
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('隠れマルコフモデル',CW/2,42);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText('観測列 → 隠れ状態列を確率で推理',CW/2,62);
+  const y0=88;ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(CW/2,72);ctx.lineTo(CW/2,y0+4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(92,y0+4);ctx.lineTo(CW-92,y0+4);ctx.stroke();
+  [[92,'--upd'],[CW-92,'--accent']].forEach(([x,c])=>{ctx.strokeStyle=getCSS(c);ctx.beginPath();ctx.moveTo(x,y0+4);ctx.lineTo(x,y0+26);ctx.stroke();ctx.beginPath();ctx.moveTo(x,y0+26);ctx.lineTo(x-5,y0+18);ctx.lineTo(x+5,y0+18);ctx.closePath();ctx.fillStyle=getCSS(c);ctx.fill();});
+  ctx.fillStyle='#f2effb';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.4;rr(28,y0+30,146,92,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('連続状態にすると',101,y0+52);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('カルマンフィルタ',101,y0+74);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('ガウスの線形版',101,y0+94);
+  ctx.fillStyle='#e4f4ef';ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;rr(CW-174,y0+30,146,92,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('神経の状態にすると',CW-101,y0+52);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('RNN / LSTM',CW-101,y0+74);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('非線形・学習で',CW-101,y0+94);
+  const by=y0+140;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;rr(24,by,CW-48,128,10);ctx.fill();ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('要点',40,by+22);
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');
+  ctx.fillText('・隠れ状態はマルコフ遷移、観測は状態から確率的に',40,by+44);
+  ctx.fillText('・forward＝全経路の和＝尤度 P(O)',40,by+64);
+  ctx.fillText('・Viterbi＝和をmaxに＝最尤の状態列1本',40,by+84);
+  ctx.fillText('・点の最善≠列の最善。文脈が1点を覆す',40,by+104);}
+
+/* ===== スライド定義（5章×15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 素朴の限界',c:'var(--warm)',start:3},{t:'Ⅲ forward',c:'var(--loss)',start:5},{t:'Ⅳ Viterbi',c:'var(--upd)',start:8},{t:'Ⅴ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,fillStep=T;
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'見えるのは行動だけ',legend:'裏で天気（晴/雨）が動き、表には友人の行動だけが出る',
+ html(){return'<h3>開演：見えるのは行動だけ、天気は隠れている</h3><div class="eq curr">見える：行動列 <i>O</i> = (散歩, 掃除, …)　／　隠れ：天気列 <i>Q</i> = (晴, 雨, …)<span class="read">読み：手に入るのは友人の行動 <i>O</i> だけ。その裏で天気 <i>Q</i> が移り変わっているが<b>直接は見えない</b>。<i>O</i> から <i>Q</i> を推理したい</span></div><div class="desc">遠方の友人と毎日電話し、その日「<b>散歩・買い物・掃除</b>」のどれをしたかだけ聞けます。天気は教えてくれません。でも<b>晴れの日は散歩しやすく、雨の日は掃除しやすい</b>。ならば行動の並びから、裏で<b>天気がどう推移したか</b>を当てられるはず——これが隠れマルコフモデルの問題設定です。裏（天気）は見えず、表（行動）だけが手に入る。</div>';},
+ draw(){drawGenerative(T);}},
+{title:'HMMの3つの部品',legend:'初期π・遷移A（天気の粘り）・出力B（状態ごとの行動確率）',
+ html(){return'<h3>HMM の部品：遷移と出力、2 つの確率</h3><div class="eq curr"><i>a<sub>ij</sub></i> = P(次=<i>j</i> | 今=<i>i</i>)　／　<i>b<sub>i</sub></i>(<i>o</i>) = P(観測=<i>o</i> | 状態=<i>i</i>)<span class="read">読み：<i>a<sub>ij</sub></i>＝天気の遷移確率（晴→雨など）、<i>b<sub>i</sub></i>(<i>o</i>)＝その天気で各行動が出る確率。初期分布 π と合わせて 3 つ組でモデルが決まる</span></div><div class="desc">HMM は 3 つの確率で書けます。<b>初期 π</b>（1 日目の天気）、<b>遷移 A</b>（天気の移り変わり——ここでは「同じ天気が続きやすい」を 0.8 で表現）、<b>出力 B</b>（その天気で各行動が出る確率——晴は散歩 0.6、雨は掃除 0.5）。<b>マルコフ性</b>：次の天気は<b>今日の天気だけ</b>で決まる（昨日以前は忘れる）。この 3 つがあれば、観測を「生成」も「推理」もできます。</div>';},
+ draw(){drawModel();}},
+{title:'生成の物語',legend:'天気がサイコロで遷移し、各日その天気から行動が確率で出る',
+ html(){return'<h3>生成の物語：天気が動き、行動が出る</h3><div class="eq curr"><i>q</i><sub>1</sub>〜π → <i>o</i><sub>1</sub>〜<i>b</i>、　<i>q<sub>t</sub></i>〜A(<i>q<sub>t−1</sub></i>) → <i>o<sub>t</sub></i>〜<i>b</i><span class="read">読み：まず初期分布から 1 日目の天気を引き、その天気から行動を引く。以降は「前日の天気→今日の天気→今日の行動」を繰り返す＝観測列が生まれる</span></div><div class="desc">モデルが観測を作る手順は 2 段のサイコロです。①<b>天気を遷移</b>させる（前日の天気に応じて A で引く）。②その天気から<b>行動を出力</b>する（B で引く）。上段が裏の天気（本当はこう推移した）、下段がそこから出た行動。私たちが見るのは<b>下段だけ</b>。推理とは、この生成を逆にたどって上段を復元することです。「🎲 別の日々」で新しい系列をサンプルできます。</div>';},
+ draw(){drawGenerative(fillStep);},dice:true},
+// ---- Ⅱ 素朴の限界 ----
+{title:'素朴な推定：その日だけ見る',legend:'各日、その行動を出しやすい方の天気に賭ける（文脈は無視）',
+ html(){const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
+   return'<h3>素朴な推定：その日の行動だけで当てる</h3><div class="eq curr">各日 <i>t</i> で　q̂<sub>t</sub> = argmax<sub>i</sub> <i>b<sub>i</sub></i>(<i>o<sub>t</sub></i>)<span class="read">読み：その日の行動をいちばん出しやすい天気を選ぶだけ。前後の日（文脈）も遷移も一切使わない、各点バラバラの推定</span></div><div class="desc">まず一番素朴な手：<b>各日を独立に</b>、その行動を出しやすい方の天気に賭けます。掃除の日は雨（雨の掃除 0.5＞晴 0.1）、散歩の日は晴。結果は <b>'+st.emit.map(s=>S[s]).join(' ')+'</b>。'+(flip>=0?'ところが Day'+(flip+1)+'——雨続きの中の 1 回の散歩を、この方法は迷わず「<b>晴</b>」と断じます。本当にその日だけ晴れたのでしょうか？':'一見もっともらしく見えます。')+'</div>';},
+ draw(){drawNaive();}},
+{title:'なぜ足りないか',legend:'素朴推定は「昨日の天気」を無視している＝遷移を捨てている',
+ html(){return'<h3>なぜ足りない：文脈（遷移）を捨てている</h3><div class="eq curr">P(晴の日に散歩)=0.6 は高い　—だが—　P(雨→晴→雨) は遷移で小さい<span class="read">読み：1 点の出力確率だけ見れば散歩は晴を示す。しかし「雨の翌日に晴、その翌日また雨」という<b>天気の並び</b>は、粘る天気のもとでは起こりにくい</span></div><div class="desc">素朴推定の穴は<b>遷移 A を無視している</b>こと。天気は粘る（同じが 0.8）ので、<b>雨→晴→雨</b>という 1 日だけの飛びは、遷移確率 0.2×0.2 ととても小さい。一方その日を<b>雨のまま</b>にすれば 0.8×0.8。散歩の出力（晴 0.6 対 雨 0.1）で稼ぐ分より、遷移で失う分の方が大きいのです。<b>点だけ見ると晴、筋で見ると雨</b>。この綱引きを正しく解くのが、次の forward と Viterbi。</div>';},
+ draw(){drawTrellis({vals:null,path:null});
+   ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('格子の上を、どの「1本の道」で通るか',CW/2,CH-56);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.fillText('横＝日、縦＝天気。線＝天気の遷移',CW/2,CH-36);
+   caption('遷移を考えると、通り方に良し悪しが生まれる',CH-14);}},
+// ---- Ⅲ forward ----
+{title:'forward①：前向きに足す',legend:'α=「その状態で、ここまでの観測を出した確率」を前向きに更新',
+ html(){return'<h3>forward①：確率を前向きに足していく</h3><div class="eq curr"><i>α<sub>t</sub></i>(<i>j</i>) = [ Σ<sub>i</sub> <i>α<sub>t−1</sub></i>(<i>i</i>) <i>a<sub>ij</sub></i> ] · <i>b<sub>j</sub></i>(<i>o<sub>t</sub></i>)<span class="read">読み：<i>α<sub>t</sub></i>(<i>j</i>)＝「<i>t</i> 日目に状態 <i>j</i> にいて、1〜<i>t</i> 日目の観測をすべて出した確率」。前日の全状態からの流入を<b>足し</b>、今日の出力を掛ける</span></div><div class="desc">forward は各セルに <b>α</b> を入れます——「その日その天気にいて、ここまでの行動を全部出した確率」。更新は 2 段：前日の全天気から<b>流入を足し合わせ</b>（Σ＝遷移をまたぐ）、今日の<b>行動の出力</b>を掛ける。濃いセルほど確率が高い。素朴推定と違い、<b>前日からの遷移がちゃんと効いています</b>。1 日目から順に、格子を左から右へ埋めていきます。</div>';},
+ draw(){drawTrellis({vals:'alpha',upto:fillStep,dimObs:true});caption('α：ここまでの観測を出した確率（列内で正規化表示）',CH-12);}},
+{title:'forward②：全経路の和＝尤度',legend:'最終列のαを足すと、観測列の尤度 P(O)＝全経路の総和',
+ html(){return'<h3>forward②：埋め終えると尤度 P(O)</h3><div class="eq curr">P(<i>O</i>) = Σ<sub>i</sub> <i>α<sub>T</sub></i>(<i>i</i>) = '+st.L.toExponential(2)+'　（全 '+(2**T)+' 経路の和）<span class="read">読み：最終日の α を全状態で足すと、観測列 <i>O</i> の尤度。ありうる天気の並び 2<sup>'+T+'</sup>=<b>'+(2**T)+' 通り</b>すべてを、効率よく足し込んだ値</span></div><div class="desc">格子を最後まで埋め、<b>最終列の α を足す</b>と観測列の尤度 <b>P(O) = '+st.L.toExponential(2)+'</b> になります。これは「ありうる天気の並び <b>'+(2**T)+' 通り</b>」を全部足した値——でも α のおかげで '+(2**T)+' 回の計算をせず、各日 2 状態を保つだけ（O(N²T)）。<b>和</b>を取るのがポイントで、特定の 1 本でなく<b>すべての説明を合算</b>した「この観測列のもっともらしさ」です。</div>';},
+ draw(){drawTrellis({vals:'alpha',upto:T});
+   ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('Σ 最終列 = P(O) = '+st.L.toExponential(2),CW/2,CH-40);
+   caption('全'+(2**T)+'経路の和を効率よく計算',CH-14);}},
+{title:'尤度で何が分かる',legend:'P(O)＝このモデルらしさ。モデルを替えて比べれば分類になる',
+ html(){return'<h3>尤度 P(O) の使い道：モデル比較</h3><div class="eq curr">選ぶモデル = argmax<sub>m</sub> P(<i>O</i> | モデル<sub>m</sub>)<span class="read">読み：同じ観測列を複数のモデルに通し、尤度がいちばん高いモデルを選ぶ。これが HMM による分類・認識の骨</span></div><div class="desc">尤度 P(O) は 1 つの数ですが、強力です。<b>「単語ごとに 1 つの HMM」</b>を用意し、入ってきた音の並びを全モデルに通して、<b>P(O) が最大のモデル</b>を答えにすれば——それが<b>音声認識</b>。品詞列・話者・ジェスチャの識別も同じ枠組み。forward は「<b>観測がこのモデルからどれだけ出やすいか</b>」を測る物差しで、認識の土台になります。次は「どの並びだったか」を当てる Viterbi へ。</div>';},
+ draw(){drawTrellis({vals:'alpha',upto:T});
+   const yb=300;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;rr(30,yb,CW-60,86,9);ctx.fill();ctx.stroke();
+   ctx.fillStyle=getCSS('--text');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('観測 O →［ HMM_A ］→ P(O|A)',44,yb+24);
+   ctx.fillText('　　　 →［ HMM_B ］→ P(O|B)',44,yb+46);
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 10.5px '+getCSS('--gothic');ctx.fillText('尤度が高い方を選ぶ＝認識・分類',44,yb+70);}},
+// ---- Ⅳ Viterbi ----
+{title:'Viterbi①：和をmaxに変える',legend:'δ=最良の1本の確率。足す代わりに最大を取り、来た枝を記録',
+ html(){return'<h3>Viterbi①：和を「最大」に置き換える</h3><div class="eq curr"><i>δ<sub>t</sub></i>(<i>j</i>) = [ max<sub>i</sub> <i>δ<sub>t−1</sub></i>(<i>i</i>) <i>a<sub>ij</sub></i> ] · <i>b<sub>j</sub></i>(<i>o<sub>t</sub></i>)、　ψ<sub>t</sub>(<i>j</i>)=argmax<span class="read">読み：forward の Σ（和）を max（最大）に変えるだけ。<i>δ</i>＝「その状態に至る<b>最良の 1 本</b>の確率」。どの状態から来たかを ψ（逆ポインタ）に記録</span></div><div class="desc">Viterbi は forward と<b>骨格が同じ</b>で、<b>和 Σ を 最大 max に置き換える</b>だけ。α が「全部の道の合計」なら、δ は「<b>その天気に至る一番良い道 1 本</b>の確率」。同時に、どの前日状態から来たかを<b>逆ポインタ ψ</b> に書き留めます（濃い線＝各セルが選んだ入り口）。和では消えてしまう「どの並びか」の情報が、max なら 1 本に絞られて残るのです。</div>';},
+ draw(){drawTrellis({vals:'delta',upto:fillStep,showBackptr:true,dimObs:true});caption('δ：最良1本の確率。濃い線＝選んだ入口(ψ)',CH-12);}},
+{title:'Viterbi②：バックトラック',legend:'最終列の勝者から逆ポインタを辿って最尤の状態列を復元',
+ html(){return'<h3>Viterbi②：逆ポインタで最尤経路を引く</h3><div class="eq curr">q*<sub>T</sub>=argmax<sub>i</sub> <i>δ<sub>T</sub></i>(<i>i</i>)、　q*<sub>t</sub>=ψ<sub>t+1</sub>(q*<sub>t+1</sub>)　→ '+st.path.map(s=>S[s]).join(' ')+'<span class="read">読み：最終日にいちばん確率の高い状態を選び、そこから逆ポインタ ψ を<b>後ろ向きに</b>辿る。すると最尤の天気の並び 1 本が引ける</span></div><div class="desc">最後の日で<b>いちばん δ の高い天気</b>を選び、あとは<b>逆ポインタを後ろ向きに辿る</b>だけ。緑の太線が復元された最尤経路 <b>'+st.path.map(s=>S[s]).join(' ')+'</b>（確率 '+st.prob.toExponential(2)+'）。赤い破線は<b>本当の天気</b>——'+((()=>{let h=0;for(let t=0;t<T;t++)if(st.path[t]===truth[t])h++;return h===T?'ぴたり一致':(h+'/'+T+' 日一致')})())+'。全 '+(2**T)+' 通りの並びから、筋の通った 1 本を選び出しました。</div>';},
+ draw(){drawTrellis({vals:'delta',upto:T,path:st.path,truth:truth});
+   caption('緑=Viterbi最尤経路 / 赤破線=本当の天気',CH-12);}},
+{title:'★対比：単時点 vs Viterbi',legend:'各日バラバラの推定と、筋の通った最尤経路が食い違う点',
+ html(){const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
+   return'<h3>A/B：単時点推定 vs Viterbi（文脈で覆る）</h3><div class="eq curr">単時点：'+st.emit.map(s=>S[s]).join(' ')+'　⇔　Viterbi：'+st.path.map(s=>S[s]).join(' ')+'<span class="read">読み：上＝各日その行動だけで当てた列、下＝全体で最尤の経路。'+(flip>=0?'Day'+(flip+1)+' で食い違う——同じデータでも「点で見る」と「筋で見る」で答えが変わる':'今回は一致（食い違う日がない並びもある）')+'</span></div><div class="desc">同じ観測列に 2 つの推定。<b>単時点</b>（琥珀の破線＝各日の即断）は '+st.emit.map(s=>S[s]).join(' ')+'。<b>Viterbi</b>（緑の道）は '+st.path.map(s=>S[s]).join(' ')+'。'+(flip>=0?'<b>Day'+(flip+1)+' の散歩</b>を、単時点は「晴」と断じますが、Viterbi は前後の雨に挟まれた文脈から「<b>雨の日にたまたま散歩した</b>」と読み替えます。孤立した 1 点が、筋の力で覆るのです。':'この並びでは両者が一致しますが、')+'「🎲 別の日々」で何度でも食い違いを作れます。</div>';},
+ draw(){const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
+   drawTrellis({vals:null,path:st.path,emit:st.emit,markCol:flip>=0?flip:null});
+   ctx.fillStyle=getCSS('--warm');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('破線○=単時点推定',30,CH-52);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('緑=Viterbi経路',30,CH-36);
+   caption(flip>=0?('赤枠 Day'+(flip+1)+'で判定が割れる'):'今回は一致（🎲で別の日々へ）',CH-14);},dice:true},
+{title:'なぜ覆るか',legend:'γ＝全観測を見た各日の確率。覆る日も晴は4割どまり',
+ html(){const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);const gp=flip>=0?(st.g[flip][0]*100).toFixed(0):'—';
+   return'<h3>なぜ覆るか：孤立の1点より、筋の通った物語</h3><div class="eq curr">γ<sub>t</sub>(<i>i</i>) = <i>α<sub>t</sub></i>(<i>i</i>)<i>β<sub>t</sub></i>(<i>i</i>) / P(<i>O</i>)　（前後すべてを見た確率）<span class="read">読み：γ＝forward の α（過去）と backward の β（未来）を掛けて正規化。その日の状態確率を、<b>前後の観測すべて</b>を踏まえて出す（平滑化）</span></div><div class="desc">forward（過去 α）に <b>backward（未来 β）</b>を掛けると、<b>全観測を見た上での各日の確率 γ</b> が出ます。'+(flip>=0?'覆った <b>Day'+(flip+1)+'</b> の棒を見ると、晴はわずか <b>'+gp+'%</b>——散歩という証拠があってなお、前後の雨が確率を雨側へ引き戻している。だから最尤経路も、平滑化の多数決も「雨」を選ぶ。':'各日の確率を前後の文脈込みで見ています。')+'<b>1 つの観測は状況証拠にすぎず、物語全体が真相を決める</b>——これが系列を読むということ。</div>';},
+ draw(){drawGammaBars();}},
+// ---- Ⅴ まとめ ----
+{title:'forward vs Viterbi',legend:'同じ格子。和(Σ)なら尤度、最大(max)なら最尤経路',
+ html(){return'<h3>forward と Viterbi：和か最大か</h3><div class="eq curr">forward：Σ（足す）→ 尤度 P(O)　／　Viterbi：max（選ぶ）→ 最尤経路<span class="read">読み：アルゴリズムの骨格は同一の格子計算。流入を<b>足せば</b>「全経路の合計＝尤度」、<b>最大を取れば</b>「最良の 1 本＝経路」。1 文字の違いが用途を分ける</span></div><div class="desc">2 つは双子です。<b>同じトレリスを左から埋める</b>のは共通で、違いは<b>流入をどう畳むか</b>だけ——<b>和（Σ）</b>を取れば全経路を合算した<b>尤度 P(O)='+st.L.toExponential(2)+'</b>（＝この観測列のもっともらしさ）、<b>最大（max）</b>を取れば逆ポインタつきで<b>最尤経路 '+st.path.map(s=>S[s]).join('')+'</b>（＝いちばんありそうな並び）。「らしさを測る」か「並びを当てる」か。目的に応じて和と max を使い分けます。</div>';},
+ draw(){drawFvsV();}},
+{title:'どこで出会うか',legend:'音声認識・品詞タグ・遺伝子・状態推定——系列の裏を読む',
+ html(){return'<h3>どこで出会うか：系列の裏を読む現場</h3><div class="eq curr">観測列（見える）　→　隠れ状態列（見えない）を復元<span class="read">読み：「並んだ観測の裏に、意味を持つ状態の並びがある」構造はどこにでもある。HMM はその古典的な解法で、多くの現代手法の原点</span></div><div class="desc">HMM は長く実務を支えてきました。<b>音声認識</b>（音の並び→音素・単語）、<b>品詞タグ付け</b>（単語列→名詞/動詞…）、<b>遺伝子配列</b>（塩基列→遺伝子/非遺伝子領域）、<b>手書き文字</b>、センサからの<b>状態推定</b>。共通するのは「<b>観測の並びの裏に、意味を持つ状態の並びがある</b>」構造。いまは <a href="rnn.html">RNN</a>/<a href="lstm.html">LSTM</a> や Transformer に主役を譲った場面も多いですが、<b>確率で解釈できる系列モデルの原点</b>です。</div>';},
+ draw(){drawApps();}},
+{title:'まとめと次の一歩',legend:'連続にすればカルマン、神経にすればRNN/LSTM',
+ html(){return'<h3>まとめ：隠れ状態モデルの原点</h3><div class="eq curr">連続状態 → <a href="kalman.html">カルマンフィルタ</a>　／　神経の状態 → <a href="rnn.html">RNN</a>・<a href="lstm.html">LSTM</a><span class="read">読み：HMM の「隠れ状態＋観測」の骨格は広く受け継がれる。状態を連続ガウスにすればカルマン、学習する連続ベクトルにすれば RNN 系。芯は同じ</span></div><div class="desc">今日の芯——<b>系列を読むとは、点でなく筋を読むこと</b>。1 つの観測は状況証拠にすぎず、前後の文脈が真相を決める。forward で全経路の尤度を測り、Viterbi で最尤の 1 本を引き、γ で各点の確率を見ました。ここから先へ：隠れ状態を<b>連続</b>にしてガウスの線形遷移にすれば <a href="kalman.html">カルマンフィルタ</a>、<b>学習する連続ベクトル</b>にすれば <a href="rnn.html">RNN</a>/<a href="lstm.html">LSTM</a>。パラメータをデータから学ぶ Baum-Welch は <a href="gmm.html">GMM</a> の EM と同じ骨格です。</div>';},
+ draw(){drawSummary();}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  const flip=obs.map((_,t)=>st.emit[t]!==st.path[t]).indexOf(true);
+  if(s<=2){m.innerHTML='<div>隠れ状態 <b>'+N+'</b>（晴/雨）</div><div>観測 <b>'+O.length+'</b>（散歩/買物/掃除）</div><div>日数 <b>'+T+'</b></div>';}
+  else if(s<=4){m.innerHTML='<div>単時点 <b>'+st.emit.map(x=>S[x]).join('')+'</b></div>'+(flip>=0?'<div class="bad">Day'+(flip+1)+'が怪しい</div>':'');}
+  else if(s<=7){m.innerHTML='<div>尤度 P(O) <b>'+st.L.toExponential(2)+'</b></div><div>経路数 <b>'+(2**T)+'</b> の和</div>';}
+  else if(s===8||s===9){m.innerHTML='<div class="best">最尤経路 <b>'+st.path.map(x=>S[x]).join('')+'</b></div><div>確率 <b>'+st.prob.toExponential(2)+'</b></div>';}
+  else if(s===10){m.innerHTML='<div>単時点 <b>'+st.emit.map(x=>S[x]).join('')+'</b></div><div class="best">Viterbi <b>'+st.path.map(x=>S[x]).join('')+'</b></div>'+(flip>=0?'<div class="bad">Day'+(flip+1)+'で割れる</div>':'');}
+  else if(s===11){m.innerHTML=flip>=0?'<div class="bad">Day'+(flip+1)+' 晴確率 <b>'+(st.g[flip][0]*100).toFixed(0)+'%</b></div><div>文脈が雨に引き戻す</div>':'<div>各日を文脈込みで</div>';}
+  else{m.innerHTML='<div class="best">点でなく筋を読む</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);gridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2)runGen();else if(i===5||i===6)runFill('alpha');else if(i===8)runFill('delta');
+  renderAll();draw_();}
+function runGen(){fillStep=0;anim=true;if(window.__prefersReducedMotion){fillStep=T;anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==2)return;fillStep=Math.min(T,fillStep+1);draw_();if(fillStep<T){setTimeout(()=>requestAnimationFrame(go),520);}else anim=false;}
+  setTimeout(()=>requestAnimationFrame(go),200);}
+function runFill(kind){fillStep=0;anim=true;if(window.__prefersReducedMotion){fillStep=T;anim=false;draw_();return;}
+  const want=slideIdx;function go(){if(!anim||slideIdx!==want)return;fillStep=Math.min(T,fillStep+1);draw_();if(fillStep<T){setTimeout(()=>requestAnimationFrame(go),440);}else anim=false;}
+  setTimeout(()=>requestAnimationFrame(go),200);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===2||slideIdx===5||slideIdx===6||slideIdx===8);
+    if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seedCase=7;obs=[2,2,0,2,2];truth=[1,1,1,1,1];T=obs.length;compute();slideIdx=0;fillStep=T;renderAll();draw_();}
+function reroll(){stopAuto();seedCase++;const c=sampleCase();obs=c.obs;truth=c.truth;T=obs.length;compute();fillStep=T;
+  if(slideIdx===2)runGen();
+  renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=reroll;
+renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

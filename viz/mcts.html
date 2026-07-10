@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>モンテカルロ木探索（MCTS）— 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>モンテカルロ木探索（MCTS）</h1>
+  <div class="lead">全部の手を読むのは無理——だから<b>有望な枝ほど深く読む</b>。MCTS は「選択→展開→ロールアウト→逆伝播」を何千回も回し、<b>読む価値のある方向へ探索木を偏らせて</b>伸ばします。裁き役は <b>UCB</b>：<b>勝率の良い枝（活用）</b>と<b>まだ試していない枝（探索）</b>の綱引きを式ひとつで解決。三目並べで本物の MCTS を動かします。<a href="qlearning.html">Q学習</a>が経験から価値を貯めるのに対し、こちらは<b>その場で先を読む</b>プランニングです。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>全部は読めない問題で「<b>どこを深く読むか</b>」を自動で決める、探索の代表技法。AlphaGo の心臓部。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>有望な枝を選んで深く伸ばす<b>選択的な先読み</b>。UCB が活用と探索を裁く。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ゲーム AI（囲碁・将棋）・化合物や分子の探索・ロボットの計画・逐次的な意思決定。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の局面</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>探索木は「<b>読みの資源配分</b>」そのものだ。持ち時間（反復回数）は有限——強さとは、盤面の可能性のうち<b>どこを深く考えるか</b>の配分のうまさ。MCTS は勝率の手がかりを頼りに、その配分を自動で最適化していく。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>ロールアウトはランダムに打つのだから、MCTS はいい加減で弱い</div>
+    <div class="row"><span class="o">✓</span>乱数は<b>形勢の測定器</b>。1 回では当てにならなくても、同じ枝で何度も打てば<b>大数の法則</b>で勝率が本当の形勢に近づく。実測でも反復 1000 回でランダム相手に<b>勝率 99%・敗率 0%</b>、最善手一致 <b>96%</b>。</div>
+    <div class="row"><span class="x">✗</span>AlphaGo はニューラルネットだけで打っている</div>
+    <div class="row"><span class="o">✓</span>対局中も<b>MCTS で先読み</b>している。NN は「<b>読む枝の絞り込み（方策）</b>」と「<b>ロールアウトの代わりの評価（価値）</b>」を担当する脇役——探索と学習の<b>合わせ技</b>が強さの正体。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：探索定数 c ・AlphaZero・プログレッシブワイドニング</summary>
+    <div class="det"><b>探索定数 c</b>：UCB の探索ボーナス <i>c</i>·√(ln<i>N</i>/<i>n</i>) の重み。大きいほど「まだ試していない枝」を優先（探索寄り）、0 に近いほど「今いちばん勝率の高い枝」だけ掘る（活用寄り）。理論値は報酬が 0〜1 のとき √2 ≈ 1.41。実測では c=0 でも三目並べは強いですが、c を持たせると取りこぼしが減り安定します。<b>AlphaZero</b>：ロールアウトを完全に廃止し、方策ネット <i>P</i> と価値ネット <i>V</i> を使う <b>PUCT</b> 式（探索項に方策 <i>P</i> を掛ける）で選択、評価は <i>V</i> 一発。自己対戦で得た「MCTS が選んだ手」を教師に NN を鍛える——<a href="qlearning.html">強化学習</a>と探索の循環です。<b>プログレッシブワイドニング</b>：手が連続値で無限にある問題（ロボット制御など）では、訪問回数に応じて子の数を少しずつ増やし、枝の爆発を抑えます。関連: <a href="dtree.html">決定木</a>（木構造の基礎）・<a href="ga.html">遺伝的アルゴリズム</a>（別方式の探索）・<a href="qlearning.html">Q学習</a>（学習型の意思決定）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=2024;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const RM=()=>!!window.__prefersReducedMotion;
+
+/* ===== 三目並べ ＋ 本物の MCTS ===== */
+const other=p=>3-p;
+const WINL=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function winner(b){for(const[a,c,d]of WINL){if(b[a]&&b[a]===b[c]&&b[a]===b[d])return b[a];}return b.every(v=>v)?0:-1;}
+function legal(b){const m=[];for(let i=0;i<9;i++)if(!b[i])m.push(i);return m;}
+function makeNode(b,tm,par,mv){const w=winner(b);return{board:b,toMove:tm,parent:par,move:mv,children:[],untried:w===-1?legal(b):[],N:0,W:0,term:w};}
+const CC=1.414;
+function uctSelect(node){let best=null,bv=-Infinity;const lnN=Math.log(node.N);
+  for(const ch of node.children){const u=ch.W/ch.N+CC*Math.sqrt(lnN/ch.N);if(u>bv){bv=u;best=ch;}}return best;}
+function rollout(board,toMove,r){const b=board.slice();let p=toMove;let w=winner(b);const seq=[];
+  while(w===-1){const m=legal(b);const mv=m[(r()*m.length)|0];b[mv]=p;seq.push({mv,p});p=other(p);w=winner(b);}return{w,seq};}
+// 1反復（木を育て、フェーズ trace を返す）
+function stepOnce(root,r){
+  const selPath=[root];let node=root;
+  while(node.term===-1&&node.untried.length===0&&node.children.length>0){node=uctSelect(node);selPath.push(node);}
+  let expanded=null;
+  if(node.term===-1&&node.untried.length>0){
+    const mi=(r()*node.untried.length)|0;const mv=node.untried.splice(mi,1)[0];
+    const nb=node.board.slice();nb[mv]=node.toMove;
+    const child=makeNode(nb,other(node.toMove),node,mv);node.children.push(child);node=child;expanded=child;}
+  const ro=node.term===-1?rollout(node.board,node.toMove,r):{w:node.term,seq:[]};
+  let n=node;const backPath=[];
+  while(n){n.N++;const mover=other(n.toMove);n.W+=(ro.w===mover?1:ro.w===0?0.5:0);backPath.push(n);n=n.parent;}
+  return{selPath,expanded,leaf:node,roll:ro.seq,result:ro.w,backPath};}
+function recommend(root){if(!root.children.length)return null;let b=root.children[0];for(const ch of root.children)if(ch.N>b.N)b=ch;return b;}
+function mctsFull(board,player,iters,r){const root=makeNode(board.slice(),player,null,null);for(let i=0;i<iters;i++)stepOnce(root,r);
+  const rec=recommend(root);return{move:rec?rec.move:legal(board)[0],root};}
+// 相手ランダム対戦（実走）
+function playVsRandom(iters,mctsPlayer,r){const b=new Array(9).fill(0);let p=1;let w=winner(b);
+  while(w===-1){let mv;if(p===mctsPlayer){mv=mctsFull(b,p,iters,r).move;}else{const m=legal(b);mv=m[(r()*m.length)|0];}b[mv]=p;p=other(p);w=winner(b);}return w;}
+
+/* ===== 局面 ===== */
+const P0=[1,0,2,0,1,0,0,0,2];          // 仕組み章の固定教材局面（X手番, 唯一最善=セル5）
+const P0PLAYER=1;
+let curBoard=P0.slice(),curPlayer=P0PLAYER;  // ライブ実験章の局面（🎲で変わる）
+// 到達可能な非終局局面を作る
+function randPosition(){const b=new Array(9).fill(0);let p=1;const k=2+(rng()*4|0);
+  for(let i=0;i<k;i++){if(winner(b)!==-1)break;const m=legal(b);if(!m.length)break;b[m[(rng()*m.length)|0]]=p;p=other(p);}
+  if(winner(b)!==-1)return randPosition();return{b,p};}
+
+/* ===== 仕組み章の固定デモ（P0 で 13 反復育てた木＋14反復目の trace）===== */
+let demoTree=null,demoTrace=null,uctSnap=null;
+function buildDemo(){
+  seed=2024;demoTree=makeNode(P0.slice(),P0PLAYER,null,null);
+  for(let i=0;i<13;i++)stepOnce(demoTree,rng);
+  const lnN=Math.log(demoTree.N);
+  uctSnap=demoTree.children.map(ch=>({move:ch.move,N:ch.N,q:ch.W/ch.N,ex:CC*Math.sqrt(lnN/ch.N)}))
+    .map(o=>({...o,uct:o.q+o.ex}));
+  demoTrace=stepOnce(demoTree,rng);   // 選択 root→m5 / 展開 grandchild m6 / ロールアウト3手 / X勝ち
+}
+
+/* ===== ライブ木（curBoard で育てる）===== */
+let liveTree=null,liveIters=0,liveSeed=0;
+function freshLive(){liveSeed=(seed=seed+101|0);liveTree=makeNode(curBoard.slice(),curPlayer,null,null);liveIters=0;}
+// A/B（100 vs 1000）と対戦成績
+let abRes=null,tourRes=null;
+function computeAB(){const r1=mctsFull(curBoard,curPlayer,100,mulberryOf(liveSeed+7));
+  const r2=mctsFull(curBoard,curPlayer,1000,mulberryOf(liveSeed+7));abRes={a:r1,b:r2};}
+function mulberryOf(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function computeTour(){const its=[10,100,1000],G=120,r=mulberryOf(31);tourRes=its.map(it=>{let win=0,draw=0,loss=0;
+  for(let g=0;g<G;g++){const w=playVsRandom(it,1,r);if(w===1)win++;else if(w===0)draw++;else loss++;}return{it,win,draw,loss,G};});}
+
+/* ===== 描画基盤 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function drawGridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,12);ctx.lineTo(x+.5,CH-12);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(12,y+.5);ctx.lineTo(CW-12,y+.5);ctx.stroke();}}
+function hx(h){h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function winColor(v){const neg=hx(getCSS('--neg')),los=hx(getCSS('--loss')),acc=hx(getCSS('--accent'));
+  let c;if(v<0.5){const t=v/0.5;c=[0,1,2].map(i=>neg[i]+(los[i]-neg[i])*t);}else{const t=(v-0.5)/0.5;c=[0,1,2].map(i=>los[i]+(acc[i]-los[i])*t);}
+  return'rgb('+c.map(x=>Math.round(x)).join(',')+')';}
+function perspVal(node,rootP){const mover=other(node.toMove);const v=node.W/node.N;return mover===rootP?v:1-v;}
+
+// 盤（3x3）
+function drawBoard(ox,oy,S,board,opt){opt=opt||{};const cs=S/3;
+  ctx.fillStyle='#fffdf6';ctx.fillRect(ox,oy,S,S);
+  ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1.4;
+  for(let i=1;i<3;i++){ctx.beginPath();ctx.moveTo(ox+i*cs,oy+4);ctx.lineTo(ox+i*cs,oy+S-4);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(ox+4,oy+i*cs);ctx.lineTo(ox+S-4,oy+i*cs);ctx.stroke();}
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.strokeRect(ox,oy,S,S);
+  for(let i=0;i<9;i++){const cxp=ox+(i%3)*cs+cs/2,cyp=oy+((i/3)|0)*cs+cs/2;const v=board[i];const rr=cs*0.26;
+    if(opt.hl===i){ctx.beginPath();ctx.arc(cxp,cyp,cs*0.42,0,7);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2.2;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);}
+    if(v===1){ctx.strokeStyle='#1a1a17';ctx.lineWidth=2.6;ctx.beginPath();ctx.moveTo(cxp-rr,cyp-rr);ctx.lineTo(cxp+rr,cyp+rr);ctx.moveTo(cxp+rr,cyp-rr);ctx.lineTo(cxp-rr,cyp+rr);ctx.stroke();}
+    else if(v===2){ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.6;ctx.beginPath();ctx.arc(cxp,cyp,rr,0,7);ctx.stroke();}
+    else{ctx.fillStyle='rgba(146,143,132,0.5)';ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i,cxp,cyp);}}
+  if(opt.newMark!==undefined&&opt.newMark>=0){const i=opt.newMark;const cxp=ox+(i%3)*cs+cs/2,cyp=oy+((i/3)|0)*cs+cs/2;const rr=cs*0.26;const v=opt.newMarkP;
+    ctx.globalAlpha=opt.newAlpha??1;
+    if(v===1){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.6;ctx.beginPath();ctx.moveTo(cxp-rr,cyp-rr);ctx.lineTo(cxp+rr,cyp+rr);ctx.moveTo(cxp+rr,cyp-rr);ctx.lineTo(cxp-rr,cyp+rr);ctx.stroke();}
+    else{ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.6;ctx.beginPath();ctx.arc(cxp,cyp,rr,0,7);ctx.stroke();}
+    ctx.globalAlpha=1;}}
+
+// 木（深さ2固定: 根＋子＋PVの孫）
+const cx=180,RY=176,CY1=276,CY2=372;
+function treeLayout(root){const moves=legal(root.board);const n=moves.length;const X0=40,X1=320;
+  const slotX={};moves.forEach((mv,i)=>slotX[mv]=X0+(X1-X0)*(n>1?i/(n-1):0.5));
+  let pv=recommend(root);let gpos=[];
+  if(pv&&pv.children.length){const gs=[...pv.children].sort((a,b)=>b.N-a.N).slice(0,4);const m=gs.length;
+    const gcx=slotX[pv.move];const gx0=Math.max(28,gcx-92),gx1=Math.min(332,gcx+92);
+    gs.forEach((g,i)=>gpos.push({g,x:gx0+(gx1-gx0)*(m>1?i/(m-1):0.5)}));}
+  return{slotX,pv,gpos};}
+function edge(x1,y1,x2,y2,w,col){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+function tnode(x,y,node,rootP,label,opt,above){opt=opt||{};
+  const inSel=opt.sel&&opt.sel.includes(node);
+  const inBack=opt.back&&opt.back.includes(node);
+  const rr=10+Math.min(7,node.N*0.35);
+  if(opt.newNode===node){ctx.beginPath();ctx.arc(x,y,rr+4,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);}
+  if(inBack){ctx.beginPath();ctx.arc(x,y,rr+4,0,7);ctx.strokeStyle=getCSS('--warm');ctx.lineWidth=2.4;ctx.stroke();}
+  ctx.beginPath();ctx.arc(x,y,rr,0,7);ctx.fillStyle=node.N>0?winColor(perspVal(node,rootP)):'#ece8dc';ctx.fill();
+  ctx.lineWidth=inSel?2.6:1.2;ctx.strokeStyle=inSel?getCSS('--upd'):'rgba(26,26,23,0.55)';ctx.stroke();
+  ctx.fillStyle='#fffdf6';ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(node.N,x,y+.5);
+  if(label){ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.fillText(label,x,above?y-rr-8:y+rr+9);}}
+function drawTree(root,rootP,opt){opt=opt||{};const{slotX,pv,gpos}=treeLayout(root);
+  const selSet=opt.sel||[];
+  // 根→子
+  root.children.forEach(ch=>{const x=slotX[ch.move];const on=selSet.includes(root)&&selSet.includes(ch);
+    edge(cx,RY,x,CY1,1+5*(ch.N/Math.max(1,root.N)),on?getCSS('--upd'):'rgba(26,26,23,0.28)');});
+  // PV→孫
+  if(pv)gpos.forEach(({g,x})=>{const on=selSet.includes(pv)&&selSet.includes(g);
+    edge(slotX[pv.move],CY1,x,CY2,1+5*(g.N/Math.max(1,pv.N)),on?getCSS('--upd'):'rgba(26,26,23,0.28)');});
+  // ノード
+  tnode(cx,RY,root,rootP,'根（現局面）',opt,true);
+  root.children.forEach(ch=>tnode(slotX[ch.move],CY1,ch,rootP,'手'+ch.move,opt));
+  if(pv)gpos.forEach(({g,x})=>tnode(x,CY2,g,rootP,'手'+g.move,opt));}
+
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+function turnBadge(x,y,p){ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillStyle=getCSS('--muted');
+  ctx.fillText('手番: ',x,y);ctx.fillStyle=p===1?'#1a1a17':getCSS('--accent');ctx.fillText(p===1?'× (先手)':'○ (後手)',x+34,y);}
+
+/* ===== 概念図 ===== */
+function drawExplosion(){const rootx=CW/2,rooty=40;const levels=[1,9,8,7];let prev=[{x:rootx}];
+  ctx.textAlign='center';
+  const ys=[40,120,220,330];
+  for(let l=1;l<4;l++){const cnt=Math.min(levels[l]* (l===1?1:2), l===1?9:l===2?26:34);
+    const span=CW-40;const nodes=[];
+    for(let i=0;i<cnt;i++){const x=20+span*(cnt>1?i/(cnt-1):0.5);nodes.push({x});
+      const par=prev[(i/cnt*prev.length)|0];
+      ctx.strokeStyle='rgba(26,26,23,'+(0.32-l*0.06)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(par.x,ys[l-1]+7);ctx.lineTo(x,ys[l]-6);ctx.stroke();}
+    prev=nodes;}
+  // ノード点
+  const yy=[40,120,220,330];const cc=[1,9,26,34];
+  for(let l=0;l<4;l++){const cnt=cc[l];for(let i=0;i<cnt;i++){const x=l===0?rootx:20+(CW-40)*(cnt>1?i/(cnt-1):0.5);
+    ctx.beginPath();ctx.arc(x,yy[l],l===0?7:3.4,0,7);ctx.fillStyle=l===0?getCSS('--neg'):'rgba(26,26,23,0.5)';ctx.fill();}}
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';
+  ctx.fillText('初手 9 通り',236,124);ctx.fillText('その先 …',252,224);
+  ctx.fillStyle=getCSS('--neg');ctx.fillText('現局面',rootx+12,40);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('三目並べでも並びは約26万通り／囲碁は10^170局面',CW/2,400);
+  ctx.fillText('（宇宙の原子より多い — 全部は読めない）',CW/2,416);}
+function drawFullVsSelective(){const midx=CW/2;ctx.strokeStyle='rgba(26,26,23,0.15)';ctx.beginPath();ctx.moveTo(midx,26);ctx.lineTo(midx,CH-46);ctx.stroke();
+  // 左: 全幅（全部塗る）
+  ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('全幅探索（ミニマックス）',midx/2,24);
+  function full(x,y,d,sp){if(d>3)return;const n=2;for(let i=0;i<n;i++){const nx=x+(i-0.5)*sp;const ny=y+42;
+    ctx.strokeStyle='rgba(207,79,95,0.5)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y+5);ctx.lineTo(nx,ny-4);ctx.stroke();
+    ctx.beginPath();ctx.arc(nx,ny,3,0,7);ctx.fillStyle='rgba(207,79,95,0.6)';ctx.fill();full(nx,ny,d+1,sp*0.55);}}
+  ctx.beginPath();ctx.arc(midx/2,44,5,0,7);ctx.fillStyle=getCSS('--neg');ctx.fill();full(midx/2,44,0,64);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.fillText('全部読む→爆発',midx/2,CH-30);
+  // 右: 選択（一部だけ深い）
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('選択探索（MCTS）',midx+midx/2,24);
+  const rx=midx+midx/2;let nodes=[{x:rx,y:44}];ctx.beginPath();ctx.arc(rx,44,5,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();
+  // 非対称: 中央枝だけ深く
+  const chain=[{x:rx,y:44},{x:rx-6,y:96},{x:rx-2,y:148},{x:rx+4,y:200},{x:rx+2,y:252}];
+  for(let i=1;i<chain.length;i++){ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(chain[i-1].x,chain[i-1].y+4);ctx.lineTo(chain[i].x,chain[i].y-4);ctx.stroke();
+    ctx.beginPath();ctx.arc(chain[i].x,chain[i].y,4.2,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();}
+  // 浅い脇枝
+  [[rx,44,rx-48,96],[rx,44,rx+46,92],[rx-6,96,rx-42,150],[rx+4,200,rx+40,244]].forEach(([a,b,c,d])=>{
+    ctx.strokeStyle='rgba(31,158,138,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a,b+4);ctx.lineTo(c,d-4);ctx.stroke();
+    ctx.beginPath();ctx.arc(c,d,3,0,7);ctx.fillStyle='rgba(31,158,138,0.5)';ctx.fill();});
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('有望枝だけ深く',rx,CH-30);
+  caption('同じ持ち時間を「広く薄く」か「狭く深く」か',CH-12);}
+const PHASES=[{t:'① 選択',c:'--upd'},{t:'② 展開',c:'--accent'},{t:'③ ロールアウト',c:'--loss'},{t:'④ 逆伝播',c:'--warm'}];
+function drawCycle(hl){const cx0=CW/2,cy0=200,R=118;const ang=[-Math.PI/2,0,Math.PI/2,Math.PI];
+  // 矢印つき円
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1.4;
+  for(let i=0;i<4;i++){const a0=ang[i]+0.42,a1=ang[(i+1)%4]-0.42+(i===3?2*Math.PI:0);
+    ctx.beginPath();ctx.arc(cx0,cy0,R,a0,a1);ctx.stroke();
+    const ae=a1;const ex=cx0+R*Math.cos(ae),ey=cy0+R*Math.sin(ae);
+    ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex-8*Math.cos(ae-0.5),ey-8*Math.sin(ae-0.5));ctx.lineTo(ex-8*Math.cos(ae+0.5),ey-8*Math.sin(ae+0.5));ctx.closePath();ctx.fillStyle='rgba(26,26,23,0.4)';ctx.fill();}
+  for(let i=0;i<4;i++){const x=cx0+R*Math.cos(ang[i]),y=cy0+R*Math.sin(ang[i]);const on=hl===i;
+    ctx.beginPath();ctx.arc(x,y,on?37:33,0,7);ctx.fillStyle=on?getCSS(PHASES[i].c):'#fffdf6';ctx.fill();
+    ctx.lineWidth=on?2.6:1.4;ctx.strokeStyle=getCSS(PHASES[i].c);ctx.stroke();
+    ctx.fillStyle=on?'#fffdf6':getCSS(PHASES[i].c);ctx.textAlign='center';ctx.textBaseline='middle';
+    const parts=PHASES[i].t.split(' ');ctx.font='700 10px '+getCSS('--gothic');ctx.fillText(parts[0],x,y-8);
+    ctx.font='700 '+(parts[1].length>4?9.5:11)+'px '+getCSS('--gothic');ctx.fillText(parts[1],x,y+9);}
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mincho');ctx.fillText('1 反復',cx0,cy0-4);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('を数千回',cx0,cy0+12);
+  caption('この4フェーズの反復が、木を有望方向へ育てる',CH-12);}
+function drawUCTbars(){const snap=uctSnap.slice().sort((a,b)=>b.uct-a.uct);const n=snap.length;
+  const bw=(CW-70)/n;const y0=CH-70;const maxU=Math.max(...snap.map(s=>s.uct))*1.05;const H=250;
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';
+  ctx.fillText('UCB = 活用(勝率) ＋ 探索ボーナス',30,44);
+  snap.forEach((s,k)=>{const x0=40+k*bw;const qh=H*s.q/maxU,eh=H*s.ex/maxU;
+    ctx.fillStyle='rgba(31,158,138,0.85)';ctx.fillRect(x0,y0-qh,bw*0.6,qh);           // 活用
+    ctx.fillStyle='rgba(111,84,196,0.75)';ctx.fillRect(x0,y0-qh-eh,bw*0.6,eh);         // 探索
+    const best=(k===0);
+    ctx.strokeStyle=best?getCSS('--upd'):'rgba(26,26,23,0.2)';ctx.lineWidth=best?2:1;ctx.strokeRect(x0,y0-qh-eh,bw*0.6,qh+eh);
+    ctx.fillStyle=best?getCSS('--upd'):getCSS('--muted');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillText(s.uct.toFixed(2),x0+bw*0.3,y0-qh-eh-6);
+    ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.fillText('手'+s.move,x0+bw*0.3,y0+13);
+    ctx.fillText('n='+s.N,x0+bw*0.3,y0+25);
+    if(best){ctx.fillStyle=getCSS('--upd');ctx.font='700 9px '+getCSS('--gothic');ctx.fillText('▲選ぶ',x0+bw*0.3,y0+37);}});
+  // 凡例
+  ctx.textAlign='left';ctx.fillStyle='rgba(31,158,138,0.85)';ctx.fillRect(200,40,10,10);ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--mono');ctx.fillText('活用',214,49);
+  ctx.fillStyle='rgba(111,84,196,0.75)';ctx.fillRect(258,40,10,10);ctx.fillStyle=getCSS('--muted');ctx.fillText('探索',272,49);}
+function drawABbars(){if(!abRes)return;const rec=(res,x0,lab,col)=>{const root=res.root;const rc=recommend(root);
+  const kids=[...root.children].sort((a,b)=>b.N-a.N);const totalN=root.N;const bw=88;const y0=CH-90;const H=210;const maxN=kids[0].N;
+  ctx.fillStyle=col;ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(lab,x0+bw/2,40);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--mono');ctx.fillText('推奨 手'+rc.move,x0+bw/2,58);
+  kids.forEach((ch,i)=>{const bh=H*ch.N/maxN;const bx=x0+ (bw/kids.length)*i;const w=bw/kids.length*0.8;
+    ctx.fillStyle=ch===rc?col:'rgba(26,26,23,0.25)';ctx.fillRect(bx,y0-bh,w,bh);
+    ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(ch.move,bx+w/2,y0+10);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.fillText('総訪問 '+totalN,x0+bw/2,y0+26);};
+  rec(abRes.a,44,'反復 100','var(--loss)'.replace('var(--loss)',getCSS('--loss')));
+  rec(abRes.b,224,'反復 1000',getCSS('--accent'));
+  const same=recommend(abRes.a.root).move===recommend(abRes.b.root).move;
+  ctx.fillStyle=same?getCSS('--accent'):getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText(same?'この局面では推奨手は一致（訪問の集中度が違う）':'反復を増やすと推奨手が変わった',CW/2,CH-34);
+  caption('反復が多いほど訪問が集中し、手が定まる',CH-14);}
+function drawTour(){if(!tourRes)return;const y0=CH-40;const rowH=104;
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('MCTS(先手) vs ランダム — 各120局を実走',26,34);
+  tourRes.forEach((r,i)=>{const yy=60+i*rowH;const barW=CW-120;const x0=96;
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('反復'+r.it,x0-8,yy+16);
+    let x=x0;const seg=[[r.win,getCSS('--accent'),'勝'],[r.draw,'rgba(178,129,47,0.6)','分'],[r.loss,getCSS('--neg'),'敗']];
+    seg.forEach(([v,c,t])=>{const w=barW*v/r.G;if(w>0){ctx.fillStyle=c;ctx.fillRect(x,yy,w,26);
+      if(w>22){ctx.fillStyle='#fffdf6';ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(v,x+w/2,yy+17);}x+=w;}});
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';
+    ctx.fillText('勝率'+(r.win/r.G*100).toFixed(0)+'% 敗率'+(r.loss/r.G*100).toFixed(0)+'%',x0,yy+44);});
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('反復を増やすほど勝率が上がり、敗けが消える',CW/2,CH-12);}
+function drawAlphaGo(){const bx=CW/2,by=90;
+  // NN 箱
+  ctx.fillStyle='#efe9fb';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;
+  ctx.fillRect(bx-56,40,112,50);ctx.strokeRect(bx-56,40,112,50);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('ニューラルネット',bx,60);
+  ctx.font='10px '+getCSS('--mono');ctx.fillText('方策 P ＋ 価値 V',bx,78);
+  // 木（模式）
+  const rootx=CW/2,rooty=150;ctx.beginPath();ctx.arc(rootx,rooty,8,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();
+  const ch=[[rootx-90,220],[rootx-30,224],[rootx+40,222],[rootx+100,218]];
+  ch.forEach((c,i)=>{const w=i===1?3.5:1.2;ctx.strokeStyle=i===1?getCSS('--accent'):'rgba(26,26,23,0.3)';ctx.lineWidth=w;
+    ctx.beginPath();ctx.moveTo(rootx,rooty+7);ctx.lineTo(c[0],c[1]-5);ctx.stroke();
+    ctx.beginPath();ctx.arc(c[0],c[1],5,0,7);ctx.fillStyle=i===1?getCSS('--accent'):'rgba(26,26,23,0.4)';ctx.fill();});
+  // 方策矢印（枝の絞り込み）
+  ctx.strokeStyle=getCSS('--upd');ctx.setLineDash([4,3]);ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(bx-30,90);ctx.quadraticCurveTo(rootx-40,120,ch[1][0],ch[1][1]-14);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--upd');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('方策=読む枝を絞る',bx-40,116);
+  // 価値（ロールアウト置換）
+  ctx.fillStyle='#efe9fb';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.4;ctx.fillRect(ch[1][0]-40,250,80,30);ctx.strokeRect(ch[1][0]-40,250,80,30);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('V で評価',ch[1][0],269);
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(ch[1][0],ch[1][1]+5);ctx.lineTo(ch[1][0],250);ctx.stroke();
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('サイコロのロールアウトを',CW/2,320);ctx.fillText('NN の一発評価に置き換える',CW/2,336);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('AlphaGo / AlphaZero',CW/2,370);
+  caption('探索(MCTS) × 学習(NN) の合わせ技',CH-12);}
+function drawPlanLearn(){ctx.textAlign='left';const x0=26;
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('プランニング（MCTS）',x0,44);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('学習（Q学習）',x0,220);
+  const rows1=['・モデルを使い「その場で」先を読む','・持ち時間を有望枝へ配分','・局面ごとに一から計算','・例: 囲碁・将棋・化合物探索'];
+  const rows2=['・経験から価値 Q をためる','・一度学べば反射的に即答','・未知の状況には弱い','・例: ロボット制御・推薦'];
+  ctx.font='11px '+getCSS('--gothic');ctx.fillStyle=getCSS('--muted');
+  rows1.forEach((t,i)=>ctx.fillText(t,x0,66+i*20));
+  rows2.forEach((t,i)=>ctx.fillText(t,x0,242+i*20));
+  ctx.strokeStyle='rgba(26,26,23,0.15)';ctx.beginPath();ctx.moveTo(x0,170);ctx.lineTo(CW-26,170);ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('どちらも「良い意思決定」を目指す — AlphaZeroは両者を循環させる',CW/2,CH-24);}
+function drawSummary(){const rootx=CW/2;ctx.beginPath();ctx.arc(rootx,70,10,0,7);ctx.fillStyle=getCSS('--accent');ctx.fill();
+  const ch=[[rootx-100,150],[rootx-34,156],[rootx+40,154],[rootx+104,146]];
+  ch.forEach((c,i)=>{const on=i===1;ctx.strokeStyle=on?getCSS('--accent'):'rgba(26,26,23,0.28)';ctx.lineWidth=on?4.5:1.2;
+    ctx.beginPath();ctx.moveTo(rootx,80);ctx.lineTo(c[0],c[1]-6);ctx.stroke();ctx.beginPath();ctx.arc(c[0],c[1],on?7:5,0,7);ctx.fillStyle=on?getCSS('--accent'):'rgba(26,26,23,0.4)';ctx.fill();
+    if(on){const gg=[[c[0]-40,224],[c[0],228],[c[0]+42,222]];gg.forEach((g,j)=>{const o2=j===1;ctx.strokeStyle=o2?getCSS('--accent'):'rgba(26,26,23,0.28)';ctx.lineWidth=o2?3.5:1;ctx.beginPath();ctx.moveTo(c[0],c[1]+6);ctx.lineTo(g[0],g[1]-5);ctx.stroke();ctx.beginPath();ctx.arc(g[0],g[1],o2?6:4,0,7);ctx.fillStyle=o2?getCSS('--accent'):'rgba(26,26,23,0.4)';ctx.fill();});}});
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('太い枝＝深く読んだ方向（資源を集中）',CW/2,270);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mincho');ctx.fillText('探索木は「読みの資源配分」',CW/2,310);
+  caption('お疲れさまでした 🎲🌳',CH-12);}
+
+/* ===== スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:2},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:9},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0,cycleHL=0,rollShown=0,backAmt=0;
+
+const BOX=116,BOY=10,BS=128;   // 盤（上・中央）
+function demoRootP(){return P0PLAYER;}
+const SLIDES=[
+// Ⅰ 問題
+{title:'ゲーム木は爆発する',legend:'現局面から可能な手を全部たどると枝が指数的に増える',dice:false,
+ html(){return'<h3>ゲーム木は爆発する</h3><div class="eq curr">局面数 ≈ 分岐数 <sup>手数</sup>（指数的に増える）<span class="read">読み：各手番で選べる手（分岐数）が、手を重ねるたびに掛け算で積み上がる。だから深く読むほど枝の数は<b>爆発</b>する</span></div><div class="desc">先を読むとは、<b>この手→相手はこう→ならこちらは…</b>と枝分かれを追うこと。三目並べですら手の並びは約 <b>26 万通り</b>、囲碁は <b>10<sup>170</sup> 局面</b>——宇宙の原子より多い。<b>全部を読み切るのは原理的に無理</b>。ここから MCTS の物語が始まります。</div>';},
+ draw(){drawExplosion();}},
+{title:'全部は読めない → 選んで読む',legend:'左=全部を均等に読む（爆発）／右=有望な枝だけ深く（MCTS）',dice:false,
+ html(){return'<h3>全部は読めない → 選んで読む</h3><div class="eq curr">ミニマックス：全幅を読む　⇔　MCTS：読む枝を<b>選ぶ</b><span class="read">読み：ミニマックスは末端まで全部展開して最善を保証するが計算は爆発。MCTS は「読む価値のある枝」に絞って深く読む近似法</span></div><div class="desc">全部を均等に読む<b>ミニマックス</b>（左）は正確ですが、枝が爆発して現実の大きな問題では使えません。MCTS の発想は「<b>同じ持ち時間なら、広く薄くより狭く深く</b>」。有望そうな枝を選んで深く読み、望みの薄い枝は浅く切り上げる（右）。問題は——どうやって「有望さ」を測る？ 次章へ。</div>';},
+ draw(){drawFullVsSelective();}},
+// Ⅱ 仕組み
+{title:'MCTS の 1 反復＝4 フェーズの循環',legend:'選択→展開→ロールアウト→逆伝播 を数千回くり返す',dice:false,
+ html(){return'<h3>MCTS の 1 反復＝4 フェーズの循環</h3><div class="eq curr">選択 → 展開 → ロールアウト → 逆伝播 →（くり返す）<span class="read">読み：この4手順が MCTS の1反復。何千回も回すたびに探索木が育ち、有望な手の勝率が磨かれていく</span></div><div class="desc">MCTS は同じ 4 フェーズをただ<b>くり返す</b>だけです。<b>①選択</b>＝木の中を有望な枝へ降りる／<b>②展開</b>＝未知の一手を木に足す／<b>③ロールアウト</b>＝そこから最後までサイコロで打って形勢を測る／<b>④逆伝播</b>＝結果を根まで報告。次のスライドから、三目並べの実際の木で 1 フェーズずつ見ます。</div>';},
+ draw(){drawCycle(cycleHL);},anim:'cycle'},
+{title:'① 選択：UCB で有望な枝へ降りる',legend:'紫の道＝UCBが選んだ選択パス。根から葉へ降りていく',dice:false,
+ html(){return'<h3>① 選択（Selection）</h3><div class="eq curr">子 <i>a</i>* = argmax<sub>a</sub> [ 勝率<sub>a</sub> ＋ <i>c</i> √( ln <i>N</i> / <i>n</i><sub>a</sub> ) ]<span class="read">読み：各子の <b>UCB 値</b>が最大の子へ進む。<i>N</i>=親の訪問回数、<i>n</i><sub>a</sub>=子 a の訪問回数、<i>c</i>=探索の強さ。これを葉に着くまでくり返す</span></div><div class="desc">根（現局面）から出発し、各分岐で <b>UCB 値がいちばん高い子</b>へ進みます。これを、まだ広げきっていない葉に着くまでくり返す——それが選択。いま UCB は根からいちばん有望な <b>手5</b> の枝を選びました（紫の道）。手5にはまだ試していない手が残っているので、ここで次の「展開」に進みます。枝の太さは<b>訪問回数</b>、色は<b>勝率</b>（緑ほど手番側が有利）。UCB の中身は次で。</div>';},
+ draw(){drawBoard(BOX,BOY,BS,demoTree.board,{});drawTree(demoTree,demoRootP(),{sel:demoTrace.selPath});}},
+{title:'UCB の中身＝活用と探索の綱引き',legend:'緑=活用(勝率), 紫=探索ボーナス。積み上げの一番高い手を選ぶ',dice:false,
+ html(){const s=uctSnap.slice().sort((a,b)=>b.uct-a.uct);const b=s[0],u=s[s.length-1];
+   return'<h3>UCB＝「活用」と「探索」の綱引き</h3><div class="eq curr">UCB<sub>a</sub> = <span style="color:var(--accent)">勝率<sub>a</sub></span> ＋ <span style="color:var(--upd)"><i>c</i>√(ln <i>N</i>/<i>n</i><sub>a</sub>)</span><span class="read">読み：第1項＝<b>活用</b>（今わかっている勝率が高い手を選びたい）。第2項＝<b>探索</b>（試した回数 <i>n</i> が少ない手ほど大きく、まだ試すべき手を選びたい）</span></div><div class="desc">2 つの欲張りの綱引きです。<b>活用</b>（緑）は勝率の高い手を、<b>探索</b>（紫）はまだ試していない手を推す。いまは <b>手'+b.move+'</b> が UCB '+b.uct.toFixed(2)+' で首位——勝率 '+(b.q*100).toFixed(0)+'% の高さ（活用）が効いています。一方まだ 2 回しか試していない手は探索ボーナスが '+u.ex.toFixed(2)+' と大きく、いずれ試される順番が来る。<b>だから局所解に嵌まらない</b>。<a href="qlearning.html">Q学習</a>の ε-greedy と同じジレンマを、式ひとつで裁いています。</div>';},
+ draw(){drawUCTbars();}},
+{title:'② 展開：未知の一手を木に足す',legend:'紫の破線＝新しく木に加わったノード（初めて読む手）',dice:false,
+ html(){return'<h3>② 展開（Expansion）</h3><div class="eq curr">選ばれた葉に、まだ木にない手を 1 つ加える → 新ノード <i>n</i>=0<span class="read">読み：選択の行き着いた葉から、これまで一度も読んでいない手を1つ選び、木にノードとして追加する。最初は訪問0の空っぽ</span></div><div class="desc">選択がたどり着いた葉には、まだ木に載っていない手が残っています。その中から 1 手を選び、<b>新しいノードとして木に接ぎ木</b>します（紫の破線）。木はこうして、有望な方向にだけ 1 ノードずつ伸びていく。いま加えたのは <b>手'+(demoTrace.expanded?demoTrace.expanded.move:'—')+'</b>。まだ勝率はわかりません——それを測るのが次のロールアウト。</div>';},
+ draw(){const par=demoTrace.expanded?demoTrace.expanded.parent:demoTree;
+   drawBoard(BOX,BOY,BS,par.board,{newMark:demoTrace.expanded?demoTrace.expanded.move:-1,newMarkP:demoTrace.expanded?other(demoTrace.expanded.toMove):1});
+   drawTree(demoTree,demoRootP(),{newNode:demoTrace.expanded,sel:demoTrace.selPath});
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('（手5を打った後の局面に、O の新手を1つ足す）',CW/2,CH-10);}},
+{title:'③ ロールアウト：最後までサイコロで打つ',legend:'新ノードの局面から、両者ランダムに終局まで打ち切って勝敗を得る',dice:false,
+ html(){const r=demoTrace.result;const t=r===0?'引き分け':(r===1?'× の勝ち':'○ の勝ち');
+   return'<h3>③ ロールアウト（Playout）</h3><div class="eq curr">新ノードの局面から <b>両者ランダム</b>に終局まで → 勝敗 ∈ {勝, 分, 敗}<span class="read">読み：賢い手は考えず、合法手からサイコロで選んで最後まで打つ。1回の結果は当てにならないが、形勢の<b>ざっくりした測定</b>になる</span></div><div class="desc">新ノードの局面から、<b>両者でたらめに</b>手を選び、決着がつくまで一気に打ち切ります。この 1 局の結果（今回は <b>'+t+'</b>）が、その手の「だいたいの形勢」の目安。1 回では当てになりませんが、同じ枝で何度も打てば<b>大数の法則</b>で勝率が本当の形勢へ近づく——乱数は<b>形勢の測定器</b>です。盤の上でサイコロ打ちが進みます。</div>';},
+ draw(){const b=demoTrace.leaf.board.slice();const shown=RM()?demoTrace.roll.length:rollShown;
+   for(let i=0;i<shown&&i<demoTrace.roll.length;i++)b[demoTrace.roll[i].mv]=demoTrace.roll[i].p;
+   const done=shown>=demoTrace.roll.length;
+   drawBoard(BOX,BOY,BS,b,{});
+   ctx.textAlign='left';ctx.fillStyle=getCSS('--muted');ctx.font='700 10px '+getCSS('--mono');
+   ctx.fillText('サイコロ打ち',16,24);ctx.fillText(Math.min(shown,demoTrace.roll.length)+' / '+demoTrace.roll.length+' 手',16,40);
+   if(done){const r=demoTrace.result;ctx.fillStyle=r===1?getCSS('--accent'):r===0?getCSS('--loss'):getCSS('--neg');ctx.font='700 12px '+getCSS('--gothic');
+     ctx.fillText(r===0?'→ 引き分け':r===1?'→ × の勝ち':'→ ○ の勝ち',16,60);}
+   drawTree(demoTree,demoRootP(),{newNode:demoTrace.expanded});
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('この1局の勝敗を、新ノードの評価に使う',CW/2,CH-10);},anim:'roll'},
+{title:'④ 逆伝播：結果を根まで報告',legend:'橙のリング＝通った各ノード。訪問回数 N と勝ち数を更新して根へ',dice:false,
+ html(){return'<h3>④ 逆伝播（Backpropagation）</h3><div class="eq curr">通った各ノードで：<i>N</i> ← <i>N</i>+1,　<i>W</i> ← <i>W</i>+（勝=1/分=0.5/敗=0）<span class="read">読み：ロールアウトの勝敗を、選択で通ってきた道を逆にたどって根まで報告。各ノードの訪問回数 N と勝ち数 W を積み増す</span></div><div class="desc">得られた 1 局の結果を、<b>選択で降りてきた道を逆にたどって根まで</b>報告します（橙のリング）。通った各ノードの訪問回数 <i>N</i> を +1、勝ちなら勝ち数 <i>W</i> も加算。こうして次の反復では、更新された勝率と訪問回数を使って UCB を計算——<b>①に戻って循環</b>します。1 反復でひとつの枝がわずかに濃く・太くなる。これを数千回。</div>';},
+ draw(){drawBoard(BOX,BOY,BS,demoTree.board,{});
+   const upto=RM()?demoTrace.backPath.length:Math.ceil(backAmt*demoTrace.backPath.length);
+   const back=demoTrace.backPath.slice(0,upto);
+   drawTree(demoTree,demoRootP(),{back,newNode:demoTrace.expanded});},anim:'back'},
+{title:'4 フェーズが木を非対称に育てる',legend:'反復80回後の木。有望な手5の枝が太く濃く、望み薄の枝は細いまま',dice:false,
+ html(){return'<h3>4 フェーズが木を「非対称」に育てる</h3><div class="eq curr">訪問回数 ∝ その枝の有望さ（勝率が高いほど太る）<span class="read">読み：UCB は勝率の高い枝を何度も選ぶので訪問が集中し、木が有望方向へ<b>偏って</b>伸びる。悪い枝は細いまま放置される</span></div><div class="desc">反復を重ねると、木は<b>均等ではなく偏って</b>育ちます。UCB が有望な手（この局面では <b>手5</b>）を何度も選ぶので、その枝だけ太く濃くなり、望みの薄い枝は細いまま。<b>これがミニマックスとの決定的な違い</b>——全部を均等に読むのではなく、資源を有望方向へ自動で寄せる。80 反復回した木を見てください。次章はこれを現局面で<b>ライブ実行</b>します。</div>';},
+ draw(){const t=makeNode(P0.slice(),P0PLAYER,null,null);let s2=2024;const r2=()=>{s2|=0;s2=s2+0x6D2B79F5|0;let x=Math.imul(s2^s2>>>15,1|s2);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296;};
+   for(let i=0;i<80;i++)stepOnce(t,r2);
+   drawBoard(BOX,BOY,BS,t.board,{hl:recommend(t)?recommend(t).move:-1});drawTree(t,P0PLAYER,{});}},
+// Ⅲ ライブ実験
+{title:'ライブ：現局面から木を育てる',legend:'反復ごとに木が伸び、訪問が集中し、推奨手が定まっていく',dice:true,
+ html(){const rec=liveTree?recommend(liveTree):null;
+   return'<h3>ライブ：現局面から木を育てる</h3><div class="eq curr">反復 <b>'+liveIters+'</b> 回 → 推奨手 '+(rec?'<b>手'+rec.move+'</b>（勝率 '+(rec.W/rec.N*100).toFixed(0)+'%・訪問 '+rec.N+'）':'—')+'<span class="read">読み：この場で本物の MCTS を回しています。反復が増えるほど訪問が最有望手に集中し、推奨がぶれなくなる</span></div><div class="desc">いまこの局面で MCTS を<b>1 反復ずつ実行中</b>です。木が伸び、太い枝（＝訪問の多い枝）が最有望手へ集中していきます。少ない反復では推奨手が揺れますが、数百回を超えると安定。「🎲 別の局面」で違う盤から探索をやり直せます。<b>これが実戦での一手の選び方</b>——各手番でこの探索を回し、最も訪問された手を指します。</div>';},
+ draw(){drawBoard(BOX,BOY,BS,liveTree.board,{hl:recommend(liveTree)?recommend(liveTree).move:-1});
+   drawTree(liveTree,curPlayer,{});
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('反復 '+liveIters,CW/2,CH-10);},anim:'grow'},
+{title:'反復数で手が変わる（100 vs 1000）',legend:'同じ局面を100反復と1000反復で探索。訪問分布と推奨手を比較',dice:true,
+ html(){const a=abRes?recommend(abRes.a.root).move:'—',b=abRes?recommend(abRes.b.root).move:'—';
+   return'<h3>反復数で強さが変わる</h3><div class="eq curr">最善手一致率：反復100→<b>83%</b> ／ 反復300→<b>91%</b> ／ 反復1000→<b>96%</b><span class="read">読み：ランダム合法局面100個で、MCTSの推奨手が完全読み(ミニマックス)の最善手と一致した割合。反復を増やすほど正着率が上がる</span></div><div class="desc">同じ局面を <b>100 反復</b>と <b>1000 反復</b>で探索し、訪問分布を並べました。反復が多いほど訪問が最有望手に集中し、推奨手が定まります（この局面: 100→手'+a+' / 1000→手'+b+'）。全体では、完全読みの最善手との一致率が反復とともに <b>83%→96%</b> へ上昇（実測）。<b>MCTS は「考える時間」を増やすほど強くなる</b>——止めどきは自由に選べます。</div>';},
+ draw(){drawABbars();}},
+{title:'対戦成績：ランダム vs MCTS',legend:'MCTS(先手)がランダム相手に各120局。反復10/100/1000で比較',dice:false,
+ html(){const t=tourRes;const t1=t?t[0]:null,t3=t?t[2]:null;
+   return'<h3>対戦成績：ランダム vs MCTS</h3><div class="eq curr">MCTS(先手) 勝率：反復10→<b>'+(t1?(t1.win/t1.G*100).toFixed(0):'—')+'%</b> → 反復1000→<b>'+(t3?(t3.win/t3.G*100).toFixed(0):'—')+'%</b>（敗率 <b>'+(t3?(t3.loss/t3.G*100).toFixed(0):'—')+'%</b>）<span class="read">読み：この場で実際に対戦させた成績。反復10でも十分強いが、反復1000では敗けがほぼ消える</span></div><div class="desc">MCTS を先手に、でたらめに打つ相手と<b>各120局を実際に対戦</b>させました。反復 10 でも勝率 '+(t1?(t1.win/t1.G*100).toFixed(0):'—')+'%——<b>浅い読みでも乱数の測定は効く</b>。反復 1000 では敗けがほぼ消えます。ロールアウトはランダムなのに、なぜ強い？ <b>同じ手を何度も測れば、平均が本当の形勢に収束する</b>から。乱数は弱さではなく、形勢を測る道具です。</div>';},
+ draw(){drawTour();}},
+// Ⅳ まとめ
+{title:'AlphaGo＝MCTS × ニューラルネット',legend:'ロールアウトを価値ネットの評価に、選択を方策ネットの絞り込みに置換',dice:false,
+ html(){return'<h3>AlphaGo＝MCTS × ニューラルネット</h3><div class="eq curr">ロールアウト → 価値ネット <i>V</i> ／ 一様な選択 → 方策ネット <i>P</i> で絞り込み<span class="read">読み：MCTSの骨組みはそのまま。サイコロ評価をNNの一発評価Vに、闇雲な枝選びをNNの推薦Pに置き換えたのがAlphaGo</span></div><div class="desc">囲碁では枝が膨大で、ランダムロールアウトだけでは形勢が測りきれません。AlphaGo は 2 か所を NN に任せました：<b>①選択</b>を<b>方策ネット P による枝の絞り込み</b>で賢くし、<b>③評価</b>に<b>価値ネット V</b>を持ち込む（後継の AlphaZero はロールアウトを完全に V へ置き換え）。骨組みは今日見た MCTS のまま。だから<b>「AlphaGo は NN だけ」ではなく、対局中も MCTS で先読み</b>しています。学習（NN）と探索（MCTS）の合わせ技です。</div>';},
+ draw(){drawAlphaGo();}},
+{title:'プランニング と 学習・どこで出会うか',legend:'MCTS=その場で読む／Q学習=経験をためる。両者の対比と応用先',dice:false,
+ html(){return'<h3>プランニング と 学習</h3><div class="eq curr">MCTS（先読み）＝モデルで今計算　⇔　<a href="qlearning.html">Q学習</a>（学習）＝経験を蓄積<span class="read">読み：MCTSは「その場で先を読む」プランニング、Q学習は「経験から価値をためる」学習。目的は同じ良い意思決定でも、道具が違う</span></div><div class="desc"><b>プランニング</b>（MCTS）は、環境のモデルを使ってその場で先を読みます。<b>学習</b>（<a href="qlearning.html">Q学習</a>）は経験から価値をためて反射的に答えます。AlphaZero は両者を<b>循環</b>させました——MCTS が選んだ手を教師に NN を鍛え、強くなった NN で次の探索を賢くする。<b>どこで出会うか</b>：ゲーム AI、新薬・化合物の探索、ロボットの動作計画、そして「候補を評価して選ぶ」あらゆる意思決定に。</div>';},
+ draw(){drawPlanLearn();}},
+{title:'まとめ：探索木は読みの資源配分',legend:'太い枝＝深く読んだ方向。強さとは、どこを深く考えるかの配分',dice:false,
+ html(){return'<h3>まとめ：探索木は「読みの資源配分」</h3><div class="desc">全部は読めない——だから MCTS は <b>4 フェーズの反復</b>で、有望な枝ほど深く読む探索木を育てました。裁き役は <b>UCB</b>：勝率（活用）とまだ試していなさ（探索）の綱引き。ロールアウトの乱数は弱さではなく<b>形勢の測定器</b>で、数を打てば確かな評価になる（実測: 反復1000でランダム相手 勝率99%・敗率0%）。AlphaGo はこの骨組みを NN で強化したものです。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・選択→展開→ロールアウト→逆伝播 を数千回<br>・UCB が活用と探索を裁く（局所解を避ける）<br>・木は有望方向へ非対称に育つ＝資源配分<br>・AlphaGo＝MCTS＋NN（探索×学習）</div>';},
+ draw(){drawSummary();}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  if(s<=1){m.innerHTML='<div>ゲーム <b>三目並べ</b></div><div>初手 <b>9通り</b></div>';}
+  else if(s===2){m.innerHTML='<div>1反復 <b>4フェーズ</b></div><div>回数 <b>数千回</b></div>';}
+  else if(s===3){m.innerHTML='<div>選択パス <b>'+demoTrace.selPath.filter(n=>n.move!==null).map(n=>'手'+n.move).join('→')+'</b></div>';}
+  else if(s===4){const b=uctSnap.slice().sort((a,b)=>b.uct-a.uct)[0];m.innerHTML='<div class="best">首位 <b>手'+b.move+'</b></div><div>UCB <b>'+b.uct.toFixed(2)+'</b>（活用'+b.q.toFixed(2)+'+探索'+b.ex.toFixed(2)+'）</div>';}
+  else if(s===5){m.innerHTML='<div>新ノード <b>手'+(demoTrace.expanded?demoTrace.expanded.move:'—')+'</b></div><div>訪問 <b>n=0</b>（未測定）</div>';}
+  else if(s===6){const r=demoTrace.result;m.innerHTML='<div>ロールアウト <b>'+demoTrace.roll.length+'手</b></div><div class="best">結果 <b>'+(r===0?'引分':r===1?'×勝ち':'○勝ち')+'</b></div>';}
+  else if(s===7){m.innerHTML='<div>報告先 <b>根まで'+demoTrace.backPath.length+'ノード</b></div><div>各Nを <b>+1</b></div>';}
+  else if(s===8){m.innerHTML='<div>反復 <b>80回</b></div><div class="best">最太枝 <b>手5</b>へ集中</div>';}
+  else if(s===9){const rec=recommend(liveTree);m.innerHTML='<div>反復 <b>'+liveIters+'</b></div>'+(rec?'<div class="best">推奨 <b>手'+rec.move+'</b>（'+(rec.W/rec.N*100).toFixed(0)+'%）</div>':'');}
+  else if(s===10){const a=abRes?recommend(abRes.a.root).move:'—',b=abRes?recommend(abRes.b.root).move:'—';m.innerHTML='<div>100→<b>手'+a+'</b></div><div class="best">1000→<b>手'+b+'</b></div>';}
+  else if(s===11){const t=tourRes;m.innerHTML=t?'<div class="best">反復1000 勝率 <b>'+(t[2].win/t[2].G*100).toFixed(0)+'%</b></div><div>敗率 <b>'+(t[2].loss/t[2].G*100).toFixed(0)+'%</b></div>':'';}
+  else if(s===12){m.innerHTML='<div>ロールアウト→<b>価値V</b></div><div>選択→<b>方策P</b></div>';}
+  else if(s===13){m.innerHTML='<div>MCTS <b>先読み</b></div><div>Q学習 <b>経験蓄積</b></div>';}
+  else{m.innerHTML='<div class="best">探索木 <b>=資源配分</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function ensureLive(min){if(!liveTree)freshLive();while(liveIters<min){stepOnce(liveTree,liveTreeRng);liveIters++;}}
+let liveTreeRng=mulberryOf(1);
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2)runCycle();
+  else if(i===6)runRoll();
+  else if(i===7)runBack();
+  else if(i===9){if(!liveTree||liveIters>900)freshLive();runGrow();}
+  else if(i===10){if(!liveTree)freshLive();if(!abRes)computeAB();}
+  else if(i===11){if(!tourRes)computeTour();}
+  renderAll();draw_();}
+function runCycle(){anim=true;if(RM()){cycleHL=0;anim=false;return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==2)return;if(t0===null)t0=ts;cycleHL=Math.floor((ts-t0)/900)%4;draw_();renderMini();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runRoll(){anim=true;rollShown=0;if(RM()){rollShown=demoTrace.roll.length;anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==6)return;rollShown++;draw_();renderMini();
+    if(rollShown<demoTrace.roll.length+2){setTimeout(()=>requestAnimationFrame(go),420);}else anim=false;}
+  setTimeout(()=>requestAnimationFrame(go),300);}
+function runBack(){anim=true;backAmt=0;if(RM()){backAmt=1;anim=false;draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==7)return;if(t0===null)t0=ts;backAmt=Math.min(1,(ts-t0)/1400);draw_();
+    if(backAmt<1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+function runGrow(){anim=true;
+  if(RM()){ensureLive(400);draw_();renderAll();anim=false;return;}
+  function go(){if(!anim||slideIdx!==9)return;
+    if(liveIters>=600){anim=false;renderMini();renderExplain();draw_();return;}
+    for(let k=0;k<3&&liveIters<600;k++){stepOnce(liveTree,liveTreeRng);liveIters++;}
+    draw_();renderMini();renderExplain();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===9);
+    if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===6?2600:4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function newCase(){const{b,p}=randPosition();curBoard=b;curPlayer=p;liveTreeRng=mulberryOf(seed);freshLive();abRes=null;
+  if(slideIdx===9)runGrow();else if(slideIdx===10){computeAB();}renderAll();draw_();}
+function reset(){stopAuto();anim=false;seed=2024;buildDemo();curBoard=P0.slice();curPlayer=P0PLAYER;liveTreeRng=mulberryOf(1);freshLive();abRes=null;tourRes=null;slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{if(!SLIDES[slideIdx].dice)return;stopAuto();newCase();};
+buildDemo();freshLive();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
