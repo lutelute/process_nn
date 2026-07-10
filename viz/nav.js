@@ -128,6 +128,7 @@
       { href: 'ga.html',          label: '遺伝的AL' },
       { href: 'surrogate.html',   label: 'サロゲート' },
       { href: 'surrogate2.html',  label: 'サロゲート②' },
+      { href: 'gp.html',          label: 'ガウス過程' },
       { href: 'index.html',       label: '信号の流れ' },
       { href: 'perceptron.html',  label: 'パーセプトロン' },
       { href: 'linreg.html',      label: '線形回帰' },
@@ -185,8 +186,13 @@
       { href: 'diffusion.html',   label: '拡散モデル' },
     ]},
     { name: '強化', items: [
+      { href: 'bandit.html',      label: 'バンディット' },
       { href: 'qlearning.html',   label: 'Q学習' },
       { href: 'dqn.html',         label: 'DQN' },
+      { href: 'policygrad.html',  label: '方策勾配' },
+    ]},
+    { name: '説明AI', items: [
+      { href: 'xai.html',         label: 'XAI入門' },
     ]},
     { name: '3D構造', items: [
       { href: 'mlp3d.html',       label: 'MLP(3D)' },

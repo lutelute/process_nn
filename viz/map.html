@@ -84,6 +84,7 @@ const CATS={
   lang:{label:'言語モデル',color:'#6f54c4'},
   opt:{label:'最適化',color:'#7a776e'},
   rl:{label:'強化学習',color:'#9a6a3a'},
+  xai:{label:'説明可能AI',color:'#a1583c'},
 };
 // n:名, h:リンク, c:カテゴリ, x,y:概念座標(0..1), mo:ミニ可視化モチーフ
 const M=[
@@ -134,6 +135,10 @@ const M=[
   {n:'Transformer',h:'transformer.html',c:'lang',x:0.89,y:0.81,mo:'attn'},
   {n:'GPT-2',h:'../gpt2/',c:'lang',x:0.94,y:0.88,mo:'attn'},
   {n:'RAG',h:'rag.html',c:'lang',x:0.86,y:0.92,mo:'proj'},
+  {n:'バンディット',h:'bandit.html',c:'rl',x:0.84,y:0.18,mo:'bars'},
+  {n:'方策勾配',h:'policygrad.html',c:'rl',x:0.95,y:0.33,mo:'grid'},
+  {n:'ガウス過程',h:'gp.html',c:'opt',x:0.76,y:0.48,mo:'gp'},
+  {n:'XAI入門',h:'xai.html',c:'xai',x:0.52,y:0.28,mo:'pixel'},
 ];
 const SPINE=['信号の流れ','勾配降下','誤差逆伝播','決定境界','CNN','RNN','自己注意','Transformer','GPT-2'];
 

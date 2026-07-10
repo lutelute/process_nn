@@ -190,6 +190,7 @@
       <a class="mapcard branchCard" href="viz/ga.html"><div class="tag">発展・分岐</div><div class="t">遺伝的アルゴリズム</div><div class="d">勾配を使わない最適化。集団が選択・交叉・突然変異で進化。</div><div class="dep"><b>前提:</b> 最適化の考え方 ／ <b>関連:</b> 勾配降下</div></a>
       <a class="mapcard branchCard" href="viz/surrogate.html"><div class="tag">発展・分岐</div><div class="t">サロゲートモデル</div><div class="d">評価が高価な関数の「安い代理」を不確かさ付きで学び、次に測る1点を賢く選ぶ（ベイズ最適化）。</div><div class="dep"><b>前提:</b> 最適化の考え方 ／ <b>関連:</b> 勾配降下・GA</div></a>
       <a class="mapcard branchCard" href="viz/surrogate2.html"><div class="tag">発展・分岐</div><div class="t">サロゲート②（ブラックボックス複製）</div><div class="d">開けられない箱（実機・重いソルバ）を入出力だけからNNで写し取り、速くて微分できる替え玉に。</div><div class="dep"><b>前提:</b> サロゲート ／ <b>関連:</b> 誤差逆伝播・正則化</div></a>
+      <a class="mapcard branchCard" href="viz/gp.html"><div class="tag">不確かさ・回帰</div><div class="t">ガウス過程回帰</div><div class="d">関数の上の確率分布。観測で帯が締まり、遠くは太る。ベイズ最適化の土台。</div><div class="dep"><b>前提:</b> 線形回帰 ／ <b>次:</b> サロゲート</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 2</span><span class="ttl">ニューラルネットの基礎</span><span class="badge">NN がどう計算し（順伝播）、どう学ぶか（逆伝播）。</span></div>
@@ -263,8 +264,15 @@
 
     <div class="mapsec"><span class="num">STEP 8</span><span class="ttl">強化学習</span><span class="badge">正解ラベルでなく、報酬から行動を学ぶ。</span></div>
     <div class="mapgrid">
-      <a class="mapcard" href="viz/qlearning.html"><div class="tag">強化学習</div><div class="t">Q学習</div><div class="d">試行錯誤と報酬から、各状態の価値と最適な方策（行動）を学習。</div><div class="dep"><b>前提:</b> なし（独立トピック）</div></a>
+      <a class="mapcard" href="viz/bandit.html"><div class="tag">探索と活用</div><div class="t">多腕バンディット</div><div class="d">試すか儲けるか。ε-greedy/UCB/Thompson を regret で比較。強化学習の最小形。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> Q学習</div></a>
+      <a class="mapcard" href="viz/qlearning.html"><div class="tag">強化学習</div><div class="t">Q学習</div><div class="d">試行錯誤と報酬から、各状態の価値と最適な方策（行動）を学習。</div><div class="dep"><b>前提:</b> バンディット ／ <b>次:</b> DQN・方策勾配</div></a>
       <a class="mapcard" href="viz/dqn.html"><div class="tag">強化学習・深層</div><div class="t">DQN（深層強化学習）</div><div class="d">Qを表でなくニューラルネットで近似。経験再生＋ターゲット網で大きな状態でも学習。</div><div class="dep"><b>前提:</b> Q学習・誤差逆伝播</div></a>
+      <a class="mapcard" href="viz/policygrad.html"><div class="tag">方策ベース</div><div class="t">方策勾配（REINFORCE）</div><div class="d">行動の確率を直接太らせる。価値経由のQ学習と対をなすもう一本の道。</div><div class="dep"><b>前提:</b> Q学習 ／ <b>関連:</b> RLHF</div></a>
+    </div>
+
+    <div class="mapsec"><span class="num">STEP 9</span><span class="ttl">説明可能AI（XAI）</span><span class="badge">当たるだけでは足りない。根拠を測る。</span></div>
+    <div class="mapgrid">
+      <a class="mapcard" href="viz/xai.html"><div class="tag">XAI・入口</div><div class="t">XAI入門 — NNはどこを見たか</div><div class="d">勾配と遮蔽で判断根拠をマップ化。ショートカット学習を証拠付きで見抜く。</div><div class="dep"><b>前提:</b> 決定境界・CNN ／ <b>関連:</b> 数字認識</div></a>
     </div>
 
     <div class="mapsec opt"><span class="num">補足</span><span class="ttl">立体で見る — 3D 構造</span><span class="badge">同じ仕組みを 3D で俯瞰（ドラッグで回転）。各基礎ページの補助。</span></div>
