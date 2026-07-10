@@ -140,6 +140,7 @@
       { href: 'vanishing.html',   label: '勾配消失' },
       { href: 'batchnorm.html',   label: 'バッチ正規化' },
       { href: 'resnet.html',      label: '残差接続' },
+      { href: 'transfer.html',    label: '転移学習' },
     ]},
     { name: '分類', items: [
       { href: 'logreg.html',      label: 'ロジスティック回帰' },
@@ -176,6 +177,7 @@
       { href: 'kmeans.html',      label: 'k-means' },
       { href: 'gmm.html',         label: 'GMM' },
       { href: 'dbscan.html',      label: 'DBSCAN' },
+      { href: 'hierarchical.html',label: '階層クラスタ' },
       { href: 'som.html',         label: 'SOM' },
       { href: 'hopfield.html',    label: 'Hopfield' },
       { href: 'anomaly.html',     label: '異常検知' },

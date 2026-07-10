@@ -205,6 +205,7 @@
       <a class="mapcard" href="viz/vanishing.html"><div class="tag">NN・深さの壁</div><div class="t">勾配消失問題</div><div class="d">逆伝播で勾配は各層の微分の掛け算→sigmoidだと指数的に消える。ReLUが解決し深層学習を実現。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> 活性化・RNN</div></a>
       <a class="mapcard" href="viz/batchnorm.html"><div class="tag">NN・訓練安定化</div><div class="t">バッチ正規化</div><div class="d">各層の活性をバッチごとに平均0分散1へ正規化＋γβで戻す。分布が安定し速く学習。</div><div class="dep"><b>前提:</b> 誤差逆伝播・勾配消失 ／ <b>関連:</b> Layer Norm</div></a>
       <a class="mapcard" href="viz/resnet.html"><div class="tag">NN・深さの突破</div><div class="t">残差接続（ResNet）</div><div class="d">差分だけ学び、skip を勾配が素通り。同条件32層の一騎打ちで「深くしても壊れない」を実測。勾配消失の解答編。</div><div class="dep"><b>前提:</b> 勾配消失 ／ <b>関連:</b> バッチ正規化・Transformer</div></a>
+      <a class="mapcard" href="viz/transfer.html"><div class="tag">NN・実務の型</div><div class="t">転移学習</div><div class="d">土台を凍らせ頭だけ替える。12点の少データで ゼロから59% vs 凍結99% の実測、データ量で逆転する曲線つき。</div><div class="dep"><b>前提:</b> CNN・逆伝播 ／ <b>関連:</b> 残差接続・LoRA</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 3</span><span class="ttl">教師あり学習・分類</span><span class="badge">ラベル付きデータから決定境界を学ぶ。</span></div>
@@ -250,6 +251,7 @@
       <a class="mapcard" href="viz/kmeans.html"><div class="tag">クラスタリング</div><div class="t">k-means</div><div class="d">最寄り重心へ割当→重心を平均へ移動、を繰り返してクラスタ形成。</div><div class="dep"><b>前提:</b> 距離の概念 ／ <b>次:</b> GMM</div></a>
       <a class="mapcard" href="viz/gmm.html"><div class="tag">確率・密度</div><div class="t">GMM（混合ガウス）</div><div class="d">EM 法でソフト割当。共分散の楕円で傾いた・重なった塊も表現。</div><div class="dep"><b>前提:</b> k-means・確率 ／ <b>関連:</b> ナイーブベイズ</div></a>
       <a class="mapcard" href="viz/dbscan.html"><div class="tag">密度・任意形状</div><div class="t">DBSCAN</div><div class="d">密度でクラスタ化。数の指定不要・三日月や同心円もOK・外れ値をノイズ除外。</div><div class="dep"><b>前提:</b> k-means（対比） ／ <b>関連:</b> 距離・密度</div></a>
+      <a class="mapcard" href="viz/hierarchical.html"><div class="tag">クラスタ・家系図</div><div class="t">階層的クラスタリング</div><div class="d">近い塊を順に併合しデンドログラムに。切断線ドラッグでクラスタ数は後決め。単連結vs完全連結のA/B。</div><div class="dep"><b>前提:</b> k-means ／ <b>関連:</b> DBSCAN</div></a>
       <a class="mapcard branchCard" href="viz/som.html"><div class="tag">競合学習・分岐</div><div class="t">SOM（自己組織化マップ）</div><div class="d">格子がデータの形に広がり組織化。近傍を保ち構造を写し取る。</div><div class="dep"><b>関連:</b> クラスタリング・次元削減</div></a>
       <a class="mapcard branchCard" href="viz/hopfield.html"><div class="tag">連想記憶・発展</div><div class="t">Hopfield ネットワーク</div><div class="d">パターンを記憶し、ノイズからエネルギー降下で想起。</div><div class="dep"><b>前提:</b> なし（独立トピック）</div></a>
       <a class="mapcard branchCard" href="viz/anomaly.html"><div class="tag">外れ値・実務</div><div class="t">異常検知（Isolation Forest）</div><div class="d">異常は孤立している→ランダム分割で早く一人になる。実 IF 構築で AUC 0.99、距離しきい値のジレンマと対比。</div><div class="dep"><b>前提:</b> 決定木 ／ <b>関連:</b> DBSCAN・ランダムフォレスト</div></a>
