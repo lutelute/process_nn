@@ -50,7 +50,8 @@
   button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
   .bar .spacer{flex:1;}
   .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
-  input[type=range]{accent-color:var(--accent);cursor:pointer;width:88px;}
+  .bar label.off{opacity:.35;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:74px;}
   details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
   summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
   .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
@@ -87,8 +88,9 @@
       <button id="autoBtn">⏵ 自動</button>
       <button id="resetBtn">↻ 最初から</button>
       <span class="spacer"></span>
-      <label>木の本数 <input type="range" id="ntree" min="1" max="150" step="1" value="150"></label>
-      <button id="diceBtn">🎲 作り直す</button>
+      <label id="ntreeL">木の本数 <input type="range" id="ntree" min="1" max="150" step="1" value="150"></label>
+      <label id="thetaL" class="off">しきい値θ <input type="range" id="theta" min="42" max="72" step="1" value="60"></label>
+      <button id="diceBtn">🎲 データ</button>
     </div>
   </div>
 
@@ -99,15 +101,15 @@
 
   <div class="myth">
     <div class="myth-h">⚠ よくある誤解</div>
-    <div class="row"><span class="x">✗</span>木が深く育つほど、異常をよく捉えられる</div>
-    <div class="row"><span class="o">✓</span>逆です。異常は<b>浅い深さ</b>で隔離されるのが手がかり。木は「1 点になるまで」or「浅い上限まで」で十分で、<b>深く育てても無駄</b>（むしろ全データを使わず<b>少数の部分標本</b>で作る）。</div>
-    <div class="row"><span class="x">✗</span>Isolation Forest はどんな異常も見つける万能検知器</div>
-    <div class="row"><span class="o">✓</span>得意は<b>「少数で・大域的に離れた」異常</b>。密な集団のすぐ脇にいる<b>局所的な密度異常はむしろ苦手</b>で、そこは <a href="dbscan.html">密度ベース</a>（LOF など）の領分。道具は相手を選ぶ。</div>
+    <div class="row"><span class="x">✗</span>異常検知＝「ある値がしきい値を超えたら警報」（1 項目のルールで十分）</div>
+    <div class="row"><span class="o">✓</span>各項目は正常範囲でも<b>組み合わせが異常</b>な点（例：体温も脈も単体は正常だが同時にその値はあり得ない）は、単変量ルールでは<b>見逃します</b>。Isolation Forest は<b>多次元の「形」</b>で判断します。</div>
+    <div class="row"><span class="x">✗</span>ランダムに切るだけで異常が分かるはずがない</div>
+    <div class="row"><span class="o">✓</span>1 本ではただの<b>まぐれ</b>です。でも「<b>珍しい点は早く孤立する</b>」という統計的な癖は、<b>何本も平均すると強い信号</b>になる——<a href="forest.html">ランダムフォレスト</a>と同じ、アンサンブルの知恵です。</div>
   </div>
 
   <details>
-    <summary>もっと詳しく：スコアの式・部分標本 ψ・汚染率・拡張 iForest</summary>
-    <div class="det">スコアは <b>s(x) = 2<sup>−E[h(x)]/c(n)</sup></b>。<b>h(x)</b>＝木ごとの隔離深さ（path length）、<b>E[h]</b>＝森での平均、<b>c(n)</b>＝n 点の二分探索木で「見つからない探索」にかかる平均深さ <b>2H(n−1) − 2(n−1)/n</b>（H は調和数）で割って正規化します。s→1 は異常、s≈0.5 は正常。<b>部分標本 ψ</b>（ふつう 256 点）：全データを使わず毎回少数を抜いて木を作ると、多数派に紛れる swamping/masking が減り、しかも計算が<b>ほぼ線形時間</b>に。木の深さ上限は ⌈log₂ψ⌉。<b>汚染率（contamination）</b>：スコア上位何 % を異常とみなすかは事前知識で決めます。分割が軸に平行なため斜めの構造が苦手な弱点は、ランダムな向きで切る <b>Extended Isolation Forest</b> が改善します。関連ページ: <a href="dbscan.html">DBSCAN</a>（密度で外れ値）・<a href="forest.html">ランダムフォレスト</a>（木の集団）・<a href="pca.html">PCA</a>（別の外れ値の見方）。</div>
+    <summary>もっと詳しく：スコアの式・部分標本 ψ・汚染率・拡張 iForest・他手法との見取り図</summary>
+    <div class="det">スコアは <b>s(x) = 2<sup>−E[h(x)]/c(n)</sup></b>。<b>h(x)</b>＝木ごとの隔離深さ（path length）、<b>E[h]</b>＝森での平均、<b>c(n)</b>＝n 点の二分探索木で「見つからない探索」にかかる平均深さ <b>2H(n−1) − 2(n−1)/n</b>（H は調和数）で割って正規化します。s→1 は異常、s≈0.5 は正常。<b>部分標本 ψ</b>（ふつう 256 点）：全データを使わず毎回少数を抜いて木を作ると計算が<b>ほぼ線形時間</b>に。木の深さ上限は ⌈log₂ψ⌉。<b>汚染率（contamination）</b>：スコア上位何 % を異常とみなすかは事前知識で決めます。分割が軸に平行なため<b>斜めの構造が苦手</b>な弱点は、ランダムな向きで切る <b>Extended Isolation Forest</b> が改善します。<b>他手法との見取り図</b>：<a href="dbscan.html">DBSCAN/LOF</a> は密度で外れ値を測る（<b>集団の内部にまぎれた密度異常</b>はこちらが得意）／One-class SVM は正常を包む境界を学ぶ／<a href="autoencoder.html">オートエンコーダ</a>は「復元しにくさ（再構成誤差）」を異常度にする。相手の異常の性質で使い分けます。関連: <a href="forest.html">ランダムフォレスト</a>・<a href="metrics.html">評価指標</a>（見逃し⇔誤報）・<a href="pca.html">PCA</a>。</div>
   </details>
 </div>
 
@@ -119,12 +121,15 @@ function getCSS(v){return getComputedStyle(document.documentElement).getProperty
 const cFactor=n=>n<=1?1:2*(Math.log(n-1)+0.5772156649)-2*(n-1)/n;
 
 /* ===== データ（tag は答え合わせ用・学習には使わない）===== */
-let X=[],tag=[],d1=[];
-function genData(){seed=42;X=[];tag=[];
-  for(let i=0;i<85;i++){X.push([-0.55+randn()*0.10,0.38+randn()*0.10]);tag.push(0);}   // 密な集団
-  for(let i=0;i<55;i++){X.push([0.42+randn()*0.29,-0.28+randn()*0.29]);tag.push(0);}    // 疎な集団
-  [[0.05,0.95],[-1.02,-0.55],[0.95,0.72],[-0.15,-0.98],[1.05,0.05]].forEach(p=>{X.push(p);tag.push(1);});
-  d1=X.map((_,i)=>{let m=Infinity;for(let j=0;j<X.length;j++)if(j!==i){const d=Math.hypot(X[i][0]-X[j][0],X[i][1]-X[j][1]);if(d<m)m=d;}return m;});}
+// tag: 0=正常, 1=大域的な外れ値, 2=局所（クラスタ間の空隙）異常＝中心距離では見逃される点
+let X=[],tag=[],cen=[0,0],cdist=[],dataSeed=42;
+function genData(){seed=dataSeed;X=[];tag=[];
+  for(let i=0;i<80;i++){X.push([-0.62+randn()*0.11,0.05+randn()*0.11]);tag.push(0);}   // 密なクラスタA
+  for(let i=0;i<58;i++){X.push([0.60+randn()*0.14,-0.05+randn()*0.14]);tag.push(0);}    // ややゆるいクラスタB
+  [[0.0,0.95],[-1.05,0.62],[1.0,0.72],[-0.72,-0.92],[0.92,-0.85]].forEach(p=>{X.push(p);tag.push(1);}); // 大域外れ値
+  X.push([0.0,0.35]);tag.push(2);                                                       // 局所異常（2クラスタの空隙）
+  cen=[X.reduce((s,p)=>s+p[0],0)/X.length,X.reduce((s,p)=>s+p[1],0)/X.length];
+  cdist=X.map(p=>Math.hypot(p[0]-cen[0],p[1]-cen[1]));}
 
 /* ===== Isolation Forest（実構築）===== */
 const PSI=128;let forest=null,cutList=[],forestSeed=1,nTree=150;
@@ -155,19 +160,36 @@ const PPU=118,MCX=180,MCY=158,RGx=1.5,RGy=1.27;
 const toX=x=>MCX+x*PPU,toY=y=>MCY-y*PPU,fromX=sx=>(sx-MCX)/PPU,fromY=sy=>-(sy-MCY)/PPU;
 const clampX=x=>Math.max(-RGx,Math.min(RGx,x)),clampY=y=>Math.max(-RGy,Math.min(RGy,y));
 
-/* ===== ヒートマップ（スコア場・キャッシュ）===== */
+/* ===== ヒートマップ（IF スコア場・キャッシュ）===== */
 const HG=40;let heat=null;
 function computeHeat(){heat=[];const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
   for(let r=0;r<HG;r++){heat.push([]);for(let c=0;c<HG;c++){
     const xx=fromX(x0+(c+0.5)*W2/HG),yy=fromY(y0+(r+0.5)*H2/HG);heat[r].push(scoreOf([xx,yy]));}}}
 function heatColor(s){const t=Math.max(0,Math.min(1,(s-0.45)/0.20));return'rgba(207,79,95,'+(0.04+0.62*t*t)+')';}
-function drawHeat(){if(!heat)return;const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
+function drawHeat(faint){if(!heat)return;const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
+  for(let r=0;r<HG;r++){const ry=Math.round(y0+r*H2/HG),ry2=Math.round(y0+(r+1)*H2/HG);
+    for(let c=0;c<HG;c++){const rx=Math.round(x0+c*W2/HG),rx2=Math.round(x0+(c+1)*W2/HG);const s=heat[r][c];
+      if(faint){const t=Math.max(0,Math.min(1,(s-0.45)/0.20));ctx.fillStyle='rgba(207,79,95,'+(0.02+0.22*t*t)+')';}
+      else ctx.fillStyle=heatColor(s);
+      ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}}
+/* 中心からの距離（円い等高線）ヒート */
+function drawCentroidHeat(){const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
   for(let r=0;r<HG;r++){const ry=Math.round(y0+r*H2/HG),ry2=Math.round(y0+(r+1)*H2/HG);
     for(let c=0;c<HG;c++){const rx=Math.round(x0+c*W2/HG),rx2=Math.round(x0+(c+1)*W2/HG);
-      ctx.fillStyle=heatColor(heat[r][c]);ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}}
+      const xx=fromX((rx+rx2)/2),yy=fromY((ry+ry2)/2),d=Math.hypot(xx-cen[0],yy-cen[1]);
+      const t=Math.max(0,Math.min(1,(d-0.32)/0.55));ctx.fillStyle='rgba(207,79,95,'+(0.04+0.6*t*t)+')';
+      ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}
+  // 中心マーク＋等高線の円
+  const cx=toX(cen[0]),cy=toY(cen[1]);ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+  for(const rr of[0.45,0.75]){ctx.beginPath();ctx.arc(cx,cy,rr*PPU,0,7);ctx.stroke();}ctx.setLineDash([]);
+  ctx.strokeStyle=getCSS('--text');ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(cx-6,cy);ctx.lineTo(cx+6,cy);ctx.moveTo(cx,cy-6);ctx.lineTo(cx,cy+6);ctx.stroke();
+  ctx.fillStyle=getCSS('--muted');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('中心',cx+8,cy-4);}
 function drawPoints(reveal){for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]);
   ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fillStyle='rgba(26,26,23,0.62)';ctx.fill();
-  if(reveal&&tag[i]){ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=2;ctx.stroke();}}}
+  if(reveal&&tag[i]){ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.strokeStyle=tag[i]===2?getCSS('--upd'):getCSS('--neg');ctx.lineWidth=2;ctx.stroke();}}}
+function drawGap(ring){const g=X[gapIdx()],x=toX(g[0]),y=toY(g[1]);
+  ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2;if(ring)ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}
+const gapIdx=()=>tag.indexOf(2);
 function drawCuts(upto){const n=Math.min(upto,cutList.length);
   for(let i=0;i<n;i++){const{ax,sp,reg}=cutList[i],[xl,xh,yl,yh]=reg;
     ctx.strokeStyle='rgba(26,26,23,0.30)';ctx.lineWidth=1;ctx.beginPath();
@@ -186,7 +208,7 @@ function drawStar(pt){const x=toX(pt[0]),y=toY(pt[1]);ctx.save();ctx.translate(x
   ctx.fillStyle='#fffdf6';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=getCSS('--upd');ctx.stroke();ctx.restore();}
 function drawDepthHist(y0){const h=96;ctx.fillStyle='rgba(255,253,246,0.72)';ctx.fillRect(8,y0-2,CW-16,h);ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.strokeRect(8,y0-2,CW-16,h);
   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('隔離の深さの分布（浅い＝隔離しやすい＝異常）',16,y0+12);
-  const dmax=13,nb=13,bw=(CW-44)/nb;const normH=Array(nb).fill(0);const anomD=[];
+  const dmax=14,nb=14,bw=(CW-44)/nb;const normH=Array(nb).fill(0);const anomD=[];
   for(let i=0;i<X.length;i++){const d=depthOf(X[i]);if(tag[i])anomD.push(d);else{const b=Math.min(nb-1,Math.floor(d/dmax*nb));normH[b]++;}}
   const mx=Math.max(...normH,1),base=y0+h-16;
   for(let b=0;b<nb;b++){const bx=20+b*bw,bh=(normH[b]/mx)*(h-34);
@@ -195,98 +217,89 @@ function drawDepthHist(y0){const h=96;ctx.fillStyle='rgba(255,253,246,0.72)';ctx
   ctx.fillStyle='rgba(26,26,23,0.45)';ctx.fillRect(20,y0+h-11,9,7);ctx.fillStyle=getCSS('--muted');ctx.font='8.5px '+getCSS('--mono');ctx.fillText('正常',32,y0+h-5);
   ctx.fillStyle=getCSS('--neg');ctx.beginPath();ctx.moveTo(70,y0+h-11);ctx.lineTo(66,y0+h-4);ctx.lineTo(74,y0+h-4);ctx.closePath();ctx.fill();ctx.fillStyle=getCSS('--muted');ctx.fillText('異常',78,y0+h-5);
   ctx.textAlign='right';ctx.fillStyle=getCSS('--faint');ctx.fillText('深い→',CW-16,base+11);ctx.textAlign='left';ctx.fillText('←浅い',20,base+11);}
-function drawDistFlags(tau){for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]),flag=d1[i]>tau;
-  ctx.beginPath();ctx.arc(x,y,flag?4.5:3,0,7);ctx.fillStyle=flag?getCSS('--neg'):'rgba(26,26,23,0.5)';ctx.fill();
-  if(tag[i]){ctx.beginPath();ctx.arc(x,y,7.5,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);}}}
+function drawFlags(flagFn){for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]),flag=flagFn(i);
+  ctx.beginPath();ctx.arc(x,y,flag?4.6:3,0,7);ctx.fillStyle=flag?getCSS('--neg'):'rgba(26,26,23,0.5)';ctx.fill();
+  if(tag[i]){ctx.beginPath();ctx.arc(x,y,7.5,0,7);ctx.strokeStyle=tag[i]===2?getCSS('--upd'):getCSS('--accent');ctx.lineWidth=1.6;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);}}}
 function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-8);}
-function drawColorbar(){const x0=CW-118,y0=16,w=100,hh=8;const g=ctx.createLinearGradient(x0,0,x0+w,0);
+function drawColorbar(label){const x0=CW-118,y0=16,w=100,hh=8;const g=ctx.createLinearGradient(x0,0,x0+w,0);
   g.addColorStop(0,'rgba(207,79,95,0.05)');g.addColorStop(1,'rgba(207,79,95,0.66)');
   ctx.fillStyle=g;ctx.fillRect(x0,y0,w,hh);ctx.strokeStyle=getCSS('--line');ctx.strokeRect(x0,y0,w,hh);
-  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('正常',x0-1,y0+hh+9);ctx.textAlign='right';ctx.fillText('異常',x0+w+1,y0+hh+9);}
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('正常',x0-1,y0+hh+9);ctx.textAlign='right';ctx.fillText('異常',x0+w+1,y0+hh+9);
+  if(label){ctx.textAlign='center';ctx.fillStyle=getCSS('--muted');ctx.fillText(label,x0+w/2,y0-3);}}
 
-/* ===== 統計（表示用）===== */
-function stats(){const aS=[],nS=[],aD=[],nD=[];for(let i=0;i<X.length;i++){const d=depthOf(X[i]),s=Math.pow(2,-d/forest.c);(tag[i]?aS:nS).push(s);(tag[i]?aD:nD).push(d);}
-  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;return{aS:mean(aS),nS:mean(nS),aD:mean(aD),nD:mean(nD)};}
-function distSweep(tau){let tp=0,fp=0;for(let i=0;i<X.length;i++){if(d1[i]>tau){if(tag[i])tp++;else if(X[i][0]>0&&tag[i]===0)fp++;}}
-  // FP は疎な集団（右下）の正常点の巻き込みに限定してカウント
-  let fp2=0;for(let i=0;i<X.length;i++)if(d1[i]>tau&&tag[i]===0&&X[i][0]>0)fp2++;return{tp,fp:fp2};}
+/* ===== 統計 ===== */
+function depthAll(){const a={aD:[],nD:[],aS:[],nS:[]};for(let i=0;i<X.length;i++){const d=depthOf(X[i]),s=Math.pow(2,-d/forest.c);(tag[i]?a.aD:a.nD).push(d);(tag[i]?a.aS:a.nS).push(s);}
+  const mean=x=>x.reduce((s,v)=>s+v,0)/x.length;return{aD:mean(a.aD),nD:mean(a.nD),aS:mean(a.aS),nS:mean(a.nS)};}
+function aucOf(valFn){const A=[],N=[];for(let i=0;i<X.length;i++)(tag[i]?A:N).push(valFn(i));let c=0;for(const a of A)for(const n of N)c+=a>n?1:a===n?0.5:0;return c/(A.length*N.length);}
+function rankOf(valFn,i){const v=valFn(i);let r=1;for(let j=0;j<X.length;j++)if(valFn(j)>v)r++;return r;}
+const ifScoreCache=()=>{const c=[];for(let i=0;i<X.length;i++)c.push(scoreOf(X[i]));return c;};
+function scoreThresh(cont){const ss=X.map(x=>scoreOf(x)).sort((a,b)=>b-a);return ss[Math.max(0,Math.round(X.length*cont)-1)];}
 
 /* ===== スライド定義（4章×15枚）===== */
 const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:13}];
 function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
-let slideIdx=0,anim=false,auto=false,animK=0,star=[-0.15,0.38],tauSweep=0.6;
+let slideIdx=0,anim=false,auto=false,animK=0,star=[0.0,0.35],theta=0.60,abMode=0;
 
 const SLIDES=[
 /* 0 */{title:'異常＝少数で・他と違う',legend:'点はすべてラベル無し。どれが異常かは与えられていない',live:false,
- html(){return'<h3>異常＝少数で・他と違う</h3><div class="eq curr">異常 ＝ <b>少数</b>（rare）　かつ　<b>他と違う</b>（different）<span class="read">読み：異常検知の前提。異常は数が少なく、正常の集団から離れている。だが「異常」のラベルは付いていない＝<b>教師なし</b>で見つける</span></div><div class="desc">クレジットカードの不正、製造ラインの欠陥、サーバーへの侵入——探したいのは<b>少数で、まわりと違う</b>点です。やっかいなのは、<b>正常のお手本はたくさんあるのに、異常には印が付いていない</b>こと（教師なし）。この散布図のどれが異常か、あなたには分かりますか？ まず眺めてください。</div>';},
+ html(){return'<h3>異常＝少数で・他と違う</h3><div class="eq curr">異常 ＝ <b>少数</b>（rare）　かつ　<b>他と違う</b>（different）<span class="read">読み：異常検知の前提。異常は数が少なく、正常の集団から離れている。だが「異常」のラベルは付いていない＝<b>教師なし</b>で見つける</span></div><div class="desc">クレジットカードの不正、製造ラインの欠陥、サーバーへの侵入——探したいのは<b>少数で、まわりと違う</b>点です。やっかいなのは、<b>正常のお手本はたくさんあるのに、異常には印が付いていない</b>こと（教師なし）。この散布図——正常は 2 つのかたまり、その他に紛れた数点。どれが異常か、あなたには分かりますか？</div>';},
  draw(){drawPoints(false);caption('ラベル無しのデータ — どれが「少数で違う」点？',CH-8);}},
-/* 1 */{title:'素朴な距離のジレンマ',legend:'赤=最近傍距離がしきい値超え。破線=（答え）真の異常',live:false,
- html(){const s1=distSweep(0.20),s2=distSweep(0.30);return'<h3>素朴な距離のジレンマ</h3><div class="eq curr">「最も近い点までの距離 &gt; τ なら異常」　—　でも <b>τ をいくつに？</b><span class="read">読み：素朴な異常検知＝近くに仲間がいなければ異常。だが密度の違う集団があると、1 本のしきい値 τ では両立しない</span></div><div class="desc">いちばん素朴な方法は「<b>近くに仲間がいない＝異常</b>」。でも<b>密な集団と疎な集団</b>があると 1 本のしきい値 τ が決まりません。τ を小さく（'+0.20+'）すると疎な集団の正常点まで<b>誤検知</b>（'+s1.fp+' 個）、大きく（'+0.30+'）すると本物の異常を<b>見逃す</b>（'+(5-s2.tp)+'/5）。<b>密度が場所で違うと距離では割り切れない</b>。</div>';},
- draw(){drawDistFlags(tauSweep);caption('τ='+tauSweep.toFixed(2)+' — 小さくすると疎な集団が誤検知、大きくすると異常を見逃す',CH-8);},
- sweep:true},
-/* 2 */{title:'発想の逆転：異常はすぐ孤立する',legend:'紫線=ランダムな1本の区切り。外れ点は数回で切り離せる',live:true,
- html(){return'<h3>発想の逆転：異常はすぐ孤立する</h3><div class="eq curr">でたらめに区切る → 外れ点は<b>数回</b>で孤立　／　集団の中は<b>何度も</b>切らないと孤立しない<span class="read">読み：正常を描く代わりに、異常の性質（少数・別）を直接使う。ランダムな分割でも、珍しい点ほど早く「1 点だけの領域」に隔離される</span></div><div class="desc">Isolation Forest は「正常とは何か」を描きません。逆に<b>異常の性質を近道</b>にします——平面を<b>ランダムに区切って</b>いくと、まわりから離れた外れ点は<b>数回の分割で一人ぼっち</b>になり、密集団の中の点は<b>何度も</b>区切らないと孤立しません。この「<b>孤立までの手数</b>」が異常さの物差し。距離も密度も測りません。</div>';},
- draw(){drawPoints(true);drawCuts(anim?animK:6);caption('ランダムな区切りでも、外れ点ほど早く孤立する',CH-8);}},
+/* 1 */{title:'素朴案：中心からの距離',legend:'背景=中心からの距離。円い等高線しか描けず2かたまりで破綻',live:false,
+ html(){const rk=rankOf(i=>cdist[i],gapIdx());return'<h3>素朴案：中心からの距離</h3><div class="eq curr">異常度 ＝ ‖ <i>x</i> − 平均 ‖　（中心から遠いほど異常）<span class="read">読み：最も素朴な異常検知。全体の平均（中心 ✚）からの距離で測る。等高線は<b>円</b>にしかならない＝1 つのかたまりを暗黙に仮定している</span></div><div class="desc">いちばん素朴な方法は「<b>全体の中心から遠い＝異常</b>」。でも中心距離の等高線は<b>円</b>にしかならず（背景）、正常が<b>2 つのかたまり</b>だと破綻します——中心は<b>かたまりの谷間</b>に落ち、遠い方のかたまりの正常点を<b>誤検知</b>し、逆に<b>谷間に紛れた異常</b>（紫丸）を「中心に近いから正常」と<b>見逃す</b>（いま中心距離では '+rk+' 位＝ほぼ正常扱い）。</div>';},
+ draw(){drawCentroidHeat();drawPoints(true);drawGap(true);caption('円い等高線は2かたまりに合わない＝死角ができる',CH-8);}},
+/* 2 */{title:'発想の逆転：異常はすぐ孤立する',legend:'紫線=ランダムな区切り。外れ点は数回で切り離せる',live:true,
+ html(){return'<h3>発想の逆転：異常はすぐ孤立する</h3><div class="eq curr">でたらめに区切る → 外れ点は<b>数回</b>で孤立　／　集団の中は<b>何度も</b>切らないと孤立しない<span class="read">読み：正常を描く代わりに、異常の性質（少数・別）を直接使う。ランダムな分割でも、珍しい点ほど早く「1 点だけの領域」に隔離される</span></div><div class="desc">Isolation Forest は「正常とは何か」を描きません。逆に<b>異常の性質を近道</b>にします——平面を<b>ランダムに区切って</b>いくと、まわりから離れた外れ点は<b>数回の分割で一人ぼっち</b>になり、かたまりの中の点は<b>何度も</b>区切らないと孤立しません。この「<b>孤立までの手数</b>」が異常さの物差し。距離も密度も、平均も測りません。</div>';},
+ draw(){drawPoints(true);drawCuts(anim?animK:7);caption('ランダムな区切りでも、外れ点ほど早く孤立する',CH-8);}},
 /* 3 */{title:'1 本の隔離木を作る',legend:'ランダムに軸と位置を選んで区切る、を再帰的に（=iTree）',live:true,
- html(){return'<h3>1 本の隔離木を作る</h3><div class="eq curr">各ノード：<b>ランダムな軸</b>（x か y）＋その範囲の<b>ランダムな位置</b>で分割 → 1 点になるまで再帰<span class="read">読み：iTree（隔離木）の作り方。特徴も分割位置もランダム。学習らしい最適化は一切なし。分割の深さ＝その領域の点の隔離しやすさ</span></div><div class="desc">木（iTree）の作り方はとても単純です。各段で<b>軸をランダムに選び、その範囲のランダムな位置で真っ二つ</b>。これを<b>1 点だけになるまで</b>（または浅い上限まで）繰り返す。最適化も勾配もありません。細かく区切られる所＝密集団、<b>大きな区画のまま残る所＝外れ点</b>。いま区切り <b>'+(anim?animK:cutList.length)+'</b> 本。</div>';},
+ html(){return'<h3>1 本の隔離木を作る</h3><div class="eq curr">各ノード：<b>ランダムな軸</b>（x か y）＋その範囲の<b>ランダムな位置</b>で分割 → 1 点になるまで再帰<span class="read">読み：iTree（隔離木）の作り方。特徴も分割位置もランダム。学習らしい最適化は一切なし。分割の深さ＝その領域の点の隔離しやすさ</span></div><div class="desc">木（iTree）の作り方はとても単純です。各段で<b>軸をランダムに選び、その範囲のランダムな位置で真っ二つ</b>。これを<b>1 点だけになるまで</b>（または浅い上限まで）繰り返す。最適化も勾配もありません。細かく区切られる所＝かたまり、<b>大きな区画のまま残る所＝外れ点</b>。いま区切り <b>'+(anim?animK:cutList.length)+'</b> 本。</div>';},
  draw(){drawPoints(true);drawCuts(anim?animK:cutList.length);caption('1 本の木の区切り（粗→細）。外れ点は大きな区画に残る',CH-8);}},
 /* 4 */{title:'隔離の深さ＝正常さ',legend:'★の点を隔離するまでの区切りを橙で。手数＝深さ',live:true,
- html(){const d=forest?drawIsoDepth(star):0;return'<h3>隔離の深さ＝正常さ</h3><div class="eq curr"><i>h</i>(<i>x</i>) ＝ その点を 1 つの区画に隔離するまでの<b>分割回数</b><span class="read">読み：h(x)＝隔離の深さ（path length）。浅い（手数が少ない）ほど「すぐ孤立できた＝異常」、深いほど「仲間に埋もれている＝正常」</span></div><div class="desc">ある点の<b>隔離の深さ h(x)</b>＝それを 1 つだけの区画に追い込むまでの<b>分割回数</b>です。★を<b>ドラッグ</b>してみてください。外れた所に置くと<b>浅く</b>（橙の区切りが少なく）、密集団の中では<b>深く</b>なります。いまの★の深さ <b>'+d+'</b> 手。<b>浅い＝異常、深い＝正常</b>——これがすべての土台です。</div>';},
- draw(){drawHeatFaint();drawPoints(false);const d=drawIsoDepth(star);drawStar(star);
-   ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('隔離まで '+d+' 手',CW/2,CH-8);}},
+ html(){const d=forest?depthOf(star):0;return'<h3>隔離の深さ＝正常さ</h3><div class="eq curr"><i>h</i>(<i>x</i>) ＝ その点を 1 つの区画に隔離するまでの<b>分割回数</b><span class="read">読み：h(x)＝隔離の深さ（path length）。浅い（手数が少ない）ほど「すぐ孤立できた＝異常」、深いほど「仲間に埋もれている＝正常」</span></div><div class="desc">ある点の<b>隔離の深さ h(x)</b>＝それを 1 つだけの区画に追い込むまでの<b>分割回数</b>です。★を<b>ドラッグ</b>してみてください。外れた所に置くと<b>浅く</b>（橙の区切りが少なく）、かたまりの中では<b>深く</b>なります。いまの★の深さ <b>'+d.toFixed(1)+'</b> 手。<b>浅い＝異常、深い＝正常</b>——これがすべての土台です。</div>';},
+ draw(){drawHeat(true);drawPoints(false);const d=drawIsoPath(star);drawStar(star);
+   ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('隔離まで '+d.toFixed(1)+' 手',CW/2,CH-8);}},
 /* 5 */{title:'深さの分布：異常は浅い（A/B）',legend:'ヒスト=正常の深さ分布。赤▲=異常の深さ。左（浅い）に集まる',live:true,
- html(){const s=stats();return'<h3>深さの分布：異常は浅い（A/B）</h3><div class="eq curr">平均隔離深さ　異常 ≈ <b>'+s.aD.toFixed(1)+'</b>　⇔　正常 ≈ <b>'+s.nD.toFixed(1)+'</b><span class="read">読み：答え合わせ。同じ森で全点の隔離深さを測ると、異常（赤▲）は浅い側に、正常（灰ヒスト）は深い側に、はっきり分かれる</span></div><div class="desc">答え合わせです。同じ森で<b>全点の隔離深さ</b>を測り、分布にしました（下）。<b>正常</b>（灰のヒストグラム）は<b>深い側</b>に山を作り、<b>異常</b>（赤▲）は<b>浅い側</b>に集まります。平均で異常 <b>'+s.aD.toFixed(1)+'</b> 手 vs 正常 <b>'+s.nD.toFixed(1)+'</b> 手——正常は<b>ほぼ倍</b>の手数が要る。深さという 1 本の物差しで、少数の異常が浮かび上がりました。</div>';},
- draw(){drawHeatFaint();drawPoints(true);drawDepthHist(316);}},
+ html(){const s=depthAll();return'<h3>深さの分布：異常は浅い（A/B）</h3><div class="eq curr">平均隔離深さ　異常 ≈ <b>'+s.aD.toFixed(1)+'</b>　⇔　正常 ≈ <b>'+s.nD.toFixed(1)+'</b><span class="read">読み：答え合わせ。同じ森で全点の隔離深さを測ると、異常（赤▲）は浅い側に、正常（灰ヒスト）は深い側に、はっきり分かれる</span></div><div class="desc">答え合わせです。同じ森で<b>全点の隔離深さ</b>を測り、分布にしました（下）。<b>正常</b>（灰のヒストグラム）は<b>深い側</b>に山を作り、<b>異常</b>（赤▲）は<b>浅い側</b>に集まります。平均で異常 <b>'+s.aD.toFixed(1)+'</b> 手 vs 正常 <b>'+s.nD.toFixed(1)+'</b> 手——正常は<b>ほぼ倍</b>の手数が要る。深さという 1 本の物差しで、少数の異常が浮かび上がりました。</div>';},
+ draw(){drawHeat(true);drawPoints(true);drawDepthHist(316);}},
 /* 6 */{title:'たくさんの木で平均＝安定',legend:'木の本数スライダ。1本はでたらめでも、束ねると滑らか',live:true,
  html(){return'<h3>たくさんの木で平均＝安定</h3><div class="eq curr">E[<i>h</i>(<i>x</i>)] ＝ 多数の木で平均した隔離深さ<span class="read">読み：1 本の木はランダムなので当てにならない。何本も作って深さを平均すると、たまたまを打ち消し合い、安定した「異常さの地形」になる（＝森）</span></div><div class="desc">1 本の木は<b>でたらめ</b>——同じ点でも木ごとに深さが揺れます。そこで<b>何本も作って平均</b>（それが「森」）。下の<b>木の本数</b>スライダを動かすと、ヒートマップ（赤＝異常）が本数とともに<b>滑らか</b>になるのが見えます。実は<b>5 本ほどで平均スコアはほぼ収束</b>（本数を増やすほど地形が安定するだけ）。いま <b>'+nTree+'</b> 本。</div>';},
- draw(){drawHeat();drawPoints(true);drawColorbar();caption('木 '+nTree+' 本の平均スコア（赤ほど異常）',CH-8);}},
+ draw(){drawHeat();drawPoints(true);drawColorbar('IF スコア');caption('木 '+nTree+' 本の平均スコア（赤ほど異常）',CH-8);}},
 /* 7 */{title:'スコアの式：0.5 を基準に',legend:'背景=異常スコア s。s→1 が異常、s≈0.5 が正常',live:true,
- html(){const s=stats();return'<h3>スコアの式：0.5 を基準に</h3><div class="eq curr"><i>s</i>(<i>x</i>) ＝ 2<sup>−E[<i>h</i>(<i>x</i>)] / <i>c</i>(<i>n</i>)</sup>,　<i>c</i>(<i>n</i>) ＝ 平均隔離深さの目安<span class="read">読み：平均深さ E[h] を c(n)（n 点をランダム二分木で隔離する平均深さ）で割って正規化し、2 の肩に乗せる。深さ小→s は 1 に近づく（異常）、深さが平均並み→s≈0.5（正常）</span></div><div class="desc">隔離深さを、点数 n で決まる目安 <b>c(n)</b>（いま <b>'+(forest?forest.c.toFixed(1):'—')+'</b>）で割って正規化し、<b>0〜1 のスコア</b>にします。<b>s→1 は異常、s≈0.5 は正常</b>と、データによらず同じ物差しで読めるのが利点。平均スコアは異常 <b>'+s.aS.toFixed(2)+'</b> ⇔ 正常 <b>'+s.nS.toFixed(2)+'</b>。距離のしきい値と違い、<b>基準（0.5）が最初から決まっている</b>。</div>';},
- draw(){drawHeat();drawPoints(true);drawColorbar();caption('スコア場：s≈0.5 が正常、s→1（赤）が異常',CH-8);}},
+ html(){const s=depthAll();return'<h3>スコアの式：0.5 を基準に</h3><div class="eq curr"><i>s</i>(<i>x</i>) ＝ 2<sup>−E[<i>h</i>(<i>x</i>)] / <i>c</i>(<i>n</i>)</sup>,　<i>c</i>(<i>n</i>) ＝ 平均隔離深さの目安<span class="read">読み：平均深さ E[h] を c(n)（n 点をランダム二分木で隔離する平均深さ）で割って正規化し、2 の肩に乗せる。深さ小→s は 1 に近づく（異常）、深さが平均並み→s≈0.5（正常）</span></div><div class="desc">隔離深さを、点数 n で決まる目安 <b>c(n)</b>（いま <b>'+(forest?forest.c.toFixed(1):'—')+'</b>）で割って正規化し、<b>0〜1 のスコア</b>にします。<b>s→1 は異常、s≈0.5 は正常</b>と、データによらず同じ物差しで読めるのが利点。平均スコアは異常 <b>'+s.aS.toFixed(2)+'</b> ⇔ 正常 <b>'+s.nS.toFixed(2)+'</b>。中心からの距離と違い、<b>基準（0.5）が最初から決まっている</b>。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar('IF スコア');caption('スコア場：s≈0.5 が正常、s→1（赤）が異常',CH-8);}},
 /* 8 */{title:'スコア等高線：どこでも即・採点',legend:'★をドラッグ→その点の異常スコアと隔離深さを即計算',live:true,
- html(){const sc=forest?scoreOf(star):0,d=forest?depthOf(star):0;return'<h3>スコア等高線：どこでも即・採点</h3><div class="eq curr">新しい点 <i>x</i> → 森を通す → 平均深さ → <i>s</i>(<i>x</i>)　を 1 回で<span class="read">読み：一度森を作れば、新しい点は木をたどるだけで採点できる（学習済みモデルと同じ）。距離のように全点と比べ直す必要がない</span></div><div class="desc">森ができれば、<b>どんな点も木をたどるだけ</b>で採点できます。★を<b>ドラッグ</b>してみてください。密集団の中では低スコア（正常）、外れた所では赤く高スコア（異常）。いまの★：スコア <b>'+sc.toFixed(2)+'</b>・隔離深さ <b>'+d.toFixed(1)+'</b>。距離ベースのように<b>全点と比べ直す必要はなく</b>、新しいデータもそのまま採点できます。</div>';},
- draw(){drawHeat();drawPoints(false);drawStar(star);drawColorbar();
+ html(){const sc=forest?scoreOf(star):0,d=forest?depthOf(star):0;return'<h3>スコア等高線：どこでも即・採点</h3><div class="eq curr">新しい点 <i>x</i> → 森を通す → 平均深さ → <i>s</i>(<i>x</i>)　を 1 回で<span class="read">読み：一度森を作れば、新しい点は木をたどるだけで採点できる（学習済みモデルと同じ）。全点と比べ直す必要がない</span></div><div class="desc">森ができれば、<b>どんな点も木をたどるだけ</b>で採点できます。★を<b>ドラッグ</b>してみてください。かたまりの中では低スコア（正常）、外れた所では赤く高スコア（異常）。いまの★：スコア <b>'+sc.toFixed(2)+'</b>・隔離深さ <b>'+d.toFixed(1)+'</b>。新しいデータもそのまま採点でき、<b>密度の「形」に沿って</b>異常さが塗られているのが分かります。</div>';},
+ draw(){drawHeat();drawPoints(false);drawStar(star);drawColorbar('IF スコア');
    const sc=scoreOf(star);ctx.fillStyle=sc>0.55?getCSS('--neg'):getCSS('--muted');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';
    ctx.fillText('★ スコア '+sc.toFixed(2)+(sc>0.6?'（異常寄り）':sc<0.5?'（正常）':'（境目）'),CW/2,CH-8);},
  dice:true},
-/* 9 */{title:'A/B：距離のしきい値 vs 隔離',legend:'左の掃引=距離τ（赤=検出）。隔離は密度に自動適応',live:false,
- html(){const s1=distSweep(0.20),s2=distSweep(0.30);return'<h3>A/B：距離のしきい値 vs 隔離</h3><div class="eq curr">距離：<b>τ を人が選ぶ</b>（swamping ⇔ masking のジレンマ）　／　隔離：<b>密度に自動適応</b>・基準 0.5<span class="read">読み：τ を掃引すると、疎な集団の誤検知（swamping）と異常の見逃し（masking）が同時には消せない。隔離は場所ごとの隔離しやすさで測るので、しきい値調整なしで両立しやすい</span></div><div class="desc">距離ベースの弱点を掃引で実演します（τ が自動で動きます）。τ を下げると疎な集団を<b>誤検知</b>（swamping）、上げると異常を<b>見逃す</b>（masking）——<b>両立する τ が無い</b>（τ=0.20 で誤検知 '+s1.fp+'／τ=0.30 で見逃し '+(5-s2.tp)+'）。Isolation Forest は<b>隔離しやすさ＝密度に自動で適応</b>し、しきい値調整なしで異常（AUC ≈ 0.99）を分けます。ただし万能ではない（次章）。</div>';},
- draw(){drawDistFlags(tauSweep);const s=distSweep(tauSweep);
-   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';
-   ctx.fillText('距離ベース  τ='+tauSweep.toFixed(2)+'  異常検出 '+s.tp+'/5 ・ 疎集団の誤検知 '+s.fp,CW/2,CH-24);
-   caption('どこかを立てるとどこかが崩れる＝単一しきい値のジレンマ',CH-8);},
- sweep:true},
+/* 9 */{title:'A/B：中心からの距離 vs 隔離',legend:'左右で切替。中心距離は円・隔離は密度の形。紫丸=局所異常',live:true,
+ html(){const rc=rankOf(i=>cdist[i],gapIdx()),rs=rankOf(i=>scoreOf(X[i]),gapIdx());
+   const ac=aucOf(i=>cdist[i]),as=aucOf(i=>scoreOf(X[i]));
+   return'<h3>A/B：中心からの距離 vs 隔離</h3><div class="eq curr">中心距離：円い等高線（AUC '+ac.toFixed(2)+'）　／　隔離：密度の形に沿う（AUC '+as.toFixed(2)+'）<span class="read">読み：同じデータで検知成績を比較。AUC＝異常を正常より高くランクできた割合（1 が完璧）。中心距離は 2 かたまりで下がり、隔離は形に沿って高い</span></div><div class="desc">同じデータで two 手法を並べます（背景が自動で切替）。<b>中心からの距離</b>は円い等高線で、遠いかたまりを誤検知し、<b>谷間の局所異常（紫丸）を見逃す</b>——中心距離では <b>'+rc+' 位</b>（ほぼ正常）。<b>隔離</b>は<b>密度の形に沿って</b>塗られ、同じ紫丸を <b>'+rs+' 位</b>（上位）で拾います。検知成績 AUC は <b>中心距離 '+ac.toFixed(2)+' → 隔離 '+as.toFixed(2)+'</b>。<b>「中心からどれだけ遠いか」より「どれだけ孤立しているか」</b>の勝ちです。</div>';},
+ draw(){if(abMode===0){drawCentroidHeat();drawColorbar('中心からの距離');}else{drawHeat();drawColorbar('IF スコア');}
+   drawPoints(true);drawGap(true);
+   const rc=rankOf(i=>cdist[i],gapIdx()),rs=rankOf(i=>scoreOf(X[i]),gapIdx());
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText(abMode===0?('中心からの距離 — 局所異常は '+rc+' 位（見逃し）'):('隔離 — 局所異常は '+rs+' 位（検出）'),CW/2,CH-8);}},
 /* 10 */{title:'木の本数を変える',legend:'本数スライダ。少ないとザラつき、多いと安定（早く収束）',live:true,
  html(){return'<h3>木の本数を変える</h3><div class="eq curr">本数 ↑ → 平均が安定（ただし <b>数本で収束</b>、多くは滑らかさのため）<span class="read">読み：木の本数はランダムフォレストと同じく「多いほど安定」。ただし異常スコアは早く収束し、極端に多くは要らない</span></div><div class="desc">下の<b>木の本数</b>スライダを大きく動かしてみてください。<b>1〜数本</b>だとヒートマップがザラつき（1 本のたまたまが出る）、<b>増やすと滑らか</b>に。ただし実験では<b>平均スコアは 5 本ほどでほぼ収束</b>——本数は主に地形の<b>見た目の安定</b>のためです。<a href="forest.html">ランダムフォレスト</a>と同じ「多数決で安定」。いま <b>'+nTree+'</b> 本。</div>';},
- draw(){drawHeat();drawPoints(true);drawColorbar();caption('木 '+nTree+' 本（🎲 で別の乱数の森に）',CH-8);},
- dice:true},
-/* 11 */{title:'部分標本 ψ と速さ',legend:'各木は全データでなく少数の標本で作る＝速い・紛れにくい',live:true,
- html(){return'<h3>部分標本 ψ と速さ</h3><div class="eq curr">各木は全 N 点でなく <b>ψ 点（例 256）</b>だけ抽出 → 深さ上限 ⌈log₂ψ⌉・計算ほぼ<b>線形時間</b><span class="read">読み：木ごとに少数の部分標本 ψ を使う。異常が多数に紛れる swamping/masking が減り、しかも 1 本が小さいので速い。距離ベースの O(N²) と対照的</span></div><div class="desc">この森は各木を<b>全 '+X.length+' 点でなく最大 '+PSI+' 点の部分標本</b>で作っています（ψ）。少数で作ると<b>異常が多数に紛れにくく</b>（swamping/masking の緩和）、しかも 1 本が小さいので<b>速い</b>——全体の計算量は<b>ほぼ点数に比例</b>（線形時間）。総当たりで距離を測る手法の <b>O(N²)</b> と対照的で、<b>大規模データ・オンライン監視</b>に向きます。深さ上限は ⌈log₂ψ⌉ ＝ <b>'+(forest?forest.maxD:'—')+'</b>。</div>';},
- draw(){drawHeat();drawPoints(true);drawColorbar();caption('各木＝部分標本 '+(forest?forest.psi:PSI)+' 点・深さ上限 '+(forest?forest.maxD:'—'),CH-8);}},
-/* 12 */{title:'どこで線を引く？（汚染率）',legend:'スコア上位◯%を異常とする。しきい値は事前知識で',live:true,
- html(){const th=scoreThresh(0.05);return'<h3>どこで線を引く？（汚染率）</h3><div class="eq curr">異常とみなす ⇔ <i>s</i>(<i>x</i>) ≥ しきい値　←　<b>汚染率</b>（上位何 %）で決める<span class="read">読み：スコアは順位を与えるが、どこから異常かの線は与えない。全体の何 % が異常か（汚染率 contamination）を事前に決めて上位を切る</span></div><div class="desc">スコアは<b>異常さの順位</b>を与えますが、「ここから異常」の<b>線引きは別</b>。実務では<b>汚染率</b>（全体の何 % が異常か）を見積もって上位を切ります。ここでは上位 <b>5%</b>（しきい値 s ≥ <b>'+th.toFixed(2)+'</b>）を異常として赤丸で示しました。汚染率を上げれば拾いは増え誤検知も増える——<b>見逃しと誤報のバランス</b>を業務で決める、という最後の一手です。</div>';},
- draw(){drawHeat();const th=scoreThresh(0.05);for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]),fl=scoreOf(X[i])>=th;
-   ctx.beginPath();ctx.arc(x,y,fl?4.5:3,0,7);ctx.fillStyle=fl?getCSS('--neg'):'rgba(26,26,23,0.55)';ctx.fill();}
-   drawColorbar();caption('赤=上位5%（汚染率5%）と判定された点',CH-8);}},
-/* 13 */{title:'得意と苦手：道具は相手を選ぶ',legend:'◎大域的な少数異常。✗密な集団の脇の局所密度異常（LOF向き）',live:false,
- html(){return'<h3>得意と苦手：道具は相手を選ぶ</h3><div class="eq curr">得意：<b>少数で・大域的に離れた</b>異常　／　苦手：<b>密な集団のすぐ脇</b>の局所密度異常<span class="read">読み：Isolation Forest は「離れていれば早く孤立する」ので大域異常に強い。だが密な集団の縁の点は、近くに仲間がいるため深く隔離され、正常と見分けにくい</span></div><div class="desc">正直な限界です。Isolation Forest は<b>大域的に離れた少数異常</b>に強い一方、<b>密な集団のすぐ脇</b>にいる点（局所的な密度異常）は、近くに仲間がいるため<b>深く隔離され、正常に見えてしまう</b>（実験でスコア ≈ 0.5）。そこは<b>密度を測る</b> <a href="dbscan.html">LOF / DBSCAN 系</a>の出番。<b>速さ・しきい値いらず・高次元に強い</b>のが Isolation Forest の持ち味で、相手に応じて使い分けます。</div>';},
- draw(){drawHeat();drawPoints(true);
-   const lx=[-0.15,0.38];ctx.beginPath();ctx.arc(toX(lx[0]),toY(lx[1]),9,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
-   ctx.fillStyle=getCSS('--upd');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('局所密度異常＝苦手',toX(lx[0])+12,toY(lx[1])-6);
-   drawColorbar();caption('赤丸=iForestが拾う大域異常／紫=苦手な局所異常',CH-8);}},
-/* 14 */{title:'まとめ：手数で異常を測る',legend:'ランダム分割の深さ＝異常さ。速く・しきい値いらず',live:false,
- html(){return'<h3>まとめ：手数で異常を測る</h3><div class="desc">Isolation Forest の芯は 1 つ——<b>珍しいものは、でたらめに区切っても早く孤立する</b>。だから距離も密度も測らず、<b>隔離までの手数（深さ）</b>だけで異常さを測れます。ランダムな木を束ねて平均し、スコア <i>s</i>=2<sup>−E[h]/c(n)</sup> は 0.5 が正常・1 が異常。<b>部分標本で速く（ほぼ線形時間）</b>、しきい値調整もほぼ不要。実務では不正・故障・侵入・データ品質の監視で定番です。ただし<b>局所密度異常は苦手</b>——相手を選んで使いましょう。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・異常＝少数で違う → ランダム分割で早く孤立する<br>・隔離の深さ（手数）を森で平均 → スコア s（0.5基準）<br>・速い・しきい値いらず／局所密度異常は LOF の領分</div>';},
- draw(){drawHeat();drawPoints(true);drawColorbar();caption('でたらめに区切って、孤立までの手数を数えるだけ',CH-8);}},
+ draw(){drawHeat();drawPoints(true);drawColorbar('IF スコア');caption('木 '+nTree+' 本（🎲 で別のデータに）',CH-8);}},
+/* 11 */{title:'しきい値 θ：見逃し⇔誤報',legend:'θ を上げると誤報は減るが見逃しが増える（旗=検出）',live:true,
+ html(){const c=confusion(theta);return'<h3>しきい値 θ：見逃し⇔誤報</h3><div class="eq curr">異常とみなす ⇔ <i>s</i>(<i>x</i>) ≥ θ　→　検出 '+c.tp+' ・ 見逃し(FN) '+c.fn+' ・ 誤報(FP) '+c.fp+'<span class="read">読み：スコアの線引き θ を決めると、拾えた異常（検出）・逃した異常（見逃し FN）・正常を誤検知（誤報 FP）が決まる。θ を動かすと両者がトレードオフ</span></div><div class="desc">スコアは<b>異常さの順位</b>を与えますが、「ここから異常」の<b>線引き θ は別</b>。下の<b>しきい値 θ</b>スライダを動かしてください（いま θ=<b>'+theta.toFixed(2)+'</b>）。θ を<b>上げる</b>と誤報（FP）は減るが<b>見逃し（FN）が増え</b>、<b>下げる</b>と逆。いま <b>検出 '+c.tp+'/'+(c.tp+c.fn)+'・見逃し '+c.fn+'・誤報 '+c.fp+'</b>。どこで折り合うかは業務しだい——<a href="metrics.html">評価指標</a>の再現率⇔適合率の話そのものです。</div>';},
+ draw(){drawHeat(true);drawFlags(i=>scoreOf(X[i])>=theta);drawColorbar('IF スコア');
+   const c=confusion(theta);ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('θ='+theta.toFixed(2)+'  検出 '+c.tp+' / 見逃し '+c.fn+' / 誤報 '+c.fp,CW/2,CH-8);}},
+/* 12 */{title:'部分標本 ψ と速さ',legend:'各木は全データでなく少数の標本で作る＝速い・紛れにくい',live:true,
+ html(){return'<h3>部分標本 ψ と速さ</h3><div class="eq curr">各木は全 N 点でなく <b>ψ 点（例 256）</b>だけ抽出 → 深さ上限 ⌈log₂ψ⌉・計算ほぼ<b>線形時間</b><span class="read">読み：木ごとに少数の部分標本 ψ を使う。異常が多数に紛れる swamping/masking が減り、しかも 1 本が小さいので速い。総当たりの距離計算 O(N²) と対照的</span></div><div class="desc">この森は各木を<b>全 '+X.length+' 点でなく最大 '+PSI+' 点の部分標本</b>で作っています（ψ）。少数で作ると<b>異常が多数に紛れにくく</b>、しかも 1 本が小さいので<b>速い</b>——全体の計算量は<b>ほぼ点数に比例</b>（線形時間）。すべての点対の距離を測る手法の <b>O(N²)</b> と対照的で、<b>大規模データ・オンライン監視</b>に向きます。深さ上限は ⌈log₂ψ⌉ ＝ <b>'+(forest?forest.maxD:'—')+'</b>。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar('IF スコア');caption('各木＝部分標本 '+(forest?forest.psi:PSI)+' 点・深さ上限 '+(forest?forest.maxD:'—'),CH-8);}},
+/* 13 */{title:'得意と限界：道具は相手を選ぶ',legend:'◎多次元の形・速い・しきい値0.5基準／限界も正直に',live:false,
+ html(){return'<h3>得意と限界：道具は相手を選ぶ</h3><div class="eq curr">得意：<b>多次元の「形」・大域的な少数異常・速さ</b>　／　限界：<b>次元の呪い・珍しい≠悪い・斜めの構造</b><span class="read">読み：IF は距離も密度も測らず孤立の手数で測るので速く、多次元でも効く。ただし無関係な次元が多いと薄まり、また「珍しい＝悪い」とは限らない</span></div><div class="desc">正直な整理です。<b>得意</b>：距離計算いらずで<b>速く</b>、複数項目の<b>組み合わせの異常</b>（各値は正常でも同時にはあり得ない）を多次元の形で捉える。<b>限界</b>：無関係な特徴が多いと孤立の差が薄まる（<b>次元の呪い</b>）／<b>珍しい＝悪いとは限らない</b>（新種の正常もある）／軸に平行な区切りゆえ<b>斜めの構造</b>は苦手（→ Extended iForest）。<b>集団の内部にまぎれた密度異常</b>は <a href="dbscan.html">LOF/DBSCAN 系</a>、境界で囲むなら One-class SVM、復元誤差なら <a href="autoencoder.html">オートエンコーダ</a>——相手で使い分けます。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar('IF スコア');caption('赤丸=IFが拾った異常。得意・限界を見極めて使う',CH-8);}},
+/* 14 */{title:'まとめ：手数で異常を測る',legend:'ランダム分割の深さ＝異常さ。速く・しきい値0.5基準',live:false,
+ html(){return'<h3>まとめ：手数で異常を測る</h3><div class="desc">Isolation Forest の芯は 1 つ——<b>珍しいものは、でたらめに区切っても早く孤立する</b>。だから距離も密度も平均も測らず、<b>隔離までの手数（深さ）</b>だけで異常さを測れます。ランダムな木を束ねて平均し、スコア <i>s</i>=2<sup>−E[h]/c(n)</sup> は 0.5 が正常・1 が異常。<b>部分標本で速く（ほぼ線形時間）</b>、中心距離のように円い等高線で破綻しません（AUC を実測で確認しました）。実務では不正・故障・侵入・データ品質の監視で定番。<b>相手の異常の性質で LOF・One-class SVM・オートエンコーダと使い分け</b>ましょう。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・異常＝少数で違う → ランダム分割で早く孤立する<br>・隔離の深さ（手数）を森で平均 → スコア s（0.5基準）<br>・中心距離の円い等高線に勝つ／速い／θ で見逃し⇔誤報</div>';},
+ draw(){drawHeat();drawPoints(true);drawGap(true);drawColorbar('IF スコア');caption('でたらめに区切って、孤立までの手数を数えるだけ',CH-8);}},
 ];
-
-/* ヒートを薄く（構造スライド用） */
-function drawHeatFaint(){if(!heat)return;const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
-  for(let r=0;r<HG;r++){const ry=Math.round(y0+r*H2/HG),ry2=Math.round(y0+(r+1)*H2/HG);
-    for(let c=0;c<HG;c++){const rx=Math.round(x0+c*W2/HG),rx2=Math.round(x0+(c+1)*W2/HG);const s=heat[r][c];const t=Math.max(0,Math.min(1,(s-0.45)/0.20));
-      ctx.fillStyle='rgba(207,79,95,'+(0.02+0.22*t*t)+')';ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}}
-/* ★の隔離深さを描き値を返す（木0を使用） */
-function drawIsoDepth(pt){return drawIsoPath(pt);}
-function scoreThresh(cont){const ss=X.map(x=>scoreOf(x)).sort((a,b)=>b-a);return ss[Math.max(0,Math.round(X.length*cont)-1)];}
+function confusion(th){let tp=0,fn=0,fp=0;for(let i=0;i<X.length;i++){const fl=scoreOf(X[i])>=th;if(tag[i]){fl?tp++:fn++;}else if(fl)fp++;}return{tp,fn,fp};}
 
 /* ===== レンダリング ===== */
 function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
@@ -294,12 +307,13 @@ function renderStepper(){const el=document.getElementById('stepper');const cur=c
   el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
 function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
   if(s===0){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>ラベル <b>なし</b></div><div>異常 <b>？</b></div>';}
-  else if(s===1||s===9){const st=distSweep(tauSweep);m.innerHTML='<div>距離 τ <b>'+tauSweep.toFixed(2)+'</b></div><div>異常検出 <b>'+st.tp+'/5</b></div><div class="best">疎集団の誤検知 <b>'+st.fp+'</b></div>';}
+  else if(s===1){m.innerHTML='<div>中心 <b>('+cen[0].toFixed(2)+','+cen[1].toFixed(2)+')</b></div><div class="best">局所異常の順位 <b>'+rankOf(i=>cdist[i],gapIdx())+'/'+X.length+'</b></div>';}
   else if(s===4||s===8){const d=forest?depthOf(star):0,sc=forest?scoreOf(star):0;m.innerHTML='<div>★深さ <b>'+d.toFixed(1)+'</b></div><div class="best">★スコア <b>'+sc.toFixed(2)+'</b></div>';}
-  else if(s===5){const st=stats();m.innerHTML='<div>深さ 異常 <b>'+st.aD.toFixed(1)+'</b></div><div>正常 <b>'+st.nD.toFixed(1)+'</b></div><div class="best">AUC <b>0.99</b></div>';}
-  else if(s===7){const st=stats();m.innerHTML='<div>c(n) <b>'+(forest?forest.c.toFixed(1):'—')+'</b></div><div>s 異常 <b>'+st.aS.toFixed(2)+'</b></div><div>正常 <b>'+st.nS.toFixed(2)+'</b></div>';}
-  else if(s===11){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>部分標本 ψ <b>'+(forest?forest.psi:PSI)+'</b></div><div>深さ上限 <b>'+(forest?forest.maxD:'—')+'</b></div>';}
-  else if(s===12){m.innerHTML='<div>汚染率 <b>5%</b></div><div class="best">しきい値 s≥ <b>'+(forest?scoreThresh(0.05).toFixed(2):'—')+'</b></div>';}
+  else if(s===5){const st=depthAll();m.innerHTML='<div>深さ 異常 <b>'+st.aD.toFixed(1)+'</b></div><div>正常 <b>'+st.nD.toFixed(1)+'</b></div><div class="best">AUC <b>'+aucOf(i=>scoreOf(X[i])).toFixed(2)+'</b></div>';}
+  else if(s===7){const st=depthAll();m.innerHTML='<div>c(n) <b>'+(forest?forest.c.toFixed(1):'—')+'</b></div><div>s 異常 <b>'+st.aS.toFixed(2)+'</b></div><div>正常 <b>'+st.nS.toFixed(2)+'</b></div>';}
+  else if(s===9){m.innerHTML='<div>AUC 中心距離 <b>'+aucOf(i=>cdist[i]).toFixed(2)+'</b></div><div class="best">AUC 隔離 <b>'+aucOf(i=>scoreOf(X[i])).toFixed(2)+'</b></div>';}
+  else if(s===11){const c=confusion(theta);m.innerHTML='<div>θ <b>'+theta.toFixed(2)+'</b></div><div>検出 <b>'+c.tp+'/'+(c.tp+c.fn)+'</b></div><div class="best">見逃し <b>'+c.fn+'</b>・誤報 <b>'+c.fp+'</b></div>';}
+  else if(s===12){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>部分標本 ψ <b>'+(forest?forest.psi:PSI)+'</b></div><div>深さ上限 <b>'+(forest?forest.maxD:'—')+'</b></div>';}
   else{m.innerHTML='<div>木 <b>'+nTree+'</b></div><div>部分標本 <b>'+(forest?forest.psi:PSI)+'</b></div>';}}
 function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
 function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
@@ -309,14 +323,16 @@ function renderAll(){renderStepper();renderMini();renderLegend();renderExplain()
   document.getElementById('prevBtn').disabled=(slideIdx===0);
   document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
   document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;
-  document.getElementById('ntree').disabled=!SLIDES[slideIdx].live;}
+  const thetaOn=(slideIdx===11),ntreeOn=SLIDES[slideIdx].live&&!thetaOn;
+  document.getElementById('ntree').disabled=!ntreeOn;document.getElementById('ntreeL').className=ntreeOn?'':'off';
+  document.getElementById('theta').disabled=!thetaOn;document.getElementById('thetaL').className=thetaOn?'':'off';}
 function draw_(){ctx.clearRect(0,0,CW,CH);SLIDES[slideIdx].draw();}
 
 /* ===== スライド制御 ===== */
 function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
 function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
   if(i===2||i===3)runCuts();
-  if(SLIDES[i].sweep)runSweep();
+  if(i===9)runAB();
   renderAll();draw_();}
 function runCuts(){anim=true;animK=0;if(window.__prefersReducedMotion){anim=false;draw_();return;}
   const target=(slideIdx===2)?Math.min(12,cutList.length):cutList.length;
@@ -324,23 +340,24 @@ function runCuts(){anim=true;animK=0;if(window.__prefersReducedMotion){anim=fals
     animK=Math.min(target,Math.floor((ts-t0)/70));draw_();renderExplain();
     if(animK<target)requestAnimationFrame(go);else anim=false;}
   requestAnimationFrame(go);}
-function runSweep(){anim=true;if(window.__prefersReducedMotion){tauSweep=0.22;anim=false;renderAll();draw_();return;}
-  let t0=null;function go(ts){if(!anim||!SLIDES[slideIdx].sweep)return;if(t0===null)t0=ts;
-    const ph=((ts-t0)/3600)%1;tauSweep=0.45-0.30*Math.sin(ph*2*Math.PI);   // 0.15〜0.75 を往復
-    renderMini();renderExplain();draw_();requestAnimationFrame(go);}
+function runAB(){anim=true;abMode=0;if(window.__prefersReducedMotion){draw_();return;}
+  let t0=null;function go(ts){if(!anim||slideIdx!==9)return;if(t0===null)t0=ts;
+    abMode=(Math.floor((ts-t0)/2600)%2);draw_();requestAnimationFrame(go);}
   requestAnimationFrame(go);}
 let autoT=null;
 function autoTick(){if(!auto)return;if(slideIdx>=SLIDES.length-1){stopAuto();return;}
-  goSlide(slideIdx+1);const dwell=(slideIdx===1||slideIdx===9)?5200:(slideIdx===2||slideIdx===3)?3400:3600;
+  goSlide(slideIdx+1);const dwell=(slideIdx===9)?5400:(slideIdx===2||slideIdx===3)?3400:3600;
   autoT=setTimeout(autoTick,dwell);}
-function reset(){stopAuto();anim=false;nTree=150;forestSeed=1;document.getElementById('ntree').value=150;
-  star=[-0.15,0.38];genData();buildForest();slideIdx=0;renderAll();draw_();}
+function reset(){stopAuto();anim=false;nTree=150;forestSeed=1;dataSeed=42;theta=0.60;
+  document.getElementById('ntree').value=150;document.getElementById('theta').value=60;
+  star=[0.0,0.35];genData();buildForest();slideIdx=0;renderAll();draw_();}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
 document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
-document.getElementById('diceBtn').onclick=()=>{forestSeed=(forestSeed*1664525+1013904223)>>>0;buildForest();renderMini();renderExplain();draw_();};
-document.getElementById('ntree').oninput=e=>{nTree=+e.target.value;if(SLIDES[slideIdx].live){buildForest();}renderMini();renderExplain();draw_();};
+document.getElementById('diceBtn').onclick=()=>{dataSeed=(dataSeed*1664525+1013904223)>>>0;forestSeed=(forestSeed*22695477+1)>>>0;genData();buildForest();renderMini();renderExplain();draw_();};
+document.getElementById('ntree').oninput=e=>{nTree=+e.target.value;buildForest();renderMini();renderExplain();draw_();};
+document.getElementById('theta').oninput=e=>{theta=(+e.target.value)/100;renderMini();renderExplain();draw_();};
 
 /* ドラッグ */
 let dragging=false;
