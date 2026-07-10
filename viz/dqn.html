@@ -103,7 +103,7 @@
 
   <details>
     <summary>もっと詳しく：経験再生・ターゲット網・なぜ安定するか</summary>
-    <div class="det">DQN の肝は 2 つの工夫です。<b>経験再生（Experience Replay）</b>：遷移 (s,a,r,s') を大きなバッファに貯め、<b>ランダムに取り出して</b>学習する。直近の経験は時間的に強く相関していて、そのまま学習すると不安定になるため、<b>相関を崩して</b>i.i.d. に近づけます。<b>ターゲット網（Target Network）</b>：教師信号 r+γ·maxQ(s') の Q を<b>少し前の固定コピー</b>で計算する。学習対象と教師が同じ網だと目標が動いて発散しやすいので、教師を<b>一定期間固定</b>して安定化します。損失は <b>(Q(s,a) − [r+γ·maxₐ′Q(s′,a′)])²</b> の TD 誤差。さらに Double DQN・Dueling・優先度つき経験再生 などの発展があります。表形式版は <a href="qlearning.html">Q学習</a> へ。</div>
+    <div class="det">DQN の肝は 2 つの工夫です。<b>経験再生（Experience Replay）</b>：遷移 (s,a,r,s') を大きなバッファに貯め、<b>ランダムに取り出して</b>学習する。直近の経験は時間的に強く相関していて、そのまま学習すると不安定になるため、<b>相関を崩して</b>i.i.d. に近づけます。<b>ターゲット網（Target Network）</b>：教師信号 r+γ·maxQ(s') の Q を<b>少し前の固定コピー</b>で計算する。学習対象と教師が同じ網だと目標が動いて発散しやすいので、教師を<b>一定期間固定</b>して安定化します。損失は <b>(Q(s,a) − [r+γ·maxₐ′Q(s′,a′)])²</b> の TD 誤差。さらに Double DQN・Dueling・優先度つき経験再生 などの発展があります。表形式版は <a href="qlearning.html">Q学習</a> へ。価値ベースのこの先で、<b>方策と価値を同時に持つ</b>合流点が <a href="actorcritic.html">Actor-Critic</a> です。</div>
   </details>
 </div>
 

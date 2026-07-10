@@ -105,7 +105,7 @@
 
   <details>
     <summary>もっと詳しく：BPTT（時間方向の逆伝播）と勾配消失</summary>
-    <div class="det">学習は、展開した各時刻の誤差を<b>時間をさかのぼって</b>逆伝播する＝BPTT（Backpropagation Through Time）。ただし遠い過去へ勾配を伝えると掛け算が重なって<b>消失/爆発</b>しやすく、長期記憶が苦手。これを克服するのが LSTM / GRU（ゲートで記憶を制御）であり、さらに系列を一度に見る Attention/Transformer へとつながります。</div>
+    <div class="det">学習は、展開した各時刻の誤差を<b>時間をさかのぼって</b>逆伝播する＝BPTT（Backpropagation Through Time）。ただし遠い過去へ勾配を伝えると掛け算が重なって<b>消失/爆発</b>しやすく、長期記憶が苦手。これを克服するのが LSTM / GRU（ゲートで記憶を制御）であり、さらに系列を一度に見る Attention/Transformer へとつながります。一方、系列の裏に<b>見えない状態</b>を置くこの発想を<b>確率</b>で表した祖先が <a href="hmm.html">隠れマルコフモデル</a>——隠れ状態 h を確率的な状態遷移にした古典です。</div>
   </details>
 </div>
 
