@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XAI 入門 — NN はどこを見たか（動くインフォグラフ）</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>XAI 入門 — NN はどこを見たか</h1>
+  <div class="lead">ニューラルネットは<b>答え</b>を出しますが、<b>その根拠</b>は言葉にしてくれません。そこで根拠を測る道具が要ります——<b>入力を少しだけ変えると出力がどれだけ動くか</b>。これが説明可能 AI（XAI）の入口。<a href="digit.html">数字あて</a>で軽く触れた <b>saliency</b> を、ここでは<b>遮蔽（occlusion）</b>と並べ、「精度は同じなのに根拠が違う 2 つのモデル」を実学習して見抜きます。「次へ ▶」で進んでください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>高精度は<b>正しい理由で当てている保証にならない</b>。根拠を覗けないと、ズルを見逃す。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>入力を微かに揺らして出力の反応を測り、<b>モデルがどこを見たか</b>を地図にする。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>医療画像・与信・自動運転の<b>デバッグと監査</b>、データの偏り（ショートカット）の発見。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別の図形</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>saliency も occlusion も、やっていることは 1 つ——<b>入力をつつくと出力がどれだけ動くか</b>を測っているだけ。<b>「見た」の正体は「変えると効く」</b>。だから根拠は、学習器を開けずに、外から揺らすだけで測れる。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>精度が高ければ、中身（根拠）は見なくてよい</div>
+    <div class="row"><span class="o">✓</span><b>ショートカットは精度に出ません</b>。訓練と同じ分布では 100% でも、<b>分布が変わった瞬間に崩れる</b>（このページの罠モデルはマーカーを消すと精度が急落）。だから根拠を覗く価値がある。</div>
+    <div class="row"><span class="x">✗</span>saliency が光る場所＝そのモデルの「因果的な理由」だ</div>
+    <div class="row"><span class="o">✓</span>光るのは<b>感度が高い場所</b>にすぎず、因果ではありません。手法ごとに答えも違う（勾配は鋭いがノイズに弱い）。<b>説明手法そのものも検証が要る</b>——複数の手法を突き合わせる。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：saliency の素性・occlusion との違い・Grad-CAM / SHAP / LIME への地図</summary>
+    <div class="det">saliency の素朴版は、予測クラスのスコア（logit）を各入力画素で<b>微分</b>した勾配の絶対値 |∂logit/∂x|（Simonyan ら 2013）。ただし生の勾配は<b>背景にもノイズが散る</b>ため、ここでは digit ページと同じく<b>勾配 × 入力</b>（|∂logit/∂x|×x）で表示しています——「効く」かつ「そこに絵がある」画素だけを残す実務的な変種で、根拠が図形の上にきれいに乗ります。生の勾配の鋭さ・ノイズを抑える別の改良に <b>SmoothGrad</b>（入力にノイズを足して平均）があります。<b>occlusion</b> は画像の一部を隠してスコアの下がり幅を見る、勾配を使わない<b>モデル非依存</b>の手法で、鈍いが頑健。より進んだ道具：<b>Grad-CAM</b>（CNN の最終畳み込み層の勾配で粗い注目領域を出す・<a href="cnn.html">CNN</a>と相性が良い）、<b>SHAP</b>（各特徴の貢献を協力ゲームの Shapley 値で公平配分）、<b>LIME</b>（1 点の近所だけ単純な線形モデルで近似）。共通の限界は<b>説明 ≠ 因果</b>——感度マップは「相関の地図」であり、根拠として使うなら手法を複数当てて突き合わせるのが実務の作法です。関連：<a href="digit.html">数字あて（saliency 初出）</a>・<a href="classify.html">分類</a>・<a href="cnn.html">CNN</a>。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=7;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== ○×図形の生成（8×8）＋罠マーカー ===== */
+const G=8,NIN=64,H=16,OUT=2;
+const NOISE=0.14,JIT=1.4,RJIT=0.6;
+const MARK=[0,7];                 // ○(label0)=左上idx0 / ×(label1)=右上idx7 の隅1画素
+function genCircle(){const cy=3.5+(rng()*2-1)*JIT,cx=3.5+(rng()*2-1)*JIT,R=2.05+(rng()*2-1)*RJIT,th=1.05+(rng()*2-1)*0.2;
+  const img=new Float64Array(NIN);for(let r=0;r<G;r++)for(let c=0;c<G;c++){const d=Math.hypot(r-cy,c-cx);img[r*G+c]=Math.max(0,Math.min(1,1-Math.abs(d-R)/th));}return img;}
+function genCross(){const cy=3.5+(rng()*2-1)*JIT,cx=3.5+(rng()*2-1)*JIT,arm=2.4+(rng()*2-1)*RJIT,th=0.95+(rng()*2-1)*0.2;
+  const img=new Float64Array(NIN);for(let r=0;r<G;r++)for(let c=0;c<G;c++){const dr=r-cy,dc=c-cx;
+    if(Math.max(Math.abs(dr),Math.abs(dc))<=arm){const d=Math.min(Math.abs(dr-dc),Math.abs(dr+dc))/1.4142;img[r*G+c]=Math.max(0,Math.min(1,1-d/th));}}return img;}
+function genShape(label){const img=label===0?genCircle():genCross();for(let i=0;i<NIN;i++)img[i]=Math.max(0,Math.min(1,img[i]+randn()*NOISE));return img;}
+function withMark(img,label){const o=img.slice();o[MARK[label]]=1;return o;}   // 罠モデル用に隅マーカーを付与
+function makeSet(n,trap){const xs=[],ys=[];for(let i=0;i<n;i++){const label=i%2;const s=genShape(label);xs.push(trap?withMark(s,label):s);ys.push(label);}return{xs,ys};}
+
+/* ===== MLP 64→16→2（ReLU / softmax+CE / Adam）===== */
+function makeNet(){seed=101;const he=(nin)=>randn()*Math.sqrt(2/nin);
+  const W1=Array.from({length:H},()=>Array.from({length:NIN},()=>he(NIN))),b1=new Float64Array(H);
+  const W2=Array.from({length:OUT},()=>Array.from({length:H},()=>he(H))),b2=new Float64Array(OUT);
+  const z=(A)=>A.map(r=>r.map(()=>0));
+  return{W1,b1,W2,b2,mW1:z(W1),vW1:z(W1),mb1:new Float64Array(H),vb1:new Float64Array(H),mW2:z(W2),vW2:z(W2),mb2:new Float64Array(OUT),vb2:new Float64Array(OUT),t:0};}
+function forward(net,x){const h=new Float64Array(H),hpre=new Float64Array(H);
+  for(let j=0;j<H;j++){let s=net.b1[j];const Wj=net.W1[j];for(let k=0;k<NIN;k++)s+=Wj[k]*x[k];hpre[j]=s;h[j]=Math.max(0,s);}
+  const o=new Float64Array(OUT);for(let j=0;j<OUT;j++){let s=net.b2[j];const Wj=net.W2[j];for(let k=0;k<H;k++)s+=Wj[k]*h[k];o[j]=s;}
+  return{h,hpre,o};}
+function softmax(o){const m=Math.max(o[0],o[1]);const e0=Math.exp(o[0]-m),e1=Math.exp(o[1]-m),s=e0+e1;return[e0/s,e1/s];}
+function predOf(net,x){const o=forward(net,x).o;return o[1]>o[0]?1:0;}
+function adam(net,g,lr){net.t++;const B1=0.9,B2=0.999,E=1e-8,bc1=1-Math.pow(B1,net.t),bc2=1-Math.pow(B2,net.t);
+  const upd=(P,M,V,i,j,gr)=>{M[i][j]=B1*M[i][j]+(1-B1)*gr;V[i][j]=B2*V[i][j]+(1-B2)*gr*gr;P[i][j]-=lr*(M[i][j]/bc1)/(Math.sqrt(V[i][j]/bc2)+E);};
+  const updV=(P,M,V,j,gr)=>{M[j]=B1*M[j]+(1-B1)*gr;V[j]=B2*V[j]+(1-B2)*gr*gr;P[j]-=lr*(M[j]/bc1)/(Math.sqrt(V[j]/bc2)+E);};
+  for(let j=0;j<H;j++){for(let k=0;k<NIN;k++)upd(net.W1,net.mW1,net.vW1,j,k,g.W1[j][k]);updV(net.b1,net.mb1,net.vb1,j,g.b1[j]);}
+  for(let j=0;j<OUT;j++){for(let k=0;k<H;k++)upd(net.W2,net.mW2,net.vW2,j,k,g.W2[j][k]);updV(net.b2,net.mb2,net.vb2,j,g.b2[j]);}}
+function trainStep(net,xs,ys,idxs,lr){const gW1=net.W1.map(r=>r.map(()=>0)),gb1=new Float64Array(H),gW2=net.W2.map(r=>r.map(()=>0)),gb2=new Float64Array(OUT);
+  let loss=0;const bs=idxs.length;
+  for(const i of idxs){const x=xs[i],y=ys[i];const{h,hpre,o}=forward(net,x);const p=softmax(o);loss+=-Math.log(p[y]+1e-12);
+    const dO=[p[0]-(y===0?1:0),p[1]-(y===1?1:0)];
+    for(let j=0;j<OUT;j++){gb2[j]+=dO[j];for(let k=0;k<H;k++)gW2[j][k]+=dO[j]*h[k];}
+    const dH=new Float64Array(H);for(let k=0;k<H;k++){let s=0;for(let j=0;j<OUT;j++)s+=net.W2[j][k]*dO[j];dH[k]=hpre[k]>0?s:0;}
+    for(let k=0;k<H;k++){gb1[k]+=dH[k];for(let m=0;m<NIN;m++)gW1[k][m]+=dH[k]*x[m];}}
+  const inv=1/bs;for(let j=0;j<H;j++){gb1[j]*=inv;for(let k=0;k<NIN;k++)gW1[j][k]*=inv;}
+  for(let j=0;j<OUT;j++){gb2[j]*=inv;for(let k=0;k<H;k++)gW2[j][k]*=inv;}
+  adam(net,{W1:gW1,b1:gb1,W2:gW2,b2:gb2},lr);return loss/bs;}
+function accuracy(net,set){let hit=0;for(let i=0;i<set.xs.length;i++)if(predOf(net,set.xs[i])===set.ys[i])hit++;return hit/set.xs.length;}
+
+/* ===== 純粋勾配 g_i = ∂ logit_c / ∂ x_i（逆伝播で一括・符号つき）===== */
+function grad(net,x,c){const{hpre}=forward(net,x);const g=new Float64Array(NIN);
+  for(let m=0;m<NIN;m++){let s=0;for(let k=0;k<H;k++){if(hpre[k]>0)s+=net.W2[c][k]*net.W1[k][m];}g[m]=s;}return g;}
+/* ===== saliency = | ∂ logit_c / ∂ x_i | × x_i（勾配×入力：実際に効いた画素だけ残す）===== */
+function saliency(net,x,c){const g=grad(net,x,c);const sal=new Float64Array(NIN);
+  for(let m=0;m<NIN;m++)sal[m]=Math.abs(g[m])*x[m];return sal;}
+/* ===== occlusion = 2×2パッチを隠したときの logit_c 低下 ===== */
+function occlusion(net,x,c){const base=forward(net,x).o[c];const map=new Float64Array(NIN),cnt=new Float64Array(NIN);
+  for(let r=0;r<G-1;r++)for(let cc=0;cc<G-1;cc++){const xo=x.slice();for(let dr=0;dr<2;dr++)for(let dc=0;dc<2;dc++)xo[(r+dr)*G+(cc+dc)]=0;
+    const drop=base-forward(net,xo).o[c];
+    for(let dr=0;dr<2;dr++)for(let dc=0;dc<2;dc++){map[(r+dr)*G+(cc+dc)]+=Math.max(0,drop);cnt[(r+dr)*G+(cc+dc)]++;}}
+  for(let i=0;i<NIN;i++)map[i]=cnt[i]?map[i]/cnt[i]:0;return map;}
+const CORNERS=[0,7,56,63];
+function cornerFrac(vec){let tot=0,cn=0;for(let i=0;i<NIN;i++)tot+=Math.abs(vec[i]);for(const c of CORNERS)cn+=Math.abs(vec[c]);return cn/(tot+1e-12);}
+
+/* ===== 状態 ===== */
+let netN=null,netT=null,trained=false,itN=0,itT=0,lossN=[],lossT=[];
+let dataN=null,dataT=null,testN=null,testT=null,stats=null;
+let curShape=null,curLabel=0;    // いま表示中の図形（マーカー無し）
+const ITERS=500,LR=0.02,BS=16;
+function genCase(){curLabel=Math.floor(rng()*2);curShape=genShape(curLabel);}
+function normInput(){return curShape;}
+function trapInput(){return withMark(curShape,curLabel);}
+
+function trainAll(anim){ // 両モデルを訓練（anim=falseで一括、trueは1ステップずつ呼ぶ用に分離）
+  if(!dataN){seed=7;dataN=makeSet(240,false);testN=makeSet(160,false);seed=7;dataT=makeSet(240,true);testT=makeSet(160,true);}
+  if(!netN){netN=makeNet();itN=0;lossN=[];}
+  if(!netT){netT=makeNet();itT=0;lossT=[];}
+  while(itN<ITERS){const idxs=[];for(let b=0;b<BS;b++)idxs.push(Math.floor(rng()*dataN.xs.length));const l=trainStep(netN,dataN.xs,dataN.ys,idxs,LR);itN++;if(itN%10===0)lossN.push(l);}
+  while(itT<ITERS){const idxs=[];for(let b=0;b<BS;b++)idxs.push(Math.floor(rng()*dataT.xs.length));const l=trainStep(netT,dataT.xs,dataT.ys,idxs,LR);itT++;if(itT%10===0)lossT.push(l);}
+  trained=true;computeStats();}
+function ensureModels(){if(!trained){if(!curShape)genCase();trainAll(false);}}
+function computeStats(){
+  const accN=accuracy(netN,testN),accT=accuracy(netT,testT),accTnoMark=accuracy(netT,testN);
+  let scN=0,scT=0,ocN=0,ocT=0;const M=80,MO=40;
+  for(let i=0;i<M;i++){const s=testN.xs[i],y=testN.ys[i];scN+=cornerFrac(saliency(netN,s,y));
+    const st=testT.xs[i],yt=testT.ys[i];scT+=cornerFrac(saliency(netT,st,yt));}
+  for(let i=0;i<MO;i++){const s=testN.xs[i],y=testN.ys[i];ocN+=cornerFrac(occlusion(netN,s,y));
+    const st=testT.xs[i],yt=testT.ys[i];ocT+=cornerFrac(occlusion(netT,st,yt));}
+  scN/=M;scT/=M;ocN/=MO;ocT/=MO;
+  stats={accN,accT,accTnoMark,scN,scT,ocN,ocT,salRatio:scT/scN,occRatio:ocT/ocN};}
+
+/* ===== 描画部品 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const CREAM=[255,253,246],INK=[26,26,23];
+function heatColor(base,ov,rgb){ // baseグレー画素にoverlay色を重ねる
+  let r=base[0],g=base[1],b=base[2];
+  if(ov>0){r=lerp(r,rgb[0],ov*0.82);g=lerp(g,rgb[1],ov*0.82);b=lerp(b,rgb[2],ov*0.82);}
+  return 'rgb('+(r|0)+','+(g|0)+','+(b|0)+')';}
+function normMax(vec){let mx=1e-9;for(const v of vec)mx=Math.max(mx,Math.abs(v));return mx;}
+// 8×8マップ描画。img=画素(0..1)、ov=重ねる感度マップ(正規化前)/null、rgb=重ね色、opt={patch:[r,c],markRing:idx,title,titleColor}
+function drawMap(x0,y0,cell,img,ov,rgb,opt){opt=opt||{};const mx=ov?normMax(ov):1;
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const i=r*G+c;const v=img?img[i]:0;
+    const base=[lerp(CREAM[0],INK[0],v*0.9),lerp(CREAM[1],INK[1],v*0.9),lerp(CREAM[2],INK[2],v*0.9)];
+    const o=ov?Math.abs(ov[i])/mx:0;
+    ctx.fillStyle=heatColor(base,o,rgb);ctx.fillRect(x0+c*cell,y0+r*cell,cell-1,cell-1);}
+  // グリッド枠
+  ctx.strokeStyle='rgba(150,143,127,0.28)';ctx.lineWidth=1;ctx.strokeRect(x0-0.5,y0-0.5,cell*G,cell*G);
+  // マーカー位置リング
+  if(opt.markRing!==undefined&&opt.markRing!==null){const mi=opt.markRing,mr=Math.floor(mi/G),mc=mi%G;
+    ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2;ctx.strokeRect(x0+mc*cell+1,y0+mr*cell+1,cell-3,cell-3);}
+  // occlusionパッチ枠
+  if(opt.patch){const[pr,pc]=opt.patch;ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2;ctx.strokeRect(x0+pc*cell,y0+pr*cell,cell*2-1,cell*2-1);}
+  // タイトル
+  if(opt.title){ctx.fillStyle=opt.titleColor||getCSS('--muted');ctx.font='700 11.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(opt.title,x0+cell*G/2,y0-9);}}
+function drawProb(x0,y0,w,p){const names=['○','×'],cols=[getCSS('--accent'),getCSS('--neg')];
+  for(let j=0;j<2;j++){const yy=y0+j*24;ctx.fillStyle=getCSS('--muted');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(names[j],x0,yy+11);
+    ctx.fillStyle='rgba(26,26,23,0.10)';ctx.fillRect(x0+22,yy,w,14);
+    ctx.fillStyle=cols[j];ctx.fillRect(x0+22,yy,w*p[j],14);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText((p[j]*100).toFixed(0)+'%',x0+22+w+6,yy+11);}}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-12);}
+function drawLoss(x0,y0,w,h){ // 2本のloss曲線
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const all=lossN.concat(lossT);if(all.length<2){return;}const mx=Math.max(...all);
+  const drawC=(hist,col)=>{if(hist.length<2)return;ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.beginPath();
+    hist.forEach((l,i)=>{const X=x0+w*i/(ITERS/10-1),Y=y0+h-4-(h-8)*Math.min(1,l/mx);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();};
+  drawC(lossN,getCSS('--accent'));drawC(lossT,getCSS('--neg'));
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('loss↓',x0+4,y0+12);}
+function drawGridBg(){ctx.lineWidth=1;for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+
+/* ===== スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 手法',c:'var(--upd)',start:4},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0;
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'高精度なのに、理由が言えない',legend:'AI は「答え」を返すが「なぜ」は黙っている',dice:false,
+ html(){return'<h3>高精度なのに、理由が言えない</h3><div class="eq curr">モデル：入力 <i>x</i> → 予測 <i>ŷ</i>（正解率 98%）　？→ 根拠 は？<span class="read">読み：正解率が高くても、<b>その 1 枚をなぜそう判断したか</b>は数字に出てこない。当たっている＝正しく見ている、とは限らない</span></div><div class="desc">有名な実話の「型」——狼と犬を高精度で見分ける分類器が、実は<b>背景の雪</b>を見ていた（狼の写真は雪景色が多かった）。<b>当たっているからOK、が一番危ない</b>。答えの裏の<b>根拠</b>を測る道具、それがこの回のテーマです。</div>';},
+ draw(){ // 黒箱の絵
+   ctx.fillStyle='#1a1a17';ctx.fillRect(CW/2-52,120,104,96);
+   ctx.fillStyle='#faf8f1';ctx.font='700 30px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('?',CW/2,168);ctx.textBaseline='alphabetic';
+   ctx.strokeStyle='rgba(26,26,23,0.5)';ctx.lineWidth=1.8;
+   ctx.beginPath();ctx.moveTo(CW/2-120,168);ctx.lineTo(CW/2-56,168);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(CW/2-60,163);ctx.lineTo(CW/2-52,168);ctx.lineTo(CW/2-60,173);ctx.closePath();ctx.fillStyle='rgba(26,26,23,0.5)';ctx.fill();
+   ctx.beginPath();ctx.moveTo(CW/2+56,168);ctx.lineTo(CW/2+120,168);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(CW/2+116,163);ctx.lineTo(CW/2+124,168);ctx.lineTo(CW/2+116,173);ctx.closePath();ctx.fill();
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('入力',CW/2-135,172);ctx.fillText('予測',CW/2+138,172);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('中の「根拠」は見えない',CW/2,248);
+   caption('答えは出る。でも「どこを見たか」は闇の中',300);}},
+{title:'課題：○ か × か（8×8）',legend:'●=図形の画素。位置・太さは毎回ゆらぐ（🎲で引き直し）',dice:true,
+ html(){return'<h3>課題：○ か × か（8×8）</h3><div class="eq curr">入力 <i>x</i> ∈ [0,1]<sup>64</sup>（8×8 の明るさ）　→　クラス ∈ { ○, × }<span class="read">読み：8×8＝64 個の画素値がモデルへの入力。狙いは「まる」か「バツ」かの 2 択。位置や太さ・ノイズが毎回変わるので丸暗記はできない</span></div><div class="desc">題材はうんと小さく——<b>8×8 の白黒で ○ と × を見分ける</b>だけ。位置がずれ、線の太さが変わり、ノイズも乗る（下の図）。<b>🎲 別の図形</b>で引き直せます。この単純さが後で効きます：根拠を 64 マスの地図として<b>丸ごと目で見られる</b>。</div>';},
+ draw(){genShapeDraw(false);}},
+{title:'モデルは当てる。でも黒箱',legend:'小さな MLP（64→16→2）が ○/× を分類。確率をバー表示',dice:true,
+ html(){ensureModels();const x=normInput();const p=softmax(forward(netN,x).o);const c=predOf(netN,x);
+   return'<h3>モデルは当てる。でも黒箱</h3><div class="eq curr">ŷ = softmax( <i>W</i><sub>2</sub> · ReLU( <i>W</i><sub>1</sub><i>x</i> + <i>b</i><sub>1</sub> ) + <i>b</i><sub>2</sub> )<span class="read">読み：64 入力→隠れ 16→2 出力の小さなネット。最後の softmax で ○/× の確率に。これを実学習で用意した</span></div><div class="desc">小さな MLP（64→16→2）が、この図形を <b>「'+(c===0?'○':'×')+'」（'+(p[c]*100).toFixed(0)+'%）</b>と判定しました。当たっています。でも——<b>64 個の画素のうち、どれを根拠にしたのか？</b> 数式からも確率からも読み取れません。ここが出発点です。</div>';},
+ draw(){ensureModels();const x=normInput();const p=softmax(forward(netN,x).o);
+   drawMap(60,40,30,x,null,null,{});drawProb(70,320,150,p);caption('正解も確率も分かる。でも「根拠」は分からない',418);}},
+{title:'測るのは「変えると効くか」',legend:'ある画素を少しだけ動かす → 出力がどれだけ動くか',dice:true,
+ html(){ensureModels();const x=normInput();const c=predOf(netN,x);const g=pixelGrad(netN,x,c);
+   return'<h3>測るのは「変えると効くか」</h3><div class="eq curr">感度 <i>g</i><sub>i</sub> = ∂(スコア<sub>'+(c===0?'○':'×')+'</sub>) / ∂<i>x</i><sub>i</sub>　（画素 i を少し動かすと出力が動く割合）<span class="read">読み：出力を各画素で<b>微分</b>した値。大きいほど「そこをつつくと判断が変わる」＝効く画素。これを 64 マスぶん測れば根拠の地図になる</span></div><div class="desc">「見た」を厳密にどう測るか——<b>入力を微かに揺らして出力の反応を見る</b>。黄枠は、いま最も効いている画素。ここを +0.1 動かすと、スコアはおよそ <b>'+(g*0.1>=0?'+':'')+(g*0.1).toFixed(2)+'</b> 動きます（実測）。反応が大きい画素ほど根拠。この素朴な発想が、次の 2 つの道具になります。</div>';},
+ draw(){ensureModels();const x=normInput();const c=predOf(netN,x);const bi=topPixel(netN,x,c);
+   drawMap(60,40,30,x,null,null,{markRing:bi});
+   ctx.fillStyle=getCSS('--loss');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('この画素が予測に最も効いている',CW/2,312);
+   caption('「見た」の正体＝「変えると効く」',418);}},
+// ---- Ⅱ 手法 ----
+{title:'手法①：saliency（入力勾配）',legend:'赤いほど「そこを変えると判断が動く」＝根拠の地図',dice:true,
+ html(){ensureModels();return'<h3>手法①：saliency（入力勾配）</h3><div class="eq curr">saliency(<i>x</i>)<sub>i</sub> = | ∂ logit<sub>c</sub> / ∂ <i>x</i><sub>i</sub> | × <i>x</i><sub>i</sub><span class="read">読み：各画素の感度（勾配）に、そこに<b>実際どれだけ入力があったか</b> <i>x</i><sub>i</sub> を掛ける。「効く」かつ「そこに絵がある」画素だけが残り、背景のノイズが消えて根拠が見やすくなる（勾配×入力）</span></div><div class="desc">先ほどの感度 g を<b>全画素いっぺんに</b>計算し、入力の明るさを掛けて赤の濃さで重ねたのが <b>saliency マップ</b>。この正常モデルでは、赤が<b>○の輪・×の対角線</b>の上にきれいに乗ります——<b>形の縁を根拠にしている</b>。逆伝播 1 回で出るので軽い。<a href="digit.html">数字あて</a>で使ったのと同じ道具です。</div>';},
+ draw(){ensureModels();const x=normInput();const c=predOf(netN,x);const sal=saliency(netN,x,c);
+   drawMap(60,40,30,x,sal,[207,79,95],{});caption('正常モデルの saliency＝図形の縁が赤く光る',418);}},
+{title:'手法②：occlusion（遮蔽）',legend:'紫パッチで 2×2 を隠す → スコアの下がり幅が根拠',dice:true,
+ html(){ensureModels();return'<h3>手法②：occlusion（遮蔽）</h3><div class="eq curr">occ(<i>x</i>)<sub>patch</sub> = logit<sub>c</sub>(<i>x</i>) − logit<sub>c</sub>(<i>x</i> にパッチを隠す)<span class="read">読み：一部を隠して<b>スコアがどれだけ下がるか</b>。下がりが大きい＝そこが無いと困る＝根拠。勾配を使わない（モデルの中を知らなくてよい）</span></div><div class="desc">もう 1 つの道具は<b>隠して困る場所を探す</b>——2×2 のパッチ（紫枠）を画像の上で滑らせ、隠したときの<b>スコアの下がり幅</b>を地図にします。勾配を使わないので<b>モデルの中身を知らなくても</b>使える（＝どんな箱にも当てられる）。正常モデルでは、やはり<b>形の上を隠すと困る</b>。</div>';},
+ draw(){ensureModels();const x=normInput();const c=predOf(netN,x);const occ=occlusion(netN,x,c);
+   const pr=anim?Math.floor(animT*(G-1)):3,pc=anim?Math.floor((animT*3.1%1)*(G-1)):3;
+   drawMap(60,40,30,x,occ,[111,84,196],{patch:[pr,pc]});caption('遮蔽マップ＝隠すとスコアが落ちる場所',418);}},
+{title:'2 つの道具の性格の違い',legend:'勾配＝鋭いが脆い / 遮蔽＝鈍いが頑健',dice:false,
+ html(){return'<h3>2 つの道具の性格の違い</h3><div class="eq curr">saliency：微小変化（1 画素）に敏感・逆伝播 1 回で安い　⇔　occlusion：有限の遮蔽（面）で鈍いが頑健・箱を開けない<span class="read">読み：同じ「根拠」を測っても<b>見え方が違う</b>。勾配は細かく鋭いがノイズに揺れる、遮蔽は粗いが安定。だから 2 つを突き合わせる</span></div><div class="desc">同じ画像でも 2 つの地図は<b>少し違って見えます</b>。saliency は<b>1 画素の微小変化</b>を見るので鋭いが<b>ノイズに弱い</b>。occlusion は<b>2×2 の面</b>で隠すので粗いが<b>頑健</b>。どちらが正しい、ではなく——<b>説明手法も 1 つでは信じない</b>。複数を並べて一致する所を根拠とみなすのが作法です（後の myth に続く）。</div>';},
+ draw(){ensureModels();const x=normInput();const c=predOf(netN,x);const sal=saliency(netN,x,c),occ=occlusion(netN,x,c);
+   drawMap(20,70,19,x,sal,[207,79,95],{title:'saliency（勾配）',titleColor:getCSS('--neg')});
+   drawMap(192,70,19,x,occ,[111,84,196],{title:'occlusion（遮蔽）',titleColor:getCSS('--upd')});
+   caption('同じ根拠でも見え方が違う → 突き合わせる',300);}},
+// ---- Ⅲ ライブ実験 ----
+{title:'2 つのモデルを実学習する',legend:'緑=正常データ / 赤=罠データ（隅マーカーを仕込む）で学習',dice:false,
+ html(){const st=stats||{};return'<h3>2 つのモデルを実学習する</h3><div class="eq curr">損失 = −Σ log <i>p</i><sub>正解</sub>　→ Adam で最小化（正常データ・罠データで別々に）<span class="read">読み：同じネット・同じ手続きで、<b>データだけ</b>を変えて 2 つ学習する。罠データは各画像の隅にクラスと一致するマーカー画素を仕込んである</span></div><div class="desc">ここからが本番。同じ MLP を<b>2 種のデータ</b>で学習します（いまライブで '+ITERS+' 反復）。<b>正常データ</b>＝ただの ○/×。<b>罠データ</b>＝ ○ は左上、× は右上に<b>クラスと一致する隅の点</b>を仕込んだもの（現実の「雪＝狼」に相当）。両方 loss が下がって学習完了。精度は次で並べます。正常 '+(st.accN?(st.accN*100).toFixed(0)+'%':'…')+' / 罠 '+(st.accT?(st.accT*100).toFixed(0)+'%':'…')+'。</div>';},
+ draw(){drawLoss(30,120,CW-60,120);
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('― 正常モデル',34,260);
+   ctx.fillStyle=getCSS('--neg');ctx.fillText('― 罠モデル',150,260);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('学習 '+Math.max(itN,itT)+' / '+ITERS+' 反復',34,284);
+   // 罠マーカーの説明図
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('罠データ：○→左上・×→右上に隅マーカー',CW/2,320);
+   drawMap(120,332,11,withMark(genQuietCircle(),0),null,null,{markRing:0});
+   caption('同じ手続き・データだけ違う 2 モデル',418);}},
+{title:'正常モデルは「形」を見ていた',legend:'赤=saliency。○の輪・×の対角線に集中する',dice:true,
+ html(){ensureModels();const x=normInput();const c=predOf(netN,x);const sal=saliency(netN,x,c);const cf=(cornerFrac(sal)*100).toFixed(0);
+   return'<h3>正常モデルは「形」を見ていた</h3><div class="eq curr">根拠の隅集中度 = （4 隅の感度）/（全体） ＝ '+cf+'%<span class="read">読み：saliency の質量のうち隅 4 マスに乗る割合。正常モデルは低い＝<b>隅を見ていない</b>。赤は図形の縁に乗る</span></div><div class="desc">正常データで育ったモデルの saliency は、予想どおり<b>○の輪・×の対角線</b>を赤く光らせます。隅にはほとんど乗りません（このケースの隅集中度 <b>'+cf+'%</b>）。<b>正しい理由で当てている</b>証拠です。🎲 で図形を変えても、赤は形について回ります。次はこれと同じ操作を<b>罠モデル</b>に。</div>';},
+ draw(){ensureModels();const x=normInput();const c=predOf(netN,x);const sal=saliency(netN,x,c);
+   drawMap(60,40,30,x,sal,[207,79,95],{title:'正常モデル',titleColor:getCSS('--accent')});
+   caption('赤は図形の縁に乗る＝形を根拠にしている',418);}},
+{title:'罠モデルは「隅」を見ていた',legend:'同じ操作。赤が図形でなく隅マーカーに集中する',dice:true,
+ html(){ensureModels();const x=trapInput();const c=predOf(netT,x);const sal=saliency(netT,x,c);const cf=(cornerFrac(sal)*100).toFixed(0);
+   const salN=saliency(netN,normInput(),predOf(netN,normInput()));const cfN=(cornerFrac(salN)*100).toFixed(0);
+   return'<h3>罠モデルは「隅」を見ていた</h3><div class="eq curr">隅集中度：罠モデル '+cf+'%　⇔　正常モデル '+cfN+'%<span class="read">読み：まったく同じ saliency を罠モデルに当てると、赤は図形でなく<b>隅のマーカー</b>に乗る。隅集中度が跳ね上がる＝そこを根拠にしている証拠</span></div><div class="desc">同じ画像・同じ saliency——なのに赤の乗る場所が違う。罠モデルは<b>図形よりも隅のマーカーを強く見ています</b>（黄枠が最も濃い赤）。このケースの隅集中度は罠 <b>'+cf+'%</b> 対 正常 <b>'+cfN+'%</b>。<b>これがショートカット学習</b>。「雪を見て狼と言う」分類器を、いま<b>証拠付きで現行犯逮捕</b>しました。</div>';},
+ draw(){ensureModels();const x=trapInput();const c=predOf(netT,x);const sal=saliency(netT,x,c);
+   drawMap(60,40,30,x,sal,[207,79,95],{title:'罠モデル',titleColor:getCSS('--neg'),markRing:MARK[curLabel]});
+   caption('黄枠＝仕込んだマーカー。赤がそこに集中する',418);}},
+{title:'遮蔽でも数字でも裏が取れる',legend:'occlusion も隅を指す。集中度をモデル間で比較',dice:false,
+ html(){ensureModels();const st=stats;
+   return'<h3>遮蔽でも数字でも裏が取れる</h3><div class="eq curr">saliency 隅集中：正常 '+(st.scN*100).toFixed(0)+'% → 罠 '+(st.scT*100).toFixed(0)+'%（'+st.salRatio.toFixed(1)+'倍）　／　occlusion：正常 '+(st.ocN*100).toFixed(0)+'% → 罠 '+(st.ocT*100).toFixed(0)+'%（'+st.occRatio.toFixed(1)+'倍）<span class="read">読み：テスト全体で平均した隅集中度。<b>別々の手法（勾配と遮蔽）が同じ結論</b>——罠モデルは隅に集中——を出すから信頼できる</span></div><div class="desc">1 枚の偶然ではないことを、<b>2 つの手法 × テスト全体の平均</b>で確認します。罠モデルの隅集中度は正常モデルの——saliency で約 <b>'+st.salRatio.toFixed(0)+' 倍</b>、occlusion でも約 <b>'+st.occRatio.toFixed(0)+' 倍</b>。<b>異なる道具が同じ告発</b>をする——myth②の「1 手法では信じない」の実践です。精度は次で。</div>';},
+ draw(){ensureModels();const st=stats;
+   // 4本バー: sal正常/罠, occ正常/罠
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('隅集中度（4隅の感度割合・テスト平均）',34,42);
+   const y0=74,bh=138,x0=40,bw=48,gap=26,base=y0+bh;
+   const vals=[st.scN,st.scT,st.ocN,st.ocT],cols=[getCSS('--accent'),getCSS('--neg'),getCSS('--accent'),getCSS('--neg')],labs=['sal\n正常','sal\n罠','occ\n正常','occ\n罠'];
+   const mx=Math.max(...vals,0.2);
+   ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0-6,base);ctx.lineTo(CW-24,base);ctx.stroke();
+   for(let i=0;i<4;i++){const bx=x0+i*(bw+gap);const hh=bh*vals[i]/mx;
+     ctx.fillStyle=cols[i];ctx.fillRect(bx,base-hh,bw,hh);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText((vals[i]*100).toFixed(0)+'%',bx+bw/2,base-hh-6);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');const parts=labs[i].split('\n');ctx.fillText(parts[0],bx+bw/2,base+16);ctx.fillText(parts[1],bx+bw/2,base+29);}
+   caption('2 手法とも「罠モデルは隅」で一致',418);}},
+// ---- Ⅳ まとめ ----
+{title:'精度は同じ。壊れ方が違う',legend:'マーカーを剥がすと罠モデルだけ急落＝ショートカットの証拠',dice:false,
+ html(){ensureModels();const st=stats;
+   return'<h3>精度は同じ。壊れ方が違う</h3><div class="eq curr">訓練分布：正常 '+(st.accN*100).toFixed(0)+'% ≈ 罠 '+(st.accT*100).toFixed(0)+'%　⇒　マーカーを剥がすと：罠 <b>'+(st.accTnoMark*100).toFixed(0)+'%</b> に急落<span class="read">読み：同じ土俵（マーカーあり）では精度は同格。だが<b>マーカーを消す＝分布を変える</b>と、隅に頼った罠モデルだけ崩れる。ショートカットは精度に出ず、分布シフトで露見する</span></div><div class="desc">ここが core の教訓——<b>精度だけ見ていたら 2 つは見分けられません</b>（正常 '+(st.accN*100).toFixed(0)+'% と罠 '+(st.accT*100).toFixed(0)+'%）。ところが罠モデルから<b>マーカーを剥がす</b>と、正解率は <b>'+(st.accTnoMark*100).toFixed(0)+'%</b> まで落ちる（形は十分に学べていない）。<b>ショートカットは精度に出ず、分布が変わった瞬間に牙をむく</b>。myth① の実演です。XAI は、これを<b>崩れる前に</b>見つける道具。</div>';},
+ draw(){ensureModels();const st=stats;
+   const y0=70,bh=140,x0=44,bw=62,gap=40,base=y0+bh;
+   const vals=[st.accN,st.accT,st.accTnoMark],cols=[getCSS('--accent'),getCSS('--neg'),getCSS('--neg')],labs=['正常\n(通常)','罠\n(通常)','罠\n(マーカ無)'];
+   ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0-6,base);ctx.lineTo(CW-30,base);ctx.stroke();
+   // 50%基準線
+   ctx.strokeStyle='rgba(150,143,127,0.5)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x0-6,base-bh*0.5);ctx.lineTo(CW-30,base-bh*0.5);ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('50%(あてずっぽう)',CW-30,base-bh*0.5-3);
+   for(let i=0;i<3;i++){const bx=x0+i*(bw+gap);const hh=bh*vals[i];
+     ctx.fillStyle=cols[i];if(i===2){ctx.globalAlpha=0.55;}ctx.fillRect(bx,base-hh,bw,hh);ctx.globalAlpha=1;
+     ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText((vals[i]*100).toFixed(0)+'%',bx+bw/2,base-hh-7);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');const parts=labs[i].split('\n');ctx.fillText(parts[0],bx+bw/2,base+15);ctx.fillText(parts[1],bx+bw/2,base+28);}
+   // 崩落矢印
+   const ax=x0+1*(bw+gap)+bw/2,ax2=x0+2*(bw+gap)+bw/2;
+   ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(ax+bw/2,base-bh*st.accT-4);ctx.quadraticCurveTo((ax+ax2)/2,base-bh*st.accT-24,ax2-6,base-bh*st.accTnoMark-8);ctx.stroke();
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('剥がすと急落',(ax+ax2)/2,base-bh*st.accT-28);
+   caption('精度が同じでも、分布を変えると本性が出る',418);}},
+{title:'XAI はモデルのデバッガ（限界も）',legend:'根拠を覗く価値と、鵜呑みにしない作法',dice:false,
+ html(){return'<h3>XAI はモデルのデバッガ（限界も）</h3><div class="desc">今日の芯：<b>精度は「正しい理由」を保証しない</b>。saliency と occlusion で根拠を地図にすれば、<b>ショートカット学習を証拠付きで見抜ける</b>——XAI は AI の<b>デバッガ・監査ツール</b>です。ただし過信は禁物：saliency は<b>ノイズに弱く</b>、手法によって答えも違い、そして何より<b>説明 ≠ 因果</b>（光る場所は「感度が高い場所」であって「理由」ではない）。<b>説明手法そのものも検証が要る</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・根拠＝「入力を変えると出力がどれだけ動くか」<br>・精度が同じでも根拠は違いうる（ショートカット）<br>・分布シフトで露見／複数手法で突き合わせる</div>';},
+ draw(){ensureModels();const x=trapInput();const c=predOf(netT,x);const sal=saliency(netT,x,c);
+   drawMap(20,70,19,x,sal,[207,79,95],{title:'罠モデルの根拠',titleColor:getCSS('--neg'),markRing:MARK[curLabel]});
+   const xn=normInput(),cn=predOf(netN,xn),saln=saliency(netN,xn,cn);
+   drawMap(192,70,19,xn,saln,[207,79,95],{title:'正常モデルの根拠',titleColor:getCSS('--accent')});
+   caption('根拠を覗けば、隅を見る罠モデルを見抜ける',300);}},
+{title:'次の一歩：Grad-CAM / SHAP / LIME',legend:'saliency の先にある説明手法たち',dice:false,
+ html(){return'<h3>次の一歩：Grad-CAM / SHAP / LIME</h3><div class="eq curr">今日の 2 手法 → 実務の道具箱へ<span class="read">読み：ここで作った「勾配」と「遮蔽」は、より強力な説明手法の土台。目的（画像/表/局所）に応じて使い分ける</span></div><div class="desc">出発点は 2 つでも、道具箱は広い。<b>Grad-CAM</b>：<a href="cnn.html">CNN</a> の畳み込み層の勾配で、粗いが頑健な注目領域を出す（画像で定番）。<b>SHAP</b>：各特徴の貢献を協力ゲームの Shapley 値で公平に配る（表データで人気）。<b>LIME</b>：注目する 1 点の近所だけを単純な線形モデルで近似する。共通の心得は<b>「説明も検証する」</b>——複数手法の一致を根拠とみなす。まずは <a href="digit.html">数字あて</a> で saliency をもう一度触ってみてください。</div>';},
+ draw(){ // 見取り図
+   const items=[['saliency','勾配・1回で安い',getCSS('--neg'),80],['occlusion','遮蔽・箱を開けない',getCSS('--upd'),80]];
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('今日の 2 手法',CW/2,44);
+   const boxes=[['saliency','|∂y/∂x|',getCSS('--neg'),70,70],['occlusion','隠して差分',getCSS('--upd'),200,70]];
+   boxes.forEach(([t,s,col,bx,by])=>{ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.strokeRect(bx,by,90,52);
+     ctx.fillStyle=col;ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(t,bx+45,by+22);
+     ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.fillText(s,bx+45,by+40);});
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('この先の道具箱',CW/2,180);
+   const adv=[['Grad-CAM','CNNの注目領域'],['SHAP','貢献を公平配分'],['LIME','近所を線形近似']];
+   adv.forEach(([t,s],i)=>{const by=200+i*66;ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.2;ctx.strokeRect(70,by,220,52);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 12.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText(t,84,by+22);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(s,84,by+40);});
+   caption('ご覧いただきありがとうございました',418);}},
+];
+
+/* genShape の描画用（下部にサンプル図形を並べる） */
+function genQuietCircle(){const s=seed;seed=999;const img=genCircle();seed=s;return img;}
+function genShapeDraw(withMk){ // slide1: 中央に大きく1枚＋下に4サンプル
+  const x=normInput();drawMap(60,40,30,x,null,null,{});
+  ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText(curLabel===0?'これは ○（まる）':'これは ×（バツ）',CW/2,312);
+  // 下に小サンプル
+  const ss=seed;let sd=1234;const smallRng=()=>{sd|=0;sd=sd+0x6D2B79F5|0;let t=Math.imul(sd^sd>>>15,1|sd);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('毎回ゆらぐ例：',18,336);
+  for(let k=0;k<4;k++){seed=5000+k*37;const lab=k%2;const im=genShape(lab);drawMap(18+k*84,344,8.5,im,null,null,{});}
+  seed=ss;
+  caption('位置・太さ・ノイズが毎回変わる',418);}
+function topPixel(net,x,c){const sal=saliency(net,x,c);let bi=0;for(let i=0;i<NIN;i++)if(sal[i]>sal[bi])bi=i;return bi;}   // 最も効いている画素
+function pixelGrad(net,x,c){const g=grad(net,x,c);const bi=topPixel(net,x,c);return g[bi];}                            // その画素の符号つき勾配
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
+  if(s===0){m.innerHTML='<div>正解率 <b>高い</b></div><div class="bad">根拠 <b>不明</b></div>';}
+  else if(s===1){m.innerHTML='<div>入力 <b>8×8 = 64</b></div><div>クラス <b>○ / ×</b></div>';}
+  else if(s===2){ensureModels();const c=predOf(netN,normInput());m.innerHTML='<div>判定 <b>'+(c===0?'○':'×')+'</b></div><div>でも根拠 <b>?</b></div>';}
+  else if(s===3){m.innerHTML='<div>測り方 <b>∂出力/∂画素</b></div>';}
+  else if(s===4){m.innerHTML='<div>手法① <b>saliency</b></div><div>逆伝播 <b>1回</b></div>';}
+  else if(s===5){m.innerHTML='<div>手法② <b>occlusion</b></div><div>箱を <b>開けない</b></div>';}
+  else if(s===6){m.innerHTML='<div>勾配 <b>鋭・脆</b></div><div>遮蔽 <b>鈍・頑健</b></div>';}
+  else if(s===7){const st=stats||{};m.innerHTML='<div>学習 <b>'+Math.max(itN,itT)+'/'+ITERS+'</b></div>'+(st.accN?'<div class="best">両方 高精度</div>':'');}
+  else if(s===8){ensureModels();const cf=(cornerFrac(saliency(netN,normInput(),predOf(netN,normInput())))*100).toFixed(0);m.innerHTML='<div class="best">正常モデル</div><div>隅集中 <b>'+cf+'%</b></div>';}
+  else if(s===9){ensureModels();const x=trapInput();const cf=(cornerFrac(saliency(netT,x,predOf(netT,x)))*100).toFixed(0);m.innerHTML='<div class="bad">罠モデル</div><div>隅集中 <b>'+cf+'%</b></div>';}
+  else if(s===10){ensureModels();const st=stats;m.innerHTML='<div>sal <b>'+st.salRatio.toFixed(1)+'倍</b></div><div>occ <b>'+st.occRatio.toFixed(1)+'倍</b></div>';}
+  else if(s===11){ensureModels();const st=stats;m.innerHTML='<div>罠(通常) <b>'+(st.accT*100).toFixed(0)+'%</b></div><div class="bad">罠(無マーカ) <b>'+(st.accTnoMark*100).toFixed(0)+'%</b></div>';}
+  else if(s===12){m.innerHTML='<div class="best">根拠＝感度の地図</div><div>説明も <b>検証する</b></div>';}
+  else{m.innerHTML='<div>次へ <b>Grad-CAM/SHAP/LIME</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===7){runTrain();}
+  else{if(i>=2)ensureModels();}
+  if(i===5)runOcc();
+  renderAll();draw_();}
+function runTrain(){ // slide7: 両モデルをライブ学習
+  if(!dataN){seed=7;dataN=makeSet(240,false);testN=makeSet(160,false);seed=7;dataT=makeSet(240,true);testT=makeSet(160,true);}
+  netN=makeNet();itN=0;lossN=[];netT=makeNet();itT=0;lossT=[];trained=false;
+  if(window.__prefersReducedMotion){trainAll(false);renderAll();draw_();return;}
+  anim=true;
+  function go(){if(!anim||slideIdx!==7)return;
+    for(let s=0;s<8&&(itN<ITERS||itT<ITERS);s++){
+      if(itN<ITERS){const idxs=[];for(let b=0;b<BS;b++)idxs.push(Math.floor(rng()*dataN.xs.length));const l=trainStep(netN,dataN.xs,dataN.ys,idxs,LR);itN++;if(itN%10===0)lossN.push(l);}
+      if(itT<ITERS){const idxs=[];for(let b=0;b<BS;b++)idxs.push(Math.floor(rng()*dataT.xs.length));const l=trainStep(netT,dataT.xs,dataT.ys,idxs,LR);itT++;if(itT%10===0)lossT.push(l);}}
+    draw_();renderMini();
+    if(itN>=ITERS&&itT>=ITERS){trained=true;computeStats();anim=false;renderMini();renderExplain();draw_();return;}
+    requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+function runOcc(){ // slide5: パッチを滑らせる演出
+  if(window.__prefersReducedMotion){anim=false;draw_();return;}
+  anim=true;let t0=null;function go(ts){if(!anim||slideIdx!==5)return;if(t0===null)t0=ts;animT=((ts-t0)/2600)%1;draw_();requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===7);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===7?1200:3800);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;seed=7;netN=null;netT=null;trained=false;itN=0;itT=0;lossN=[];lossT=[];dataN=null;dataT=null;testN=null;testT=null;stats=null;genCase();slideIdx=0;renderAll();draw_();}
+function reroll(){seed=(seed*1103515245+12345)>>>0;genCase();if(trained)computeStats();renderMini();renderExplain();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{if(SLIDES[slideIdx].dice)reroll();};
+genCase();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
