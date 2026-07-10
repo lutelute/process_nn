@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カルマンフィルタ — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:80px;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>カルマンフィルタ — 予測と観測を不確かさで混ぜる</h1>
+  <div class="lead">動くものを追いたい。手がかりは 2 つ——<b>モデル</b>（物理の予想）と<b>センサ</b>（ノイズまみれの観測）。どちらも不完全ですが、<b>それぞれの不確かさで重み付けして混ぜる</b>と、なんと<b>両方より良い</b>推定になります。混ぜる比率が<b>カルマンゲイン＝信頼の配分</b>。等速運動＋ノイズ観測の追跡を、その場で計算して見せます。<a href="gp.html">ガウス過程</a>と同じ「不確かさを持つ推定」の系譜です。下の流れを「次へ」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>ノイズの中から状態を追う<b>状態推定の定番</b>。GPS・ロボット・レーダーの裏で今も動いている。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>モデルの予測とセンサの観測を、<b>不確かさで重み付けして混ぜる</b>逐次推定。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>GPS＋加速度計の融合、自動運転・ロボットの自己位置、レーダー追尾、姿勢推定、金融の状態推定。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>センサ誤差 σ<sub>r</sub> <input type="range" id="sr" min="15" max="100" step="5" value="45"><span id="srVal" style="font-family:var(--mono);color:var(--text)">0.045</span></label>
+      <button id="diceBtn">🎲 別のノイズ</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>カルマンフィルタは「賢い平均」です——ただし<b>不確かさで重みを付けた平均</b>。自信のない方（分散の大きい方）を軽く、自信のある方を重く混ぜる。だから<b>混ぜた結果は必ず両方より確か</b>になる。2 つの不確かな証言をどう信じるか、という日常の判断を、そのまま数式にしたものです。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>カルマンフィルタは、観測をなめらかにする「ノイズ除去フィルタ」だ</div>
+    <div class="row"><span class="o">✓</span>本質は<b>予測（モデル）と観測（センサ）の融合</b>。ただ平滑化するのではなく、<b>運動モデルで先を予想し</b>、そこにセンサを不確かさで混ぜる。だから観測が一瞬欠けても<b>予測で補える</b>し、生の観測より誤差が小さくなる（このデモで観測だけより約 3 割改善）。</div>
+    <div class="row"><span class="x">✗</span>カルマンゲイン K は、調整して決める固定のパラメータだ</div>
+    <div class="row"><span class="o">✓</span>K は毎ステップ<b>不確かさから自動で計算</b>される。予測が当てにならない序盤は K が大（センサ寄り）、情報が溜まると<b>最適な配分へ収束</b>（このデモで約 0.38）。人が回すのは K でなく、モデルとセンサの<b>不確かさ Q・R</b> の方です。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：最適性／非線形（EKF・UKF）／Q と R の決め方</summary>
+    <div class="det"><b>最適性</b>：線形・ガウスの仮定のもとでカルマンフィルタは<b>最小分散推定（MMSE）かつ最尤</b>で、これ以上の線形推定器は作れない。予測と観測という 2 つのガウス分布の<b>積（ベイズ更新）</b>がまたガウスになり、その平均・分散が更新式そのもの——<a href="gp.html">ガウス過程</a>と同じ「ガウスの条件付け」です。<b>非線形</b>：現実の運動や観測は非線形なことが多く、その場合は接線で線形化する <b>EKF（拡張カルマン）</b>、代表点を通す <b>UKF（無香料カルマン）</b>、粒子で表す<b>粒子フィルタ</b>を使う。<b>Q と R の決め方</b>：R はセンサの実測ノイズから、Q は「モデルがどれだけ当てにならないか（加速度の揺らぎ等）」から決める。合っているかは<b>イノベーションの整合性</b>（NIS が自由度に近いか、このデモで平均約 2）で点検できる——外れると自信過剰／過小になる。<b>関連</b>：時間方向の状態推定という点で<b>隠れマルコフモデル（HMM）</b>の連続版にあたる（HMM＝離散状態の forward、KF＝連続状態の forward）。滑らかさを空間で扱う <a href="gp.html">ガウス過程</a> とも、同じ「ガウスの条件付け」で地続きです。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+/* ===== シード付き乱数 ===== */
+function mkrng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function mkrandn(r){return()=>{let u=0,v=0;while(u===0)u=r();while(v===0)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function hexA(h,a){h=(h||'#000').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return`rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+
+/* ===== 小行列演算 ===== */
+const mul=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,v,k)=>s+v*B[k][j],0)));
+const Tr=A=>A[0].map((_,j)=>A.map(r=>r[j]));
+const addM=(A,B)=>A.map((r,i)=>r.map((v,j)=>v+B[i][j]));
+const subM=(A,B)=>A.map((r,i)=>r.map((v,j)=>v-B[i][j]));
+const mv=(A,x)=>A.map(r=>r.reduce((s,v,k)=>s+v*x[k],0));
+const eye=n=>Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
+const inv2=M=>{const d=M[0][0]*M[1][1]-M[0][1]*M[1][0];return[[M[1][1]/d,-M[0][1]/d],[-M[1][0]/d,M[0][0]/d]];};
+function ellipse2(P){const a=P[0][0],b=P[0][1],c=P[1][1];const tr=a+c,det=a*c-b*b;const disc=Math.sqrt(Math.max(0,tr*tr/4-det));
+  const l1=tr/2+disc,l2=tr/2-disc;let ang=(b===0)?((a>=c)?0:Math.PI/2):Math.atan2(l1-a,b);return{l1:Math.max(l1,0),l2:Math.max(l2,0),ang};}
+
+/* ===== モデル ===== */
+const dt=1.0, N=34;
+const F=[[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]];
+const Hm=[[1,0,0,0],[0,1,0,0]];
+function makeQ(qa){const q=qa*qa,t2=dt*dt,t3=t2*dt,t4=t2*t2;return[[t4/4*q,0,t3/2*q,0],[0,t4/4*q,0,t3/2*q],[t3/2*q,0,t2*q,0],[0,t3/2*q,0,t2*q]];}
+function makeR(sr){const r=sr*sr;return[[r,0],[0,r]];}
+/* 真の軌道：穏やかな単一の弧（等速からずれる＝CVモデルだけだとドリフト・でも波打ちすぎない）*/
+const TRUTH=(()=>{const P=[];for(let k=0;k<N;k++){const t=k/(N-1);
+  P.push([0.08+0.84*t, 0.24+0.52*Math.sin(Math.PI*(0.15+0.7*t))]);}return P;})();
+
+/* ===== 状態 ===== */
+let sr=0.045, qa=0.005, noiseSeed=1;
+let steps=null, meas=null;         // steps[k]={truth,meas,xPred,Ppred,xUpd,Pupd,K,inn,S}
+function genMeas(){const rn=mkrandn(mkrng(noiseSeed*131+7));meas=TRUTH.map(p=>[p[0]+sr*rn(),p[1]+sr*rn()]);}
+function runKF(){if(!meas)genMeas();const Q=makeQ(qa),R=makeR(sr);
+  let x=[meas[0][0],meas[0][1],(TRUTH[1][0]-TRUTH[0][0])*0.6,(TRUTH[1][1]-TRUTH[0][1])*0.6];
+  let P=[[0.02,0,0,0],[0,0.02,0,0],[0,0,0.05,0],[0,0,0,0.05]];
+  steps=[];
+  for(let k=0;k<N;k++){let xPred=x,Ppred=P;
+    if(k>0){xPred=mv(F,x);Ppred=addM(mul(mul(F,P),Tr(F)),Q);}
+    const Hx=mv(Hm,xPred),inn=[meas[k][0]-Hx[0],meas[k][1]-Hx[1]];
+    const S=addM(mul(mul(Hm,Ppred),Tr(Hm)),R),Si=inv2(S);
+    const K=mul(mul(Ppred,Tr(Hm)),Si);
+    const xUpd=xPred.map((v,i)=>v+K[i][0]*inn[0]+K[i][1]*inn[1]);
+    const Pupd=mul(subM(eye(4),mul(K,Hm)),Ppred);
+    steps.push({truth:TRUTH[k],meas:meas[k],xPred,Ppred,xUpd,Pupd,K,inn,S});
+    x=xUpd;P=Pupd;}
+}
+/* モデルだけ（dead reckoning）：最初の推定から予測のみ、更新しない */
+function modelOnly(){const v0=[TRUTH[1][0]-TRUTH[0][0],TRUTH[1][1]-TRUTH[0][1]];
+  let x=[meas[0][0],meas[0][1],v0[0],v0[1]];const out=[[x[0],x[1]]];
+  for(let k=1;k<N;k++){x=[x[0]+x[2],x[1]+x[3],x[2],x[3]];out.push([x[0],x[1]]);}return out;}
+function rmse(arr,upto){upto=upto??N;let s=0,n=0;for(let k=0;k<upto;k++){const e0=arr[k][0]-TRUTH[k][0],e1=arr[k][1]-TRUTH[k][1];s+=e0*e0+e1*e1;n++;}return Math.sqrt(s/n);}
+function recompute(){genMeas();runKF();}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PLX=28,PRX=340,TYt=26,BYt=352;             // フィールド領域
+const fx=x=>PLX+x*(PRX-PLX), fy=y=>BYt-y*(BYt-TYt);
+const SCX=(PRX-PLX), SCY=(BYt-TYt);
+function field(){ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.strokeRect(PLX,TYt,PRX-PLX,BYt-TYt);
+  ctx.strokeStyle=getCSS('--grid');for(let g=1;g<5;g++){ctx.beginPath();ctx.moveTo(PLX+(PRX-PLX)*g/5,TYt);ctx.lineTo(PLX+(PRX-PLX)*g/5,BYt);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(PLX,TYt+(BYt-TYt)*g/5);ctx.lineTo(PRX,TYt+(BYt-TYt)*g/5);ctx.stroke();}}
+function clipField(fn){ctx.save();ctx.beginPath();ctx.rect(PLX,TYt,PRX-PLX,BYt-TYt);ctx.clip();fn();ctx.restore();}
+function drawTrue(){clipField(()=>{ctx.strokeStyle='rgba(133,149,168,0.55)';ctx.lineWidth=1.6;ctx.setLineDash([5,4]);ctx.beginPath();
+  TRUTH.forEach((p,k)=>{const X=fx(p[0]),Y=fy(p[1]);k?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();ctx.setLineDash([]);});}
+function drawTrack(pts,color,upto,w){upto=upto??pts.length;clipField(()=>{ctx.strokeStyle=color;ctx.lineWidth=w||2.2;ctx.beginPath();
+  for(let k=0;k<upto;k++){const X=fx(pts[k][0]),Y=fy(pts[k][1]);k?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();});}
+function drawDots(pts,color,upto,r){upto=upto??pts.length;clipField(()=>{for(let k=0;k<upto;k++){ctx.beginPath();ctx.arc(fx(pts[k][0]),fy(pts[k][1]),r||2.6,0,7);ctx.fillStyle=color;ctx.fill();}});}
+function drawEllipse(cx,cy,ell,color,ns,fill){ns=ns||2;clipField(()=>{ctx.save();ctx.translate(fx(cx),fy(cy));ctx.rotate(-ell.ang);
+  const ax=ns*Math.sqrt(ell.l1)*SCX,ay=ns*Math.sqrt(ell.l2)*SCY;
+  ctx.beginPath();ctx.ellipse(0,0,Math.max(ax,1.5),Math.max(ay,1.5),0,0,7);
+  if(fill){ctx.fillStyle=hexA(color,0.12);ctx.fill();}ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.stroke();ctx.restore();});}
+function marker(cx,cy,color,r){ctx.beginPath();ctx.arc(fx(cx),fy(cy),r||4.5,0,7);ctx.fillStyle=color;ctx.fill();ctx.lineWidth=1.2;ctx.strokeStyle='#fffdf6';ctx.stroke();}
+function cross(cx,cy,color){const X=fx(cx),Y=fy(cy);ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(X-6,Y);ctx.lineTo(X+6,Y);ctx.moveTo(X,Y-6);ctx.lineTo(X,Y+6);ctx.stroke();}
+function velArrow(cx,cy,vx,vy,color){const X=fx(cx),Y=fy(cy),s=6;const ex=X+vx*SCX*s,ey=Y-vy*SCY*s;
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(ex,ey);ctx.stroke();
+  const a=Math.atan2(ey-Y,ex-X);ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex-8*Math.cos(a-0.4),ey-8*Math.sin(a-0.4));ctx.lineTo(ex-8*Math.cos(a+0.4),ey-8*Math.sin(a+0.4));ctx.closePath();ctx.fillStyle=color;ctx.fill();}
+function caption(t,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(t,CW/2,y||CH-10);}
+function tag(t,x,y,color){ctx.fillStyle=color;ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(t,x,y);}
+function gainBar(K,y0){const x0=PLX,w=PRX-PLX,h=16;const k=Math.max(0,Math.min(1,K));
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('カルマンゲイン K（信頼の配分）',x0,y0-6);
+  ctx.fillStyle=hexA(getCSS('--upd'),0.85);ctx.fillRect(x0,y0,w*(1-k),h);
+  ctx.fillStyle=hexA(getCSS('--warm'),0.85);ctx.fillRect(x0+w*(1-k),y0,w*k,h);
+  ctx.fillStyle='#fff';ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('モデル '+((1-k)*100|0)+'%',x0+5,y0+11.5);
+  ctx.textAlign='right';ctx.fillText('センサ '+((k)*100|0)+'%',x0+w-5,y0+11.5);}
+function rmseBars(vals,y0){const names=['観測だけ','モデルだけ','カルマン'],cols=[getCSS('--warm'),getCSS('--neg'),getCSS('--accent')];
+  const mx=Math.max(...vals),h=44,bw=54,gap=30,x0=PLX+24;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('追跡 RMSE（小さいほど良い）',PLX,y0-8);
+  vals.forEach((v,i)=>{const x=x0+i*(bw+gap),bh=h*Math.min(1,v/mx);
+    ctx.fillStyle=cols[i];ctx.fillRect(x,y0+h-bh,bw,bh);
+    ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(names[i],x+bw/2,y0+h+13);
+    ctx.fillStyle=cols[i];ctx.font='700 9.5px '+getCSS('--mono');ctx.fillText(v.toFixed(3),x+bw/2,y0+h-bh-4);});}
+
+/* ===== 章・スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:13}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animK=0,phase=0,DEMO=8;
+
+const SLIDES=[
+/* 0 */{title:'問題：ノイズの中で動くものを追う',legend:'灰破線＝真の軌道（本来は分からない）。◆＝いま追いたい物体',
+  html(){return'<h3>① ノイズの中で、動くものを追う</h3><div class="eq curr">手がかり＝ モデル（次はこの辺、という予想）＋ センサ（ノイズまみれの観測）<span class="read">読み：真の位置は直接は見えない。あるのは「物理からの予想」と「誤差を含む測定」の 2 つだけ。どちらも単独では信じきれない</span></div><div class="desc">ドローンでも車でも、追いたい物体の<b>本当の位置（灰破線）は直接は見えません</b>。使えるのは 2 つの不完全な手がかり——<b>運動モデル</b>（等速なら次はこの辺、という予想）と<b>センサ</b>（GPS 等のノイズ観測）。この 2 つをどう使うか、が問題です。まず、それぞれを単独で信じるとどうなるかを見ます。</div>';},
+  draw(){drawTrue();const k=Math.round(animK);const p=TRUTH[Math.min(N-1,k)];
+    velArrow(p[0],p[1],(TRUTH[Math.min(N-1,k+1)][0]-p[0]),(TRUTH[Math.min(N-1,k+1)][1]-p[1]),hexA(getCSS('--upd'),0.8));
+    if(meas)cross(meas[Math.min(N-1,k)][0],meas[Math.min(N-1,k)][1],getCSS('--warm'));
+    marker(p[0],p[1],getCSS('--text'),5);
+    tag('→ モデルの予想',PLX+6,BYt-24,getCSS('--upd'));tag('✛ センサの観測',PLX+6,BYt-10,getCSS('--warm'));
+    caption('本当の位置は見えない・手がかりは2つ',CH-10);}},
+/* 1 */{title:'センサだけを信じると：ガタガタ',legend:'橙✛＝生のセンサ観測。真の軌道の周りでノイズに揺れる',
+  html(){const rm=meas?rmse(meas).toFixed(3):'—';return'<h3>② センサだけ：ノイズがそのまま出る</h3><div class="eq curr">推定 = 観測 <i>z</i><sub>k</sub>（毎回それを鵜呑み）　→ 誤差 ≈ センサ誤差 σ<sub>r</sub><span class="read">読み：測るたびの値をそのまま信じると、推定はセンサのノイズをそっくり受け継ぐ。平滑化も予測もしていない</span></div><div class="desc">観測だけを信じると、推定は<b>センサのノイズをそのまま被り</b>、真の軌道の周りで<b>ガタガタ</b>震えます（このノイズで追跡 RMSE <b>'+rm+'</b>）。1 点欠けたら何も言えない。センサは「今」を教えてくれますが、<b>過去も物理も使っていない</b>——情報を捨てています。</div>';},
+  draw(){drawTrue();if(meas){drawDots(meas,getCSS('--warm'),Math.round(animK)+1,3);drawTrack(meas,hexA(getCSS('--warm'),0.35),Math.round(animK)+1,1.2);}
+    caption('観測だけ＝ノイズをそのまま被る',CH-10);}},
+/* 2 */{title:'モデルだけを信じると：ドリフト',legend:'紫＝等速モデルの予測だけ。なめらかだが真から離れて溜まる',
+  html(){const md=meas?rmse(modelOnly()).toFixed(2):'—';return'<h3>③ モデルだけ：なめらかbut ドリフト</h3><div class="eq curr">推定 = <i>F</i> · 前の推定（予測のみ・観測で直さない）　→ 誤差が<b>溜まって発散</b><span class="read">読み：運動モデルで先へ先へと外挿するだけだと、モデルのズレや初速の誤差が毎ステップ積み上がり、真の軌道から離れていく</span></div><div class="desc">逆に予測だけを信じると、軌道は<b>なめらか</b>ですが——現実は完全な等速ではないので、<b>ズレが少しずつ溜まり、どんどんドリフト</b>していきます（RMSE <b>'+md+'</b>、フィールドの外へ）。モデルは「流れ」を知っていますが、<b>現実で答え合わせをしていない</b>ので迷子になる。<b>センサもモデルも、単独ではダメ</b>。</div>';},
+  draw(){drawTrue();if(meas){const mo=modelOnly();drawTrack(mo,getCSS('--upd'),Math.round(animK)+1,2.2);
+    const k=Math.min(N-1,Math.round(animK));marker(mo[k][0],mo[k][1],getCSS('--upd'),4.5);marker(TRUTH[k][0],TRUTH[k][1],hexA(getCSS('--text'),0.5),3.5);}
+    caption('モデルだけ＝ズレが溜まってドリフト',CH-10);}},
+/* 3 */{title:'状態と不確かさ（共分散楕円）',legend:'●＝推定位置、矢印＝推定速度、楕円＝位置の不確かさ',
+  html(){return'<h3>④ 状態 x と、その不確かさ P</h3><div class="eq curr"><i>x</i> = [ <i>p<sub>x</sub></i>, <i>p<sub>y</sub></i>, <i>v<sub>x</sub></i>, <i>v<sub>y</sub></i> ]<sup>ᵀ</sup>,　不確かさ <i>P</i>（共分散行列）<span class="read">読み：追うのは位置と速度をまとめた<b>状態ベクトル</b> x。P はその推定の「自信のなさ」を表す行列で、位置の部分を描くと<b>楕円</b>になる</span></div><div class="desc">カルマンフィルタは<b>状態</b>（位置＋速度）と、その<b>不確かさ P</b> を一緒に持ち歩きます。P の位置成分を図にすると<b>楕円</b>——楕円が大きいほど「どこにいるか自信がない」。細長い楕円なら「その向きの不確かさが大きい」。<b>点推定ではなく、確率の雲を運ぶ</b>のがミソ。この楕円が予測で膨らみ、観測で縮みます。</div>';},
+  draw(){drawTrue();const s=steps[DEMO];drawEllipse(s.xUpd[0],s.xUpd[1],ellipse2([[s.Pupd[0][0],s.Pupd[0][1]],[s.Pupd[1][0],s.Pupd[1][1]]]),getCSS('--accent'),2.4,true);
+    velArrow(s.xUpd[0],s.xUpd[1],s.xUpd[2],s.xUpd[3],hexA(getCSS('--accent'),0.9));marker(s.xUpd[0],s.xUpd[1],getCSS('--accent'),4.5);
+    caption('状態＝位置＋速度／楕円＝位置の不確かさ',CH-10);}},
+/* 4 */{title:'予測ステップ：楕円が膨らむ',legend:'紫楕円＝予測後の不確かさ。時間を進めると自信が減る',
+  html(){return'<h3>⑤ 予測：モデルで一歩進める</h3><div class="eq curr"><i>x</i><sup>−</sup> = <i>F x</i>,　<i>P</i><sup>−</sup> = <i>F P F</i><sup>ᵀ</sup> + <i>Q</i><span class="read">読み：F＝等速運動の規則（位置 ← 位置＋速度）。P にも F を掛け、さらにモデルの当てにならなさ <b>Q</b> を足す＝<b>不確かさが増える</b></span></div><div class="desc">まず<b>モデル F で状態を一歩進めます</b>（位置に速度分を足す）。同時に不確かさ P も更新：<i>FPF</i><sup>ᵀ</sup> で運び、<b>プロセスノイズ Q</b>（モデルがどれだけ当てにならないか）を足します。観測していない間は情報が古びるので、<b>楕円は必ず膨らむ</b>（自信が減る）。予測は「進むと同時に、少し自信をなくす」操作です。</div>';},
+  draw(){drawTrue();const s=steps[DEMO+1];const prev=steps[DEMO];
+    drawEllipse(prev.xUpd[0],prev.xUpd[1],ellipse2([[prev.Pupd[0][0],prev.Pupd[0][1]],[prev.Pupd[1][0],prev.Pupd[1][1]]]),hexA(getCSS('--accent'),0.5),2.4,false);
+    const t=anim?animK:1;const l0=ellipse2([[prev.Pupd[0][0],prev.Pupd[0][1]],[prev.Pupd[1][0],prev.Pupd[1][1]]]);
+    const l1=ellipse2([[s.Ppred[0][0],s.Ppred[0][1]],[s.Ppred[1][0],s.Ppred[1][1]]]);
+    const cx=prev.xUpd[0]+(s.xPred[0]-prev.xUpd[0])*t,cy=prev.xUpd[1]+(s.xPred[1]-prev.xUpd[1])*t;
+    const el={l1:l0.l1+(l1.l1-l0.l1)*t,l2:l0.l2+(l1.l2-l0.l2)*t,ang:l1.ang};
+    drawEllipse(cx,cy,el,getCSS('--upd'),2.4,true);marker(cx,cy,getCSS('--upd'),4.5);
+    caption('予測＝進む＋楕円が膨らむ（Q を足す）',CH-10);}},
+/* 5 */{title:'観測ステップ：予測とのズレ',legend:'紫●＝予測位置、橙✛＝新しい観測、その差＝イノベーション',
+  html(){return'<h3>⑥ 観測：予測とのズレ（イノベーション）</h3><div class="eq curr"><i>y</i> = <i>z</i> − <i>H x</i><sup>−</sup>（サプライズ）,　<i>S</i> = <i>H P</i><sup>−</sup><i>H</i><sup>ᵀ</sup> + <i>R</i><span class="read">読み：新しい観測 z と、予測から期待した観測 Hx⁻ の差 y が<b>イノベーション</b>＝「予想外れの量」。S はその差の不確かさ（予測 P⁻ と観測ノイズ R の合計）</span></div><div class="desc">新しいセンサ値 <i>z</i> が届きます。予測から期待していた位置 <i>Hx</i><sup>−</sup> との差 <b><i>y</i>＝イノベーション（予想外れ）</b>。これが更新の燃料です。ただし観測にも誤差 <b>R</b> があるので、ズレを全部信じてはいけない。「このズレはどれくらい意味があるか」を測るのが <b>S</b>（予測の不確かさ＋観測の不確かさ）。次はこの y をどれだけ取り込むかを決めます。</div>';},
+  draw(){drawTrue();const s=steps[DEMO+1];
+    drawEllipse(s.xPred[0],s.xPred[1],ellipse2([[s.Ppred[0][0],s.Ppred[0][1]],[s.Ppred[1][0],s.Ppred[1][1]]]),getCSS('--upd'),2.4,true);
+    drawEllipse(s.meas[0],s.meas[1],ellipse2(makeR(sr)),getCSS('--warm'),2.4,true);
+    clipField(()=>{ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(fx(s.xPred[0]),fy(s.xPred[1]));ctx.lineTo(fx(s.meas[0]),fy(s.meas[1]));ctx.stroke();ctx.setLineDash([]);});
+    marker(s.xPred[0],s.xPred[1],getCSS('--upd'),4.5);cross(s.meas[0],s.meas[1],getCSS('--warm'));
+    tag('● 予測（紫楕円）',PLX+6,BYt-24,getCSS('--upd'));tag('✛ 観測（橙楕円=R）  ┈ ズレ=y',PLX+6,BYt-10,getCSS('--neg'));
+    caption('イノベーション y ＝ 観測 − 予測',CH-10);}},
+/* 6 */{title:'カルマンゲイン：信頼の配分',legend:'下のバー＝予測とセンサ、どちらをどれだけ信じるか',
+  html(){const K=steps[DEMO+1].K[0][0];return'<h3>⑦ カルマンゲイン K ＝ 信頼の配分</h3><div class="eq curr"><i>K</i> = <i>P</i><sup>−</sup><i>H</i><sup>ᵀ</sup> <i>S</i><sup>−1</sup> = <i>P</i><sup>−</sup><i>H</i><sup>ᵀ</sup>(<i>H P</i><sup>−</sup><i>H</i><sup>ᵀ</sup>+<i>R</i>)<sup>−1</sup><span class="read">読み：K は「予測の不確かさ P⁻」÷「予測とセンサの不確かさの合計 S」。予測が当てにならない（P⁻大）ほど K は 1 に近づき、センサ寄りになる</span></div><div class="desc"><b>ゲイン K</b> が、イノベーションをどれだけ取り込むかを決めます。式は「<b>予測の不確かさ ÷（予測＋観測の不確かさ）</b>」——つまり<b>自信のない方を軽く、確かな方を重く</b>。予測がぼやけていれば K は大（センサを信じる）、センサがノイズだらけ（R 大）なら K は小（予測を信じる）。いまの配分は下のバー（K の位置成分 <b>'+K.toFixed(2)+'</b>）。<b>人が調整するのは K でなく Q・R</b>。</div>';},
+  draw(){drawTrue();const s=steps[DEMO+1];
+    drawEllipse(s.xPred[0],s.xPred[1],ellipse2([[s.Ppred[0][0],s.Ppred[0][1]],[s.Ppred[1][0],s.Ppred[1][1]]]),hexA(getCSS('--upd'),0.7),2.4,false);
+    drawEllipse(s.meas[0],s.meas[1],ellipse2(makeR(sr)),hexA(getCSS('--warm'),0.7),2.4,false);
+    marker(s.xPred[0],s.xPred[1],getCSS('--upd'),4);cross(s.meas[0],s.meas[1],getCSS('--warm'));
+    marker(s.xUpd[0],s.xUpd[1],getCSS('--accent'),5);
+    caption('更新後（緑●）は予測とセンサの「間」に置かれる',BYt+12);
+    gainBar(s.K[0][0],390);}},
+/* 7 */{title:'更新ステップ：楕円が縮む',legend:'緑楕円＝更新後。予測楕円よりも観測楕円よりも小さい',
+  html(){return'<h3>⑧ 更新：混ぜると両方より確かになる</h3><div class="eq curr"><i>x</i> = <i>x</i><sup>−</sup> + <i>K y</i>,　<i>P</i> = (<i>I</i> − <i>K H</i>) <i>P</i><sup>−</sup><span class="read">読み：予測 x⁻ を、イノベーション y の K 倍だけ動かして確定。P からは「観測で説明できた分」が引かれ、<b>不確かさが減る</b></span></div><div class="desc">最後に予測 <i>x</i><sup>−</sup> を、イノベーション <i>y</i> の <b>K 倍だけ動かして確定</b>——予測とセンサの<b>間</b>に着地します。そして不確かさ P は <b>(I−KH) だけ縮む</b>。ここが核心：<b>更新後の楕円は、予測楕円よりも観測楕円よりも小さい</b>。2 つの不確かな情報を混ぜると、<b>どちらか一方より必ず確かになる</b>。これがカルマンフィルタの魔法です。</div>';},
+  draw(){drawTrue();const s=steps[DEMO+1];
+    drawEllipse(s.xPred[0],s.xPred[1],ellipse2([[s.Ppred[0][0],s.Ppred[0][1]],[s.Ppred[1][0],s.Ppred[1][1]]]),hexA(getCSS('--upd'),0.4),2.4,false);
+    drawEllipse(s.meas[0],s.meas[1],ellipse2(makeR(sr)),hexA(getCSS('--warm'),0.4),2.4,false);
+    drawEllipse(s.xUpd[0],s.xUpd[1],ellipse2([[s.Pupd[0][0],s.Pupd[0][1]],[s.Pupd[1][0],s.Pupd[1][1]]]),getCSS('--accent'),2.4,true);
+    marker(s.xUpd[0],s.xUpd[1],getCSS('--accent'),5);
+    tag('緑＝更新後（最小）',PLX+6,BYt-24,getCSS('--accent'));tag('薄紫＝予測 / 薄橙＝観測',PLX+6,BYt-10,getCSS('--muted'));
+    caption('更新後の楕円は予測・観測のどちらより小さい',CH-10);}},
+/* 8 */{title:'1 サイクル：予測→観測→更新',legend:'予測(膨張)→観測が来る→更新(収縮) の1コマを繰り返す',
+  html(){const ph=['予測：楕円が膨らむ','観測：ズレを測る','更新：楕円が縮む'][phase];
+    return'<h3>⑨ 1 サイクルを通しで見る</h3><div class="eq curr">予測（膨張）　→　観測（ズレ y）　→　更新（収縮）　を毎ステップ繰り返す<span class="read">読み：この 3 拍子が延々と続くのがフィルタの正体。膨らんでは縮み、進んでは直す——「進む・測る・直す」のループ</span></div><div class="desc">3 つのステップを 1 コマにまとめると：<b>予測</b>で楕円が膨らみ（自信が減る）、<b>観測</b>が届いてズレを測り、<b>更新</b>で楕円が縮む（自信が戻る）。この<b>「膨らむ→縮む」を毎ステップ</b>繰り返しながら物体を追います。いまの局面：<b>'+ph+'</b>。「⏵ 自動」でサイクルが回ります。</div>';},
+  draw(){drawTrue();const prev=steps[DEMO],s=steps[DEMO+1];
+    // phase 0: predict inflate, 1: observation, 2: update shrink
+    const l0=ellipse2([[prev.Pupd[0][0],prev.Pupd[0][1]],[prev.Pupd[1][0],prev.Pupd[1][1]]]);
+    const lp=ellipse2([[s.Ppred[0][0],s.Ppred[0][1]],[s.Ppred[1][0],s.Ppred[1][1]]]);
+    const lu=ellipse2([[s.Pupd[0][0],s.Pupd[0][1]],[s.Pupd[1][0],s.Pupd[1][1]]]);
+    if(phase===0){const t=anim?animK:1;const cx=prev.xUpd[0]+(s.xPred[0]-prev.xUpd[0])*t,cy=prev.xUpd[1]+(s.xPred[1]-prev.xUpd[1])*t;
+      drawEllipse(cx,cy,{l1:l0.l1+(lp.l1-l0.l1)*t,l2:l0.l2+(lp.l2-l0.l2)*t,ang:lp.ang},getCSS('--upd'),2.4,true);marker(cx,cy,getCSS('--upd'),4.5);}
+    else if(phase===1){drawEllipse(s.xPred[0],s.xPred[1],lp,getCSS('--upd'),2.4,true);drawEllipse(s.meas[0],s.meas[1],ellipse2(makeR(sr)),getCSS('--warm'),2.4,true);
+      clipField(()=>{ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.8;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(fx(s.xPred[0]),fy(s.xPred[1]));ctx.lineTo(fx(s.meas[0]),fy(s.meas[1]));ctx.stroke();ctx.setLineDash([]);});
+      marker(s.xPred[0],s.xPred[1],getCSS('--upd'),4.5);cross(s.meas[0],s.meas[1],getCSS('--warm'));}
+    else{const t=anim?animK:1;drawEllipse(s.xPred[0],s.xPred[1],lp,hexA(getCSS('--upd'),0.35),2.4,false);
+      const cx=s.xPred[0]+(s.xUpd[0]-s.xPred[0])*t,cy=s.xPred[1]+(s.xUpd[1]-s.xPred[1])*t;
+      drawEllipse(cx,cy,{l1:lp.l1+(lu.l1-lp.l1)*t,l2:lp.l2+(lu.l2-lp.l2)*t,ang:lu.ang},getCSS('--accent'),2.4,true);marker(cx,cy,getCSS('--accent'),5);}
+    caption(['① 予測：膨らむ','② 観測：ズレを測る','③ 更新：縮む'][phase],CH-10);}},
+/* 9 */{title:'通しで追跡：真の軌道に吸い付く',legend:'灰=真、橙=観測、緑=KF推定＋楕円。KFが軌道に追従',
+  html(){const rm=meas?rmse(meas).toFixed(3):'—',re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])).toFixed(3):'—';
+    return'<h3>⑩ 通しで追跡する</h3><div class="eq curr">各ステップ： 予測 → 更新 を繰り返し、状態と楕円を更新<span class="read">読み：全ステップでフィルタを回すと、ノイズの観測（橙）から真の軌道（灰）に吸い付く滑らかな推定（緑）が得られる</span></div><div class="desc">全ステップでフィルタを回した結果です。<b>緑＝カルマン推定</b>は、ガタガタの<b>観測（橙）をならしつつ、真の軌道（灰破線）に吸い付いて</b>追従します。楕円は序盤に大きく、情報が溜まると小さく安定。追跡 RMSE は<b>観測だけ '+rm+' → カルマン '+re+'</b>。生の観測より確かになりました。</div>';},
+  draw(){drawTrue();if(meas)drawDots(meas,hexA(getCSS('--warm'),0.75),Math.round(animK)+1,2.6);
+    const est=steps.map(s=>[s.xUpd[0],s.xUpd[1]]);const upto=Math.round(animK)+1;drawTrack(est,getCSS('--accent'),upto,2.4);
+    const k=Math.min(N-1,Math.round(animK));const s=steps[k];
+    drawEllipse(s.xUpd[0],s.xUpd[1],ellipse2([[s.Pupd[0][0],s.Pupd[0][1]],[s.Pupd[1][0],s.Pupd[1][1]]]),hexA(getCSS('--accent'),0.8),2,true);
+    marker(s.xUpd[0],s.xUpd[1],getCSS('--accent'),4.5);
+    caption('緑＝カルマン推定：観測をならし軌道に追従',CH-10);}},
+/* 10 */{title:'A/B/C：観測だけ / モデルだけ / KF',legend:'橙=観測だけ, 紫=モデルだけ, 緑=KF。下=RMSE比較',
+  html(){const rm=meas?rmse(meas):0,md=meas?rmse(modelOnly()):0,re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])):0;
+    return'<h3>⑪ 三者対決：単独 vs 融合</h3><div class="eq curr">観測だけ（ガタガタ）　／　モデルだけ（ドリフト）　／　カルマン（両方より良い）<span class="read">読み：同じデータで 3 つの戦略を比べる。センサ単独もモデル単独も不完全。両者を不確かさで混ぜたカルマンが最小誤差</span></div><div class="desc">同じ観測から 3 つの戦略を比べます。<b>観測だけ（橙）</b>はノイズで震え（RMSE '+rm.toFixed(3)+'）、<b>モデルだけ（紫）</b>はドリフトで大きく外れ（RMSE '+md.toFixed(2)+'）、<b>カルマン（緑）</b>が最小（RMSE '+re.toFixed(3)+'）。融合は<b>センサ単独より約 '+(rm>0?Math.round((1-re/rm)*100):0)+'% 改善</b>、モデル単独より桁違いに正確。<b>1＋1 が 2 以上</b>になるのが状態推定の妙です。</div>';},
+  draw(){drawTrue();if(meas){const mo=modelOnly();drawTrack(mo,hexA(getCSS('--upd'),0.85),N,2);drawDots(meas,hexA(getCSS('--warm'),0.7),N,2.4);}
+    if(steps)drawTrack(steps.map(s=>[s.xUpd[0],s.xUpd[1]]),getCSS('--accent'),N,2.6);
+    const rm=meas?rmse(meas):0,md=meas?rmse(modelOnly()):0,re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])):0;
+    rmseBars([rm,md,re],366);},dice:true},
+/* 11 */{title:'ゲインの配分：センサ信頼 vs モデル信頼',legend:'σr スライダを動かすと K が変わり、追従の性格が変わる',
+  html(){const K=steps?steps[N-1].K[0][0]:0.5;const re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])).toFixed(3):'—';
+    return'<h3>⑫ 信頼の配分を動かす（σ<sub>r</sub> スライダ）</h3><div class="eq curr">σ<sub>r</sub> 小（センサ精密）→ K 大（センサ追従）　⇔　σ<sub>r</sub> 大（センサ雑）→ K 小（モデル信頼・平滑）<span class="read">読み：センサの誤差 R=σr² を変えると、ゲイン K が自動で再配分される。人はゲインでなく「どちらをどれだけ信じるか」の前提を動かす</span></div><div class="desc">下の <b>σ<sub>r</sub> スライダ</b>でセンサの誤差設定を変えてみてください。<b>σ<sub>r</sub> を小さく</b>すると「センサは正確」＝ K が大きくなり、推定は<b>観測にぴったり追従</b>（でもノイズも拾う）。<b>σ<sub>r</sub> を大きく</b>すると「センサは雑」＝ K が小さく、推定は<b>モデル寄りで滑らか</b>（でも急な動きに遅れる）。いまの定常ゲイン K≈<b>'+K.toFixed(2)+'</b>、RMSE <b>'+re+'</b>。<b>K を直接いじらず、信頼の前提を動かす</b>のがコツ。</div>';},
+  draw(){drawTrue();if(meas)drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
+    if(steps){drawTrack(steps.map(s=>[s.xUpd[0],s.xUpd[1]]),getCSS('--accent'),N,2.4);
+      const s=steps[N-1];drawEllipse(s.xUpd[0],s.xUpd[1],ellipse2([[s.Pupd[0][0],s.Pupd[0][1]],[s.Pupd[1][0],s.Pupd[1][1]]]),hexA(getCSS('--accent'),0.8),2,true);
+      caption('σr を動かすと K が再配分される',BYt+12);gainBar(s.K[0][0],390);}}},
+/* 12 */{title:'どこで出会うか（実例）',legend:'GPS＋加速度計の融合＝スマホの現在地もこの仕組み',
+  html(){return'<h3>⑬ どこで出会うか</h3><div class="eq curr">遅いが正確なセンサ（GPS）＋ 速いが漂うモデル（加速度計の積分）→ 融合<span class="read">読み：性質の違う手がかりを不確かさで束ねる、という発想はあらゆる計測に現れる。多くの機器の「現在地」はこの融合で出ている</span></div><div class="desc">カルマンフィルタは身の回りで動いています。<b>スマホ／車のナビ</b>＝GPS（正確だが遅くトンネルで切れる）と加速度計・ジャイロ（速いが漂う）の融合。<b>自動運転・ロボット</b>の自己位置推定、<b>レーダー／ミサイルの追尾</b>、<b>ドローンの姿勢制御</b>、人工衛星の軌道決定、さらに<b>経済指標の推定</b>にも。共通点は<b>「性質の違う不完全な情報を、不確かさで束ねる」</b>こと。トンネルで GPS が切れても、しばらく<b>予測で走り続けられる</b>のが強みです。</div>';},
+  draw(){drawTrue();if(meas){drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
+    // GPS 欠落区間を演出：中央でセンサが切れ、予測のみで走る
+    const est=steps.map(s=>[s.xUpd[0],s.xUpd[1]]);drawTrack(est,getCSS('--accent'),N,2.4);
+    const a=Math.round(N*0.42),b=Math.round(N*0.62);
+    clipField(()=>{ctx.fillStyle=hexA(getCSS('--neg'),0.08);ctx.fillRect(fx(TRUTH[a][0]),TYt,fx(TRUTH[b][0])-fx(TRUTH[a][0]),BYt-TYt);});
+    ctx.fillStyle=getCSS('--neg');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('GPS欠落でも予測で走る',(fx(TRUTH[a][0])+fx(TRUTH[b][0]))/2,TYt+14);}
+    caption('性質の違うセンサを不確かさで束ねる',CH-10);}},
+/* 13 */{title:'混ぜると両方より良い、の意味',legend:'2つのガウス（予測・観測）の積が、より鋭いガウスになる',
+  html(){return'<h3>⑭ なぜ「両方より良い」のか</h3><div class="eq curr">ガウス（予測）× ガウス（観測）＝ より鋭いガウス（更新）<span class="read">読み：予測も観測も「平均±不確かさ」のガウス。2 つのガウスの積（ベイズ更新）はまたガウスで、その分散は<b>両方より小さい</b></span></div><div class="desc">更新の正体は<b>2 つのガウス分布の掛け算（ベイズ更新）</b>です。予測「この辺（±広め）」と観測「この辺（±広め）」を掛けると、両方の重なる所に<b>より鋭いガウス</b>が立つ——平均は不確かさで重み付けした間、分散は<b>どちらより小さい</b>。これが「混ぜると両方より確か」の数学的な中身。<a href="gp.html">ガウス過程</a>の「観測で条件付けると帯が締まる」と<b>まったく同じ原理</b>で、時間方向に逐次applyしたものがカルマンフィルタです。</div>';},
+  draw(){drawGaussProduct();}},
+/* 14 */{title:'まとめと限界',legend:'線形・ガウスなら最適。非線形は EKF/UKF、肝は Q・R',
+  html(){const re=steps?rmse(steps.map(s=>[s.xUpd[0],s.xUpd[1]])).toFixed(3):'—';
+    return'<h3>⑮ まとめ：進む・測る・直す</h3><div class="desc">カルマンフィルタは<b>予測（モデルで進む）</b>と<b>更新（観測で直す）</b>を、<b>不確かさで重み付けして</b>毎ステップ繰り返す状態推定でした。混ぜた結果は<b>両方より確か</b>（このデモで観測だけより約 3 割改善、RMSE '+re+'）。<b>限界</b>：<b>線形・ガウス</b>の仮定が要で、そこでは最適（最小分散）ですが、現実の非線形には <b>EKF・UKF・粒子フィルタ</b>で対応。性能は <b>Q・R の設定</b>次第で、外すと自信過剰／過小になります。<b>関連</b>：離散状態版の隠れマルコフモデル（HMM）、空間版の <a href="gp.html">ガウス過程</a>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・予測＝進む＋楕円が膨らむ（Q）／更新＝直す＋楕円が縮む（R）<br>・カルマンゲイン K＝不確かさによる信頼の配分（自動計算）<br>・混ぜると両方より確か（ガウスの積）。線形・ガウスで最適</div>';},
+  draw(){drawTrue();if(meas)drawDots(meas,hexA(getCSS('--warm'),0.6),N,2.4);
+    if(steps)drawTrack(steps.map(s=>[s.xUpd[0],s.xUpd[1]]),getCSS('--accent'),N,2.6);
+    caption('進む・測る・直すの繰り返し＝状態推定',CH-10);}},
+];
+
+/* ガウスの積（1D 断面）を描く：予測・観測・更新 */
+function drawGaussProduct(){const y0=TYt+40,H2=150,x0=PLX+10,w=PRX-PLX-20;
+  const mp=0.40,sp=0.16, mz=0.66,sz=0.15;                 // 予測・観測
+  const sinv=1/(sp*sp)+1/(sz*sz),su=Math.sqrt(1/sinv),mu=(mp/(sp*sp)+mz/(sz*sz))/sinv;
+  const g=(x,m,s)=>Math.exp(-(x-m)*(x-m)/(2*s*s));
+  function curve(m,s,color,w2,fill){ctx.strokeStyle=color;ctx.lineWidth=w2||2;ctx.beginPath();
+    for(let i=0;i<=160;i++){const x=i/160,Y=y0+H2-H2*g(x,m,s);const X=x0+w*x;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+    if(fill){ctx.fillStyle=hexA(color,0.10);ctx.lineTo(x0+w,y0+H2);ctx.lineTo(x0,y0+H2);ctx.closePath();ctx.fill();}}
+  ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(x0,y0+H2);ctx.lineTo(x0+w,y0+H2);ctx.stroke();
+  curve(mp,sp,getCSS('--upd'),2,true);curve(mz,sz,getCSS('--warm'),2,true);curve(mu,su,getCSS('--accent'),2.6,true);
+  ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillStyle=getCSS('--upd');ctx.fillText('予測',x0+w*mp,y0-4);
+  ctx.fillStyle=getCSS('--warm');ctx.fillText('観測',x0+w*mz,y0-4);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('更新（より鋭い）',x0+w*mu,y0+H2+22);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.fillText('2つのガウスの積 → 分散はどちらより小さい',CW/2,y0+H2+44);}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper'),cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
+  const rm=meas?rmse(meas):0,md=meas?rmse(modelOnly()):0,re=steps?rmse(steps.map(t=>[t.xUpd[0],t.xUpd[1]])):0,Kf=steps?steps[N-1].K[0][0]:0;
+  const M={0:'<div>状態 <b>位置+速度</b></div><div>手がかり <b>2つ</b></div>',
+    1:'<div>センサ誤差 σr <b>'+sr.toFixed(3)+'</b></div><div>観測だけ RMSE <b>'+rm.toFixed(3)+'</b></div>',
+    2:'<div>モデル <b>等速(CV)</b></div><div>モデルだけ RMSE <b style="color:var(--neg)">'+md.toFixed(2)+'</b></div>',
+    3:'<div>状態 <b>4次元</b></div><div>不確かさ <b>P（楕円）</b></div>',
+    4:'<div>予測 <b>x⁻=Fx</b></div><div class="best">P⁻=FPFᵀ+Q（膨張）</div>',
+    5:'<div>イノベーション <b>y=z−Hx⁻</b></div><div>S=HP⁻Hᵀ+R</div>',
+    6:'<div class="best">K = P⁻Hᵀ S⁻¹</div><div>K[位置] <b>'+(steps?steps[DEMO+1].K[0][0].toFixed(2):'—')+'</b></div>',
+    7:'<div>更新 <b>x=x⁻+Ky</b></div><div class="best">P=(I−KH)P⁻（収縮）</div>',
+    8:'<div>サイクル <b>予測→観測→更新</b></div><div>局面 <b>'+['予測','観測','更新'][phase]+'</b></div>',
+    9:'<div>観測だけ <b>'+rm.toFixed(3)+'</b></div><div class="best">カルマン <b>'+re.toFixed(3)+'</b></div>',
+    10:'<div>モデルだけ <b style="color:var(--neg)">'+md.toFixed(2)+'</b></div><div class="best">カルマン <b>'+re.toFixed(3)+'</b></div>',
+    11:'<div>定常ゲイン K <b>'+Kf.toFixed(2)+'</b></div><div class="best">RMSE <b>'+re.toFixed(3)+'</b></div>',
+    12:'<div>融合 <b>GPS+IMU</b></div><div>欠落は <b>予測で補完</b></div>',
+    13:'<div>更新 <b>= ガウスの積</b></div><div class="best">分散は両方より小</div>',
+    14:'<div class="best">観測比 約3割改善</div><div>線形・ガウスで最適</div>'};
+  m.innerHTML=M[s]||'';}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain'),ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=false;}
+function draw_(){ctx.clearRect(0,0,CW,CH);if(slideIdx!==13)field();SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===0||i===1||i===2||i===9)runSweep();
+  else if(i===4)runInflate();
+  else if(i===8)runCycle();
+  else animK=N-1;
+  renderAll();draw_();}
+function runSweep(){animK=0;if(window.__prefersReducedMotion){animK=N-1;draw_();return;}
+  anim=true;let t0=null;function go(ts){if(!anim||![0,1,2,9].includes(slideIdx))return;if(t0===null)t0=ts;
+    animK=Math.min(N-1,(ts-t0)/90);draw_();if(animK<N-1)requestAnimationFrame(go);else anim=false;}requestAnimationFrame(go);}
+function runInflate(){if(window.__prefersReducedMotion){anim=false;animK=1;draw_();return;}
+  anim=true;let t0=null;function go(ts){if(!anim||slideIdx!==4)return;if(t0===null)t0=ts;animK=Math.min(1,(ts-t0)/1100);draw_();
+    if(animK<1)requestAnimationFrame(go);else{setTimeout(()=>{if(slideIdx===4&&anim){t0=null;requestAnimationFrame(go);}},900);}}requestAnimationFrame(go);}
+function runCycle(){phase=0;animK=0;if(window.__prefersReducedMotion){phase=2;animK=1;draw_();return;}
+  anim=true;let t0=null;function go(ts){if(!anim||slideIdx!==8)return;if(t0===null)t0=ts;const e=(ts-t0);
+    if(phase===0){animK=Math.min(1,e/1000);if(animK>=1){phase=1;t0=ts;renderMini();renderExplain();}}
+    else if(phase===1){if(e>1000){phase=2;t0=ts;animK=0;renderMini();renderExplain();}}
+    else{animK=Math.min(1,e/1000);if(animK>=1&&e>1600){phase=0;t0=ts;animK=0;renderMini();renderExplain();}}
+    draw_();requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=[0,1,2,4,8,9].includes(slideIdx);
+    if(anim&&heavy&&slideIdx!==8){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?5200:3800);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;sr=0.045;qa=0.010;noiseSeed=1;
+  document.getElementById('sr').value=45;document.getElementById('srVal').textContent='0.045';
+  recompute();slideIdx=0;renderAll();draw_();}
+
+/* ===== 配線 ===== */
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{noiseSeed++;recompute();renderMini();renderExplain();draw_();};
+document.getElementById('sr').oninput=e=>{sr=(+e.target.value)/1000;document.getElementById('srVal').textContent=sr.toFixed(3);recompute();renderMini();renderExplain();draw_();};
+
+recompute();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
