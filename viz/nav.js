@@ -139,6 +139,7 @@
       { href: 'dropout.html',     label: 'ドロップアウト' },
       { href: 'vanishing.html',   label: '勾配消失' },
       { href: 'batchnorm.html',   label: 'バッチ正規化' },
+      { href: 'resnet.html',      label: '残差接続' },
     ]},
     { name: '分類', items: [
       { href: 'logreg.html',      label: 'ロジスティック回帰' },
@@ -158,6 +159,8 @@
       { href: 'cnn.html',         label: 'CNN' },
       { href: 'rnn.html',         label: 'RNN' },
       { href: 'lstm.html',        label: 'LSTM' },
+      { href: 'hmm.html',         label: 'HMM' },
+      { href: 'kalman.html',      label: 'カルマン' },
       { href: 'gnn.html',         label: 'グラフNN' },
       { href: 'gnnflow.html',     label: '⚡潮流GNN(講演)' },
     ]},
@@ -190,9 +193,12 @@
       { href: 'qlearning.html',   label: 'Q学習' },
       { href: 'dqn.html',         label: 'DQN' },
       { href: 'policygrad.html',  label: '方策勾配' },
+      { href: 'mcts.html',        label: 'MCTS' },
+      { href: 'rlhf.html',        label: 'RLHF' },
     ]},
     { name: '説明AI', items: [
       { href: 'xai.html',         label: 'XAI入門' },
+      { href: 'lime.html',        label: 'LIME' },
     ]},
     { name: '3D構造', items: [
       { href: 'mlp3d.html',       label: 'MLP(3D)' },

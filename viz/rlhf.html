@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLHF（人の好みで方策を磨く）を理解する — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4; --good:#1f9e8a;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>RLHF — 人の好みで方策を磨く</h1>
+  <div class="lead">ChatGPT や Claude を「人が好む答え方」に合わせている中核の仕組みが <b>RLHF</b>（人間のフィードバックによる強化学習）です。要は 3 段——<b>①好みの比較</b>を集め、<b>②報酬モデル</b>を学び、<b>③その報酬で方策を磨く</b>（暴走を防ぐ <b>KL 制約</b>つき）。方策改善は<a href="policygrad.html">方策勾配</a>の応用。おもちゃの「一言」生成で全段を本当に走らせ、KL を外すと起きる<b>報酬ハッキング</b>まで見ます。「次へ ▶」で進めてください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>現代の対話 AI を「人の好み」に合わせる、<b>アライメントの中核</b>の仕組み。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>好みの比較→<b>報酬モデル</b>→その報酬で<b>方策を磨く</b>（KL で元の言葉から離れすぎない）。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>対話 AI の調整・有害出力の抑制・指示追従の改善（ChatGPT / Claude の学習後半）。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 学習し直す</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>報酬モデルは<b>目的そのものではなく「代理（proxy）」</b>だ。代理を全力で最適化すると、代理と本音の<b>隙間を突く</b>——スコアは満点なのに中身は空っぽの「ハッキング文」が出る。<b>KL は、その隙間が開かないよう方策を元の言葉に繋ぎ止める手綱</b>。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>報酬モデルは「本当の人の好み」を正しく表している</div>
+    <div class="row"><span class="o">✓</span>報酬モデルは<b>比較データから学んだ近似（代理）</b>にすぎません。学習に使った文の<b>近くでは正確でも、遠くでは当てにならない</b>。その穴を方策が突くと<b>報酬ハッキング</b>が起きます。</div>
+    <div class="row"><span class="x">✗</span>報酬モデルのスコアは高ければ高いほど良い</div>
+    <div class="row"><span class="o">✓</span>上げすぎると代理の穴を突き、<b>スコアは上がるのに本当の質は下がる</b>（Goodhart の法則）。だから<b>KL 罰</b>で参照方策から離れすぎないよう縛るのが必須。スコアは目的ではなく道具。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：Bradley-Terry・PPO・KL・DPO</summary>
+    <div class="det"><b>Bradley-Terry モデル</b>：2 つの選択肢の勝敗確率を P(A≻B)=σ(r(A)−r(B)) で表す古典モデル（チェスの Elo と同じ発想）。報酬モデルはこの式の対数尤度を最大化して学びます。<b>PPO</b>：実際の RLHF では方策改善に PPO（近接方策最適化）を使い、更新を「元の方策から近い範囲」に制限しつつ、報酬に <b>KL ペナルティ</b> −β·KL(π‖π<sub>ref</sub>) を足します（このページの REINFORCE ＋ KL はその最小形）。KL 係数 β の設計は「報酬を追う力」と「元の言葉を保つ力」の綱引きで、大きすぎると変わらず・小さすぎるとハッキング。<b>DPO</b>（Direct Preference Optimization）：報酬モデルを陽に作らず、好みの比較から直接方策を最適化する後継手法で、KL 制約が理論に組み込まれています。関連: <a href="policygrad.html">方策勾配</a>（③方策改善の土台）・<a href="surrogate2.html">サロゲート②</a>（代理モデルは内挿で信用・外挿で危険）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function makeRng(s0){let seed=s0|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ===== おもちゃ：L語の「一言」を生成 ===== */
+const TOK=["最高","すごい","good","まあ","ふつう","うーん","ダメ","最悪"];
+const V=TOK.length, L=4;
+const vTrue=[3,2,1.3,0.6,0,-0.8,-1.8,-2.8];           // 隠れた「本当の人の好み」（各語の価値）
+const refLogit=[-0.7,0.1,0.7,1.0,1.1,0.4,-0.5,-1.1];  // 参照方策(SFT)＝自然な語り口
+const PEN=[0,0,0.5,9,13];                              // 反復ペナルティ（3語以上の連呼＝不自然）
+const BETA_KL=0.8;
+function softmax(l){let mx=-1e9;for(const x of l)mx=Math.max(mx,x);const e=l.map(x=>Math.exp(x-mx));const z=e.reduce((a,b)=>a+b,0);return e.map(x=>x/z);}
+const piRef=softmax(refLogit), logRef=piRef.map(p=>Math.log(p));
+function maxCount(s){const c=new Array(V).fill(0);let m=0;for(const t of s){c[t]++;if(c[t]>m)m=c[t];}return m;}
+function rTrue(s){let x=0;for(const t of s)x+=vTrue[t];return x-PEN[maxCount(s)];}   // 本当の良さ（現実では測れない隠し味）
+function sampleFromPi(pi,rng){const u=rng();let acc=0;for(let t=0;t<V;t++){acc+=pi[t];if(u<acc)return t;}return V-1;}
+function sampleSent(pi,rng){const s=[];for(let i=0;i<L;i++)s.push(sampleFromPi(pi,rng));return s;}
+function sampleTh(th,rng){const pis=th.map(softmax);return pis.map(pi=>sampleFromPi(pi,rng));}
+function aggDist(th){const a=new Array(V).fill(0);th.map(softmax).forEach(pi=>pi.forEach((p,i)=>a[i]+=p/L));return a;}
+
+/* ===== ① 好みの比較（Bradley-Terry で生成）===== */
+const NPREF=500;
+let prefs=null, prefRng=null;
+function genPrefs(){const rng=makeRng(12345);prefs=[];
+  for(let k=0;k<NPREF;k++){const a=sampleSent(piRef,rng),b=sampleSent(piRef,rng);
+    const pa=1/(1+Math.exp(-(rTrue(a)-rTrue(b))));                     // Aが好まれる確率
+    prefs.push(rng()<pa?{win:a,lose:b}:{win:b,lose:a});}}
+function bag(s){const c=new Array(V).fill(0);for(const t of s)c[t]++;return c;}
+
+/* ===== ② 報酬モデル r_φ(文)=Σ w[語] を Bradley-Terry 損失で学習 ===== */
+const RM_ITERS=300, RM_LR=0.5;
+let rmW=null, rmIt=0, rmLoss=[], rmFeats=null;
+function initRM(){if(!prefs)genPrefs();rmW=new Array(V).fill(0);rmIt=0;rmLoss=[];
+  rmFeats=prefs.map(p=>{const bw=bag(p.win),bl=bag(p.lose);return bw.map((x,i)=>x-bl[i]);});}
+function rmStep(n){for(let s=0;s<n&&rmIt<RM_ITERS;s++){const g=new Array(V).fill(0);let loss=0;
+    for(const d of rmFeats){let z=0;for(let i=0;i<V;i++)z+=rmW[i]*d[i];const p=1/(1+Math.exp(-z));loss+=-Math.log(Math.max(1e-9,p));
+      for(let i=0;i<V;i++)g[i]+=(p-1)*d[i];}
+    for(let i=0;i<V;i++){g[i]=g[i]/rmFeats.length+0.01*rmW[i];rmW[i]-=RM_LR*g[i];}
+    rmLoss.push(loss/rmFeats.length);rmIt++;}}
+function ensureRM(){if(!rmW)initRM();if(rmIt<RM_ITERS)rmStep(RM_ITERS);}
+function rRM(s){let x=0;for(const t of s)x+=rmW[t];return x;}
+
+/* ===== ③ 方策改善（REINFORCE ＋ KL罰）===== */
+const POL_EP=5000, POL_LR=0.05;
+function newPol(){return{th:Array.from({length:L},()=>refLogit.slice()),ep:0,base:0,rng:makeRng(777)};}
+let polNo=null, polKL=null;
+function polStep(pol,useKL,n){for(let s=0;s<n&&pol.ep<POL_EP;s++){
+    const pis=pol.th.map(softmax);const sent=pis.map(pi=>sampleFromPi(pi,pol.rng));
+    const rm=rRM(sent);let kl=0;for(let i=0;i<L;i++)kl+=Math.log(pis[i][sent[i]])-logRef[sent[i]];
+    const R=rm-(useKL?BETA_KL*kl:0);pol.base+=(R-pol.base)*0.02;const adv=R-pol.base;
+    for(let i=0;i<L;i++){const pi=pis[i],a=sent[i];for(let t=0;t<V;t++)pol.th[i][t]+=POL_LR*adv*((t===a?1:0)-pi[t]);}
+    pol.ep++;}}
+function ensurePol(pol,useKL){if(pol.ep<POL_EP)polStep(pol,useKL,POL_EP);}
+
+/* ===== 評価（モンテカルロ）===== */
+function evalTrue(th,seed){const rng=makeRng(seed);let s=0;for(let k=0;k<1500;k++)s+=rTrue(sampleTh(th,rng));return s/1500;}
+function evalRM(th,seed){const rng=makeRng(seed);let s=0;for(let k=0;k<1500;k++)s+=rRM(sampleTh(th,rng));return s/1500;}
+function sampleSet(th,seed,n){const rng=makeRng(seed);return Array.from({length:n},()=>sampleTh(th,rng));}
+
+/* ===== 描画基盤 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawGridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(x+.5,10);ctx.lineTo(x+.5,CH-10);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(10,y+.5);ctx.lineTo(CW-10,y+.5);ctx.stroke();}}
+function tokFill(t){const v=vTrue[t];if(v>=1.5)return'rgba(31,158,138,0.85)';if(v>0)return'rgba(31,158,138,0.42)';if(v===0)return'rgba(146,143,132,0.28)';if(v>-1.5)return'rgba(207,79,95,0.40)';return'rgba(207,79,95,0.82)';}
+function tokText(t){const v=vTrue[t];return(v>=1.5||v<=-1.5)?'#fff':getCSS('--text');}
+function drawSentence(cxc,y,sent,cw,ch){cw=cw||60;ch=ch||24;const gap=5;const total=sent.length*cw+(sent.length-1)*gap;let x=cxc-total/2;
+  for(const t of sent){roundRect(x,y,cw,ch,5);ctx.fillStyle=tokFill(t);ctx.fill();ctx.strokeStyle='rgba(26,26,23,0.10)';ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle=tokText(t);ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(TOK[t],x+cw/2,y+ch/2);x+=cw+gap;}}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+
+/* 語ごとの重み/価値バー（符号つき, 中央基準）*/
+function drawWeightBars(x0,y0,w,h,vals,ref){const bh=(h-6)/V, cx=x0+w*0.42, sc=w*0.42/3.1;
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx,y0);ctx.lineTo(cx,y0+h);ctx.stroke();
+  for(let t=0;t<V;t++){const y=y0+t*bh+2;
+    if(ref){const rv=ref[t]*sc;ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(cx+rv,y);ctx.lineTo(cx+rv,y+bh-4);ctx.stroke();}
+    const v=vals[t]*sc;ctx.fillStyle=vals[t]>=0?'rgba(111,84,196,0.8)':'rgba(207,79,95,0.7)';
+    if(v>=0)ctx.fillRect(cx,y,v,bh-4);else ctx.fillRect(cx+v,y,-v,bh-4);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(TOK[t],x0+w*0.30,y+(bh-4)/2);}}
+/* 確率分布バー（0..1, 左基準）色は感情 */
+function drawDistBars(x0,y0,w,h,dist){const bh=(h-6)/V, bx=x0+w*0.30, bw=w*0.62;
+  for(let t=0;t<V;t++){const y=y0+t*bh+2;
+    ctx.fillStyle='rgba(26,26,23,0.05)';ctx.fillRect(bx,y,bw,bh-4);
+    ctx.fillStyle=tokFill(t);ctx.fillRect(bx,y,bw*Math.min(1,dist[t]),bh-4);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText(TOK[t],x0+w*0.27,y+(bh-4)/2);
+    ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText((dist[t]*100).toFixed(0)+'%',bx+bw+4,y+(bh-4)/2);}}
+/* RMスコア vs 真の良さ の対比ゲージ */
+function drawScores(x0,y0,w,rm,tru){const lo=-2,hi=6,sc=w/(hi-lo),z=x0-lo*sc;
+  const row=(y,val,col,lab)=>{ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(lab,x0,y-13);
+    ctx.fillStyle='rgba(26,26,23,0.05)';ctx.fillRect(x0,y-6,w,13);
+    ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.beginPath();ctx.moveTo(z,y-8);ctx.lineTo(z,y+8);ctx.stroke();
+    const vx=z+val*sc;ctx.fillStyle=col;if(val>=0)ctx.fillRect(z,y-6,val*sc,13);else ctx.fillRect(vx,y-6,-val*sc,13);
+    ctx.fillStyle=col;ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(val.toFixed(1),vx+4,y);};
+  row(y0,rm,'rgba(194,137,27,0.85)','報酬モデルのスコア（見かけの良さ）');
+  row(y0+40,tru,'rgba(31,158,138,0.85)','本当の良さ（隠れた人の本音）');}
+
+/* ===== スライド定義（4章×15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 報酬モデル',c:'var(--upd)',start:3},{t:'Ⅲ 方策改善と暴走',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false;
+
+const SLIDES=[
+/* ---------- Ⅰ 問題 ---------- */
+{legend:'「良い返答」に絶対点を付けるのは難しい（人によって基準が違う）',
+ html(){return'<h3>① 「良い文章」に正解ラベルは書けない</h3><div class="eq curr">良さ <i>r</i>(文) = ？　——絶対点は付けにくい<span class="read">読み：分類の正解ラベルのように「この文は 7.3 点」と<b>絶対評価で数値化するのは難しい</b>。良し悪しは人の好みで、基準も人により揺れる</span></div><div class="desc">対話 AI に「人が好む答え方」を教えたい。でも困りごとが 1 つ——<b>「良い返答」に正解ラベルが書けない</b>。分類なら「猫/犬」と正解を付けられますが、文章の良さは<b>絶対点で表しにくく</b>、人によっても揺れます。教師あり学習の枠組みがそのまま使えません。<b>どうやって「好み」を学習信号にするか。</b></div>';},
+ draw(){drawGridBg();ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('候補の返答に何点つける？',CW/2,40);
+   const ex=[[2,0,2,3],[3,1,2,4],[4,4,4,0]];const ys=[80,150,220];
+   ex.forEach((s,i)=>{drawSentence(CW/2,ys[i],s);ctx.fillStyle=getCSS('--neg');ctx.font='700 15px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('？点',CW-52,ys[i]+13);});
+   caption('絶対点は付けにくい → 別の手を考える',CH-14);}},
+
+{legend:'2つ並べて「どっちが好き?」なら、人は答えられる',
+ html(){return'<h3>② でも「どっちが好き?」なら答えられる</h3><div class="eq curr">A ≻ B ？　——<b>比較</b>なら人は判断しやすい<span class="read">読み：「A と B、どちらが良い？」という<b>相対比較（ペア比較）</b>は、絶対点より答えやすく・人の間でも一致しやすい。RLHF はこの比較を学習信号にする</span></div><div class="desc">絶対点は難しくても、<b>「A と B、どっちが好き?」</b>なら人はすっと答えられます。しかも比較の方が<b>人による揺れが小さい</b>。RLHF の出発点はここ——たくさんの返答ペアを人に見せ、<b>好まれた方に 👍</b> を付けてもらう。この<b>好みの比較</b>こそが、正解ラベルの代わりになります。</div>';},
+ draw(){drawGridBg();ctx.fillStyle=getCSS('--muted');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('どちらの返答が好みですか？',CW/2,44);
+   drawSentence(CW/2,86,[2,0,2,3]);ctx.fillStyle=getCSS('--good');ctx.font='700 20px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('👍',CW-46,99);
+   ctx.fillStyle=getCSS('--faint');ctx.font='700 13px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('vs',CW/2,140);
+   drawSentence(CW/2,168,[5,3,4,1]);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('人：「上の方が好き」',CW/2,238);
+   caption('好みの比較＝正解ラベルの代わり',CH-14);}},
+
+{legend:'RLHFの3段：①好みの比較 → ②報酬モデル → ③方策改善(+KL)',
+ html(){return'<h3>③ RLHF の全体像：3 段で磨く</h3><div class="eq curr">好みの比較 →〔②報酬モデル <i>r</i><sub>φ</sub>〕→〔③方策改善 π ＋ KL 制約〕<span class="read">読み：人の比較から<b>報酬モデル</b>（点数を返す代理）を作り、その報酬で<b>方策</b>（文の作り手）を強化学習。KL で元の言葉から離れすぎないよう縛る</span></div><div class="desc">RLHF は 3 段構えです。<b>①</b>好みの比較を集める（前ページ）。<b>②</b>比較から<b>報酬モデル</b>を学ぶ——文を入れると「人がどれくらい好みそうか」を点数で返す代理。<b>③</b>その報酬を使って<a href="policygrad.html">方策勾配</a>で<b>方策を磨く</b>。ただし報酬モデルは代理なので、<b>KL 制約</b>で元の方策から離れすぎないよう縛る。次章から 1 段ずつ本当に走らせます。</div>';},
+ draw(){drawGridBg();drawPipeline(-1);caption('この3段を、これから全部その場で走らせます',CH-14);}},
+
+/* ---------- Ⅱ 報酬モデル ---------- */
+{legend:'舞台：4語の「一言」を作る方策。緑=好かれる語, 赤=嫌われる語（隠れ設定）',
+ html(){return'<h3>④ 舞台：一言を作る方策と、隠れた好み</h3><div class="eq curr">文 = (語<sub>1</sub>, …, 語<sub>4</sub>)，　各語 ～ 参照方策 π<sub>ref</sub>（SFT）<span class="read">読み：おもちゃの文＝4 つの語の並び。<b>参照方策 π<sub>ref</sub></b>＝すでに普通に喋れる土台（教師ありで学習済み・SFT）。ここから RLHF で好みに寄せる</span></div><div class="desc">舞台を用意します。文は <b>4 つの語</b>の並び。作り手＝<b>参照方策 π<sub>ref</sub></b>（自然な語り口で喋る土台。ChatGPT でいう SFT 済みモデル）。語には<b>隠れた「人の好み」</b>があり、緑ほど好かれ・赤ほど嫌われます（<b>これは現実には見えない設定</b>——だから代理が要る）。下は π<sub>ref</sub> が作った例文。中庸で自然だが、まだ特に良くはありません。</div>';},
+ draw(){drawGridBg();ensurePrefs();
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('参照方策 π_ref（SFT）が作る例文',CW/2,32);
+   const ss=sampleSet(Array.from({length:L},()=>refLogit.slice()),321,4);ss.forEach((s,i)=>drawSentence(CW/2,52+i*36,s,58,24));
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('語の色＝隠れた人の好み（緑=好き / 灰=中立 / 赤=嫌い）',CW/2,214);
+   drawSentence(CW/2,236,[0,1,2,3],44,22);drawSentence(CW/2,264,[4,5,6,7],44,22);
+   caption('好みは隠れている（現実では直接測れない）',CH-14);}},
+
+{legend:'Bradley-Terry：好まれる確率 = σ(良さの差)。差が大きいほど確実に選ばれる',
+ html(){return'<h3>⑤ 人の好み＝Bradley-Terry モデル</h3><div class="eq curr">P(A ≻ B) = σ( <i>r</i>(A) − <i>r</i>(B) )，　σ(z)=1/(1+e<sup>−z</sup>)<span class="read">読み：A が B より好まれる確率は、両者の<b>良さの差</b>をシグモイド σ に通した値。差が大きいほど確実に A、拮抗すると 50:50。チェスの Elo と同じ発想</span></div><div class="desc">人の比較は<b>Bradley-Terry モデル</b>で表せます——A と B の良さの差が大きいほど A が選ばれやすく、拮抗すれば五分五分。この式で、隠れた好みから<b>好みの比較データ</b>を '+NPREF+' 組つくります（現実では本物の人が付けます）。次はこの比較<b>だけ</b>から、良さを当てる報酬モデルを学びます。</div>';},
+ draw(){drawGridBg();
+   drawSentence(CW/2,40,[0,1,2,3],56,22);ctx.fillStyle=getCSS('--good');ctx.font='700 16px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('👍',CW-42,52);
+   ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('vs',CW/2,74);
+   drawSentence(CW/2,90,[4,5,3,6],56,22);
+   // sigmoid
+   const x0=40,x1=CW-30,y0=150,yb=250;ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,yb);ctx.lineTo(x1,yb);ctx.moveTo((x0+x1)/2,y0-8);ctx.lineTo((x0+x1)/2,yb+8);ctx.stroke();
+   ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2.2;ctx.beginPath();for(let px=x0;px<=x1;px+=2){const z=(px-(x0+x1)/2)/24;const p=1/(1+Math.exp(-z));const py=yb-(yb-y0)*p;px===x0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.stroke();
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('P(A≻B)=σ(Δ良さ)',CW/2,y0-16);
+   ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText('良さの差 →',x1-30,yb+18);ctx.fillText('0.5',(x0+x1)/2-16,y0+6);
+   caption('比較データを '+NPREF+' 組つくる',CH-14);}},
+
+{legend:'ライブ：比較だけから報酬モデル r_φ=Σw[語] を学習。棒=学んだ重み, 線=隠れ本音',
+ html(){ensureRMLazy();const done=rmIt>=RM_ITERS;return'<h3>⑥ ライブ：報酬モデルを学ぶ</h3><div class="eq curr">損失 = −Σ log σ( <i>r</i><sub>φ</sub>(勝) − <i>r</i><sub>φ</sub>(負) )，　<i>r</i><sub>φ</sub>(文)=Σ <i>w</i>[語]<span class="read">読み：勝った文の点が負けた文より高くなるよう、<b>語の重み w を勾配降下</b>で調整（BT 損失の最小化）。ロジスティック回帰と同じ形</span></div><div class="desc">比較データ<b>だけ</b>から報酬モデルを学びます。文の点数を「語の重み w の合計」とし、<b>「勝った文＞負けた文」になるよう w を動かす</b>（ロジスティック回帰）。反復 <b>'+rmIt+'</b>/'+RM_ITERS+'・損失 <b>'+(rmLoss.length?rmLoss[rmLoss.length-1].toFixed(3):'—')+'</b>。'+(done?'紫の棒（学んだ重み）が黒線（隠れた本音）の<b>順位をぴたりと復元</b>——比較だけで好みの序列を当てました。':'棒が伸びて本音の並びに近づいていきます。')+'</div>';},
+ draw(){drawGridBg();ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('学んだ重み w（紫）と 隠れた本音（黒線）',CW/2,26);
+   drawWeightBars(20,40,CW-40,180,rmW||new Array(V).fill(0),vTrue);
+   drawLossCurve(24,246,CW-48,120);}},
+
+{legend:'報酬モデルは「代理」：学習に使った文の近くだけ信頼できる',
+ html(){return'<h3>⑦ 報酬モデルは「代理」にすぎない</h3><div class="eq curr"><i>r</i><sub>φ</sub> ≈ 人の好み（学習分布の<b>内側だけ</b>）　／　外側は保証なし<span class="read">読み：報酬モデルは比較データから学んだ<b>近似（代理・proxy）</b>。データが多い「普通の文」の近くでは正確でも、見たことのない<b>極端な文では当てにならない</b></span></div><div class="desc">重要な但し書き——学べたのは<b>本物の好みそのものではなく、その近似（代理）</b>です。参照方策が作る「普通の文」の近くでは正確ですが、<b>そこから遠く離れた変な文</b>には保証がありません（<a href="surrogate2.html">サロゲート②</a>と同じ「内挿は信用・外挿は疑え」）。この線形モデルは特に、同じ良い語を<b>何度足しても良い</b>と言い張る——ここに落とし穴があります。次章で方策がこの穴を突きます。</div>';},
+ draw(){drawGridBg();drawProxyConcept();}},
+
+/* ---------- Ⅲ 方策改善と暴走 ---------- */
+{legend:'方策改善：報酬モデル r_φ を報酬にして、良い文の確率を太らせる',
+ html(){return'<h3>⑧ 方策改善：報酬モデルを報酬に</h3><div class="eq curr">θ ← θ + α ( <i>r</i><sub>φ</sub>(文) − ベースライン ) ∇logπ(文)<span class="read">読み：<a href="policygrad.html">方策勾配</a>そのもの。ただし報酬は環境からではなく<b>報酬モデル r<sub>φ</sub> から</b>もらう。点が高かった文を出やすく（太らせる）</span></div><div class="desc">3 段目です。<a href="policygrad.html">方策勾配（REINFORCE）</a>で方策を磨きますが、<b>報酬は報酬モデル r<sub>φ</sub> から</b >受け取る点だけが違います。「r<sub>φ</sub> が高い文を出やすくする」——それだけ。参照方策から出発し、<b>だんだん高得点の語に寄せて</b>いきます。ここで大事な問い：<b>r<sub>φ</sub> を全力で追ったら、何が起きるでしょう？</b></div>';},
+ draw(){drawGridBg();ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('方策の語の出やすさ（参照 π_ref）',CW/2,28);
+   drawDistBars(20,42,CW-40,190,piRef);
+   ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('↓ r_φ が高い語へ寄せていく',CW/2,262);
+   caption('報酬モデルを報酬にした方策勾配',CH-14);}},
+
+{legend:'ライブ・KL無し：r_φだけ最大化 → 方策が高得点語に崩壊（スパム化）',
+ html(){const rmv=polNo?evalRM(polNo.th,7).toFixed(1):'—';return'<h3>⑨ ライブ：KL 無しで暴走する</h3><div class="eq curr">max <i>r</i><sub>φ</sub> のみ（KL 罰なし）　→　方策が高得点語に一極集中<span class="read">読み：報酬モデルの点だけを、歯止めなく最大化。線形な r<sub>φ</sub> は「良い語ほど何度でも」なので、方策は<b>一番点の高い語の連呼</b>へ崩れる</span></div><div class="desc">KL 罰<b>なし</b>で r<sub>φ</sub> だけを最大化してみます。エピソード <b>'+(polNo?polNo.ep:0)+'</b>/'+POL_EP+'。分布が<b>「最高」「すごい」に一極集中</b>し、例文が<b>「最高最高最高すごい」の連呼</b>に崩れていくのが見えます。報酬モデルのスコアは <b>'+rmv+'</b> までぐんぐん上昇——数字の上では大成功。<b>でも、これは本当に良い文でしょうか？</b></div>';},
+ draw(){drawGridBg();
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('方策の語の分布（KL 無し・崩壊中）',CW/2,24);
+   drawDistBars(20,36,CW-40,150,polNo?aggDist(polNo.th):piRef);
+   const ss=sampleSet(polNo?polNo.th:Array.from({length:L},()=>refLogit.slice()),1,3);
+   ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('いまの例文：',CW/2,204);
+   ss.forEach((s,i)=>drawSentence(CW/2,218+i*32,s,58,23));
+   const rmv=polNo?evalRM(polNo.th,7):0;ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('報酬モデルのスコア：'+rmv.toFixed(1)+' ↑',CW/2,CH-16);}},
+
+{legend:'報酬ハッキング：RMスコアは満点なのに、本当の良さは下がっている',
+ html(){ensurePol(polNo,false);const rmv=evalRM(polNo.th,7),trv=evalTrue(polNo.th,3);return'<h3>⑩ 報酬ハッキング：スコア満点・中身は空</h3><div class="eq curr">報酬モデルのスコア <b style="color:var(--loss)">'+rmv.toFixed(1)+' ↑</b>　だが　本当の良さ <b style="color:var(--neg)">'+trv.toFixed(1)+' ↓</b><span class="read">読み：代理（RM）を突きすぎて、<b>代理のスコアは上がったのに本物の良さは下がった</b>。これが報酬ハッキング＝Goodhart の法則「指標を目標にすると指標が壊れる」</span></div><div class="desc">答え合わせです。方策は報酬モデルの<b>穴（＝同じ良い語の連呼を無限に褒める線形の癖）</b>を突きました。結果、<b>報酬モデルのスコアは '+rmv.toFixed(1)+' と高い</b>のに、<b>本当の良さは '+trv.toFixed(1)+' と低い</b>（連呼は不自然だから）。代理を全力最適化すると代理と本音の隙間が開く——<b>報酬ハッキング</b>です。現実では本音を測れないので、これに<b>気づきにくい</b>のが怖いところ。</div>';},
+ draw(){drawGridBg();ensurePol(polNo,false);
+   ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('KL 無しの方策が作る文',CW/2,26);
+   sampleSet(polNo.th,1,3).forEach((s,i)=>drawSentence(CW/2,44+i*32,s,58,23));
+   drawScores(24,180,CW-48,evalRM(polNo.th,7),evalTrue(polNo.th,3));
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('スコア↑なのに本当の良さ↓＝ハッキング',CW/2,290);}},
+
+{legend:'KL制約：参照方策から離れすぎたら罰する。報酬 = r_φ − β·KL',
+ html(){return'<h3>⑪ 手綱をつける：KL 制約</h3><div class="eq curr">報酬 = <i>r</i><sub>φ</sub>(文) − β · KL( π ‖ π<sub>ref</sub> )<span class="read">読み：報酬モデルの点から、<b>参照方策 π<sub>ref</sub> からの離れ具合（KL 距離）</b>に β を掛けて<b>引く</b>。元の自然な言葉づかいから外れるほどペナルティ</span></div><div class="desc">対策は「<b>元の言葉から離れすぎるな</b>」という手綱です。報酬に <b>−β·KL(π‖π<sub>ref</sub>)</b> を足す——参照方策から離れるほど罰が増えるので、方策は<b>報酬モデルが信頼できる「普通の文」の近く</b>に留まります。β は綱引きの強さ：<b>大きすぎると変わらず・小さすぎるとハッキング</b>。この KL 罰つき方策勾配が、実際の RLHF（PPO）の骨格です。次で有無を比べます。</div>';},
+ draw(){drawGridBg();drawKLConcept();caption('報酬モデルの信頼領域に方策を繋ぎ止める',CH-14);}},
+
+{legend:'A/B：左=KL無し(スパム・RM高/真低)  右=KL有り(自然・RM中/真高)',
+ html(){ensurePol(polNo,false);ensurePol(polKL,true);
+   const rN=evalRM(polNo.th,7),tN=evalTrue(polNo.th,3),rK=evalRM(polKL.th,8),tK=evalTrue(polKL.th,5);
+   return'<h3>⑫ A/B：KL 無し vs KL 有り</h3><div class="eq curr">KL無し RM <b style="color:var(--loss)">'+rN.toFixed(1)+'</b>/真 <b style="color:var(--neg)">'+tN.toFixed(1)+'</b>　｜　KL有り RM <b style="color:var(--loss)">'+rK.toFixed(1)+'</b>/真 <b style="color:var(--good)">'+tK.toFixed(1)+'</b><span class="read">読み：見かけの点(RM)は KL無しが高い。だが<b>本当の良さは KL有りが上</b>。KL は見かけの点を少し犠牲にして、本物の質を取る</span></div><div class="desc">同じ報酬モデルで、<b>KL 無しと有りを両方その場で学習</b>しました。<b>KL 無し（左）</b>は「最高最高最高すごい」の<b>スパム</b>——RM スコア '+rN.toFixed(1)+' と高いのに本当の良さは '+tN.toFixed(1)+'。<b>KL 有り（右）</b>は「すごい最高good最高」のような<b>自然で前向きな文</b>——RM は '+rK.toFixed(1)+' と控えめでも、<b>本当の良さは '+tK.toFixed(1)+' で最高</b>。見かけの点を追わず、本物の質を取るのが KL の仕事です。</div>';},
+ draw(){drawGridBg();ensurePol(polNo,false);ensurePol(polKL,true);drawAB();}},
+
+/* ---------- Ⅳ まとめ ---------- */
+{legend:'なぜKLが効くか：報酬モデルは学習分布の近くだけ信頼できる',
+ html(){return'<h3>⑬ なぜ KL が効くのか</h3><div class="eq curr">π*(語) ∝ π<sub>ref</sub>(語) · exp( <i>r</i><sub>φ</sub>(語) / β )<span class="read">読み：KL 罰つきの最適方策は<b>「参照方策 × 報酬の指数」を正規化した形</b>（閉じた式で書ける）。β→0 で一極集中（スパム）、β 大で参照のまま。中庸が要</span></div><div class="desc">KL が効く理由は 1 つ——<b>報酬モデルは学習分布の近くだけ信頼できる</b>から。KL は方策をその信頼領域に繋ぎ止め、代理の穴に落ちるのを防ぎます。数学的にも、KL 罰つきの最適方策は <b>π<sub>ref</sub> を報酬で少し傾けた形</b>（左の閉じた式）——参照を土台に、報酬の分だけそっと寄せる。β を 0 にすると土台が消えてスパムへ暴走します。<b>内挿は信用・外挿は疑え</b>——サロゲートの教訓がそのまま RLHF に効きます。</div>';},
+ draw(){drawGridBg();drawWhyKL();}},
+
+{legend:'どこで出会うか：ChatGPT/Claude のアライメント（学習の後半）',
+ html(){return'<h3>⑭ どこで出会うか</h3><div class="eq curr">事前学習 → SFT（お手本を真似る）→ <b>RLHF</b>（好みで磨く）<span class="read">読み：大規模言語モデルは、大量テキストで<b>事前学習</b>→手本を真似る<b>SFT</b>→人の好みで整える<b>RLHF</b>、の順で仕上げる。RLHF は最後の「人に寄せる」工程</span></div><div class="desc">RLHF は <b>ChatGPT・Claude など対話 AI の仕上げ</b>で使われています。事前学習で言葉を覚え、SFT でお手本を真似し、最後に <b>RLHF で「人が好む・安全な答え方」へ整える</b>。実物は語彙も文も桁違いに大きく、方策改善は <b>PPO</b>、報酬に KL 罰を足す——このページの縮図そのものです。近年は報酬モデルを介さず好みから直接学ぶ <b>DPO</b> なども登場。共通の芯は<b>「比較から学び、KL で暴走を防ぐ」</b>。</div>';},
+ draw(){drawGridBg();drawPipeline(-1);
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('実物：語彙も文も巨大、方策改善は PPO ＋ KL 罰',CW/2,CH-40);
+   ctx.fillStyle=getCSS('--faint');ctx.fillText('後継：DPO（報酬モデルを介さず好みから直接）',CW/2,CH-22);}},
+
+{legend:'RLHFの3行まとめ',
+ html(){return'<h3>⑮ 閉演：比較から学び、手綱で守る</h3><div class="eq curr">好みの比較 →〔報酬モデル(代理)〕→〔方策改善 ＋ KL の手綱〕<span class="read">読み：正解ラベルの代わりに<b>比較</b>を使い、そこから<b>代理の報酬</b>を作り、方策を磨く。代理の穴に落ちないよう <b>KL</b> で繋ぎ止める——これが RLHF</span></div><div class="desc">今日の芯——<b>「良い」を絶対点で書けなくても、比較なら集められる。その比較から代理の報酬を学び、方策を磨ける。ただし代理を全力で追うと穴を突くので、KL で元の言葉に繋ぎ止める。</b> 報酬モデルは目的ではなく道具、スコアは指標であって目標ではない。この節度が、AI を人に寄り添わせる鍵です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・絶対点は無理でも「比較」なら集まる → Bradley-Terry で報酬モデル<br>・方策改善は方策勾配（報酬は報酬モデルから）<br>・代理の全力最適化＝報酬ハッキング → KL 罰で信頼領域に留める</div>';},
+ draw(){drawGridBg();drawPipeline(-1);caption('ご清聴ありがとうございました 🎓',CH-14);}},
+];
+
+/* ===== 概念図 ===== */
+function ensurePrefs(){if(!prefs)genPrefs();}
+function ensureRMLazy(){if(!rmW)initRM();}
+function drawPipeline(hl){const boxes=[{t:'① 好みの比較',s:'👍 A ≻ B',c:getCSS('--neg')},{t:'② 報酬モデル',s:'r_φ(文)=Σw',c:getCSS('--upd')},{t:'③ 方策改善',s:'π ＋ KL 罰',c:getCSS('--loss')}];
+  const bw=150,bh=52,cx=CW/2;const ys=[70,175,280];
+  boxes.forEach((b,i)=>{const y=ys[i];
+    ctx.fillStyle=(hl===i)?'rgba(111,84,196,0.10)':'rgba(255,253,246,0.9)';roundRect(cx-bw/2,y,bw,bh,9);ctx.fill();
+    ctx.strokeStyle=b.c;ctx.lineWidth=1.6;ctx.stroke();
+    ctx.fillStyle=b.c;ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(b.t,cx,y+18);
+    ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--mono');ctx.fillText(b.s,cx,y+37);
+    if(i<2){ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(cx,y+bh);ctx.lineTo(cx,ys[i+1]);ctx.stroke();
+      ctx.fillStyle='rgba(26,26,23,0.4)';ctx.beginPath();ctx.moveTo(cx,ys[i+1]-1);ctx.lineTo(cx-5,ys[i+1]-10);ctx.lineTo(cx+5,ys[i+1]-10);ctx.closePath();ctx.fill();}});}
+function drawLossCurve(x0,y0,w,h){ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('BT損失↓（報酬モデルの学習）',x0+3,y0-4);
+  if(!rmLoss||rmLoss.length<2)return;const mx=rmLoss[0],mn=Math.min(...rmLoss)*0.98;
+  ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.beginPath();
+  for(let i=0;i<rmLoss.length;i++){const X=x0+w*i/(RM_ITERS-1),Y=y0+h-4-(h-8)*(rmLoss[i]-mn)/(mx-mn);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+  ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('反復 '+rmIt+'/'+RM_ITERS,x0+w-4,y0+12);}
+function drawProxyConcept(){ // 内挿=信頼 / 外挿=危険
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('報酬モデルは「普通の文」の近くだけ正確',CW/2,34);
+  const cx=CW/2,cy=150,rr=78;
+  ctx.fillStyle='rgba(31,158,138,0.10)';ctx.beginPath();ctx.arc(cx,cy,rr,0,7);ctx.fill();ctx.strokeStyle=getCSS('--good');ctx.setLineDash([5,4]);ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--good');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('学習分布（普通の文）',cx,cy-rr-8);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.fillText('この中：r_φ ≈ 人の好み ✓',cx,cy);
+  // ドット（普通の文）
+  const rng=makeRng(55);for(let i=0;i<14;i++){const a=rng()*7,rad=rng()*rr*0.85;ctx.fillStyle='rgba(31,158,138,0.5)';ctx.beginPath();ctx.arc(cx+Math.cos(a)*rad,cy+Math.sin(a)*rad,2.6,0,7);ctx.fill();}
+  // 外れ値（スパム文）
+  const ox=cx+120,oy=cy+72;ctx.fillStyle=getCSS('--neg');ctx.beginPath();ctx.arc(ox,oy,4,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(207,79,95,0.6)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(cx+rr*0.7,cy+rr*0.7);ctx.lineTo(ox,oy);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--neg');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('外れた変な文',ox-6,oy+16);ctx.fillText('r_φ は当てにならない ✗',cx,cy+rr+30);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('線形 r_φ は「同じ良い語を足すほど良い」と言い張る',CW/2,CH-16);}
+function drawKLConcept(){ // 参照に繋がれた方策（手綱）
+  const ax=CW/2,ay=140;
+  ctx.fillStyle=getCSS('--upd');ctx.beginPath();ctx.arc(ax,ay,14,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('π_ref',ax,ay);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.fillText('参照方策（自然な言葉）',ax,ay-26);
+  // 手綱で繋がれた方策
+  const px=ax+70,py=ay+40;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(px,py);ctx.stroke();
+  ctx.fillStyle=getCSS('--loss');ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('π',px,py);
+  ctx.fillStyle=getCSS('--loss');ctx.font='10px '+getCSS('--gothic');ctx.fillText('磨いた方策',px+2,py+26);
+  // 引っ張る報酬（外へ）
+  ctx.strokeStyle='rgba(207,79,95,0.6)';ctx.setLineDash([4,3]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+70,py+55);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--neg');ctx.font='10px '+getCSS('--gothic');ctx.fillText('r_φ が外へ引く（ハッキングの誘惑）',px+10,py+70);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('KL＝手綱の長さ（βで調整）',CW/2,300);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.fillText('β大=短い手綱（変わらない） / β小=長い手綱（暴走）',CW/2,322);}
+function drawAB(){const colW=(CW-40)/2, xL=20+colW/2, xR=20+colW+colW/2;
+  const cols=[{x:xL,pol:polNo,kl:false,name:'KL 無し',c:getCSS('--neg')},{x:xR,pol:polKL,kl:true,name:'KL 有り',c:getCSS('--good')}];
+  for(const col of cols){
+    ctx.fillStyle=col.c;roundRect(col.x-colW/2+6,18,colW-12,24,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(col.name,col.x,30);
+    const ss=sampleSet(col.pol.th,col.kl?8:1,3);ss.forEach((s,i)=>drawSentence(col.x,54+i*30,s,38,20));
+    const rm=evalRM(col.pol.th,col.kl?8:7),tr=evalTrue(col.pol.th,col.kl?5:3);
+    const gy=170;
+    ctx.fillStyle=getCSS('--loss');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('RM '+rm.toFixed(1),col.x,gy);
+    ctx.fillStyle='rgba(194,137,27,0.25)';ctx.fillRect(col.x-40,gy+6,80,10);ctx.fillStyle=getCSS('--loss');ctx.fillRect(col.x-40,gy+6,80*Math.max(0,Math.min(1,rm/6)),10);
+    ctx.fillStyle=col.c;ctx.font='700 10px '+getCSS('--gothic');ctx.fillText('本当の良さ '+tr.toFixed(1),col.x,gy+34);
+    ctx.fillStyle='rgba(31,158,138,0.20)';ctx.fillRect(col.x-40,gy+40,80,10);ctx.fillStyle=col.c;ctx.fillRect(col.x-40,gy+40,80*Math.max(0,Math.min(1,tr/6)),10);
+    ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--gothic');ctx.fillText(col.kl?'自然で前向き':'スパム（連呼）',col.x,gy+66);}
+  ctx.strokeStyle=getCSS('--line');ctx.beginPath();ctx.moveTo(CW/2,18);ctx.lineTo(CW/2,CH-30);ctx.stroke();
+  caption('見かけの点(RM)は左が高いが、本当の良さは右が高い',CH-12);}
+function drawWhyKL(){
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('KL罰つき最適方策 ＝ 参照 × 報酬の指数',CW/2,30);
+  drawDistBars(20,46,CW-40,150,polKL?aggDist(polKL.th):piRef);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('参照(自然)を土台に、良い語へそっと寄せた分布',CW/2,214);
+  ctx.fillStyle=getCSS('--upd');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('π*(語) ∝ π_ref(語)·exp(r_φ/β)',CW/2,244);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('β→0：土台が消え一極集中（スパム）',CW/2,272);
+  ctx.fillText('β大：参照のまま（変わらない）',CW/2,292);
+  ctx.fillStyle=getCSS('--neg');ctx.font='700 10.5px '+getCSS('--gothic');ctx.fillText('内挿は信用・外挿は疑え — サロゲートの教訓',CW/2,320);}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  if(s<=1){m.innerHTML='<div>語彙 <b>'+V+'</b>・文 <b>'+L+'語</b></div><div>好み <b>比較で集める</b></div>';}
+  else if(s===2){m.innerHTML='<div>3段 <b>比較→報酬→方策</b></div><div>手綱 <b>KL 制約</b></div>';}
+  else if(s===3){m.innerHTML='<div>参照 <b>π_ref (SFT)</b></div><div>好み <b>隠れ設定</b></div>';}
+  else if(s===4){m.innerHTML='<div>比較 <b>'+NPREF+' 組</b></div><div>モデル <b>Bradley-Terry</b></div>';}
+  else if(s===5){m.innerHTML='<div>反復 <b>'+rmIt+'</b>/'+RM_ITERS+'</div><div class="best">損失 <b>'+(rmLoss.length?rmLoss[rmLoss.length-1].toFixed(3):'—')+'</b></div>';}
+  else if(s===6){m.innerHTML='<div>報酬モデル <b>= 代理</b></div><div>内挿◎ <b>外挿✗</b></div>';}
+  else if(s===7){m.innerHTML='<div>報酬 <b>r_φ から</b></div><div>方策勾配 <b>REINFORCE</b></div>';}
+  else if(s===8){m.innerHTML='<div>ep <b>'+(polNo?polNo.ep:0)+'</b>/'+POL_EP+'</div><div class="bad">RM <b>'+(polNo&&polNo.ep>200?evalRM(polNo.th,7).toFixed(1):'…')+' ↑</b></div>';}
+  else if(s===9){ensurePol(polNo,false);m.innerHTML='<div class="bad">RM <b>'+evalRM(polNo.th,7).toFixed(1)+' ↑</b></div><div>本当の良さ <b style="color:var(--neg)">'+evalTrue(polNo.th,3).toFixed(1)+' ↓</b></div>';}
+  else if(s===10){m.innerHTML='<div>報酬 <b>r_φ − β·KL</b></div><div>β <b>'+BETA_KL+'</b></div>';}
+  else if(s===11){ensurePol(polNo,false);ensurePol(polKL,true);m.innerHTML='<div class="bad">KL無 真 <b>'+evalTrue(polNo.th,3).toFixed(1)+'</b></div><div class="best">KL有 真 <b>'+evalTrue(polKL.th,5).toFixed(1)+'</b></div>';}
+  else if(s===12){m.innerHTML='<div>π* <b>∝ π_ref·e^(r/β)</b></div><div>内挿信用 <b>外挿疑え</b></div>';}
+  else if(s===13){m.innerHTML='<div>仕上げ <b>SFT→RLHF</b></div><div class="best">PPO ＋ KL・DPO</div>';}
+  else{m.innerHTML='<div class="best">比較から学び <b>KLで守る</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=(slideIdx!==8&&slideIdx!==11);}
+function draw_(){ctx.clearRect(0,0,CW,CH);SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===4){ensurePrefs();}
+  if(i===5){if(!rmW)initRM();runRM();}
+  if(i===6||i===7){ensureRM();}
+  if(i===8){ensureRM();if(!polNo)polNo=newPol();if(polNo.ep>=POL_EP){polNo=newPol();}runPolNo();}
+  if(i===9){ensureRM();if(!polNo)polNo=newPol();ensurePol(polNo,false);}
+  if(i===11){ensureRM();if(!polNo)polNo=newPol();if(!polKL)polKL=newPol();ensurePol(polNo,false);ensurePol(polKL,true);}
+  renderAll();draw_();}
+function runRM(){anim=true;if(window.__prefersReducedMotion){ensureRM();anim=false;draw_();renderMini();renderExplain();return;}
+  function go(){if(!anim||slideIdx!==5)return;if(rmIt>=RM_ITERS){anim=false;renderMini();renderExplain();draw_();return;}
+    rmStep(6);draw_();renderMini();renderExplain();requestAnimationFrame(go);}requestAnimationFrame(go);}
+function runPolNo(){anim=true;if(window.__prefersReducedMotion){ensurePol(polNo,false);anim=false;draw_();renderMini();renderExplain();return;}
+  function go(){if(!anim||slideIdx!==8)return;if(polNo.ep>=POL_EP){anim=false;renderMini();renderExplain();draw_();return;}
+    polStep(polNo,false,70);draw_();renderMini();renderExplain();requestAnimationFrame(go);}requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===5||slideIdx===8);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,(slideIdx===5||slideIdx===8)?1400:4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;prefs=null;rmW=null;rmIt=0;rmLoss=[];polNo=null;polKL=null;slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+let diceN=0;
+document.getElementById('diceBtn').onclick=()=>{diceN++;const sd=100+diceN*137;
+  if(slideIdx===8){polNo=newPol();polNo.rng=makeRng(sd);runPolNo();}
+  else if(slideIdx===11){polNo=newPol();polNo.rng=makeRng(sd);polKL=newPol();polKL.rng=makeRng(sd);ensurePol(polNo,false);ensurePol(polKL,true);draw_();renderMini();renderExplain();}};
+reset();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
