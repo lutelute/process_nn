@@ -88,6 +88,7 @@
 | `viz/tsne.html` | **t-SNE** — 高次元データを 2 次元へ、早期誇張でクラスタが浮かぶ |
 | `viz/som.html` | **SOM（自己組織化マップ）** — 競合学習で格子がデータの形に広がり組織化 |
 | `viz/hopfield.html` | **Hopfield ネットワーク** — パターンを記憶し、ノイズからエネルギー降下で想起（連想記憶） |
+| `viz/anomaly.html` | **異常検知（Isolation Forest）** — 異常は孤立→ランダム分割で早く一人になる。実 IF（150本）で AUC 0.99、距離しきい値の swamping⇔masking ジレンマとの A/B |
 
 ### ⑤ 強化学習・最適化
 | ページ | 内容 |

@@ -178,6 +178,7 @@
       { href: 'dbscan.html',      label: 'DBSCAN' },
       { href: 'som.html',         label: 'SOM' },
       { href: 'hopfield.html',    label: 'Hopfield' },
+      { href: 'anomaly.html',     label: '異常検知' },
     ]},
     { name: '次元・生成', items: [
       { href: 'pca.html',         label: 'PCA' },
