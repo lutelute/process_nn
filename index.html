@@ -270,7 +270,8 @@
       <a class="mapcard" href="viz/bandit.html"><div class="tag">探索と活用</div><div class="t">多腕バンディット</div><div class="d">試すか儲けるか。ε-greedy/UCB/Thompson を regret で比較。強化学習の最小形。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> Q学習</div></a>
       <a class="mapcard" href="viz/qlearning.html"><div class="tag">強化学習</div><div class="t">Q学習</div><div class="d">試行錯誤と報酬から、各状態の価値と最適な方策（行動）を学習。</div><div class="dep"><b>前提:</b> バンディット ／ <b>次:</b> DQN・方策勾配</div></a>
       <a class="mapcard" href="viz/dqn.html"><div class="tag">強化学習・深層</div><div class="t">DQN（深層強化学習）</div><div class="d">Qを表でなくニューラルネットで近似。経験再生＋ターゲット網で大きな状態でも学習。</div><div class="dep"><b>前提:</b> Q学習・誤差逆伝播</div></a>
-      <a class="mapcard" href="viz/policygrad.html"><div class="tag">方策ベース</div><div class="t">方策勾配（REINFORCE）</div><div class="d">行動の確率を直接太らせる。価値経由のQ学習と対をなすもう一本の道。</div><div class="dep"><b>前提:</b> Q学習 ／ <b>関連:</b> RLHF</div></a>
+      <a class="mapcard" href="viz/policygrad.html"><div class="tag">方策ベース</div><div class="t">方策勾配（REINFORCE）</div><div class="d">行動の確率を直接太らせる。価値経由のQ学習と対をなすもう一本の道。</div><div class="dep"><b>前提:</b> Q学習 ／ <b>次:</b> Actor-Critic</div></a>
+      <a class="mapcard" href="viz/actorcritic.html"><div class="tag">方策+価値</div><div class="t">Actor-Critic</div><div class="d">動く人と批評家の分業。TD誤差が共通の学習信号。方策矢印と価値ヒートマップが同時に育つ。現代RLの背骨。</div><div class="dep"><b>前提:</b> 方策勾配・Q学習 ／ <b>関連:</b> DQN・RLHF</div></a>
       <a class="mapcard branchCard" href="viz/mcts.html"><div class="tag">先読み・木</div><div class="t">モンテカルロ木探索</div><div class="d">有望な枝ほど深く読む（UCT）。三目並べで4フェーズを実走、AlphaGo の骨格。</div><div class="dep"><b>前提:</b> バンディット（UCB） ／ <b>関連:</b> Q学習</div></a>
       <a class="mapcard" href="viz/rlhf.html"><div class="tag">LLM×強化</div><div class="t">RLHF</div><div class="d">好みの比較→報酬モデル→KL制約つき方策改善を全段ライブ実走。報酬ハッキングの実演つき。ChatGPT の仕上げ工程。</div><div class="dep"><b>前提:</b> 方策勾配 ／ <b>関連:</b> Transformer・サロゲート②</div></a>
     </div>
@@ -278,7 +279,8 @@
     <div class="mapsec"><span class="num">STEP 9</span><span class="ttl">説明可能AI（XAI）</span><span class="badge">当たるだけでは足りない。根拠を測る。</span></div>
     <div class="mapgrid">
       <a class="mapcard" href="viz/xai.html"><div class="tag">XAI・入口</div><div class="t">XAI入門 — NNはどこを見たか</div><div class="d">勾配と遮蔽で判断根拠をマップ化。ショートカット学習を証拠付きで見抜く。</div><div class="dep"><b>前提:</b> 決定境界・CNN ／ <b>次:</b> LIME</div></a>
-      <a class="mapcard" href="viz/lime.html"><div class="tag">XAI・局所説明</div><div class="t">LIME</div><div class="d">1点の近所だけ単純な線形で写す。場所が変われば説明も変わる（局所性）。σの罠とぶれも実測。</div><div class="dep"><b>前提:</b> XAI入門 ／ <b>関連:</b> 決定境界</div></a>
+      <a class="mapcard" href="viz/lime.html"><div class="tag">XAI・局所説明</div><div class="t">LIME</div><div class="d">1点の近所だけ単純な線形で写す。場所が変われば説明も変わる（局所性）。σの罠とぶれも実測。</div><div class="dep"><b>前提:</b> XAI入門 ／ <b>次:</b> SHAP</div></a>
+      <a class="mapcard" href="viz/shap.html"><div class="tag">XAI・公平な帰属</div><div class="t">SHAP</div><div class="d">貢献を協力ゲームの公平な山分け（Shapley値）で配る。厳密計算で加法性を実数確認、ウォーターフォール分解。</div><div class="dep"><b>前提:</b> XAI入門・LIME ／ <b>関連:</b> 評価指標</div></a>
     </div>
 
     <div class="mapsec opt"><span class="num">補足</span><span class="ttl">立体で見る — 3D 構造</span><span class="badge">同じ仕組みを 3D で俯瞰（ドラッグで回転）。各基礎ページの補助。</span></div>

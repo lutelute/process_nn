@@ -193,12 +193,14 @@
       { href: 'qlearning.html',   label: 'Q学習' },
       { href: 'dqn.html',         label: 'DQN' },
       { href: 'policygrad.html',  label: '方策勾配' },
+      { href: 'actorcritic.html', label: 'Actor-Critic' },
       { href: 'mcts.html',        label: 'MCTS' },
       { href: 'rlhf.html',        label: 'RLHF' },
     ]},
     { name: '説明AI', items: [
       { href: 'xai.html',         label: 'XAI入門' },
       { href: 'lime.html',        label: 'LIME' },
+      { href: 'shap.html',        label: 'SHAP' },
     ]},
     { name: '3D構造', items: [
       { href: 'mlp3d.html',       label: 'MLP(3D)' },
