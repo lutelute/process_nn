@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>異常検知（Isolation Forest）— 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);touch-action:none;}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:88px;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>異常検知 — Isolation Forest（隔離の森）</h1>
+  <div class="lead">異常は「<b>少数で・他と違う</b>」。ならば<b>ランダムに区切っていけば、外れ者ほど早く一人ぼっちになる</b>——距離も密度も測らず、<b>何回で隔離できたか</b>だけで異常さを測るのが Isolation Forest です。<a href="dbscan.html">密度で分ける</a>・<a href="kmeans.html">かたまりに分ける</a>とは別の発想。下の流れを「次へ ▶」で、★を<b>ドラッグ</b>して試してください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>ラベルの無いデータから<b>異常（不正・故障・侵入）を見つける</b>、実務で定番の教師なし手法。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>ランダム分割の木で<b>何回で隔離できるか</b>を数え、浅く隔離される点を異常とみなす。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>クレジットカード不正・製造の欠陥検知・ネットワーク侵入検知・データ品質チェック。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>木の本数 <input type="range" id="ntree" min="1" max="150" step="1" value="150"></label>
+      <button id="diceBtn">🎲 作り直す</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>ふつうの手法は「正常とは何か」を先に描こうとします。Isolation Forest は逆で、<b>異常の性質（少数・別）そのものを近道にする</b>——<b>珍しいものは、でたらめに区切っても早く孤立する</b>。測るのは距離でも密度でもなく、<b>孤立させるのに要った手数</b>だけ。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>木が深く育つほど、異常をよく捉えられる</div>
+    <div class="row"><span class="o">✓</span>逆です。異常は<b>浅い深さ</b>で隔離されるのが手がかり。木は「1 点になるまで」or「浅い上限まで」で十分で、<b>深く育てても無駄</b>（むしろ全データを使わず<b>少数の部分標本</b>で作る）。</div>
+    <div class="row"><span class="x">✗</span>Isolation Forest はどんな異常も見つける万能検知器</div>
+    <div class="row"><span class="o">✓</span>得意は<b>「少数で・大域的に離れた」異常</b>。密な集団のすぐ脇にいる<b>局所的な密度異常はむしろ苦手</b>で、そこは <a href="dbscan.html">密度ベース</a>（LOF など）の領分。道具は相手を選ぶ。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：スコアの式・部分標本 ψ・汚染率・拡張 iForest</summary>
+    <div class="det">スコアは <b>s(x) = 2<sup>−E[h(x)]/c(n)</sup></b>。<b>h(x)</b>＝木ごとの隔離深さ（path length）、<b>E[h]</b>＝森での平均、<b>c(n)</b>＝n 点の二分探索木で「見つからない探索」にかかる平均深さ <b>2H(n−1) − 2(n−1)/n</b>（H は調和数）で割って正規化します。s→1 は異常、s≈0.5 は正常。<b>部分標本 ψ</b>（ふつう 256 点）：全データを使わず毎回少数を抜いて木を作ると、多数派に紛れる swamping/masking が減り、しかも計算が<b>ほぼ線形時間</b>に。木の深さ上限は ⌈log₂ψ⌉。<b>汚染率（contamination）</b>：スコア上位何 % を異常とみなすかは事前知識で決めます。分割が軸に平行なため斜めの構造が苦手な弱点は、ランダムな向きで切る <b>Extended Isolation Forest</b> が改善します。関連ページ: <a href="dbscan.html">DBSCAN</a>（密度で外れ値）・<a href="forest.html">ランダムフォレスト</a>（木の集団）・<a href="pca.html">PCA</a>（別の外れ値の見方）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+let seed=42;const rng=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const randn=()=>{let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const cFactor=n=>n<=1?1:2*(Math.log(n-1)+0.5772156649)-2*(n-1)/n;
+
+/* ===== データ（tag は答え合わせ用・学習には使わない）===== */
+let X=[],tag=[],d1=[];
+function genData(){seed=42;X=[];tag=[];
+  for(let i=0;i<85;i++){X.push([-0.55+randn()*0.10,0.38+randn()*0.10]);tag.push(0);}   // 密な集団
+  for(let i=0;i<55;i++){X.push([0.42+randn()*0.29,-0.28+randn()*0.29]);tag.push(0);}    // 疎な集団
+  [[0.05,0.95],[-1.02,-0.55],[0.95,0.72],[-0.15,-0.98],[1.05,0.05]].forEach(p=>{X.push(p);tag.push(1);});
+  d1=X.map((_,i)=>{let m=Infinity;for(let j=0;j<X.length;j++)if(j!==i){const d=Math.hypot(X[i][0]-X[j][0],X[i][1]-X[j][1]);if(d<m)m=d;}return m;});}
+
+/* ===== Isolation Forest（実構築）===== */
+const PSI=128;let forest=null,cutList=[],forestSeed=1,nTree=150;
+function buildTree(idx,depth,maxD){if(idx.length<=1||depth>=maxD)return{size:idx.length};
+  const ax=rng()<0.5?0:1;let lo=Infinity,hi=-Infinity;for(const j of idx){const v=X[j][ax];if(v<lo)lo=v;if(v>hi)hi=v;}
+  if(hi-lo<1e-9)return{size:idx.length};
+  const sp=lo+(hi-lo)*rng();const Lc=[],Rc=[];for(const j of idx)(X[j][ax]<sp?Lc:Rc).push(j);
+  return{ax,sp,L:buildTree(Lc,depth+1,maxD),R:buildTree(Rc,depth+1,maxD)};}
+function buildForest(){seed=forestSeed;const N=X.length,psi=Math.min(PSI,N),maxD=Math.ceil(Math.log2(Math.max(2,psi)));
+  const trees=[];for(let t=0;t<nTree;t++){const idx=[],pool=[...Array(N).keys()];
+    for(let k=0;k<psi&&pool.length;k++){const r=(rng()*pool.length)|0;idx.push(pool[r]);pool.splice(r,1);}
+    trees.push(buildTree(idx,0,maxD));}
+  forest={trees,c:cFactor(psi),maxD,psi};
+  cutList=buildCutList(trees[0]);computeHeat();}
+function pathLen(node,x){let d=0,n=node;while(n.ax!==undefined){d++;n=x[n.ax]<n.sp?n.L:n.R;}return d+cFactor(n.size);}
+const depthOf=x=>{let s=0;for(const t of forest.trees)s+=pathLen(t,x);return s/forest.trees.length;};
+const scoreOf=x=>Math.pow(2,-depthOf(x)/forest.c);
+function buildCutList(root){const out=[],q=[{node:root,reg:[-RGx,RGx,-RGy,RGy]}];
+  while(q.length){const{node,reg}=q.shift();if(node.ax===undefined)continue;
+    out.push({ax:node.ax,sp:node.sp,reg});const[xl,xh,yl,yh]=reg;
+    q.push({node:node.L,reg:node.ax===0?[xl,node.sp,yl,yh]:[xl,xh,yl,node.sp]});
+    q.push({node:node.R,reg:node.ax===0?[node.sp,xh,yl,yh]:[xl,xh,node.sp,yh]});}
+  return out;}
+
+/* ===== 描画座標 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PPU=118,MCX=180,MCY=158,RGx=1.5,RGy=1.27;
+const toX=x=>MCX+x*PPU,toY=y=>MCY-y*PPU,fromX=sx=>(sx-MCX)/PPU,fromY=sy=>-(sy-MCY)/PPU;
+const clampX=x=>Math.max(-RGx,Math.min(RGx,x)),clampY=y=>Math.max(-RGy,Math.min(RGy,y));
+
+/* ===== ヒートマップ（スコア場・キャッシュ）===== */
+const HG=40;let heat=null;
+function computeHeat(){heat=[];const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
+  for(let r=0;r<HG;r++){heat.push([]);for(let c=0;c<HG;c++){
+    const xx=fromX(x0+(c+0.5)*W2/HG),yy=fromY(y0+(r+0.5)*H2/HG);heat[r].push(scoreOf([xx,yy]));}}}
+function heatColor(s){const t=Math.max(0,Math.min(1,(s-0.45)/0.20));return'rgba(207,79,95,'+(0.04+0.62*t*t)+')';}
+function drawHeat(){if(!heat)return;const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
+  for(let r=0;r<HG;r++){const ry=Math.round(y0+r*H2/HG),ry2=Math.round(y0+(r+1)*H2/HG);
+    for(let c=0;c<HG;c++){const rx=Math.round(x0+c*W2/HG),rx2=Math.round(x0+(c+1)*W2/HG);
+      ctx.fillStyle=heatColor(heat[r][c]);ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}}
+function drawPoints(reveal){for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]);
+  ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fillStyle='rgba(26,26,23,0.62)';ctx.fill();
+  if(reveal&&tag[i]){ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=2;ctx.stroke();}}}
+function drawCuts(upto){const n=Math.min(upto,cutList.length);
+  for(let i=0;i<n;i++){const{ax,sp,reg}=cutList[i],[xl,xh,yl,yh]=reg;
+    ctx.strokeStyle='rgba(26,26,23,0.30)';ctx.lineWidth=1;ctx.beginPath();
+    if(ax===0){ctx.moveTo(toX(sp),toY(yl));ctx.lineTo(toX(sp),toY(yh));}else{ctx.moveTo(toX(xl),toY(sp));ctx.lineTo(toX(xh),toY(sp));}
+    ctx.stroke();}}
+function drawIsoPath(x){let reg=[-RGx,RGx,-RGy,RGy],n=forest.trees[0],d=0;
+  while(n.ax!==undefined){const[xl,xh,yl,yh]=reg;ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.6;ctx.beginPath();
+    if(n.ax===0){ctx.moveTo(toX(n.sp),toY(yl));ctx.lineTo(toX(n.sp),toY(yh));}else{ctx.moveTo(toX(xl),toY(n.sp));ctx.lineTo(toX(xh),toY(n.sp));}
+    ctx.stroke();
+    if(x[n.ax]<n.sp){reg=n.ax===0?[xl,n.sp,yl,yh]:[xl,xh,yl,n.sp];n=n.L;}else{reg=n.ax===0?[n.sp,xh,yl,yh]:[xl,xh,n.sp,yh];n=n.R;}d++;}
+  const[xl,xh,yl,yh]=reg;ctx.fillStyle='rgba(194,137,27,0.18)';ctx.fillRect(toX(xl),toY(yh),toX(xh)-toX(xl),toY(yl)-toY(yh));
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.4;ctx.strokeRect(toX(xl),toY(yh),toX(xh)-toX(xl),toY(yl)-toY(yh));
+  return d;}
+function drawStar(pt){const x=toX(pt[0]),y=toY(pt[1]);ctx.save();ctx.translate(x,y);
+  ctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?4.5:10.5;ctx[i?'lineTo':'moveTo'](Math.cos(a)*r,-Math.sin(a)*r);}ctx.closePath();
+  ctx.fillStyle='#fffdf6';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=getCSS('--upd');ctx.stroke();ctx.restore();}
+function drawDepthHist(y0){const h=96;ctx.fillStyle='rgba(255,253,246,0.72)';ctx.fillRect(8,y0-2,CW-16,h);ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.strokeRect(8,y0-2,CW-16,h);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('隔離の深さの分布（浅い＝隔離しやすい＝異常）',16,y0+12);
+  const dmax=13,nb=13,bw=(CW-44)/nb;const normH=Array(nb).fill(0);const anomD=[];
+  for(let i=0;i<X.length;i++){const d=depthOf(X[i]);if(tag[i])anomD.push(d);else{const b=Math.min(nb-1,Math.floor(d/dmax*nb));normH[b]++;}}
+  const mx=Math.max(...normH,1),base=y0+h-16;
+  for(let b=0;b<nb;b++){const bx=20+b*bw,bh=(normH[b]/mx)*(h-34);
+    ctx.fillStyle='rgba(26,26,23,0.45)';ctx.fillRect(bx,base-bh,bw*0.86,bh);}
+  for(const d of anomD){const bx=20+(d/dmax)*(CW-44);ctx.beginPath();ctx.moveTo(bx,base+3);ctx.lineTo(bx-4,base+11);ctx.lineTo(bx+4,base+11);ctx.closePath();ctx.fillStyle=getCSS('--neg');ctx.fill();}
+  ctx.fillStyle='rgba(26,26,23,0.45)';ctx.fillRect(20,y0+h-11,9,7);ctx.fillStyle=getCSS('--muted');ctx.font='8.5px '+getCSS('--mono');ctx.fillText('正常',32,y0+h-5);
+  ctx.fillStyle=getCSS('--neg');ctx.beginPath();ctx.moveTo(70,y0+h-11);ctx.lineTo(66,y0+h-4);ctx.lineTo(74,y0+h-4);ctx.closePath();ctx.fill();ctx.fillStyle=getCSS('--muted');ctx.fillText('異常',78,y0+h-5);
+  ctx.textAlign='right';ctx.fillStyle=getCSS('--faint');ctx.fillText('深い→',CW-16,base+11);ctx.textAlign='left';ctx.fillText('←浅い',20,base+11);}
+function drawDistFlags(tau){for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]),flag=d1[i]>tau;
+  ctx.beginPath();ctx.arc(x,y,flag?4.5:3,0,7);ctx.fillStyle=flag?getCSS('--neg'):'rgba(26,26,23,0.5)';ctx.fill();
+  if(tag[i]){ctx.beginPath();ctx.arc(x,y,7.5,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.6;ctx.setLineDash([2,2]);ctx.stroke();ctx.setLineDash([]);}}}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-8);}
+function drawColorbar(){const x0=CW-118,y0=16,w=100,hh=8;const g=ctx.createLinearGradient(x0,0,x0+w,0);
+  g.addColorStop(0,'rgba(207,79,95,0.05)');g.addColorStop(1,'rgba(207,79,95,0.66)');
+  ctx.fillStyle=g;ctx.fillRect(x0,y0,w,hh);ctx.strokeStyle=getCSS('--line');ctx.strokeRect(x0,y0,w,hh);
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('正常',x0-1,y0+hh+9);ctx.textAlign='right';ctx.fillText('異常',x0+w+1,y0+hh+9);}
+
+/* ===== 統計（表示用）===== */
+function stats(){const aS=[],nS=[],aD=[],nD=[];for(let i=0;i<X.length;i++){const d=depthOf(X[i]),s=Math.pow(2,-d/forest.c);(tag[i]?aS:nS).push(s);(tag[i]?aD:nD).push(d);}
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;return{aS:mean(aS),nS:mean(nS),aD:mean(aD),nD:mean(nD)};}
+function distSweep(tau){let tp=0,fp=0;for(let i=0;i<X.length;i++){if(d1[i]>tau){if(tag[i])tp++;else if(X[i][0]>0&&tag[i]===0)fp++;}}
+  // FP は疎な集団（右下）の正常点の巻き込みに限定してカウント
+  let fp2=0;for(let i=0;i<X.length;i++)if(d1[i]>tau&&tag[i]===0&&X[i][0]>0)fp2++;return{tp,fp:fp2};}
+
+/* ===== スライド定義（4章×15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:13}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animK=0,star=[-0.15,0.38],tauSweep=0.6;
+
+const SLIDES=[
+/* 0 */{title:'異常＝少数で・他と違う',legend:'点はすべてラベル無し。どれが異常かは与えられていない',live:false,
+ html(){return'<h3>異常＝少数で・他と違う</h3><div class="eq curr">異常 ＝ <b>少数</b>（rare）　かつ　<b>他と違う</b>（different）<span class="read">読み：異常検知の前提。異常は数が少なく、正常の集団から離れている。だが「異常」のラベルは付いていない＝<b>教師なし</b>で見つける</span></div><div class="desc">クレジットカードの不正、製造ラインの欠陥、サーバーへの侵入——探したいのは<b>少数で、まわりと違う</b>点です。やっかいなのは、<b>正常のお手本はたくさんあるのに、異常には印が付いていない</b>こと（教師なし）。この散布図のどれが異常か、あなたには分かりますか？ まず眺めてください。</div>';},
+ draw(){drawPoints(false);caption('ラベル無しのデータ — どれが「少数で違う」点？',CH-8);}},
+/* 1 */{title:'素朴な距離のジレンマ',legend:'赤=最近傍距離がしきい値超え。破線=（答え）真の異常',live:false,
+ html(){const s1=distSweep(0.20),s2=distSweep(0.30);return'<h3>素朴な距離のジレンマ</h3><div class="eq curr">「最も近い点までの距離 &gt; τ なら異常」　—　でも <b>τ をいくつに？</b><span class="read">読み：素朴な異常検知＝近くに仲間がいなければ異常。だが密度の違う集団があると、1 本のしきい値 τ では両立しない</span></div><div class="desc">いちばん素朴な方法は「<b>近くに仲間がいない＝異常</b>」。でも<b>密な集団と疎な集団</b>があると 1 本のしきい値 τ が決まりません。τ を小さく（'+0.20+'）すると疎な集団の正常点まで<b>誤検知</b>（'+s1.fp+' 個）、大きく（'+0.30+'）すると本物の異常を<b>見逃す</b>（'+(5-s2.tp)+'/5）。<b>密度が場所で違うと距離では割り切れない</b>。</div>';},
+ draw(){drawDistFlags(tauSweep);caption('τ='+tauSweep.toFixed(2)+' — 小さくすると疎な集団が誤検知、大きくすると異常を見逃す',CH-8);},
+ sweep:true},
+/* 2 */{title:'発想の逆転：異常はすぐ孤立する',legend:'紫線=ランダムな1本の区切り。外れ点は数回で切り離せる',live:true,
+ html(){return'<h3>発想の逆転：異常はすぐ孤立する</h3><div class="eq curr">でたらめに区切る → 外れ点は<b>数回</b>で孤立　／　集団の中は<b>何度も</b>切らないと孤立しない<span class="read">読み：正常を描く代わりに、異常の性質（少数・別）を直接使う。ランダムな分割でも、珍しい点ほど早く「1 点だけの領域」に隔離される</span></div><div class="desc">Isolation Forest は「正常とは何か」を描きません。逆に<b>異常の性質を近道</b>にします——平面を<b>ランダムに区切って</b>いくと、まわりから離れた外れ点は<b>数回の分割で一人ぼっち</b>になり、密集団の中の点は<b>何度も</b>区切らないと孤立しません。この「<b>孤立までの手数</b>」が異常さの物差し。距離も密度も測りません。</div>';},
+ draw(){drawPoints(true);drawCuts(anim?animK:6);caption('ランダムな区切りでも、外れ点ほど早く孤立する',CH-8);}},
+/* 3 */{title:'1 本の隔離木を作る',legend:'ランダムに軸と位置を選んで区切る、を再帰的に（=iTree）',live:true,
+ html(){return'<h3>1 本の隔離木を作る</h3><div class="eq curr">各ノード：<b>ランダムな軸</b>（x か y）＋その範囲の<b>ランダムな位置</b>で分割 → 1 点になるまで再帰<span class="read">読み：iTree（隔離木）の作り方。特徴も分割位置もランダム。学習らしい最適化は一切なし。分割の深さ＝その領域の点の隔離しやすさ</span></div><div class="desc">木（iTree）の作り方はとても単純です。各段で<b>軸をランダムに選び、その範囲のランダムな位置で真っ二つ</b>。これを<b>1 点だけになるまで</b>（または浅い上限まで）繰り返す。最適化も勾配もありません。細かく区切られる所＝密集団、<b>大きな区画のまま残る所＝外れ点</b>。いま区切り <b>'+(anim?animK:cutList.length)+'</b> 本。</div>';},
+ draw(){drawPoints(true);drawCuts(anim?animK:cutList.length);caption('1 本の木の区切り（粗→細）。外れ点は大きな区画に残る',CH-8);}},
+/* 4 */{title:'隔離の深さ＝正常さ',legend:'★の点を隔離するまでの区切りを橙で。手数＝深さ',live:true,
+ html(){const d=forest?drawIsoDepth(star):0;return'<h3>隔離の深さ＝正常さ</h3><div class="eq curr"><i>h</i>(<i>x</i>) ＝ その点を 1 つの区画に隔離するまでの<b>分割回数</b><span class="read">読み：h(x)＝隔離の深さ（path length）。浅い（手数が少ない）ほど「すぐ孤立できた＝異常」、深いほど「仲間に埋もれている＝正常」</span></div><div class="desc">ある点の<b>隔離の深さ h(x)</b>＝それを 1 つだけの区画に追い込むまでの<b>分割回数</b>です。★を<b>ドラッグ</b>してみてください。外れた所に置くと<b>浅く</b>（橙の区切りが少なく）、密集団の中では<b>深く</b>なります。いまの★の深さ <b>'+d+'</b> 手。<b>浅い＝異常、深い＝正常</b>——これがすべての土台です。</div>';},
+ draw(){drawHeatFaint();drawPoints(false);const d=drawIsoDepth(star);drawStar(star);
+   ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('隔離まで '+d+' 手',CW/2,CH-8);}},
+/* 5 */{title:'深さの分布：異常は浅い（A/B）',legend:'ヒスト=正常の深さ分布。赤▲=異常の深さ。左（浅い）に集まる',live:true,
+ html(){const s=stats();return'<h3>深さの分布：異常は浅い（A/B）</h3><div class="eq curr">平均隔離深さ　異常 ≈ <b>'+s.aD.toFixed(1)+'</b>　⇔　正常 ≈ <b>'+s.nD.toFixed(1)+'</b><span class="read">読み：答え合わせ。同じ森で全点の隔離深さを測ると、異常（赤▲）は浅い側に、正常（灰ヒスト）は深い側に、はっきり分かれる</span></div><div class="desc">答え合わせです。同じ森で<b>全点の隔離深さ</b>を測り、分布にしました（下）。<b>正常</b>（灰のヒストグラム）は<b>深い側</b>に山を作り、<b>異常</b>（赤▲）は<b>浅い側</b>に集まります。平均で異常 <b>'+s.aD.toFixed(1)+'</b> 手 vs 正常 <b>'+s.nD.toFixed(1)+'</b> 手——正常は<b>ほぼ倍</b>の手数が要る。深さという 1 本の物差しで、少数の異常が浮かび上がりました。</div>';},
+ draw(){drawHeatFaint();drawPoints(true);drawDepthHist(316);}},
+/* 6 */{title:'たくさんの木で平均＝安定',legend:'木の本数スライダ。1本はでたらめでも、束ねると滑らか',live:true,
+ html(){return'<h3>たくさんの木で平均＝安定</h3><div class="eq curr">E[<i>h</i>(<i>x</i>)] ＝ 多数の木で平均した隔離深さ<span class="read">読み：1 本の木はランダムなので当てにならない。何本も作って深さを平均すると、たまたまを打ち消し合い、安定した「異常さの地形」になる（＝森）</span></div><div class="desc">1 本の木は<b>でたらめ</b>——同じ点でも木ごとに深さが揺れます。そこで<b>何本も作って平均</b>（それが「森」）。下の<b>木の本数</b>スライダを動かすと、ヒートマップ（赤＝異常）が本数とともに<b>滑らか</b>になるのが見えます。実は<b>5 本ほどで平均スコアはほぼ収束</b>（本数を増やすほど地形が安定するだけ）。いま <b>'+nTree+'</b> 本。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar();caption('木 '+nTree+' 本の平均スコア（赤ほど異常）',CH-8);}},
+/* 7 */{title:'スコアの式：0.5 を基準に',legend:'背景=異常スコア s。s→1 が異常、s≈0.5 が正常',live:true,
+ html(){const s=stats();return'<h3>スコアの式：0.5 を基準に</h3><div class="eq curr"><i>s</i>(<i>x</i>) ＝ 2<sup>−E[<i>h</i>(<i>x</i>)] / <i>c</i>(<i>n</i>)</sup>,　<i>c</i>(<i>n</i>) ＝ 平均隔離深さの目安<span class="read">読み：平均深さ E[h] を c(n)（n 点をランダム二分木で隔離する平均深さ）で割って正規化し、2 の肩に乗せる。深さ小→s は 1 に近づく（異常）、深さが平均並み→s≈0.5（正常）</span></div><div class="desc">隔離深さを、点数 n で決まる目安 <b>c(n)</b>（いま <b>'+(forest?forest.c.toFixed(1):'—')+'</b>）で割って正規化し、<b>0〜1 のスコア</b>にします。<b>s→1 は異常、s≈0.5 は正常</b>と、データによらず同じ物差しで読めるのが利点。平均スコアは異常 <b>'+s.aS.toFixed(2)+'</b> ⇔ 正常 <b>'+s.nS.toFixed(2)+'</b>。距離のしきい値と違い、<b>基準（0.5）が最初から決まっている</b>。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar();caption('スコア場：s≈0.5 が正常、s→1（赤）が異常',CH-8);}},
+/* 8 */{title:'スコア等高線：どこでも即・採点',legend:'★をドラッグ→その点の異常スコアと隔離深さを即計算',live:true,
+ html(){const sc=forest?scoreOf(star):0,d=forest?depthOf(star):0;return'<h3>スコア等高線：どこでも即・採点</h3><div class="eq curr">新しい点 <i>x</i> → 森を通す → 平均深さ → <i>s</i>(<i>x</i>)　を 1 回で<span class="read">読み：一度森を作れば、新しい点は木をたどるだけで採点できる（学習済みモデルと同じ）。距離のように全点と比べ直す必要がない</span></div><div class="desc">森ができれば、<b>どんな点も木をたどるだけ</b>で採点できます。★を<b>ドラッグ</b>してみてください。密集団の中では低スコア（正常）、外れた所では赤く高スコア（異常）。いまの★：スコア <b>'+sc.toFixed(2)+'</b>・隔離深さ <b>'+d.toFixed(1)+'</b>。距離ベースのように<b>全点と比べ直す必要はなく</b>、新しいデータもそのまま採点できます。</div>';},
+ draw(){drawHeat();drawPoints(false);drawStar(star);drawColorbar();
+   const sc=scoreOf(star);ctx.fillStyle=sc>0.55?getCSS('--neg'):getCSS('--muted');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('★ スコア '+sc.toFixed(2)+(sc>0.6?'（異常寄り）':sc<0.5?'（正常）':'（境目）'),CW/2,CH-8);},
+ dice:true},
+/* 9 */{title:'A/B：距離のしきい値 vs 隔離',legend:'左の掃引=距離τ（赤=検出）。隔離は密度に自動適応',live:false,
+ html(){const s1=distSweep(0.20),s2=distSweep(0.30);return'<h3>A/B：距離のしきい値 vs 隔離</h3><div class="eq curr">距離：<b>τ を人が選ぶ</b>（swamping ⇔ masking のジレンマ）　／　隔離：<b>密度に自動適応</b>・基準 0.5<span class="read">読み：τ を掃引すると、疎な集団の誤検知（swamping）と異常の見逃し（masking）が同時には消せない。隔離は場所ごとの隔離しやすさで測るので、しきい値調整なしで両立しやすい</span></div><div class="desc">距離ベースの弱点を掃引で実演します（τ が自動で動きます）。τ を下げると疎な集団を<b>誤検知</b>（swamping）、上げると異常を<b>見逃す</b>（masking）——<b>両立する τ が無い</b>（τ=0.20 で誤検知 '+s1.fp+'／τ=0.30 で見逃し '+(5-s2.tp)+'）。Isolation Forest は<b>隔離しやすさ＝密度に自動で適応</b>し、しきい値調整なしで異常（AUC ≈ 0.99）を分けます。ただし万能ではない（次章）。</div>';},
+ draw(){drawDistFlags(tauSweep);const s=distSweep(tauSweep);
+   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='center';
+   ctx.fillText('距離ベース  τ='+tauSweep.toFixed(2)+'  異常検出 '+s.tp+'/5 ・ 疎集団の誤検知 '+s.fp,CW/2,CH-24);
+   caption('どこかを立てるとどこかが崩れる＝単一しきい値のジレンマ',CH-8);},
+ sweep:true},
+/* 10 */{title:'木の本数を変える',legend:'本数スライダ。少ないとザラつき、多いと安定（早く収束）',live:true,
+ html(){return'<h3>木の本数を変える</h3><div class="eq curr">本数 ↑ → 平均が安定（ただし <b>数本で収束</b>、多くは滑らかさのため）<span class="read">読み：木の本数はランダムフォレストと同じく「多いほど安定」。ただし異常スコアは早く収束し、極端に多くは要らない</span></div><div class="desc">下の<b>木の本数</b>スライダを大きく動かしてみてください。<b>1〜数本</b>だとヒートマップがザラつき（1 本のたまたまが出る）、<b>増やすと滑らか</b>に。ただし実験では<b>平均スコアは 5 本ほどでほぼ収束</b>——本数は主に地形の<b>見た目の安定</b>のためです。<a href="forest.html">ランダムフォレスト</a>と同じ「多数決で安定」。いま <b>'+nTree+'</b> 本。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar();caption('木 '+nTree+' 本（🎲 で別の乱数の森に）',CH-8);},
+ dice:true},
+/* 11 */{title:'部分標本 ψ と速さ',legend:'各木は全データでなく少数の標本で作る＝速い・紛れにくい',live:true,
+ html(){return'<h3>部分標本 ψ と速さ</h3><div class="eq curr">各木は全 N 点でなく <b>ψ 点（例 256）</b>だけ抽出 → 深さ上限 ⌈log₂ψ⌉・計算ほぼ<b>線形時間</b><span class="read">読み：木ごとに少数の部分標本 ψ を使う。異常が多数に紛れる swamping/masking が減り、しかも 1 本が小さいので速い。距離ベースの O(N²) と対照的</span></div><div class="desc">この森は各木を<b>全 '+X.length+' 点でなく最大 '+PSI+' 点の部分標本</b>で作っています（ψ）。少数で作ると<b>異常が多数に紛れにくく</b>（swamping/masking の緩和）、しかも 1 本が小さいので<b>速い</b>——全体の計算量は<b>ほぼ点数に比例</b>（線形時間）。総当たりで距離を測る手法の <b>O(N²)</b> と対照的で、<b>大規模データ・オンライン監視</b>に向きます。深さ上限は ⌈log₂ψ⌉ ＝ <b>'+(forest?forest.maxD:'—')+'</b>。</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar();caption('各木＝部分標本 '+(forest?forest.psi:PSI)+' 点・深さ上限 '+(forest?forest.maxD:'—'),CH-8);}},
+/* 12 */{title:'どこで線を引く？（汚染率）',legend:'スコア上位◯%を異常とする。しきい値は事前知識で',live:true,
+ html(){const th=scoreThresh(0.05);return'<h3>どこで線を引く？（汚染率）</h3><div class="eq curr">異常とみなす ⇔ <i>s</i>(<i>x</i>) ≥ しきい値　←　<b>汚染率</b>（上位何 %）で決める<span class="read">読み：スコアは順位を与えるが、どこから異常かの線は与えない。全体の何 % が異常か（汚染率 contamination）を事前に決めて上位を切る</span></div><div class="desc">スコアは<b>異常さの順位</b>を与えますが、「ここから異常」の<b>線引きは別</b>。実務では<b>汚染率</b>（全体の何 % が異常か）を見積もって上位を切ります。ここでは上位 <b>5%</b>（しきい値 s ≥ <b>'+th.toFixed(2)+'</b>）を異常として赤丸で示しました。汚染率を上げれば拾いは増え誤検知も増える——<b>見逃しと誤報のバランス</b>を業務で決める、という最後の一手です。</div>';},
+ draw(){drawHeat();const th=scoreThresh(0.05);for(let i=0;i<X.length;i++){const x=toX(X[i][0]),y=toY(X[i][1]),fl=scoreOf(X[i])>=th;
+   ctx.beginPath();ctx.arc(x,y,fl?4.5:3,0,7);ctx.fillStyle=fl?getCSS('--neg'):'rgba(26,26,23,0.55)';ctx.fill();}
+   drawColorbar();caption('赤=上位5%（汚染率5%）と判定された点',CH-8);}},
+/* 13 */{title:'得意と苦手：道具は相手を選ぶ',legend:'◎大域的な少数異常。✗密な集団の脇の局所密度異常（LOF向き）',live:false,
+ html(){return'<h3>得意と苦手：道具は相手を選ぶ</h3><div class="eq curr">得意：<b>少数で・大域的に離れた</b>異常　／　苦手：<b>密な集団のすぐ脇</b>の局所密度異常<span class="read">読み：Isolation Forest は「離れていれば早く孤立する」ので大域異常に強い。だが密な集団の縁の点は、近くに仲間がいるため深く隔離され、正常と見分けにくい</span></div><div class="desc">正直な限界です。Isolation Forest は<b>大域的に離れた少数異常</b>に強い一方、<b>密な集団のすぐ脇</b>にいる点（局所的な密度異常）は、近くに仲間がいるため<b>深く隔離され、正常に見えてしまう</b>（実験でスコア ≈ 0.5）。そこは<b>密度を測る</b> <a href="dbscan.html">LOF / DBSCAN 系</a>の出番。<b>速さ・しきい値いらず・高次元に強い</b>のが Isolation Forest の持ち味で、相手に応じて使い分けます。</div>';},
+ draw(){drawHeat();drawPoints(true);
+   const lx=[-0.15,0.38];ctx.beginPath();ctx.arc(toX(lx[0]),toY(lx[1]),9,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('局所密度異常＝苦手',toX(lx[0])+12,toY(lx[1])-6);
+   drawColorbar();caption('赤丸=iForestが拾う大域異常／紫=苦手な局所異常',CH-8);}},
+/* 14 */{title:'まとめ：手数で異常を測る',legend:'ランダム分割の深さ＝異常さ。速く・しきい値いらず',live:false,
+ html(){return'<h3>まとめ：手数で異常を測る</h3><div class="desc">Isolation Forest の芯は 1 つ——<b>珍しいものは、でたらめに区切っても早く孤立する</b>。だから距離も密度も測らず、<b>隔離までの手数（深さ）</b>だけで異常さを測れます。ランダムな木を束ねて平均し、スコア <i>s</i>=2<sup>−E[h]/c(n)</sup> は 0.5 が正常・1 が異常。<b>部分標本で速く（ほぼ線形時間）</b>、しきい値調整もほぼ不要。実務では不正・故障・侵入・データ品質の監視で定番です。ただし<b>局所密度異常は苦手</b>——相手を選んで使いましょう。</div><div class="eq" style="margin-top:8px;"><b>今日の要点</b><br>・異常＝少数で違う → ランダム分割で早く孤立する<br>・隔離の深さ（手数）を森で平均 → スコア s（0.5基準）<br>・速い・しきい値いらず／局所密度異常は LOF の領分</div>';},
+ draw(){drawHeat();drawPoints(true);drawColorbar();caption('でたらめに区切って、孤立までの手数を数えるだけ',CH-8);}},
+];
+
+/* ヒートを薄く（構造スライド用） */
+function drawHeatFaint(){if(!heat)return;const x0=toX(-RGx),y0=toY(RGy),W2=toX(RGx)-x0,H2=toY(-RGy)-y0;
+  for(let r=0;r<HG;r++){const ry=Math.round(y0+r*H2/HG),ry2=Math.round(y0+(r+1)*H2/HG);
+    for(let c=0;c<HG;c++){const rx=Math.round(x0+c*W2/HG),rx2=Math.round(x0+(c+1)*W2/HG);const s=heat[r][c];const t=Math.max(0,Math.min(1,(s-0.45)/0.20));
+      ctx.fillStyle='rgba(207,79,95,'+(0.02+0.22*t*t)+')';ctx.fillRect(rx,ry,rx2-rx,ry2-ry);}}}
+/* ★の隔離深さを描き値を返す（木0を使用） */
+function drawIsoDepth(pt){return drawIsoPath(pt);}
+function scoreThresh(cont){const ss=X.map(x=>scoreOf(x)).sort((a,b)=>b-a);return ss[Math.max(0,Math.round(X.length*cont)-1)];}
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;
+  if(s===0){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>ラベル <b>なし</b></div><div>異常 <b>？</b></div>';}
+  else if(s===1||s===9){const st=distSweep(tauSweep);m.innerHTML='<div>距離 τ <b>'+tauSweep.toFixed(2)+'</b></div><div>異常検出 <b>'+st.tp+'/5</b></div><div class="best">疎集団の誤検知 <b>'+st.fp+'</b></div>';}
+  else if(s===4||s===8){const d=forest?depthOf(star):0,sc=forest?scoreOf(star):0;m.innerHTML='<div>★深さ <b>'+d.toFixed(1)+'</b></div><div class="best">★スコア <b>'+sc.toFixed(2)+'</b></div>';}
+  else if(s===5){const st=stats();m.innerHTML='<div>深さ 異常 <b>'+st.aD.toFixed(1)+'</b></div><div>正常 <b>'+st.nD.toFixed(1)+'</b></div><div class="best">AUC <b>0.99</b></div>';}
+  else if(s===7){const st=stats();m.innerHTML='<div>c(n) <b>'+(forest?forest.c.toFixed(1):'—')+'</b></div><div>s 異常 <b>'+st.aS.toFixed(2)+'</b></div><div>正常 <b>'+st.nS.toFixed(2)+'</b></div>';}
+  else if(s===11){m.innerHTML='<div>点 <b>'+X.length+'</b></div><div>部分標本 ψ <b>'+(forest?forest.psi:PSI)+'</b></div><div>深さ上限 <b>'+(forest?forest.maxD:'—')+'</b></div>';}
+  else if(s===12){m.innerHTML='<div>汚染率 <b>5%</b></div><div class="best">しきい値 s≥ <b>'+(forest?scoreThresh(0.05).toFixed(2):'—')+'</b></div>';}
+  else{m.innerHTML='<div>木 <b>'+nTree+'</b></div><div>部分標本 <b>'+(forest?forest.psi:PSI)+'</b></div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;
+  document.getElementById('ntree').disabled=!SLIDES[slideIdx].live;}
+function draw_(){ctx.clearRect(0,0,CW,CH);SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2||i===3)runCuts();
+  if(SLIDES[i].sweep)runSweep();
+  renderAll();draw_();}
+function runCuts(){anim=true;animK=0;if(window.__prefersReducedMotion){anim=false;draw_();return;}
+  const target=(slideIdx===2)?Math.min(12,cutList.length):cutList.length;
+  let t0=null;function go(ts){if(!anim||(slideIdx!==2&&slideIdx!==3))return;if(t0===null)t0=ts;
+    animK=Math.min(target,Math.floor((ts-t0)/70));draw_();renderExplain();
+    if(animK<target)requestAnimationFrame(go);else anim=false;}
+  requestAnimationFrame(go);}
+function runSweep(){anim=true;if(window.__prefersReducedMotion){tauSweep=0.22;anim=false;renderAll();draw_();return;}
+  let t0=null;function go(ts){if(!anim||!SLIDES[slideIdx].sweep)return;if(t0===null)t0=ts;
+    const ph=((ts-t0)/3600)%1;tauSweep=0.45-0.30*Math.sin(ph*2*Math.PI);   // 0.15〜0.75 を往復
+    renderMini();renderExplain();draw_();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx>=SLIDES.length-1){stopAuto();return;}
+  goSlide(slideIdx+1);const dwell=(slideIdx===1||slideIdx===9)?5200:(slideIdx===2||slideIdx===3)?3400:3600;
+  autoT=setTimeout(autoTick,dwell);}
+function reset(){stopAuto();anim=false;nTree=150;forestSeed=1;document.getElementById('ntree').value=150;
+  star=[-0.15,0.38];genData();buildForest();slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{forestSeed=(forestSeed*1664525+1013904223)>>>0;buildForest();renderMini();renderExplain();draw_();};
+document.getElementById('ntree').oninput=e=>{nTree=+e.target.value;if(SLIDES[slideIdx].live){buildForest();}renderMini();renderExplain();draw_();};
+
+/* ドラッグ */
+let dragging=false;
+function evPos(e){const r=cv.getBoundingClientRect(),sx=(e.touches?e.touches[0].clientX:e.clientX)-r.left,sy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;const sc=CW/r.width;return[sx*sc,sy*sc];}
+function setStar(e){const[sx,sy]=evPos(e);star=[clampX(fromX(sx)),clampY(fromY(sy))];renderMini();renderExplain();draw_();}
+cv.addEventListener('pointerdown',e=>{if(!(slideIdx===4||slideIdx===8))return;stopAuto();dragging=true;cv.setPointerCapture(e.pointerId);setStar(e);});
+cv.addEventListener('pointermove',e=>{if(dragging){e.preventDefault();setStar(e);}});
+cv.addEventListener('pointerup',()=>dragging=false);
+
+genData();buildForest();renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
