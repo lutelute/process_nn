@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドローンレース × 深層強化学習 — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>ドローンレース × 深層強化学習</h1>
+  <div class="lead">2023 年、チューリッヒ大学の AI ドローン「<b>Swift</b>」が、ドローンレースの<b>人間の世界チャンピオン 3 人にリアルタイムの実機レースで勝ちました</b>（Nature 掲載）。武器は<b>深層強化学習</b>——ルールを書くのでなく、シミュレータの中で<b>何千回も試行錯誤</b>して操縦を獲得する。このページはその構図を 2D の周回コースで小さく再現します。<b>ルールで丁寧に操縦する「人間流」を、試行錯誤が実測で追い抜く</b>まで——<a href="policygrad.html">方策勾配</a>と <a href="actorcritic.html">Actor-Critic</a> の実戦編。下の流れを「次へ ▶」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>強化学習が<b>実機の物理制御で人間の腕前を超えた</b>現在地と、その仕組みを一気に見る。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>ルールの操縦には調整の限界がある。<b>試行錯誤は、人間が思いつかない「速い線」を見つける</b>。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ドローン・ロボット制御・自動運転・<b>プラズマ制御や冷却最適化</b>など「シミュレータのある物理制御」。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <button id="diceBtn">🎲 別のシード</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>学習後のドローンは<b>最高速度では人間流に勝っていません</b>（スライド11で実測）。それでもラップは確かに速い——強いのは腕力でなく<b>線</b>。<b>試行錯誤は、ルールの調整では届かない「賢い線」を見つける</b>。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>AI が人間チャンピオンに勝った＝操縦はもう全面的に AI の方が上</div>
+    <div class="row"><span class="o">✓</span>Swift が勝ったのは<b>整備された環境の、学習済みの特定コース</b>。照明の変化や未知のコースには脆く、そこは人間が圧倒的に強い——シミュレータと現実の隙間（<b>sim-to-real ギャップ</b>）は残っています。「特定タスクの深さ」と「状況への広さ」は別物。</div>
+    <div class="row"><span class="x">✗</span>AI が速いのは反応速度（計算の速さ）のおかげ</div>
+    <div class="row"><span class="o">✓</span>反応だけなら訓練された人間も数十 ms で極めて速い。差がつくのは<b>軌道＝どの線を飛ぶか</b>。このページの再現でも、学習ドローンは最高速度で負けたまま<b>コーナーの線</b>でラップを縮めます（実測で確認）。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：Swift の実装・PPO・sim-to-real・本ページの簡略化</summary>
+    <div class="det">本物の <b>Swift</b>（Kaufmann ら, Nature 2023）は、カメラ画像から VIO（視覚慣性オドメトリ）とゲート検出で<b>自機とゲートの相対状態を推定</b>し、それを入力に <b>PPO</b>（クリップ付き Actor-Critic、<a href="actorcritic.html">Actor-Critic</a> の現代標準形）で学習した方策が<b>各モーターの推力指令</b>を出します。学習は<b>ほぼ全てシミュレータ内</b>——実機データで空力の残差を補正し、観測ノイズを注入して<b>現実とのズレに頑健化</b>（sim-to-real）してから実機に載せる。人間チャンピオン相手に複数回勝利し、<b>最速ラップも記録</b>しました。本ページは構図を残して大幅に簡略化しています：2 次元・質点・8 方向の推力・観測は真値（画像でなく座標）・<a href="policygrad.html">REINFORCE</a>＋ベースライン（PPO でなく素の方策勾配）。それでも「<b>ルール制御の調整限界を試行錯誤が超える</b>」という本質は同じ形で再現できます。関連：<a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>・<a href="rlhf.html">RLHF</a>（同じ方策勾配ファミリーが言語モデルを調整する話）。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+/* ===== 乱数（mulberry32）===== */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+/* ===== コース: 4ゲート周回・2D質点ドローン ===== */
+const GATES=[
+  {cx: 3.0, cy: 0.0, nx: 0, ny: 1, hw: 0.6},   // 右ゲート: 上向きに通過
+  {cx: 0.0, cy: 3.0, nx: -1, ny: 0, hw: 0.6},  // 上ゲート: 左向きに通過
+  {cx: -3.0, cy: 0.0, nx: 0, ny: -1, hw: 0.6}, // 左ゲート: 下向きに通過
+  {cx: 0.0, cy: -3.0, nx: 1, ny: 0, hw: 0.6},  // 下ゲート: 右向きに通過
+];
+const DT=0.1, DRAG=0.02, AMAX=1.6, NLAP_G=8;   // 2周=8ゲート
+const START={x:3.0,y:-1.5,vx:0,vy:1.0};
+function crossGate(g,p0,p1){
+  const d0=(p0.x-g.cx)*g.nx+(p0.y-g.cy)*g.ny, d1=(p1.x-g.cx)*g.nx+(p1.y-g.cy)*g.ny;
+  if(d0>=0||d1<0)return false;
+  const t=d0/(d0-d1), ix=p0.x+(p1.x-p0.x)*t, iy=p0.y+(p1.y-p0.y)*t;
+  return Math.abs((ix-g.cx)*(-g.ny)+(iy-g.cy)*g.nx)<=g.hw;
+}
+function makeState(){return {x:START.x,y:START.y,vx:START.vx,vy:START.vy,gi:0,passed:0};}
+function stepPhys(st,ax,ay){
+  const n=Math.hypot(ax,ay);if(n>AMAX){ax*=AMAX/n;ay*=AMAX/n;}
+  const p0={x:st.x,y:st.y};
+  st.vx=(st.vx+ax*DT)*(1-DRAG);st.vy=(st.vy+ay*DT)*(1-DRAG);
+  st.x+=st.vx*DT;st.y+=st.vy*DT;
+  if(crossGate(GATES[st.gi%4],p0,{x:st.x,y:st.y})){st.gi++;st.passed++;return true;}
+  return false;
+}
+
+/* ===== 人間流: PD制御（ゲート中心に正対し、手前で減速して確実に通す）===== */
+function pdPilot(st,o){o=o||{vmax:2.6,brake:1.1};
+  const g=GATES[st.gi%4];const dx=g.cx-st.x,dy=g.cy-st.y,d=Math.hypot(dx,dy);
+  const sp=Math.min(o.vmax,o.brake*d+0.6);
+  return [2.6*(dx/d*sp-st.vx),2.6*(dy/d*sp-st.vy)];}
+function runTraj(pilot,maxStep,nG){const st=makeState();const traj=[{x:st.x,y:st.y,v:Math.hypot(st.vx,st.vy)}];const pass=[];
+  for(let s=0;s<maxStep;s++){const[ax,ay]=pilot(st);const gi0=st.gi;stepPhys(st,ax,ay);
+    traj.push({x:st.x,y:st.y,v:Math.hypot(st.vx,st.vy)});
+    if(st.gi>gi0){const g=GATES[gi0%4];pass.push({off:(st.x-g.cx)*(-g.ny)+(st.y-g.cy)*g.nx,v:Math.hypot(st.vx,st.vy)});}
+    if(st.passed>=nG)return {time:(s+1)*DT,traj,pass,done:true};}
+  return {time:maxStep*DT,traj,pass,done:false};}
+
+/* ===== RL: 方策ネット(6→24→8)+批評家、ゲート座標系の観測・行動 ===== */
+const NA=8,DIRS=[];for(let k=0;k<NA;k++)DIRS.push([Math.cos(k/NA*2*Math.PI),Math.sin(k/NA*2*Math.PI)]);
+function mlp(sizes,seed){const r=mulberry(seed);const L=[];
+  for(let l=0;l<sizes.length-1;l++){const ni=sizes[l],no=sizes[l+1];
+    L.push({W:Array.from({length:no},()=>Array.from({length:ni},()=>(r()*2-1)*Math.sqrt(6/(ni+no)))),b:new Array(no).fill(0),ni,no,act:l<sizes.length-2,
+      mW:Array.from({length:no},()=>new Array(ni).fill(0)),vW:Array.from({length:no},()=>new Array(ni).fill(0)),mb:new Array(no).fill(0),vb:new Array(no).fill(0)});}
+  return {L,t:0};}
+function fwd(net,x){const as=[x];let a=x;
+  for(const ly of net.L){const o=new Array(ly.no);
+    for(let j=0;j<ly.no;j++){let s=ly.b[j];for(let i=0;i<ly.ni;i++)s+=ly.W[j][i]*a[i];o[j]=ly.act?Math.tanh(s):s;}
+    as.push(o);a=o;}
+  return as;}
+function zgrad(net){return net.L.map(ly=>({W:ly.W.map(r=>r.map(()=>0)),b:ly.b.map(()=>0)}));}
+function accum(net,grad,as,dout){let da=dout;
+  for(let l=net.L.length-1;l>=0;l--){const ly=net.L[l],ain=as[l],aout=as[l+1];const dz=new Array(ly.no);
+    for(let j=0;j<ly.no;j++){dz[j]=ly.act?da[j]*(1-aout[j]*aout[j]):da[j];}
+    const dprev=new Array(ly.ni).fill(0);
+    for(let j=0;j<ly.no;j++){const g=dz[j];grad[l].b[j]+=g;for(let i=0;i<ly.ni;i++){dprev[i]+=ly.W[j][i]*g;grad[l].W[j][i]+=g*ain[i];}}
+    da=dprev;}}
+function adamAsc(net,grad,lr){net.t++;const B1=0.9,B2=0.999,E=1e-8,c1=1-Math.pow(B1,net.t),c2=1-Math.pow(B2,net.t);
+  for(let l=0;l<net.L.length;l++){const ly=net.L[l],g=grad[l];
+    for(let j=0;j<ly.no;j++){for(let i=0;i<ly.ni;i++){const gr=g.W[j][i];ly.mW[j][i]=B1*ly.mW[j][i]+(1-B1)*gr;ly.vW[j][i]=B2*ly.vW[j][i]+(1-B2)*gr*gr;ly.W[j][i]+=lr*(ly.mW[j][i]/c1)/(Math.sqrt(ly.vW[j][i]/c2)+E);}
+      const gb=g.b[j];ly.mb[j]=B1*ly.mb[j]+(1-B1)*gb;ly.vb[j]=B2*ly.vb[j]+(1-B2)*gb*gb;ly.b[j]+=lr*(ly.mb[j]/c1)/(Math.sqrt(ly.vb[j]/c2)+E);}}}
+function gateBasis(st){const g=GATES[st.gi%4];return {g,e1:[g.nx,g.ny],e2:[-g.ny,g.nx]};}
+function obsOf(st){const {g,e1,e2}=gateBasis(st);const g2=GATES[(st.gi+1)%4];
+  const d1=[g.cx-st.x,g.cy-st.y],d2=[g2.cx-st.x,g2.cy-st.y],v=[st.vx,st.vy];
+  const pr=(u,e)=>u[0]*e[0]+u[1]*e[1];
+  return [pr(d1,e1)/4,pr(d1,e2)/4, pr(v,e1)/3,pr(v,e2)/3, pr(d2,e1)/4,pr(d2,e2)/4];}
+function actWorld(st,ai){const {e1,e2}=gateBasis(st);const d=DIRS[ai];
+  return [(d[0]*e1[0]+d[1]*e2[0])*AMAX,(d[0]*e1[1]+d[1]*e2[1])*AMAX];}
+function softmax(z){const m=Math.max.apply(null,z);const e=z.map(v=>Math.exp(v-m));const s=e.reduce((a,b)=>a+b,0);return e.map(v=>v/s);}
+function snap(net){return net.L.map(ly=>({W:ly.W.map(r=>r.slice()),b:ly.b.slice()}));}
+function restore(net,s){net.L.forEach((ly,l)=>{ly.W=s[l].W.map(r=>r.slice());ly.b=s[l].b.slice();});}
+function greedyPilot(actor){return st=>{const as=fwd(actor,obsOf(st));const pi=softmax(as[as.length-1]);
+  let bi=0;for(let k=1;k<NA;k++)if(pi[k]>pi[bi])bi=k;return actWorld(st,bi);};}
+function evalLap(actor){const r=runTraj(greedyPilot(actor),600,NLAP_G);return r.done?r.time:Infinity;}
+
+/* ===== 学習器（REINFORCE+ベースライン、バッチ4エピソード、エントロピー減衰）===== */
+const EPISODES=4000, GAM=0.99, LR_A=0.012, LR_C=0.05, R_GATE=6, R_TIME=0.03, R_PROG=1.0;
+function makeLearner(seed){
+  return {seed, rnd:mulberry(seed), actor:mlp([6,24,NA],seed+1), critic:mlp([6,24,1],seed+2),
+    gA:null,gC:null,bcount:0,bsteps:0, ep:0, hist:[], best:Infinity, bestSnap:null, lastTraj:null};}
+function trainEpisodes(L,n){
+  if(!L.gA){L.gA=zgrad(L.actor);L.gC=zgrad(L.critic);}
+  for(let e=0;e<n&&L.ep<EPISODES;e++){
+    const entB=0.02+(0.002-0.02)*L.ep/EPISODES;
+    const st=makeState();const S=[],A=[],R=[];
+    let prevDist=Math.hypot(GATES[0].cx-st.x,GATES[0].cy-st.y);
+    for(let s=0;s<300;s++){
+      const x=obsOf(st);const as=fwd(L.actor,x);const pi=softmax(as[as.length-1]);
+      let u=L.rnd(),ai=0;for(;ai<NA-1;ai++){u-=pi[ai];if(u<=0)break;}
+      const w=actWorld(st,ai);const passed=stepPhys(st,w[0],w[1]);
+      const g=GATES[st.gi%4];const dist=Math.hypot(g.cx-st.x,g.cy-st.y);
+      R.push((passed?R_GATE:(prevDist-dist)*R_PROG)-R_TIME);
+      prevDist=dist;S.push(x);A.push(ai);
+      if(st.passed>=4)break;                              // 訓練は1周タスク
+    }
+    let G=0;const golds=new Array(R.length);
+    for(let t=R.length-1;t>=0;t--){G=R[t]+GAM*G;golds[t]=G;}
+    const advs=golds.map((gg,t)=>{const as=fwd(L.critic,S[t]);return gg-as[as.length-1][0];});
+    const mean=advs.reduce((a,b)=>a+b,0)/advs.length;
+    const sd=Math.sqrt(advs.reduce((a,b)=>a+(b-mean)*(b-mean),0)/advs.length)+1e-6;
+    for(let t=0;t<R.length;t++){
+      const asC=fwd(L.critic,S[t]);accum(L.critic,L.gC,asC,[advs[t]]);
+      const a=(advs[t]-mean)/sd;
+      const asA=fwd(L.actor,S[t]);const pi=softmax(asA[asA.length-1]);
+      const H=-pi.reduce((s,p)=>s+p*Math.log(p+1e-9),0);
+      accum(L.actor,L.gA,asA,pi.map((p,k)=>((k===A[t]?1:0)-p)*a+entB*(-p*(Math.log(p+1e-9)+H))));
+    }
+    L.bsteps+=R.length;L.bcount++;
+    if(L.bcount>=4){
+      const inv=1/L.bsteps;
+      L.gA.forEach(l=>{l.W.forEach(r=>r.forEach((v,i,arr)=>arr[i]*=inv));l.b.forEach((v,i,arr)=>arr[i]*=inv);});
+      L.gC.forEach(l=>{l.W.forEach(r=>r.forEach((v,i,arr)=>arr[i]*=inv));l.b.forEach((v,i,arr)=>arr[i]*=inv);});
+      adamAsc(L.actor,L.gA,LR_A);adamAsc(L.critic,L.gC,LR_C);
+      L.gA=zgrad(L.actor);L.gC=zgrad(L.critic);L.bcount=0;L.bsteps=0;
+    }
+    L.ep++;
+    if(L.ep%50===0){
+      const lap=evalLap(L.actor);
+      L.hist.push({ep:L.ep,lap});
+      if(lap<L.best){L.best=lap;L.bestSnap=snap(L.actor);}
+      L.lastTraj=runTraj(greedyPilot(L.actor),600,NLAP_G).traj;
+    }
+  }
+}
+function bestPilotOf(L){const a=mlp([6,24,NA],L.seed+1);restore(a,L.bestSnap);return greedyPilot(a);}
+
+/* ===== 実測キャッシュ ===== */
+let baseSeed=7;
+let pdStd=null,pdLim=null,sweep=null,learner=null,rlBest=null;
+function ensurePD(){if(pdStd)return;
+  pdStd=runTraj(st=>pdPilot(st,{vmax:2.6,brake:1.1}),600,NLAP_G);
+  pdLim=runTraj(st=>pdPilot(st,{vmax:3.4,brake:1.8}),600,NLAP_G);
+  sweep=[];
+  for(const vmax of [2.2,2.6,3.0,3.4])for(const brake of [0.9,1.1,1.4,1.8]){
+    const r=runTraj(st=>pdPilot(st,{vmax,brake}),600,NLAP_G);
+    sweep.push({vmax,brake,time:r.done?r.time:Infinity});}}
+function ensureRL(){if(learner&&learner.ep>=EPISODES)return;
+  if(!learner)learner=makeLearner(baseSeed);
+  trainEpisodes(learner,EPISODES-learner.ep);
+  rlBest=runTraj(bestPilotOf(learner),600,NLAP_G);}
+function rlReady(){return learner&&learner.ep>=EPISODES&&rlBest;}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const CX=180,CY=168,SC=38;                     // コース描画: 中心と縮尺
+const W2X=x=>CX+SC*x, W2Y=y=>CY-SC*y;
+function drawGridBg(){ctx.lineWidth=1;for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(x+.5,10);ctx.lineTo(x+.5,CH-10);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.07)';ctx.beginPath();ctx.moveTo(10,y+.5);ctx.lineTo(CW-10,y+.5);ctx.stroke();}}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(txt,CW/2,y||CH-10);}
+function drawCourse(o){o=o||{};
+  // ゲート（門柱＋番号＋通過方向の矢印）
+  GATES.forEach((g,i)=>{
+    const tx=-g.ny,ty=g.nx;
+    const x1=W2X(g.cx-tx*g.hw),y1=W2Y(g.cy-ty*g.hw),x2=W2X(g.cx+tx*g.hw),y2=W2Y(g.cy+ty*g.hw);
+    ctx.strokeStyle='rgba(26,26,23,0.55)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.fillStyle='#1a1a17';[[x1,y1],[x2,y2]].forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],3,0,7);ctx.fill();});
+    ctx.strokeStyle='rgba(31,158,138,0.6)';ctx.lineWidth=1.3;
+    const ax=W2X(g.cx),ay=W2Y(g.cy),bx=W2X(g.cx+g.nx*0.5),by=W2Y(g.cy+g.ny*0.5);
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx-(bx-ax)*0.3-(ay-by)*0.25,by-(by-ay)*0.3-(bx-ax)*0.25);ctx.lineTo(bx-(bx-ax)*0.3+(ay-by)*0.25,by-(by-ay)*0.3+(bx-ax)*0.25);ctx.closePath();ctx.fillStyle='rgba(31,158,138,0.6)';ctx.fill();
+    ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillText('G'+(i+1),W2X(g.cx+g.nx*-0.45),W2Y(g.cy+g.ny*-0.45)+3);
+  });
+  // スタート
+  ctx.fillStyle=getCSS('--warm');ctx.beginPath();ctx.arc(W2X(START.x),W2Y(START.y),3.4,0,7);ctx.fill();
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('START',W2X(START.x)+6,W2Y(START.y)+3);}
+function drawTrajLine(traj,col,w,alpha){ctx.strokeStyle=col;ctx.lineWidth=w||1.8;ctx.globalAlpha=alpha==null?1:alpha;
+  ctx.beginPath();traj.forEach((p,i)=>{const X=W2X(p.x),Y=W2Y(p.y);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();ctx.globalAlpha=1;}
+function drawDrone(x,y,col){const X=W2X(x),Y=W2Y(y);
+  ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X-4,Y-4);ctx.lineTo(X+4,Y+4);ctx.moveTo(X-4,Y+4);ctx.lineTo(X+4,Y-4);ctx.stroke();
+  [[-4,-4],[4,-4],[-4,4],[4,4]].forEach(d=>{ctx.beginPath();ctx.arc(X+d[0],Y+d[1],2,0,7);ctx.fillStyle=col;ctx.fill();});}
+function drawLapCurve(y0){const h=84,x0=40,w=CW-2*x0;if(!learner||!learner.hist.length)return;
+  const hs=learner.hist;const laps=hs.map(p=>p.lap===Infinity?null:p.lap);
+  const valid=laps.filter(v=>v!=null);if(!valid.length)return;
+  const lo=Math.min.apply(null,valid)-1,hi=Math.max(26,Math.max.apply(null,valid));
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('2周タイム（貪欲方策で計測、低いほど速い）',x0-6,y0-6);
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const lx=i=>x0+w*(hs[i].ep/EPISODES), ly=v=>y0+4+(h-8)*Math.min(1,Math.max(0,(v-lo)/(hi-lo)));
+  ensurePD();
+  ctx.strokeStyle=getCSS('--loss');ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(x0,ly(pdStd.time));ctx.lineTo(x0+w,ly(pdStd.time));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x0,ly(pdLim.time));ctx.lineTo(x0+w,ly(pdLim.time));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--loss');ctx.font='8.5px '+getCSS('--mono');ctx.fillText('人間流 '+pdStd.time.toFixed(1)+'s',x0+3,ly(pdStd.time)-3);
+  ctx.fillText('限界調整 '+pdLim.time.toFixed(1)+'s',x0+3,ly(pdLim.time)+11);
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.8;ctx.beginPath();let started=false;
+  hs.forEach((p,i)=>{if(p.lap===Infinity)return;const X=lx(i),Y=ly(p.lap);started?ctx.lineTo(X,Y):ctx.moveTo(X,Y);started=true;});ctx.stroke();
+  if(learner.best<Infinity){ctx.fillStyle=getCSS('--accent');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';
+    ctx.fillText('ベスト '+learner.best.toFixed(1)+'s',x0+w-4,ly(learner.best)-4);
+    ctx.strokeStyle=getCSS('--accent');ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(x0,ly(learner.best));ctx.lineTo(x0+w,ly(learner.best));ctx.stroke();ctx.setLineDash([]);}}
+function drawSweepBars(y0){ensurePD();const h=84,x0=40,w=CW-2*x0;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('人間流の調整16通り（vmax×ブレーキ）の2周タイム',x0-6,y0-6);
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const times=sweep.map(s=>s.time===Infinity?30:s.time);const hi=Math.max.apply(null,times)*1.06,lo=14;
+  const bw=w/sweep.length;
+  const bestT=Math.min.apply(null,times);
+  sweep.forEach((s,i)=>{const t=times[i];const bh=(h-8)*(t-lo)/(hi-lo);
+    ctx.fillStyle=(s.time===bestT)?getCSS('--warm'):'rgba(194,137,27,0.45)';
+    ctx.fillRect(x0+i*bw+1.5,y0+h-bh-4,bw-3,bh);});
+  ctx.strokeStyle=getCSS('--loss');ctx.setLineDash([4,3]);const yb=y0+h-4-(h-8)*(bestT-lo)/(hi-lo);
+  ctx.beginPath();ctx.moveTo(x0,yb);ctx.lineTo(x0+w,yb);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--loss');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('調整の壁 '+bestT.toFixed(1)+'s',x0+3,yb-4);
+  if(rlReady()){const yr=y0+h-4-(h-8)*(rlBest.time-lo)/(hi-lo);
+    ctx.strokeStyle=getCSS('--accent');ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(x0,yr);ctx.lineTo(x0+w,yr);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=getCSS('--accent');ctx.textAlign='right';ctx.fillText('学習ドローン '+rlBest.time.toFixed(1)+'s',x0+w-4,yr-4);}}
+
+/* ===== レースアニメ（A/B同時走行）===== */
+let race=null;
+function startRace(){ensurePD();ensureRL();
+  race={frame:0,stP:makeState(),stR:makeState(),trP:[],trR:[],tP:null,tR:null,
+    pilotP:st=>pdPilot(st,{vmax:3.4,brake:1.8}),pilotR:bestPilotOf(learner)};
+  race.trP.push({x:race.stP.x,y:race.stP.y});race.trR.push({x:race.stR.x,y:race.stR.y});}
+function stepRace(){if(!race)return false;let any=false;
+  if(race.tP==null){const[ax,ay]=race.pilotP(race.stP);stepPhys(race.stP,ax,ay);race.trP.push({x:race.stP.x,y:race.stP.y});
+    if(race.stP.passed>=NLAP_G)race.tP=(race.trP.length-1)*DT;any=true;}
+  if(race.tR==null){const[ax,ay]=race.pilotR(race.stR);stepPhys(race.stR,ax,ay);race.trR.push({x:race.stR.x,y:race.stR.y});
+    if(race.stR.passed>=NLAP_G)race.tR=(race.trR.length-1)*DT;any=true;}
+  race.frame++;return any;}
+function drawRace(){drawCourse();
+  if(!race)return;
+  drawTrajLine(race.trP,getCSS('--loss'),1.6,0.75);
+  drawTrajLine(race.trR,getCSS('--accent'),1.8,0.85);
+  const lp=race.trP[race.trP.length-1],lr=race.trR[race.trR.length-1];
+  drawDrone(lp.x,lp.y,getCSS('--loss'));drawDrone(lr.x,lr.y,getCSS('--accent'));
+  const y0=330;
+  ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';
+  ctx.fillStyle=getCSS('--loss');ctx.fillText('人間流(限界調整): '+(race.tP!=null?race.tP.toFixed(1)+'s ゴール':((race.trP.length-1)*DT).toFixed(1)+'s  ゲート'+race.stP.passed+'/8'),40,y0+18);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('学習ドローン:      '+(race.tR!=null?race.tR.toFixed(1)+'s ゴール 🏁':((race.trR.length-1)*DT).toFixed(1)+'s  ゲート'+race.stR.passed+'/8'),40,y0+40);
+  if(race.tP!=null&&race.tR!=null){ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');
+    ctx.fillText('差 '+(race.tP-race.tR).toFixed(1)+' 秒 — 線の差が積もった',40,y0+64);}}
+
+/* ===== 図解（設計スライド用）===== */
+function drawRLLoop(){ctx.textAlign='center';ctx.textBaseline='middle';const ink=getCSS('--text'),mut=getCSS('--muted');
+  const nodes=[{t:'状態 s',d:'ゲートとの相対位置・速度',x:CW/2,y:70,c:getCSS('--upd')},
+               {t:'行動 a',d:'8方向の推力',x:CW/2,y:185,c:getCSS('--accent')},
+               {t:'報酬 r',d:'進んだ? 通過した? 時間は?',x:CW/2,y:300,c:getCSS('--loss')}];
+  nodes.forEach(n=>{ctx.fillStyle='#fffdf6';ctx.strokeStyle=n.c;ctx.lineWidth=1.6;roundRect(n.x-105,n.y-30,210,60,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=ink;ctx.font='700 13px '+getCSS('--gothic');ctx.fillText(n.t,n.x,n.y-9);
+    ctx.fillStyle=mut;ctx.font='10px '+getCSS('--gothic');ctx.fillText(n.d,n.x,n.y+12);});
+  ctx.strokeStyle=mut;ctx.lineWidth=1.4;
+  [[CW/2,100,CW/2,155],[CW/2,215,CW/2,270]].forEach(a=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(a[2],a[3]);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(a[2],a[3]);ctx.lineTo(a[2]-4,a[3]-7);ctx.lineTo(a[2]+4,a[3]-7);ctx.closePath();ctx.fillStyle=mut;ctx.fill();});
+  ctx.strokeStyle='rgba(31,158,138,0.55)';ctx.setLineDash([4,4]);ctx.beginPath();
+  ctx.moveTo(CW/2+105,300);ctx.bezierCurveTo(CW-30,300,CW-30,70,CW/2+105,70);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--accent');ctx.font='10px '+getCSS('--gothic');ctx.fillText('π を更新して次の試行へ',CW-72,185);
+  caption('正解の操縦は誰も教えない。あるのは報酬だけ',CH-14);ctx.textBaseline='alphabetic';}
+function drawGateFrame(){drawCourse();
+  // 2つの機体が「同じ観測」を得ることを示す
+  const spots=[{x:3.0,y:-1.2,gi:0},{x:1.2,y:3.0,gi:1}];
+  spots.forEach(s=>{const st={x:s.x,y:s.y,vx:0,vy:0,gi:s.gi};const {g,e1,e2}=gateBasis(st);
+    drawDrone(s.x,s.y,getCSS('--upd'));
+    ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.6;
+    ctx.beginPath();ctx.moveTo(W2X(s.x),W2Y(s.y));ctx.lineTo(W2X(s.x+e1[0]),W2Y(s.y+e1[1]));ctx.stroke();
+    ctx.strokeStyle=getCSS('--warm');ctx.beginPath();ctx.moveTo(W2X(s.x),W2Y(s.y));ctx.lineTo(W2X(s.x+e2[0]*0.7),W2Y(s.y+e2[1]*0.7));ctx.stroke();
+    ctx.strokeStyle='rgba(111,84,196,0.5)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(W2X(s.x),W2Y(s.y));ctx.lineTo(W2X(g.cx),W2Y(g.cy));ctx.stroke();ctx.setLineDash([]);});
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('緑=ゲートへ向かう軸　橙=横方向の軸',CW/2,346);
+  ctx.fillText('どのゲートの手前でも、この座標系では「同じ景色」',CW/2,364);
+  caption('回転して重ねれば同じ問題＝1つの技で全コーナーを飛べる',CH-14);}
+function drawRewardBars(){ensurePD();const y0=64;
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('1ステップの報酬の内訳',CW/2,30);ctx.textBaseline='alphabetic';
+  const rows=[{t:'ゲートに近づいた分',v:'+1.0 ×（縮んだ距離）',c:getCSS('--accent'),d:'毎ステップの道しるべ（密な信号）'},
+              {t:'ゲートを通過',v:'+6',c:getCSS('--upd'),d:'本当の目的（疎だが大きい）'},
+              {t:'時間の経過',v:'−0.03 / ステップ',c:getCSS('--neg'),d:'ぐずぐずすると損＝急げ'}];
+  rows.forEach((r,i)=>{const y=y0+i*86;
+    ctx.fillStyle='#fffdf6';ctx.strokeStyle=r.c;ctx.lineWidth=1.6;roundRect(28,y,CW-56,68,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=r.c;ctx.font='700 12.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(r.v,44,y+28);
+    ctx.fillStyle=getCSS('--text');ctx.font='700 11.5px '+getCSS('--gothic');ctx.fillText(r.t,44+ctx.measureText(r.v).width+70,y+28);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText(r.d,44,y+50);});
+  caption('この3行が「レースの上手さ」の定義のすべて',CH-14);}
+function drawPolicyNet(){ctx.textAlign='center';ctx.textBaseline='middle';const ink=getCSS('--text'),mut=getCSS('--muted');
+  const lx=[70,180,290],counts=[6,10,8];
+  const pos=[];
+  counts.forEach((n,l)=>{const arr=[];const full=l===1?24:n;
+    for(let k=0;k<n;k++){arr.push([lx[l],66+k*(l===1?22:(l===0?36:26))]);}pos.push(arr);});
+  ctx.strokeStyle='rgba(60,60,52,0.18)';ctx.lineWidth=.6;
+  for(let l=0;l<2;l++)for(const a of pos[l])for(const b of pos[l+1]){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  pos.forEach((arr,l)=>arr.forEach((p,k)=>{ctx.beginPath();ctx.arc(p[0],p[1],l===1?4:5,0,7);
+    ctx.fillStyle=l===2?getCSS('--accent'):(l===0?getCSS('--upd'):'#3a3a34');ctx.fill();
+    if(l===0){const lbl=['ゲートまで x','ゲートまで y','速度 x','速度 y','次ゲート x','次ゲート y'][k];
+      ctx.fillStyle=mut;ctx.font='8.5px '+getCSS('--gothic');ctx.textAlign='right';ctx.fillText(lbl,p[0]-10,p[1]+3);ctx.textAlign='center';}
+    if(l===2){const ang=k/NA*2*Math.PI;ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(p[0]+12,p[1]);ctx.lineTo(p[0]+12+9*Math.cos(ang),p[1]-9*Math.sin(ang));ctx.stroke();}}));
+  ctx.fillStyle=mut;ctx.font='9.5px '+getCSS('--gothic');
+  ctx.fillText('観測 6',lx[0],36);ctx.fillText('隠れ 24（一部表示）',lx[1],36);ctx.fillText('推力 8方向の確率',lx[2],36);
+  ctx.fillStyle=ink;ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('方策ネット π(a|s) — これが「操縦の腕」',CW/2,330);
+  ctx.fillStyle=mut;ctx.font='10px '+getCSS('--gothic');ctx.fillText('隣に批評家 V(s)（同型・出力1）が並走し、',CW/2,352);
+  ctx.fillText('「思ったより良い/悪い」の差分で両方を更新',CW/2,370);
+  caption('たった6入力・数百パラメータの小さな頭脳',CH-14);ctx.textBaseline='alphabetic';}
+function drawStats(y0){ensurePD();if(!rlReady())ensureRL();
+  const mv=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
+  const pv=mv(pdLim.pass.map(p=>p.v)),rv=mv(rlBest.pass.map(p=>p.v));
+  const po=mv(pdLim.pass.map(p=>Math.abs(p.off))),ro=mv(rlBest.pass.map(p=>Math.abs(p.off)));
+  const groups=[{name:'通過速度',p:pv,q:rv,unit:'',hi:3},{name:'中心からのずれ',p:po,q:ro,unit:'',hi:0.7}];
+  const h=84,x0=44,gw=(CW-2*x0)/2;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('ゲート通過の測り方（平均）　橙=人間流  緑=学習ドローン',x0-6,y0-6);
+  groups.forEach((g,i)=>{const gx=x0+i*gw,bw=gw*0.28;
+    const bp=h*Math.min(1,g.p/g.hi),bq=h*Math.min(1,g.q/g.hi);
+    ctx.fillStyle=getCSS('--loss');roundRect(gx+gw*0.16,y0+h-bp,bw,bp,2);ctx.fill();
+    ctx.fillStyle=getCSS('--accent');roundRect(gx+gw*0.56,y0+h-bq,bw,bq,2);ctx.fill();
+    ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';
+    ctx.fillStyle=getCSS('--loss');ctx.fillText(g.p.toFixed(2),gx+gw*0.16+bw/2,y0+h-bp-4);
+    ctx.fillStyle=getCSS('--accent');ctx.fillText(g.q.toFixed(2),gx+gw*0.56+bw/2,y0+h-bq-4);
+    ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText(g.name,gx+gw/2,y0+h+14);});}
+function drawWhyFast(){ensurePD();if(!rlReady())ensureRL();drawCourse();
+  drawTrajLine(pdLim.traj,getCSS('--loss'),1.6,0.8);
+  drawTrajLine(rlBest.traj,getCSS('--accent'),1.9,0.9);
+  const y0=328;
+  ctx.font='10.5px '+getCSS('--mono');ctx.textAlign='left';
+  const vmaxP=Math.max.apply(null,pdLim.traj.map(p=>p.v)),vmaxR=Math.max.apply(null,rlBest.traj.map(p=>p.v));
+  ctx.fillStyle=getCSS('--loss');ctx.fillText('人間流:   最高速 '+vmaxP.toFixed(2)+'（勝ち） ラップ '+pdLim.time.toFixed(1)+'s',40,y0+14);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('学習後:   最高速 '+vmaxR.toFixed(2)+'（負け） ラップ '+rlBest.time.toFixed(1)+'s 🏁',40,y0+34);
+  ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');
+  ctx.fillText('緑の線は内側を通り、曲がりながらも速度を捨てない',40,y0+58);
+  caption('速さの正体は最高速ではなく「線」',CH-10);}
+function drawSwift(){ctx.textAlign='center';ctx.textBaseline='middle';const ink=getCSS('--text'),mut=getCSS('--muted');
+  const rows=[{t:'カメラ映像＋慣性センサ',d:'VIO・ゲート検出 → 自分とゲートの相対状態',y:52,c:getCSS('--upd')},
+              {t:'方策ネット（PPO で学習）',d:'状態 → 各モーターの推力指令（本ページの拡大版）',y:132,c:getCSS('--accent')},
+              {t:'シミュレータで数百万回の試行錯誤',d:'実機データで空力を補正・ノイズ注入で頑健化',y:212,c:getCSS('--loss')},
+              {t:'実機で人間チャンピオンに勝利',d:'2023年・最速ラップも記録（sim-to-real 転移）',y:292,c:getCSS('--warm')}];
+  rows.forEach((r,i)=>{ctx.fillStyle='#fffdf6';ctx.strokeStyle=r.c;ctx.lineWidth=1.6;roundRect(28,r.y-26,CW-56,58,10);ctx.fill();ctx.stroke();
+    ctx.fillStyle=ink;ctx.font='700 12px '+getCSS('--gothic');ctx.fillText(r.t,CW/2,r.y-6);
+    ctx.fillStyle=mut;ctx.font='9.5px '+getCSS('--gothic');ctx.fillText(r.d,CW/2,r.y+14);
+    if(i<rows.length-1){ctx.strokeStyle=mut;ctx.beginPath();ctx.moveTo(CW/2,r.y+32);ctx.lineTo(CW/2,r.y+46);ctx.stroke();}});
+  caption('Swift（Kaufmann ら, Nature 2023）の構図',CH-14);ctx.textBaseline='alphabetic';}
+function drawApps(){ctx.textAlign='left';ctx.textBaseline='middle';const mut=getCSS('--muted'),ink=getCSS('--text');
+  const apps=[{e:'🤖',t:'ロボット制御',d:'歩行・マニピュレーション（sim-to-real）',y:34},
+              {e:'🚗',t:'自動運転・レース',d:'GT Sophy はグランツーリスモで人間王者に勝利',y:96},
+              {e:'⚛️',t:'プラズマ制御',d:'DeepMind が核融合炉のコイル制御を RL で',y:158},
+              {e:'❄️',t:'インフラ最適化',d:'データセンター冷却・チップ配置設計',y:220}];
+  apps.forEach(a=>{ctx.fillStyle='#fffdf6';ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1.4;roundRect(30,a.y,CW-60,52,10);ctx.fill();ctx.stroke();
+    ctx.font='22px serif';ctx.textAlign='center';ctx.fillText(a.e,58,a.y+27);
+    ctx.textAlign='left';ctx.fillStyle=ink;ctx.font='700 13px '+getCSS('--gothic');ctx.fillText(a.t,86,a.y+20);
+    ctx.fillStyle=mut;ctx.font='10.5px '+getCSS('--gothic');ctx.fillText(a.d,86,a.y+38);});
+  ctx.textAlign='center';ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText('共通：正確なシミュレータ × 明確な報酬',CW/2,CH-14);ctx.textBaseline='alphabetic';}
+function drawClosing(){ensurePD();drawCourse();
+  if(rlReady()){drawTrajLine(pdLim.traj,getCSS('--loss'),1.4,0.55);drawTrajLine(rlBest.traj,getCSS('--accent'),2,0.9);}
+  ctx.fillStyle='rgba(31,158,138,0.10)';roundRect(46,300,CW-92,46,8);ctx.fill();
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;ctx.stroke();
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('ルールは調整の壁に当たる。試行錯誤は線を発明する',CW/2,323);ctx.textBaseline='alphabetic';
+  caption('その操縦、報酬から学べる 🎓',CH-10);}
+
+/* ===== スライド定義（4章 × 15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 人間流の壁',c:'var(--neg)',start:0},{t:'Ⅱ 学習の設計',c:'var(--upd)',start:4},{t:'Ⅲ ライブレース',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false;
+
+const SLIDES=[
+/* 0 ── 開演 ── */
+{title:'2023年、AI が人間チャンピオンに勝った',legend:'4つのゲート（G1→G4）を順に通過して2周するコース。橙点=スタート',
+ html(){return'<h3>2023年、AI が人間チャンピオンに勝った</h3><div class="eq curr">Swift（深層強化学習） vs 人間の世界チャンピオン3人 → <b>実機レースで AI が勝利</b><span class="read">読み：チューリッヒ大学のドローン「Swift」が、一人称視点ドローンレースの世界王者たちに<b>リアルタイムの実機対決</b>で勝ち、最速ラップも記録（Nature 2023）。チェスや囲碁ではなく、<b>物理世界の操縦</b>で人間の腕前を超えた</span></div><div class="desc">盤上のゲームで AI が人間を超えたのは知られていますが、2023年、ついに<b>物理世界の高速操縦</b>——ドローンレース——でも超えました。武器は<b>深層強化学習</b>：ルールを人が書くのでなく、<b>何千回もの試行錯誤から操縦を学ぶ</b>。このページではその構図を、4ゲート2周の小さな 2D コースで<b>本当に再現</b>します。まず「人間流の丁寧な操縦」を作り、その<b>調整の限界</b>を見て、それを<b>学習が追い抜く</b>まで。</div>';},
+ draw(){drawCourse();drawDrone(START.x,START.y,getCSS('--upd'));
+   caption('この場で学習し、この場でレースします',CH-10);}},
+/* 1 ── 物理 ── */
+{title:'舞台：推力で飛ぶ 2D ドローン',legend:'ドローンは推力（矢印）で加速し、慣性で滑り、空気抵抗で減速する',
+ html(){return'<h3>舞台：推力で飛ぶ 2D ドローン</h3><div class="eq curr"><i>v</i> ← (<i>v</i> + <i>a</i>·Δt)(1−β),　|<i>a</i>| ≤ '+AMAX+'<span class="read">読み：速度 <i>v</i> は推力（加速度 <i>a</i>、上限あり）で変わり、抗力 β で少し減衰。位置は速度で進む。<b>すぐには止まれない・曲がれない</b>＝慣性が本体</span></div><div class="desc">機体は<b>質点</b>に簡略化：操縦とは<b>推力ベクトル <i>a</i>（大きさ上限 '+AMAX+'）を毎瞬選ぶこと</b>です。厄介なのは<b>慣性</b>——速度が乗った機体は急に曲がれず、<b>止まる・曲がるには前もって逆向きに吹かす</b>必要がある。ここに操縦の全ての難しさが詰まっています。コースは 4 つのゲートを順に通過して 2 周。<b>速く回った者が勝ち</b>。単純ですが、慣性のせいで「良い線」は自明ではありません。</div>';},
+ draw(){drawCourse();const st={x:1.8,y:-2.6};drawDrone(st.x,st.y,getCSS('--upd'));
+   ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W2X(st.x),W2Y(st.y));ctx.lineTo(W2X(st.x+0.9),W2Y(st.y+0.5));ctx.stroke();
+   ctx.fillStyle=getCSS('--accent');ctx.font='9.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.fillText('推力 a',W2X(st.x+1.0),W2Y(st.y+0.5));
+   ctx.strokeStyle=getCSS('--upd');ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(W2X(st.x),W2Y(st.y));ctx.lineTo(W2X(st.x-0.5),W2Y(st.y-0.9));ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--upd');ctx.fillText('慣性（今の速度）',W2X(st.x-0.4),W2Y(st.y-1.15));
+   caption('毎 0.1 秒、推力の向きを選ぶ＝操縦',CH-10);}},
+/* 2 ── 人間流 ── */
+{title:'人間流：正対して、減速して、確実に通す',legend:'橙=人間流(PD制御)の2周軌道。ゲートの中心を丁寧に通る',
+ html(){ensurePD();return'<h3>人間流：正対して、減速して、確実に通す</h3><div class="eq curr"><i>a</i> = k·(<i>v</i><sub>des</sub> − <i>v</i>),　<i>v</i><sub>des</sub> = min(v<sub>max</sub>, k<sub>b</sub>·d)·(ゲート方向)<span class="read">読み：<b>ゲート中心へ向かう速度</b>を目標にし、ズレに比例した推力で追従（PD 制御）。ゲートまでの距離 d が縮むほど目標速度を落とす＝<b>手前で減速して確実に狙う</b></span></div><div class="desc">まず「人間の丁寧な操縦」をルールで書きます。教習所のお手本と同じ：<b>①次のゲート中心に正対する ②手前で減速する ③通過したら次へ</b>。この PD 制御は堅実に飛び、2周 <b>'+pdStd.time.toFixed(1)+' 秒</b>で完走します（橙の軌道）。ゲート通過位置は<b>ほぼ中心（ずれ 0.1 以下）</b>——安全で、確実で、見るからに「正しい」操縦。でもこの丁寧さ、レースでは<b>1ゲートごとに速度を捨てている</b>ということでもあります。</div>';},
+ draw(){ensurePD();drawCourse();drawTrajLine(pdStd.traj,getCSS('--loss'),1.8,0.9);
+   const lp=pdStd.traj[pdStd.traj.length-1];drawDrone(lp.x,lp.y,getCSS('--loss'));
+   ctx.fillStyle=getCSS('--loss');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('2周 '+pdStd.time.toFixed(1)+'s',CW/2,352);
+   caption('丁寧＝各ゲートで減速し中心を通す',CH-10);}},
+/* 3 ── 調整の壁 ── */
+{title:'ルールの調整には壁がある',legend:'人間流の設定16通り（最高速×ブレーキ）を総当たりした2周タイム',
+ html(){ensurePD();const best=Math.min.apply(null,sweep.map(s=>s.time));
+   return'<h3>ルールの調整には壁がある</h3><div class="eq curr">v<sub>max</sub> × ブレーキ強度 の 16 通りを総当たり → 最速 <b>'+best.toFixed(1)+' 秒</b>で頭打ち<span class="read">読み：ルール（PD制御）の中で攻められる限り攻めても、この形の操縦では越えられない<b>調整の壁</b>がある。速度を上げると曲がりきれず、ブレーキを緩めるとゲートを外す</span></div><div class="desc">「もっと攻めれば速いのでは？」——やってみましょう。最高速とブレーキの強さを振って<b>16 通りを実測</b>した結果が下の棒。攻めた設定は速くなりますが、<b>'+best.toFixed(1)+' 秒で頭打ち</b>です。それ以上速度を上げると慣性で膨らみ、ゲートを外して帰ってこられない。これが<b>ルールベース制御の宿命</b>：「正対して減速して通す」という<b>操縦の形そのもの</b>を変えない限り、調整では越えられない壁がある。壁を越えるには——<b>形を捨てて、学ばせる</b>。</div>';},
+ draw(){drawSweepBars(70);
+   ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('どの棒（設定）も一定より下に行けない',CW/2,196);
+   ctx.fillText('＝「操縦の形」自体の限界',CW/2,214);
+   caption('ルールの中の最適化 ≠ 操縦そのものの最適化',CH-14);}},
+/* 4 ── RLの骨格 ── */
+{title:'強化学習：正解を教えず、報酬で語る',legend:'状態→行動→報酬のループ。教師（正解の操縦）はどこにもいない',
+ html(){return'<h3>強化学習：正解を教えず、報酬で語る</h3><div class="eq curr">状態 <i>s</i> → 行動 <i>a</i> 〜 π(<i>a</i>|<i>s</i>) → 報酬 <i>r</i> → π を更新 → …<span class="read">読み：方策 π が状態を見て行動を選び、環境が報酬を返す。<b>「どう操縦すべきか」は誰も教えない</b>——「その結果が良かったか」だけが返る。<a href="qlearning.html">Q学習</a>・<a href="policygrad.html">方策勾配</a>と同じ骨格</span></div><div class="desc"><a href="cnn.html">画像分類</a>には正解ラベルがありました。でも「この瞬間の正しい推力」など<b>誰も知りません</b>——人間チャンピオンの操縦すら最適とは限らない。そこで<b>強化学習</b>：正解の代わりに<b>報酬</b>（うまくいったかの点数）だけを与え、<b>試行錯誤で方策 π を彫っていく</b>。Swift も本ページも、この同じループです。決めるべきは 3 つ——<b>何を見せるか（状態）・何をさせるか（行動）・何を褒めるか（報酬）</b>。次の 3 枚で順に設計します。</div>';},
+ draw(){drawRLLoop();}},
+/* 5 ── 観測の設計 ── */
+{title:'観測の設計：ゲート座標系という発明',legend:'紫=機体。緑矢印=ゲートへ向かう軸。どのゲート手前でも「同じ景色」になる',
+ html(){return'<h3>観測の設計：ゲート座標系という発明</h3><div class="eq curr"><i>o</i> = [ R(<i>g</i><sub>1</sub>−<i>p</i>),　R<i>v</i>,　R(<i>g</i><sub>2</sub>−<i>p</i>) ]　（R=ゲート向きへの回転）<span class="read">読み：観測は<b>次ゲートまでの相対位置・自分の速度・その次のゲートの方角</b>の6つ。全部を<b>ゲートの向きに回転した座標系</b>で表す。行動（推力の向き）も同じ座標系で出す</span></div><div class="desc">機体に何を見せるか。世界座標の生の位置を見せると、右のコーナーと上のコーナーが「別の問題」になってしまう。そこで<b>ゲート座標系</b>：全てを「ゲートへ向かう軸」基準に回転してから見せます。すると<b>どのコーナーも同じ景色</b>になり、<b>1 つの技を覚えれば 4 つの角すべてで使える</b>——学習が 4 倍効率化。観測に<b>その次のゲートの方角</b>も入れるのが伏線です：「今のゲートを<b>どちら側に抜けると次が楽か</b>」を学べるようになる。Swift が機体基準の状態表現を使うのと同じ発想です。</div>';},
+ draw(){drawGateFrame();}},
+/* 6 ── 報酬設計 ── */
+{title:'報酬の設計：3行でレースを定義する',legend:'報酬の内訳。この3行だけが「上手さ」の定義',
+ html(){return'<h3>報酬の設計：3行でレースを定義する</h3><div class="eq curr"><i>r</i> = 1.0·(近づいた距離) ＋ 6·[ゲート通過] − 0.03<span class="read">読み：①ゲートに近づいた分だけ毎ステップ小さく褒める（<b>密な道しるべ</b>）②通過したら大きく褒める（<b>本当の目的</b>）③1ステップごとに小さく罰する（<b>時間は敵</b>）</span></div><div class="desc">「どう飛べ」は書きません。書くのは<b>何が起きたら嬉しいか</b>だけ。通過ボーナスだけだと、最初の偶然の通過までが遠すぎて学習が始まらない——そこで<b>「近づいたら小さく褒める」密な信号</b>で道しるべを引きます（報酬シェイピング）。そして<b>時間ペナルティ</b>が「ただ通す」を「<b>速く</b>通す」に変える。注意：ここに「<b>ゲート中心を通れ」も「減速しろ」も書いていない</b>。人間流に埋め込んだ丁寧さの掟を、報酬は一切要求していません——だから学習は<b>掟の外側の操縦</b>を見つけられる。</div>';},
+ draw(){drawRewardBars();}},
+/* 7 ── 方策ネット ── */
+{title:'方策ネット：6入力→8方向の小さな頭脳',legend:'観測6 → 隠れ24 → 8方向推力の確率。批評家 V(s) が並走',
+ html(){return'<h3>方策ネット：6入力→8方向の小さな頭脳</h3><div class="eq curr">∇J = E[ ∇log π(<i>a</i>|<i>s</i>)·<i>A</i> ],　<i>A</i> = G − V(<i>s</i>)<span class="read">読み：<a href="policygrad.html">方策勾配</a>——<b>結果が予想より良かった行動の確率を上げる</b>。予想 V(<i>s</i>) は<a href="actorcritic.html">批評家（Critic）</a>が担当し、差分 <i>A</i>（advantage）が学習信号になる</span></div><div class="desc">操縦の腕の正体は、<b>観測 6 → 隠れ 24 → 8 方向の確率</b>を出す小さな MLP。毎ステップこの確率から推力の向きを引きます。学習は<a href="policygrad.html">方策勾配</a>＋ベースライン：走り終えるたびに「<b>この場面のこの推力は、批評家の予想より良い結果につながったか</b>」を計算し、良かった行動の確率を上げる。それだけです。Swift はこれの大規模版（PPO）を使いますが、<b>「予想より良かった行動を増やす」という心臓部は同じ</b>。さあ、走らせましょう。</div>';},
+ draw(){drawPolicyNet();}},
+/* 8 ── ライブ学習 ── */
+{title:'ライブ学習：4000回の墜落と発見',legend:'上=現在の方策の走り(灰)とベスト軌道(緑)。下=2周タイムの推移と人間流ライン',
+ html(){const ep=learner?learner.ep:0;const best=learner&&learner.best<Infinity?learner.best.toFixed(1)+' 秒':'—';
+   return'<h3>ライブ学習：4000回の墜落と発見</h3><div class="eq curr">エピソード '+ep+' / '+EPISODES+'　　ベストラップ '+best+'<span class="read">読み：いまこの場で試行錯誤中。最初はゲートすら通れない。<b>報酬の道しるべ</b>に導かれ、通過→周回→高速化と進む。緑の線が人間流の破線を<b>下回った瞬間</b>が見どころ</span></div><div class="desc">学習を<b>この場で実行</b>しています。最初の方策はデタラメ——ゲートに近づいては迷走します。しかし「近づけば褒められる」で<b>ゲートへ向かうこと</b>を、「通過ボーナス」で<b>くぐること</b>を、「時間ペナルティ」で<b>急ぐこと</b>を順に覚え、タイム（緑の線）が下がっていく。破線は人間流の <b>21.0 秒</b>と限界調整の <b>18.2 秒</b>。学習は不安定に揺れます（<b>崩れては持ち直す</b>のが方策勾配の素顔）が、<b>ベスト方策は保存</b>してあります——レースで使うのはそれ。実務でも「最良のチェックポイントを選ぶ」のは標準の作法です。</div>';},
+ draw(){drawCourse();
+   if(learner&&learner.lastTraj)drawTrajLine(learner.lastTraj,'rgba(120,116,105,0.5)',1.3);
+   if(learner&&learner.bestSnap&&learner.best<Infinity){if(rlBest)drawTrajLine(rlBest.traj,getCSS('--accent'),1.8,0.85);}
+   drawLapCurve(330);},
+ dice:true},
+/* 9 ── A/Bレース ── */
+{title:'いざ、レース：人間流 vs 学習ドローン',legend:'橙=人間流(限界調整18.2s設定) 緑=学習後のベスト方策。同時スタート',
+ html(){ensurePD();const rl=rlReady()?rlBest.time.toFixed(1):'…';
+   return'<h3>いざ、レース：人間流 vs 学習ドローン</h3><div class="eq curr">人間流（限界まで調整済み） vs 学習ドローン（ベスト方策）— 2周勝負<span class="read">読み：橙は<b>調整の壁ぎりぎり</b>の人間流（'+pdLim.time.toFixed(1)+'秒設定）。緑は学習で得た<b>ベスト方策</b>。同じ機体・同じ物理・同じコースで、違うのは<b>操縦だけ</b></span></div><div class="desc">同時スタート。序盤から違いが見えます——橙（人間流）はゲート中心へ<b>丁寧に正対して</b>通過。緑（学習）は<b>膨らみを抑えた内側の線</b>でゲートの<b>端を掠め</b>、減速せずに次へ向かう。1 ゲートあたりの差はコンマ数秒でも、8 ゲートで<b>積もって '+(rlReady()?( (pdLim.time-rlBest.time).toFixed(1)+' 秒差'):'数秒差')+'</b>。学習ドローン <b>'+rl+' 秒</b>：ルールの壁（'+pdLim.time.toFixed(1)+' 秒）の<b>向こう側</b>です。Swift が人間チャンピオンにやったことの、小さな相似形。</div>';},
+ draw(){drawRace();},
+ dice:false},
+/* 10 ── 数字で ── */
+{title:'数字で：どこで差がついたか',legend:'ゲート通過の平均速度と、中心からのずれ。橙=人間流、緑=学習',
+ html(){ensurePD();if(!rlReady())ensureRL();
+   const mv=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
+   const pv=mv(pdLim.pass.map(p=>p.v)).toFixed(2),rv=mv(rlBest.pass.map(p=>p.v)).toFixed(2);
+   const po=mv(pdLim.pass.map(p=>Math.abs(p.off))).toFixed(2),ro=mv(rlBest.pass.map(p=>Math.abs(p.off))).toFixed(2);
+   return'<h3>数字で：どこで差がついたか</h3><div class="eq curr">通過速度 '+pv+' → <b>'+rv+'</b>　／　中心からのずれ '+po+' → <b>'+ro+'</b><span class="read">読み：学習ドローンは人間流より<b>速い速度のままゲートを通過</b>し、しかも<b>中心でなく端寄り</b>（ゲート半幅 0.6 のうち '+ro+'）を通る。<b>ぎりぎりを攻めている</b></span></div><div class="desc">差の正体を測ります。<b>通過速度</b>：人間流 '+pv+' に対し学習は <b>'+rv+'</b>——<b>ブレーキを踏んでいない</b>。<b>通過位置</b>：人間流はほぼ中心（ずれ '+po+'）、学習は<b>内側の端</b>（ずれ '+ro+'、半幅 0.6 ぎりぎり）——<b>コーナーを短絡する側を掠めている</b>。思い出してください、報酬には「中心を通れ」も「減速するな」も書いていません。<b>「速く回れ」だけから、ライン取りとノーブレーキ通過が勝手に出てきた</b>——教えていない技術の創発です。</div>';},
+ draw(){ensurePD();if(!rlReady())ensureRL();drawCourse();
+   drawTrajLine(pdLim.traj,getCSS('--loss'),1.4,0.6);drawTrajLine(rlBest.traj,getCSS('--accent'),1.7,0.85);
+   drawStats(330);}},
+/* 11 ── なぜ速い ── */
+{title:'なぜ速い：最高速で負けて、線で勝つ',legend:'2本の2周軌道。緑(学習)は内側の小さな円、橙(人間流)は四隅の大きな軌道',
+ html(){ensurePD();if(!rlReady())ensureRL();
+   const vmaxP=Math.max.apply(null,pdLim.traj.map(p=>p.v)).toFixed(2),vmaxR=Math.max.apply(null,rlBest.traj.map(p=>p.v)).toFixed(2);
+   return'<h3>なぜ速い：最高速で負けて、線で勝つ</h3><div class="eq curr">最高速：人間流 '+vmaxP+' <b>></b> 学習 '+vmaxR+'　なのにラップは学習が勝つ<span class="read">読み：学習ドローンは<b>一度も人間流の最高速を出していない</b>。速さの源は速度でなく<b>軌道の形</b>——内側を通る短い線と、<b>曲がりながらも速度を捨てない</b>釣り合い</span></div><div class="desc">意外な実測：<b>最高速は人間流の勝ち</b>（'+vmaxP+' 対 '+vmaxR+'）。直線でめいっぱい加速しているのは橙のほうなのです。それでもラップは緑が速い。緑の軌道は<b>四隅へ膨らまず、内側の小さな円</b>を描く——走る距離が短い。そして<b>コーナーで減速しない</b>——直線で無理に稼ぐ代わりに、<b>全周で速度が一定に近い</b>。「速く飛ぶ」のではなく<b>「賢い線を飛ぶ」</b>。実物の Swift でも、人間チャンピオンが目を見張ったのは<b>コーナーの攻め方（ライン取り）</b>でした。腕力ではなく、幾何で勝つ。</div>';},
+ draw(){drawWhyFast();}},
+/* 12 ── Swiftの実像 ── */
+{title:'本物の Swift は何をしたか',legend:'Swift の処理の流れ。本ページはこの構図の2D簡略版',
+ html(){return'<h3>本物の Swift は何をしたか</h3><div class="eq curr">カメラ → 状態推定 → 方策（PPO で学習）→ モーター推力　＠実機・リアルタイム<span class="read">読み：実物はカメラ映像から <b>VIO＋ゲート検出</b>で状態を推定し、<b>シミュレータで学習した方策</b>が推力を出す。学習の骨格（方策勾配系）は本ページと同じ</span></div><div class="desc">実物との対応を正直に。Swift は<b>カメラと慣性センサ</b>から自機とゲートの相対状態を推定し（このページは真値を直接見せています）、方策は <b>PPO</b>（<a href="actorcritic.html">Actor-Critic</a> の現代標準）で<b>シミュレータの中で</b>学習。実機の空力データでシミュレータを補正し、観測ノイズを注入して頑健化してから実機に載せる——<b>sim-to-real</b>。2023年、人間の世界チャンピオン 3 人に勝ち、<b>最速ラップも記録</b>。一方で<b>照明が変わると失速する</b>脆さも報告されています。「特定の舞台での深さ」と「どんな舞台でもの広さ」は、まだ別物です。</div>';},
+ draw(){drawSwift();}},
+/* 13 ── どこで出会う ── */
+{title:'どこで出会うか',legend:'シミュレータ×報酬が揃う現場で、試行錯誤が人間の手つきを超えていく',
+ html(){return'<h3>どこで出会うか</h3><div class="eq curr">正確なシミュレータ × 明確な報酬 → 深層強化学習の出番<span class="read">読み：試行錯誤は実機では高くつく。<b>安全に何百万回も失敗できるシミュレータ</b>と、<b>良し悪しを数字にできる報酬</b>が揃った現場から、順に人間の手つきを超えていく</span></div><div class="desc">同じ構図は広がっています。<b>ロボットの歩行・物掴み</b>（シミュレータで学び実機へ）、<b>グランツーリスモの GT Sophy</b>（人間王者に勝った同じ物語のレース版）、DeepMind の<b>核融合プラズマ制御</b>や<b>データセンター冷却</b>、<b>チップ配置設計</b>。共通の条件は 2 つ——<b>安全に失敗できる場所</b>があること、<b>何が良いかを報酬に書けること</b>。逆に言えば、報酬に書けない仕事（何が「良い」か人により違う仕事）は、この魔法の射程外。そこは<a href="rlhf.html">RLHF</a>——人の好みを報酬に翻訳する話に続きます。</div>';},
+ draw(){drawApps();}},
+/* 14 ── 閉演 ── */
+{title:'閉演：ルールは壁に当たり、試行錯誤は線を発明する',legend:'2本の軌道が今日の要約。ルールの調整では、緑の線は出てこない',
+ html(){ensurePD();const rl=rlReady()?rlBest.time.toFixed(1):'16前後';
+   return'<h3>閉演：ルールは壁に当たり、試行錯誤は線を発明する</h3><div class="desc">今日の芯は 1 つ——<b>ルールベースの操縦は「形の中の調整」しかできず、強化学習は「形そのもの」を作り替える</b>。人間流は調整し尽くしても '+pdLim.time.toFixed(1)+' 秒。学習は同じ機体で <b>'+rl+' 秒</b>の線を発明した——しかも「中心を通れ」「減速しろ」という人間の掟を<b>教えられていない</b>からこそ。次に「ルールを頑張って調整しているが頭打ち」な制御問題に出会ったら、思い出してください——<b>シミュレータと報酬が書けるなら、線は学習で発明できる</b>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・ルール制御（PD）は<b>調整の壁</b>に当たる（実測 '+pdLim.time.toFixed(1)+'s が下限）<br>・強化学習は<b>状態・行動・報酬の3つの設計</b>だけで操縦を獲得<br>・実測：最高速で<b>負けたまま</b>ラップで勝つ＝<b>線の発明</b>（内側掠め・ノーブレーキ）<br>・Swift（Nature 2023）＝この構図の実機版。ただし<b>sim-to-realの隙間</b>は残る</div>';},
+ draw(){drawClosing();}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;let h='';
+  if(s===0)h='<div>ゲート <b>4</b>×2周</div><div>実話: <b>Nature 2023</b></div>';
+  else if(s===1)h='<div>推力上限 <b>'+AMAX+'</b></div><div>刻み <b>'+DT+'s</b></div>';
+  else if(s===2){ensurePD();h='<div>人間流 <b>'+pdStd.time.toFixed(1)+'s</b></div><div>通過=<b>ほぼ中心</b></div>';}
+  else if(s===3){ensurePD();const best=Math.min.apply(null,sweep.map(x=>x.time));h='<div>16設定の最速 <b>'+best.toFixed(1)+'s</b></div><div>=調整の壁</div>';}
+  else if(s===4)h='<div>教師=<b>報酬のみ</b></div>';
+  else if(s===5)h='<div>観測 <b>6次元</b></div><div><b>ゲート座標系</b>で回転不変</div>';
+  else if(s===6)h='<div>r=<b>進行+通過−時間</b></div>';
+  else if(s===7)h='<div>方策 <b>6→24→8</b></div><div>批評家 <b>6→24→1</b></div>';
+  else if(s===8){const ep=learner?learner.ep:0;h='<div>試行 <b>'+ep+'</b>/'+EPISODES+'</div><div class="best">ベスト <b>'+(learner&&learner.best<Infinity?learner.best.toFixed(1)+'s':'—')+'</b></div>';}
+  else if(s===9){ensurePD();h='<div>橙 <b>'+pdLim.time.toFixed(1)+'s</b>設定</div><div class="best">緑 <b>'+(rlReady()?rlBest.time.toFixed(1)+'s':'…')+'</b></div>';}
+  else if(s===10){h='<div>掟なしで<b>ライン取りが創発</b></div>';}
+  else if(s===11){ensurePD();if(!rlReady())ensureRL();h='<div>最高速は<b>人間流の勝ち</b></div><div class="best">ラップは<b>学習の勝ち</b></div>';}
+  else if(s===12)h='<div>Swift=<b>PPO+sim-to-real</b></div>';
+  else if(s===13)h='<div><b>シミュレータ×報酬</b>が条件</div>';
+  else h='<div class="best">線は学習で発明できる</div>';
+  m.innerHTML=h;}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
+
+/* ===== ライブ学習・レースの駆動 ===== */
+function runLiveTrain(){anim=true;
+  if(window.__prefersReducedMotion){ensureRL();anim=false;renderMini();renderExplain();draw_();return;}
+  function go(){if(!anim||slideIdx!==8)return;
+    trainEpisodes(learner,40);
+    if(learner.ep>=EPISODES&&!rlBest)rlBest=runTraj(bestPilotOf(learner),600,NLAP_G);
+    draw_();renderMini();renderExplain();
+    if(learner.ep<EPISODES)requestAnimationFrame(go);else anim=false;}
+  requestAnimationFrame(go);}
+function runRaceAnim(){anim=true;
+  if(window.__prefersReducedMotion){while(stepRace()){}anim=false;draw_();renderMini();return;}
+  function go(){if(!anim||slideIdx!==9)return;
+    let alive=false;for(let k=0;k<3;k++)alive=stepRace()||alive;   // 3倍速再生
+    draw_();
+    if(alive)requestAnimationFrame(go);else{anim=false;renderMini();renderExplain();}}
+  requestAnimationFrame(go);}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2||i===3)ensurePD();
+  else if(i===8){if(!learner)learner=makeLearner(baseSeed);renderAll();draw_();runLiveTrain();return;}
+  else if(i===9){ensureRL();startRace();renderAll();draw_();runRaceAnim();return;}
+  else if(i===10||i===11||i===14)ensureRL();
+  renderAll();draw_();}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===8||slideIdx===9);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,heavy?900:3600);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;baseSeed=7;pdStd=null;pdLim=null;sweep=null;learner=null;rlBest=null;race=null;slideIdx=0;renderAll();draw_();}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{const seeds=[7,21,55,77,101];baseSeed=seeds[(seeds.indexOf(baseSeed)+1)%seeds.length];
+  learner=makeLearner(baseSeed);rlBest=null;race=null;runLiveTrain();};
+
+/* ===== 初期化 ===== */
+renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

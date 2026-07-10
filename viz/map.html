@@ -150,6 +150,7 @@ const M=[
   {n:'カルマン',h:'kalman.html',c:'imgseq',x:0.81,y:0.34,mo:'curve'},
   {n:'MCTS',h:'mcts.html',c:'rl',x:0.86,y:0.08,mo:'tree'},
   {n:'RLHF',h:'rlhf.html',c:'rl',x:0.93,y:0.32,mo:'seq'},
+  {n:'ドローンレース',h:'dronerace.html',c:'rl',x:0.76,y:0.30,mo:'race'},
   {n:'Actor-Critic',h:'actorcritic.html',c:'rl',x:0.92,y:0.24,mo:'grid'},
   {n:'SHAP',h:'shap.html',c:'xai',x:0.36,y:0.10,mo:'bars'},
   {n:'異常検知',h:'anomaly.html',c:'unsup',x:0.04,y:0.31,mo:'cluster'},
@@ -239,6 +240,13 @@ const MOT={
       ctx.beginPath();ctx.moveTo(P[a][0],P[a][1]);ctx.lineTo(P[b][0],P[b][1]);ctx.stroke();}
     P.forEach((p,i)=>{ctx.beginPath();ctx.arc(p[0],p[1],2.6,0,7);ctx.fillStyle=(i===0||i===3)?c:INK;ctx.fill();});},
   pattern(x,y,w,h,c){const N=6,cw=Math.min(w,h)/N,ox=x+(w-cw*N)/2,oy=y+(h-cw*N)/2,g=rng(23);for(let r=0;r<N;r++)for(let cc=0;cc<N;cc++){const on=((r+cc)%2===0)^(g()<0.18);ctx.fillStyle=on?c:'rgba(60,60,52,0.1)';ctx.fillRect(ox+cc*cw,oy+r*cw,cw-1,cw-1);}},
+  race(x,y,w,h,c){ // ドローンレース: 外周=ルール操縦、内周=学習の線、ゲート4つ
+    const cx=x+w/2,cy=y+h/2,rx=w*0.36,ry=h*0.38;
+    ctx.strokeStyle='rgba(194,137,27,0.75)';ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,7);ctx.stroke();
+    ctx.strokeStyle=c;ctx.lineWidth=1.7;ctx.beginPath();ctx.ellipse(cx,cy,rx*0.66,ry*0.66,0,0,7);ctx.stroke();
+    ctx.strokeStyle=INK;ctx.lineWidth=1.4;
+    [[cx+rx*0.83,cy,0,1],[cx,cy-ry*0.83,1,0],[cx-rx*0.83,cy,0,1],[cx,cy+ry*0.83,1,0]].forEach(g=>{ctx.beginPath();ctx.moveTo(g[0]-g[2]*4,g[1]-g[3]*4);ctx.lineTo(g[0]+g[2]*4,g[1]+g[3]*4);ctx.stroke();});
+    ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx+rx*0.66,cy,2.2,0,7);ctx.fill();},
 };
 
 let hover=-1,off={},showPath=false;

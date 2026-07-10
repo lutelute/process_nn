@@ -1,6 +1,6 @@
 // tools/check-pages.mjs — 全ページの静的健全性チェック。`node tools/check-pages.mjs` で実行（CI でも走る）。
 //
-// 対象: index.html / viz/*.html / gpt2/index.html（全 74 ページ）
+// 対象: index.html / viz/*.html / gpt2/index.html（全 75 ページ）
 //   ① リンク切れ — href / src が指すローカルファイルが実在するか
 //   ② インライン <script> の JS 構文 — node --check で構文エラーを検出
 //      （<script type="module"> は module として、HTML コメント内の偽 <script> は除去して判定）

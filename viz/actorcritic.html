@@ -104,7 +104,7 @@
 
   <details>
     <summary>もっと詳しく：A2C / A3C / PPO・連続行動・GAE</summary>
-    <div class="det">このページの実装は<b>1 ステップの Actor-Critic（表形式）</b>。現代版はこの骨格の拡張です。<b>A2C</b>（Advantage Actor-Critic）は複数の環境を並列に回して勾配を安定化、<b>A3C</b>はそれを非同期に。<b>PPO</b>（Proximal Policy Optimization）は方策が一度に動きすぎないよう「更新幅にクリップの箍（たが）」をはめた Actor-Critic で、いまの実務標準（<a href="../gpt2/">言語モデル</a>の <a href="rlhf.html">RLHF</a> もこれ）。<b>連続行動</b>（ロボットの関節トルクなど）では Actor が softmax でなくガウス分布の平均・分散を出力します。1 ステップの δ は「速いが少し偏る」、末尾まで待つ <a href="policygrad.html">モンテカルロ</a>は「偏らないが分散大」——その間を数手先までで折り合わせるのが <b>GAE</b>（Generalized Advantage Estimation）。土台の価値学習は <a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>、方策側の素の形は<a href="policygrad.html">方策勾配（REINFORCE）</a>です。</div>
+    <div class="det">このページの実装は<b>1 ステップの Actor-Critic（表形式）</b>。現代版はこの骨格の拡張です。<b>A2C</b>（Advantage Actor-Critic）は複数の環境を並列に回して勾配を安定化、<b>A3C</b>はそれを非同期に。<b>PPO</b>（Proximal Policy Optimization）は方策が一度に動きすぎないよう「更新幅にクリップの箍（たが）」をはめた Actor-Critic で、いまの実務標準（<a href="../gpt2/">言語モデル</a>の <a href="rlhf.html">RLHF</a> もこれ）。<b>連続行動</b>（ロボットの関節トルクなど）では Actor が softmax でなくガウス分布の平均・分散を出力します。1 ステップの δ は「速いが少し偏る」、末尾まで待つ <a href="policygrad.html">モンテカルロ</a>は「偏らないが分散大」——その間を数手先までで折り合わせるのが <b>GAE</b>（Generalized Advantage Estimation）。土台の価値学習は <a href="qlearning.html">Q学習</a>・<a href="dqn.html">DQN</a>、方策側の素の形は<a href="policygrad.html">方策勾配（REINFORCE）</a>です。この骨格が物理制御で人間の腕前を超える実戦編は <a href="dronerace.html">ドローンレース×深層強化学習</a> へ。</div>
   </details>
 </div>
 
