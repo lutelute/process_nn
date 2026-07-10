@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>協調フィルタリング（行列分解）— 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);touch-action:manipulation;}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:74px;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>協調フィルタリング — 好みは少数の隠れた軸で説明できる</h1>
+  <div class="lead">「あなたに似た人が好きなもの」を薦める仕組みの正体は、<b>穴だらけの評価行列</b>を「<b>ユーザー因子 × アイテム因子</b>」という 2 つの細い行列の積で埋めること。誰が何を好きかの<b>相関だけ</b>から、<b>アクション度・人情度</b>のような<b>隠れた軸</b>が勝手に浮かび上がります。内容タグは一切見ません。<a href="word2vec.html">単語埋め込み（word2vec）</a>と同じ「内積＝相性」の親戚。下の流れを「次へ」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>「あなたへのおすすめ」の古典にして中核。<b>少数の隠れた軸で好みを説明する</b>行列分解の原理。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>穴だらけの評価行列を「ユーザー因子 × アイテム因子」の<b>積</b>で埋める。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>Netflix・Amazon・Spotify の推薦、<b>Netflix Prize</b>（優勝の中核）、埋め込み（<a href="word2vec.html">word2vec</a> の親戚）。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>因子数 k <input type="range" id="kk" min="1" max="4" step="1" value="2"><span id="kVal" style="font-family:var(--mono);color:var(--text)">2</span></label>
+      <button id="diceBtn">🎲 別のデータ</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>推薦は映画の「内容」を読んでいません。誰が何に何点を付けたかの<b>相関だけ</b>から、「アクション⇄人情」のような<b>隠れた軸が勝手に浮かび上がる</b>。好みは<b>低次元</b>——たった 2 つの軸で、8×8 の評価表のほとんどが説明できてしまう。これが「あなたに似た人」の数学的な正体です。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>推薦 AI は、映画の内容（ジャンルタグやあらすじ）を理解して薦めている</div>
+    <div class="row"><span class="o">✓</span>協調フィルタリングは<b>内容を一切見ません</b>。見るのは評価の数字だけ。「この人たちが同じように評価している」という<b>相関</b>から、アクション度・人情度のような<b>隠れた軸が自動で浮かび上がる</b>——タグ付けは誰もしていないのに。</div>
+    <div class="row"><span class="x">✗</span>データの穴（未評価）は、0 や平均で埋めてから学習すればよい</div>
+    <div class="row"><span class="o">✓</span>穴を 0 で埋めると「<b>見ていない＝嫌い</b>」を教えることになり、平均で埋めると差が消えます。正しくは<b>観測されたセルだけ</b>で損失を組み、穴は<b>予測させる</b>。「まだ知らない」と「嫌い」は別物です。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：Netflix Prize／word2vec との血縁／深層推薦／限界</summary>
+    <div class="det"><b>Netflix Prize（2006–2009）</b>：Netflix が評価予測の RMSE を 10% 改善したチームに 100 万ドルを懸けたコンペ。優勝手法の中核が<b>行列分解（と多数のモデルのアンサンブル）</b>で、この手法を一躍有名にした。<b>word2vec との血縁</b>：<a href="word2vec.html">単語埋め込み</a>も「共起の相関からベクトルを学び、内積で近さを測る」——本ページの「評価の相関から因子を学び、内積で相性を測る」と<b>同じ骨格</b>。どちらも<b>埋め込み（低次元ベクトル化）</b>です。<b>正則化</b>：因子数 k を増やすと訓練誤差はいくらでも下げられますが、ホールドアウトは頭打ち＝<b>過学習</b>。<a href="reg.html">L2 正則化</a>（λ で因子を縮める）と因子数の選択が要。<b>現代</b>：内容特徴も併用する<b>ハイブリッド</b>、ユーザー塔とアイテム塔をそれぞれ深層で埋め込む<b>二塔（two-tower）モデル</b>、系列・注意を使う推薦へ発展。<b>限界</b>：新規ユーザー／新作は評価が無く因子が学べない<b>コールドスタート</b>、人気作ばかり薦める<b>人気バイアス</b>、似た嗜好で閉じる<b>フィルターバブル</b>。「相関」を突き詰める設計ゆえの副作用で、多様性やコンテンツ情報の注入で緩和します。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+/* ===== 乱数 ===== */
+function mkrng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function mkrandn(r){return()=>{let u=0,v=0;while(u===0)u=r();while(v===0)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function hexA(h,a){h=(h||'#000').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return`rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+function lerpColor(c1,c2,t){const p=h=>{h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];};
+  const a=p(c1),b=p(c2);return`rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;}
+
+/* ===== データ（手設計の解釈可能な真の因子）===== */
+const NU=8, NM=8, MU=3.3, FS=0.85, LR=0.02, LAM=0.10;
+const MOV=[['大爆発アクション','爆ア',1.3,-0.9],['ヒーロー超大作','ヒロ',1.1,0.4],['SFバトル','SF',0.9,-0.6],['感動の名作','感動',-1.0,1.2],
+           ['家族ドラマ','家族',-1.2,0.9],['純愛ロマンス','純愛',-0.9,1.1],['コメディ','コメ',-0.3,-0.3],['青春群像','青春',0.2,0.7]];
+const USR=[['アクション党','アク',1.2,-0.5],['お涙頂戴党','涙',-0.9,1.2],['雑食','雑',0.2,0.3],['ロマンス党','ロマ',-1.0,0.9],
+           ['ヒーロー党','ヒロ',1.0,0.6],['シニカル','シニ',-0.2,-0.8],['熱血','熱',0.8,0.2],['ホームドラマ党','ホム',-0.6,0.7]];
+const qTrue=MOV.map(m=>[m[2]*FS,m[3]*FS]), pTrue=USR.map(u=>[u[2]*FS,u[3]*FS]);
+let dice=0, full=null, obs=null;
+function genData(){const rng=mkrng(100+dice*17),rn=mkrandn(rng);
+  const bu=USR.map(()=>rn()*0.5), bi=MOV.map(()=>rn()*0.4);
+  full=[];for(let u=0;u<NU;u++){const row=[];for(let i=0;i<NM;i++){
+    const dot=pTrue[u][0]*qTrue[i][0]+pTrue[u][1]*qTrue[i][1];
+    let r=MU+bu[u]+bi[i]+dot+rn()*0.22;r=Math.max(1,Math.min(5,r));r=Math.round(r*2)/2;row.push(r);}full.push(row);}
+  obs=Array.from({length:NU},()=>new Array(NM).fill(false));
+  for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)obs[u][i]=(rng()<0.6);
+  for(let u=0;u<NU;u++)if(!obs[u].some(v=>v))obs[u][Math.floor(rng()*NM)]=true;}
+
+/* ===== 行列分解（SGD）===== */
+let mf=null, K=2, coldUser=-1;
+function initMF(k){const rng=mkrng(1*977+13),rn=mkrandn(rng);
+  let mu=0,c=0;for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(obs[u][i]&&u!==coldUser){mu+=full[u][i];c++;}mu/=(c||1);
+  const P=Array.from({length:NU},()=>Array.from({length:k},()=>rn()*0.1));
+  const Q=Array.from({length:NM},()=>Array.from({length:k},()=>rn()*0.1));
+  const bu=new Array(NU).fill(0), bi=new Array(NM).fill(0), cells=[];
+  for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(obs[u][i]&&u!==coldUser)cells.push([u,i]);
+  mf={mu,P,Q,bu,bi,k,cells,epoch:0,rng,loss:[]};}
+function pred(u,i){let s=mf.mu+mf.bu[u]+mf.bi[i];for(let f=0;f<mf.k;f++)s+=mf.P[u][f]*mf.Q[i][f];return s;}
+function stepMF(ep){for(let e=0;e<ep;e++){
+  for(let a=mf.cells.length-1;a>0;a--){const b=Math.floor(mf.rng()*(a+1));[mf.cells[a],mf.cells[b]]=[mf.cells[b],mf.cells[a]];}
+  for(const[u,i]of mf.cells){const err=full[u][i]-pred(u,i);mf.bu[u]+=LR*(err-LAM*mf.bu[u]);mf.bi[i]+=LR*(err-LAM*mf.bi[i]);
+    for(let f=0;f<mf.k;f++){const pf=mf.P[u][f],qf=mf.Q[i][f];mf.P[u][f]+=LR*(err*qf-LAM*pf);mf.Q[i][f]+=LR*(err*pf-LAM*qf);}}
+  mf.epoch++;if(mf.epoch%2===0)mf.loss.push(rmseObs());}}
+function rmseObs(){let s=0,n=0;for(const[u,i]of mf.cells){const e=full[u][i]-pred(u,i);s+=e*e;n++;}return Math.sqrt(s/(n||1));}
+function rmseHold(){let s=0,n=0;for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(!obs[u][i]&&u!==coldUser){const e=full[u][i]-pred(u,i);s+=e*e;n++;}return n?Math.sqrt(s/n):0;}
+function baseline(){let mu=0,c=0;for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(obs[u][i]){mu+=full[u][i];c++;}mu/=c;
+  const um=[],im=[];for(let u=0;u<NU;u++){let s=0,n=0;for(let i=0;i<NM;i++)if(obs[u][i]){s+=full[u][i];n++;}um.push(n?s/n:mu);}
+  for(let i=0;i<NM;i++){let s=0,n=0;for(let u=0;u<NU;u++)if(obs[u][i]){s+=full[u][i];n++;}im.push(n?s/n:mu);}
+  let g=0,u2=0,i2=0,n=0;for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(!obs[u][i]){const r=full[u][i];g+=(r-mu)**2;u2+=(r-um[u])**2;i2+=(r-im[i])**2;n++;}
+  return {mu,uMean:um,iMean:im,global:Math.sqrt(g/n),user:Math.sqrt(u2/n),item:Math.sqrt(i2/n)};}
+function trainFull(k){coldUser=-1;initMF(k);stepMF(140);}
+// k掃引（train/holdout）
+function kSweep(){const out={};for(const k of[1,2,3,4]){const sv=mf;initMF(k);stepMF(140);out[k]={tr:rmseObs(),ho:rmseHold()};mf=sv;}return out;}
+
+/* ===== 因子空間の表示アライン（潜在→真ジャンル座標の線形写像）===== */
+function alignMap(){ // [Q;P] を [qTrue;pTrue] に最小二乗回帰し、2軸ぶんの写像を返す（表示専用）
+  const Xrows=[...mf.Q.map(r=>[1,...r.slice(0,mf.k)]),...mf.P.map(r=>[1,...r.slice(0,mf.k)])];
+  const Yr=[...qTrue,...pTrue];const maps=[];
+  for(let ax=0;ax<2;ax++){const y=Yr.map(r=>r[ax]);maps.push(lstsq(Xrows,y));}
+  return maps;}
+function applyMap(vec,maps){const x=[1,...vec.slice(0,mf.k)];return[dot(maps[0],x),dot(maps[1],x)];}
+function dot(a,b){let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s;}
+function lstsq(X,y){const k=X[0].length,A=Array.from({length:k},()=>new Array(k).fill(0)),b=new Array(k).fill(0);
+  for(let t=0;t<X.length;t++)for(let a=0;a<k;a++){b[a]+=X[t][a]*y[t];for(let c=0;c<k;c++)A[a][c]+=X[t][a]*X[t][c];}
+  for(let a=0;a<k;a++)A[a][a]+=1e-6;const M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<k;c++){let p=c;for(let r=c+1;r<k;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;[M[c],M[p]]=[M[p],M[c]];
+    const d=M[c][c];for(let j=c;j<=k;j++)M[c][j]/=d;for(let r=0;r<k;r++)if(r!==c){const f=M[r][c];for(let j=c;j<=k;j++)M[r][j]-=f*M[c][j];}}
+  return M.map(r=>r[k]);}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function ratingColor(r){const t=Math.max(0,Math.min(1,(r-1)/4));return t<0.5?lerpColor('#8ba6c4','#f2efe6',t*2):lerpColor('#f2efe6','#1f9e8a',(t-0.5)*2);}
+// 行列ヒートマップ領域
+const MX=58, MY=52, CELL=32;
+function cellRect(u,i){return[MX+i*CELL, MY+u*CELL, CELL-2, CELL-2];}
+function drawMatrix(opt){opt=opt||{};
+  ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+  // 列見出し（映画）
+  for(let i=0;i<NM;i++){ctx.fillStyle=getCSS('--muted');ctx.fillText('M'+(i+1),MX+i*CELL+CELL/2-1,MY-14);
+    ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.fillText(MOV[i][1],MX+i*CELL+CELL/2-1,MY-4);ctx.font='9px '+getCSS('--mono');}
+  // 行見出し（ユーザー）
+  for(let u=0;u<NU;u++){ctx.textAlign='right';ctx.fillStyle=(opt.hlUser===u)?getCSS('--upd'):getCSS('--muted');
+    ctx.font='700 9px '+getCSS('--mono');ctx.fillText('U'+(u+1),MX-16,MY+u*CELL+CELL/2-1);
+    ctx.font='8px '+getCSS('--mono');ctx.fillStyle=getCSS('--faint');ctx.fillText(USR[u][1],MX-3,MY+u*CELL+CELL/2-1);ctx.textAlign='center';}
+  for(let u=0;u<NU;u++)for(let i=0;i<NM;i++){const[x,y,w,h]=cellRect(u,i);const ob=obs[u][i];
+    if(ob){ctx.fillStyle=ratingColor(full[u][i]);ctx.fillRect(x,y,w,h);
+      ctx.strokeStyle=getCSS('--text');ctx.lineWidth=1.3;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+      ctx.fillStyle='#1a1a17';ctx.font='700 11px '+getCSS('--mono');ctx.fillText(full[u][i].toFixed(1),x+w/2,y+h/2+.5);}
+    else{ // 欠損：予測を表示（学習前は ?）
+      if(opt.fill&&mf){const pv=Math.max(1,Math.min(5,pred(u,i)));ctx.fillStyle=hexA(ratingColor(pv),0.62);ctx.fillRect(x,y,w,h);
+        ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(x+.5,y+.5,w-1,h-1);ctx.setLineDash([]);
+        ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.fillText(pv.toFixed(1),x+w/2,y+h/2+.5);}
+      else{ctx.fillStyle='#f4f1e8';ctx.fillRect(x,y,w,h);ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(x+.5,y+.5,w-1,h-1);ctx.setLineDash([]);
+        ctx.fillStyle=getCSS('--faint');ctx.font='700 12px '+getCSS('--mono');ctx.fillText('?',x+w/2,y+h/2+.5);}}
+    if(opt.hlUser===u){ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.strokeRect(x-.5,y-.5,w+1,h+1);}}
+}
+function drawColorScale(y0){const x0=MX,w=140;ctx.textAlign='left';ctx.font='8.5px '+getCSS('--mono');ctx.fillStyle=getCSS('--faint');
+  ctx.fillText('評価 低',x0,y0-4);ctx.textAlign='right';ctx.fillText('高',x0+w,y0-4);ctx.textAlign='center';
+  for(let s=0;s<w;s++){ctx.fillStyle=ratingColor(1+4*s/w);ctx.fillRect(x0+s,y0,1,8);}}
+function lossSpark(x0,y0,w,h){if(!mf||mf.loss.length<2)return;ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const mx=Math.max(...mf.loss),mn=Math.min(...mf.loss);ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.6;ctx.beginPath();
+  mf.loss.forEach((l,i)=>{const X=x0+w*i/(mf.loss.length-1),Y=y0+h-4-(h-8)*(l-mn)/(mx-mn+1e-9);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('訓練RMSE↓ '+rmseObs().toFixed(2),x0+3,y0+11);}
+// 因子空間の散布
+const SLX=34,SRX=340,STY=54,SBY=350;
+function factorScatter(opt){opt=opt||{};const maps=alignMap();
+  // 軸
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;const cx=(SLX+SRX)/2,cy=(STY+SBY)/2;
+  ctx.beginPath();ctx.moveTo(SLX,cy);ctx.lineTo(SRX,cy);ctx.moveTo(cx,STY);ctx.lineTo(cx,SBY);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('アクション度 →',SRX-2,cy-5);
+  ctx.textAlign='center';ctx.save();ctx.translate(cx-6,STY+6);ctx.fillText('↑ 人情度',0,0);ctx.restore();
+  const SC=(SRX-SLX)/2/1.5;
+  const px=a=>cx+a*SC, py=e=>cy-e*SC;
+  // 映画（◆）
+  for(let i=0;i<NM;i++){const p=opt.k1?[applyMap(mf.Q[i],maps)[0],0]:applyMap(mf.Q[i],maps);
+    const x=px(p[0]),y=py(p[1]);const act=MOV[i][2]>0;
+    ctx.fillStyle=act?getCSS('--warm'):getCSS('--upd');
+    ctx.beginPath();ctx.moveTo(x,y-5);ctx.lineTo(x+5,y);ctx.lineTo(x,y+5);ctx.lineTo(x-5,y);ctx.closePath();ctx.fill();
+    ctx.fillStyle=getCSS('--muted');ctx.font='8px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(MOV[i][1],x,y-8);}
+  // ユーザー（●）
+  if(opt.users)for(let u=0;u<NU;u++){const p=opt.k1?[applyMap(mf.P[u],maps)[0],0]:applyMap(mf.P[u],maps);
+    const x=px(p[0]),y=py(p[1]);ctx.beginPath();ctx.arc(x,y,3.2,0,7);ctx.fillStyle=hexA(getCSS('--accent'),0.85);ctx.fill();
+    if(opt.hlUser===u){ctx.beginPath();ctx.arc(x,y,7,0,7);ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle=getCSS('--upd');ctx.font='700 8.5px '+getCSS('--gothic');ctx.fillText('U'+(u+1)+' '+USR[u][1],x,y+15);}}}
+function bars(items,y0,h,title){ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(title,SLX,y0-10);
+  const mx=Math.max(...items.map(o=>o.v))*1.18,bw=54,gap=(SRX-SLX-bw*items.length)/(items.length+1);
+  items.forEach((o,i)=>{const x=SLX+gap+i*(bw+gap),bh=h*Math.min(1,o.v/mx);
+    ctx.fillStyle=o.c;ctx.fillRect(x,y0+h-bh,bw,bh);
+    ctx.fillStyle=getCSS('--muted');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(o.n,x+bw/2,y0+h+12);
+    ctx.fillStyle=o.c;ctx.font='700 9.5px '+getCSS('--mono');ctx.fillText(o.v.toFixed(2),x+bw/2,y0+h-bh-4);});}
+function caption(t,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(t,CW/2,y||CH-10);}
+
+/* おすすめトップ3（対象ユーザーの未観測映画を予測降順）*/
+function recoList(u){const cand=[];for(let i=0;i<NM;i++)if(!obs[u][i])cand.push([i,pred(u,i)]);
+  cand.sort((a,b)=>b[1]-a[1]);return cand.slice(0,3);}
+function drawReco(u){ // 左に因子散布、右にリスト…は狭いので、上に散布・下にリスト
+  factorScatter({users:true,hlUser:u});
+  const y0=364;ctx.textAlign='left';ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--gothic');
+  ctx.fillText('U'+(u+1)+'「'+USR[u][0]+'」へのおすすめ',SLX,y0);
+  const rec=recoList(u);ctx.font='10px '+getCSS('--mono');
+  rec.forEach((r,rank)=>{const y=y0+16+rank*15;ctx.fillStyle=getCSS('--warm');ctx.fillText((rank+1)+'.',SLX,y);
+    ctx.fillStyle=getCSS('--text');ctx.fillText(MOV[r[0]][0],SLX+18,y);
+    ctx.fillStyle=getCSS('--accent');ctx.textAlign='right';ctx.fillText('予測 '+r[1].toFixed(1),SRX,y);ctx.textAlign='left';});}
+
+/* ===== 章・スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:13}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false;
+
+const SLIDES=[
+/* 0 */{title:'問題：穴だらけの評価行列',legend:'8人×8映画。色つき＝観測(評価済)、?＝未評価（6割しか埋まってない）',
+  html(){let obsN=0;for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(obs[u][i])obsN++;
+    return'<h3>① 穴だらけの評価行列</h3><div class="eq curr"><i>R</i> ∈ ℝ<sup>8×8</sup>,　観測は '+obsN+' / 64 セルだけ（残り「?」は未評価）<span class="read">読み：行＝ユーザー、列＝映画、セル＝評価（1〜5）。現実の評価行列は<b>ほとんどが空欄</b>——誰も全部は観ていない</span></div><div class="desc">8 人（U1〜U8）×8 映画（M1〜M8）の評価表。色つきセルが観測（評価済み）、<b>「?」が未評価</b>で、いまは <b>'+obsN+'/64</b> しか埋まっていません。推薦とは、この<b>「?」に何点を付けるか</b>を当てること——当たれば「観たら気に入りそうな映画」を薦められます。映画・ユーザーの正体は次のスライドで。</div>';},
+  draw(){drawMatrix({});drawColorScale(372);}},
+/* 1 */{title:'「似た人」をどう数学にする？',legend:'紫枠＝あるユーザー。似た評価パターンの人を手がかりにしたい',
+  html(){return'<h3>②「あなたに似た人」を数学にしたい</h3><div class="eq curr">U1 の「?」 ← U1 と<b>評価が似た人たち</b>が付けた点から推す<span class="read">読み：協調フィルタリングの発想＝「あなたと好みが似た人が高評価なら、あなたも高評価だろう」。似ている＝評価の相関が高い</span></div><div class="desc">素朴なアイデアは「<b>U1 に評価が似た人</b>を探し、その人たちが好きな映画を薦める」。でも「似ている」を<b>誰と誰で・どの映画で</b>測るかは自明でない——共通で観た映画が少ないと比べられない。もっと<b>賢く・穴に強い</b>方法が要ります。それが<b>行列分解</b>：全員・全映画を<b>共通のものさし（隠れた軸）</b>に乗せてしまう。</div>';},
+  draw(){drawMatrix({hlUser:0});caption('U1に似た人の評価から「?」を推したい',CH-8);}},
+/* 2 */{title:'素朴案：平均で埋める（物足りない）',legend:'すべての?を平均で埋める→全員同じ予測。好みの差が消える',
+  html(){const bl=baseline();return'<h3>③ 素朴案：平均で埋める</h3><div class="eq curr">「?」← 全体平均 '+bl.mu.toFixed(1)+'　または　ユーザー平均<span class="read">読み：いちばん簡単な穴埋め。でも全体平均は<b>全員に同じ点</b>、ユーザー平均は<b>その人の全映画に同じ点</b>——「誰がどの映画を」の情報が消える</span></div><div class="desc">とりあえず<b>平均で埋める</b>とどうなるか（下は全体平均 '+bl.mu.toFixed(1)+' で全「?」を埋めた図）。予測はのっぺり一色——<b>「U1 はアクションが好き、U2 は感動もの」という肝心の差が出せません</b>。ホールドアウト（隠したセル）での誤差は 全体平均 RMSE <b>'+bl.global.toFixed(2)+'</b>・ユーザー平均 <b>'+bl.user.toFixed(2)+'</b>。もっと下げたい。</div>';},
+  draw(){const bl=baseline();ctx.font='9px '+getCSS('--mono');
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    for(let i=0;i<NM;i++){ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.fillText('M'+(i+1),MX+i*CELL+CELL/2-1,MY-8);}
+    for(let u=0;u<NU;u++){ctx.textAlign='right';ctx.fillStyle=getCSS('--muted');ctx.font='700 9px '+getCSS('--mono');ctx.fillText('U'+(u+1),MX-6,MY+u*CELL+CELL/2-1);ctx.textAlign='center';}
+    for(let u=0;u<NU;u++)for(let i=0;i<NM;i++){const[x,y,w,h]=cellRect(u,i);
+      if(obs[u][i]){ctx.fillStyle=ratingColor(full[u][i]);ctx.fillRect(x,y,w,h);ctx.strokeStyle=getCSS('--text');ctx.lineWidth=1.2;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+        ctx.fillStyle='#1a1a17';ctx.font='700 10px '+getCSS('--mono');ctx.fillText(full[u][i].toFixed(1),x+w/2,y+h/2);}
+      else{ctx.fillStyle=hexA(ratingColor(bl.mu),0.5);ctx.fillRect(x,y,w,h);ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(x+.5,y+.5,w-1,h-1);ctx.setLineDash([]);
+        ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.fillText(bl.mu.toFixed(1),x+w/2,y+h/2);}}
+    caption('全「?」が同じ値＝好みの差が出ない',CH-8);}},
+/* 3 */{title:'好みは少数の軸で説明できる',legend:'アクション度・人情度の2軸。映画も人もこの平面に置ける',
+  html(){return'<h3>④ 好みは少数の「軸」で説明できる</h3><div class="eq curr">映画 → ( アクション度, 人情度 )　／　ユーザー → ( アクション好き, 人情好き )<span class="read">読み：仮説＝好みは高次元でなく<b>数個の隠れた軸</b>で決まる。各映画も各ユーザーも、この少数の軸の<b>座標（ベクトル）</b>で表せる</span></div><div class="desc">鍵となる仮説：<b>好みは低次元</b>。映画は「<b>アクション度・人情度</b>」のような数軸で位置づけられ、ユーザーも「アクション好き・人情好き」の座標を持つ。<b>相性＝両者のベクトルの近さ</b>。この 2 軸の平面に、8 映画（◆）を真の姿で置いたのが下図——右がアクション、上が人情。<b>この軸は人間が付けるのではなく、次に見るように評価データから自動で浮かびます。</b></div>';},
+  draw(){factorScatterTrue();caption('◆=映画。右=アクション・上=人情（真の配置）',CH-8);}},
+/* 4 */{title:'R ≈ U Vᵀ：内積が相性',legend:'各評価 ≒ ユーザーベクトル と 映画ベクトル の内積（＋クセ）',
+  html(){return'<h3>⑤ 各評価 ＝ ベクトルの内積（相性）</h3><div class="eq curr"><i>r̂</i><sub>ui</sub> = <i>μ</i> + <i>b</i><sub>u</sub> + <i>b</i><sub>i</sub> + <b>p</b><sub>u</sub> · <b>q</b><sub>i</sub>　（<i>R</i> ≈ <i>U V</i><sup>ᵀ</sup>）<span class="read">読み：<b>p</b><sub>u</sub>＝ユーザー u の因子ベクトル、<b>q</b><sub>i</sub>＝映画 i の因子ベクトル。その<b>内積が相性</b>。μ=全体平均、b は「気前・人気」のクセ補正</span></div><div class="desc">行列分解の心臓：ユーザー u の評価 <i>r̂</i><sub>ui</sub> は、<b>ユーザー因子 p<sub>u</sub> と映画因子 q<sub>i</sub> の内積</b>で決まります——<b>好みの向きが揃うほど高得点</b>。行列でいえば <b>R ≈ U V</b><sup>ᵀ</sup>（U＝全ユーザー因子、V＝全映画因子）。μ・b はおまけの補正（μ＝全体の平均点、b<sub>u</sub>＝そのユーザーの<b>気前</b>、b<sub>i</sub>＝その映画の<b>人気</b>）。未知の <b>p, q</b> を評価から探すのが学習です。</div>';},
+  draw(){drawDecomp();}},
+/* 5 */{title:'損失は「観測セルだけ」で組む',legend:'穴は埋めない。観測された評価との誤差だけを最小化＋正則化',
+  html(){return'<h3>⑥ 観測セルだけの損失＋正則化</h3><div class="eq curr">min Σ<sub>(u,i)∈観測</sub> ( <i>r</i><sub>ui</sub> − <i>r̂</i><sub>ui</sub> )² + λ( ‖<b>p</b><sub>u</sub>‖² + ‖<b>q</b><sub>i</sub>‖² )<span class="read">読み：合計は<b>観測されたセルだけ</b>を走る（?は無視）。λ の項＝因子が大きくなりすぎないよう縮める<a href="reg.html">正則化</a>（過学習抑制）</span></div><div class="desc">ここが<b>肝</b>です。損失は<b>観測されたセルだけ</b>の二乗誤差で組みます——<b>「?」は誤差に入れない</b>。もし穴を 0 で埋めて損失に入れると「<b>見ていない＝嫌い（0点）</b>」を教えてしまう。「まだ知らない」と「嫌い」は別物。<b>λ の項</b>は因子の暴走を抑える<a href="reg.html">L2 正則化</a>。この損失を小さくする <b>p, q</b> を探します。</div>';},
+  draw(){drawLossMask();}},
+/* 6 */{title:'SGDで U と V を磨く',legend:'観測セルを1つ拾い、ズレの向きにp,qを少し動かす（勾配降下）',
+  html(){return'<h3>⑦ SGD：ズレの向きに少しずつ</h3><div class="eq curr"><i>e</i> = <i>r</i><sub>ui</sub> − <i>r̂</i><sub>ui</sub>　→　<b>p</b><sub>u</sub> += <i>η</i>(<i>e</i> <b>q</b><sub>i</sub> − λ<b>p</b><sub>u</sub>),　<b>q</b><sub>i</sub> += <i>η</i>(<i>e</i> <b>p</b><sub>u</sub> − λ<b>q</b><sub>i</sub>)<span class="read">読み：観測セルの誤差 e を計算し、<b>相手のベクトル方向へ</b>自分を動かす。e>0（低く見積もりすぎ）なら p を q に近づけて内積を上げる</span></div><div class="desc">最小化は<b>確率的勾配降下（SGD）</b>で。観測セルを 1 つ拾い、予測とのズレ <i>e</i> を測り、<b>p<sub>u</sub> と q<sub>i</sub> を互いの方向へ少し動かす</b>（e が正＝過小評価なら内積が上がる向きへ）。全観測セルを何周も回すうち、<b>「同じユーザーに好かれる映画」どうしが自然に近づき</b>、隠れた軸が形になります。次はこれをライブで。</div>';},
+  draw(){drawSGDstep();}},
+/* 7 */{title:'因子空間が現れる（軸の意味は事後的）',legend:'学習後の映画因子。アクション/人情できれいに分かれる',
+  html(){const r2=recoverQ();return'<h3>⑧ 隠れた軸が浮かび上がる</h3><div class="eq curr">学習した <b>q</b><sub>i</sub> を並べると → アクション⇄人情の軸が出現（誰も指定していないのに）<span class="read">読み：因子に「アクション」「人情」と名札は付けていない。評価の相関だけから、<b>意味のある軸が事後的に</b>現れる。名前は人間が後から読み取る</span></div><div class="desc">学習後、映画の因子ベクトル q<sub>i</sub> を平面に置くと——<b>アクション大作が一方に、感動ドラマが反対側に</b>、きれいに分かれます（下図）。<b>「アクション度」という軸を誰も教えていない</b>のに、評価の相関だけから浮かび上がった。これが協調フィルタリングの魔法：<b>軸の意味は事後的に読み取るもの</b>。真のジャンル座標との一致度 R² = <b>'+r2.toFixed(2)+'</b>。</div>';},
+  draw(){factorScatter({users:false});caption('◆=学習した映画因子。ジャンルが自動で分離',CH-8);}},
+/* 8 */{title:'ライブ：行列が埋まっていく',legend:'学習中。?セルが予測値で埋まり、訓練RMSEが下がる',
+  html(){return'<h3>⑨ ライブ学習：穴が埋まる</h3><div class="eq curr">SGD を回す → 観測に合う p,q が育つ → 「?」が予測で埋まる<span class="read">読み：訓練が進むと、観測セルへの当てはまりが良くなり、同時に<b>未観測セルの予測</b>も定まっていく。埋まった色＝そのユーザーの好みの推定</span></div><div class="desc">いまこの場で行列分解を学習します（k='+K+'）。観測セル（濃い枠）に合わせて p,q が育ち、<b>「?」が薄い色の予測値で埋まって</b>いきます。右下の訓練 RMSE が下がるほど当てはまりが良い。エポック <b>'+(mf?mf.epoch:0)+'</b>。「🎲 別のデータ」で引き直し、下の <b>k スライダ</b>で因子数を変えられます。</div>';},
+  draw(){drawMatrix({fill:true});lossSpark(MX+2,368,150,42);},anim:true},
+/* 9 */{title:'おすすめトップ3が定まる',legend:'対象ユーザー(紫)の未観測映画を予測降順に。行クリックで対象変更',
+  html(){const u=recoUser;const rec=recoList(u);const top=rec.length?MOV[rec[0][0]][0]:'—';
+    return'<h3>⑩ おすすめが決まる</h3><div class="eq curr">おすすめ = argmax<sub>i ∈ 未観測</sub> <i>r̂</i><sub>ui</sub>（予測の高い未観測映画）<span class="read">読み：対象ユーザーがまだ観ていない映画の中で、<b>予測評価が高い順</b>に並べる。これが「あなたへのおすすめ」の中身</span></div><div class="desc">対象は <b>U'+(u+1)+'「'+USR[u][0]+'」</b>。学習した因子で未観測映画を予測し、高い順に並べたトップ3が<b>おすすめ</b>です（第1位: <b>'+top+'</b>）。因子空間で<b>ユーザー（●）の近くにある映画（◆）</b>が上位に来ます——<b>好みの向きが揃う</b>から。行列の<b>行（U#）をクリック</b>すると対象を変えられます。アクション党にはアクションが、ロマンス党には純愛が上位に来るはず。</div>';},
+  draw(){drawReco(recoUser);},click:true},
+/* 10 */{title:'A/B/C：平均埋め vs 行列分解',legend:'ホールドアウト(隠したセル)のRMSE。行列分解が明確に最小',
+  html(){const bl=baseline();const ho=rmseHold();
+    return'<h3>⑪ 三つ巴：どれだけ当たるか</h3><div class="eq curr">ホールドアウト RMSE：全体平均 '+bl.global.toFixed(2)+' ／ ユーザー平均 '+bl.user.toFixed(2)+' ／ 行列分解 <b>'+ho.toFixed(2)+'</b><span class="read">読み：観測の一部を隠して当てさせ、隠したセルでの誤差を比較。低いほど良い。行列分解だけが<b>ユーザー×映画の相性</b>を捉える</span></div><div class="desc">隠しておいたセル（ホールドアウト）で答え合わせ。<b>全体平均</b>も<b>ユーザー平均</b>も「その人の平均的な辛さ」までしか言えませんが、<b>行列分解</b>は「この人はこの映画を」という<b>相性</b>まで当てる。RMSE は 全体平均 '+bl.global.toFixed(2)+' → 行列分解 <b>'+ho.toFixed(2)+'</b>（約 '+Math.round((1-ho/bl.global)*100)+'% 改善）。<b>穴を平均で埋めるのとは別物</b>だと分かります。</div>';},
+  draw(){const bl=baseline();const ho=rmseHold();factorScatter({users:true});
+    bars([{n:'全体平均',v:bl.global,c:getCSS('--faint')},{n:'ユーザー平均',v:bl.user,c:getCSS('--warm')},{n:'行列分解',v:ho,c:getCSS('--accent')}],368,44,'ホールドアウト RMSE（小さいほど良い）');}},
+/* 11 */{title:'因子数 k：少なすぎ／多すぎ',legend:'k=1は1本の軸に潰れる。k↑で訓練は下がるがホールドアウトは頭打ち',
+  html(){const sw=kSweep();return'<h3>⑫ 因子数 k のさじ加減</h3><div class="eq curr">k=1：窮屈（1軸に潰れる）　／　k=2：真の2ジャンルを捉える　／　k 大：訓練↓だがホールドアウト頭打ち（<a href="reg.html">過学習</a>）<span class="read">読み：k＝隠れた軸の本数。少なすぎると表現力不足、多すぎると観測の<b>ノイズまで覚えて</b>汎化しない。真の軸数（ここでは2）付近が良い</span></div><div class="desc">下の <b>k スライダ</b>を動かしてみてください。<b>k=1</b> だと因子空間が<b>1本の直線に潰れ</b>、アクションと人情を同じ軸に押し込むので窮屈（下図が1次元に）。<b>k=2</b> で真の 2 ジャンルを捉えます。<b>k を増やす</b>と訓練 RMSE はどんどん下がりますが、<b>ホールドアウトは頭打ち→やがて悪化</b>——余った軸が<b>ノイズを暗記</b>する過学習です（k=1: '+sw[1].ho.toFixed(2)+' → k=2: '+sw[2].ho.toFixed(2)+' → k=4: '+sw[4].ho.toFixed(2)+'）。<a href="reg.html">正則化</a>の出番。</div>';},
+  draw(){const sw=kSweep();factorScatter({users:true,k1:K===1});
+    bars([{n:'k=1',v:sw[1].ho,c:getCSS('--faint')},{n:'k=2',v:sw[2].ho,c:getCSS('--accent')},{n:'k=3',v:sw[3].ho,c:getCSS('--warm')},{n:'k=4',v:sw[4].ho,c:getCSS('--neg')}],372,40,'ホールドアウト RMSE vs k（いま k='+K+'）');}},
+/* 12 */{title:'コールドスタート：新規は薦められない',legend:'U1の評価を全部消す→因子が学べず、人気の一般論しか出せない',
+  html(){return'<h3>⑬ コールドスタート問題</h3><div class="eq curr">観測ゼロのユーザー → <b>p</b><sub>u</sub> が更新されない → 予測は <i>μ</i>+<i>b</i><sub>i</sub>（人気）だけ<span class="read">読み：評価が 1 つも無いと、そのユーザーの因子 p を推定する手がかりが無い。結果、<b>万人向けの人気順</b>しか出せず、個人化できない</span></div><div class="desc">もし新規ユーザー（U1 の評価を全部消した状態）が来たら？ <b>因子 p を学ぶ材料が無い</b>ので、内積の項はほぼ働かず、予測は<b>「みんなに人気の映画（μ+b<sub>i</sub>）」</b>に落ちます——おすすめが<b>誰にでも同じ一般論</b>に。これが<b>コールドスタート問題</b>。新作（評価ゼロの列）も同じ。実務では登録時アンケートや<b>内容情報の併用</b>で埋めます。相関だけに頼る手法の弱点です。</div>';},
+  draw(){drawReco(0);caption('U1=新規（評価ゼロ）→人気順の一般論しか出ない',CH-8);}},
+/* 13 */{title:'Netflix Prize と word2vec の血縁',legend:'2006-2009の百万ドルコンペ。埋め込みとしての行列分解',
+  html(){return'<h3>⑭ 物語と血縁</h3><div class="eq curr">相関から低次元ベクトルを学び、内積で近さを測る ＝ 行列分解 ＝ <a href="word2vec.html">word2vec</a> の骨格<span class="read">読み：協調フィルタリングも単語埋め込みも「共起・評価の相関→低次元ベクトル→内積で相性」。同じ発想の別応用</span></div><div class="desc"><b>Netflix Prize（2006–2009）</b>：評価予測を 10% 改善したら 100 万ドル、という伝説のコンペ。優勝の中核が<b>行列分解</b>で、この手法を世に広めました。そして本ページの骨格——<b>相関から低次元ベクトルを学び、内積で相性を測る</b>——は、<a href="word2vec.html">単語埋め込み（word2vec）</a>と<b>まったく同じ</b>。映画因子は「映画の埋め込み」、単語ベクトルは「単語の埋め込み」。<b>推薦と言語が、埋め込みという一点で地続き</b>です。</div>';},
+  draw(){factorScatter({users:true});caption('映画因子＝映画の埋め込み（word2vecの親戚）',CH-8);}},
+/* 14 */{title:'まとめと限界',legend:'相性は捉える。だが相関頼みゆえの副作用（cold start等）',
+  html(){const bl=baseline(),ho=rmseHold();return'<h3>⑮ まとめ：好みは低次元</h3><div class="desc">協調フィルタリングの行列分解は、<b>穴だらけの評価行列を「ユーザー因子×映画因子」の積で埋める</b>手法でした。内容を一切見ず、評価の<b>相関だけ</b>から<b>アクション⇄人情のような隠れた軸</b>を発見し（真ジャンルとの一致 R²≈0.8）、<b>内積＝相性</b>で「?」を予測（この例で全体平均 '+bl.global.toFixed(2)+' → 行列分解 '+ho.toFixed(2)+'）。<b>限界</b>：評価ゼロを扱えない<b>コールドスタート</b>、人気作に寄る<b>人気バイアス</b>、似た嗜好で閉じる<b>フィルターバブル</b>。相関を突き詰めた設計ゆえの副作用です。<b>関連</b>：埋め込みの兄弟 <a href="word2vec.html">word2vec</a>、過学習と <a href="reg.html">正則化</a>。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・穴だらけの R を R≈UVᵀ に分解（内積＝相性）<br>・損失は観測セルだけ（?は「嫌い」ではない）<br>・隠れた軸は自動で出現／k は過学習に注意／限界＝コールドスタート</div>';},
+  draw(){factorScatter({users:true});caption('好みは少数の隠れた軸で説明できる',CH-8);}},
+];
+
+/* 追加の描画（仕組みスライド用）*/
+function factorScatterTrue(){const cx=(SLX+SRX)/2,cy=(STY+SBY)/2,SC=(SRX-SLX)/2/1.5;
+  ctx.strokeStyle=getCSS('--grid');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(SLX,cy);ctx.lineTo(SRX,cy);ctx.moveTo(cx,STY);ctx.lineTo(cx,SBY);ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('アクション度 →',SRX-2,cy-5);
+  ctx.textAlign='center';ctx.fillText('↑ 人情度',cx-6,STY+6);
+  for(let i=0;i<NM;i++){const x=cx+qTrue[i][0]*SC,y=cy-qTrue[i][1]*SC;const act=MOV[i][2]>0;
+    ctx.fillStyle=act?getCSS('--warm'):getCSS('--upd');ctx.beginPath();ctx.moveTo(x,y-5);ctx.lineTo(x+5,y);ctx.lineTo(x,y+5);ctx.lineTo(x-5,y);ctx.closePath();ctx.fill();
+    ctx.fillStyle=getCSS('--muted');ctx.font='8.5px '+getCSS('--gothic');ctx.fillText(MOV[i][0],x,y-8);}}
+function drawDecomp(){ // R ≈ U Vᵀ の模式：小さな行列3つ
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  const y0=90,cs=15;
+  // R (8x8)
+  function grid(x0,cols,rows,label,fillFn){ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const x=x0+c*cs,y=y0+r*cs;if(fillFn){ctx.fillStyle=fillFn(r,c);ctx.fillRect(x,y,cs-1,cs-1);}ctx.strokeRect(x+.5,y+.5,cs-1,cs-1);}
+    ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--mono');ctx.fillText(label,x0+cols*cs/2,y0-14);}
+  grid(24,8,8,'R (評価)',(r,c)=>obs[r][c]?ratingColor(full[r][c]):'#f4f1e8');
+  ctx.fillStyle=getCSS('--text');ctx.font='16px '+getCSS('--mono');ctx.fillText('≈',24+8*cs+12,y0+4*cs);
+  grid(24+8*cs+26,2,8,'U (人)',(r,c)=>hexA(getCSS('--accent'),0.3+0.4*Math.abs(pTrue[r][c])));
+  ctx.fillStyle=getCSS('--text');ctx.fillText('×',24+8*cs+26+2*cs+8,y0+4*cs);
+  const x3=24+8*cs+26+2*cs+22;ctx.strokeStyle=getCSS('--line');
+  for(let r=0;r<2;r++)for(let c=0;c<8;c++){const x=x3+c*cs,y=y0+r*cs;ctx.fillStyle=hexA(getCSS('--warm'),0.3+0.4*Math.abs(qTrue[c][r]));ctx.fillRect(x,y,cs-1,cs-1);ctx.strokeRect(x+.5,y+.5,cs-1,cs-1);}
+  ctx.fillStyle=getCSS('--muted');ctx.font='700 11px '+getCSS('--mono');ctx.fillText('Vᵀ (映画)',x3+8*cs/2,y0-14);
+  // 内積の説明
+  ctx.fillStyle=getCSS('--text');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('各セル r̂(u,i) = 行 pu ・ 列 qi （内積＝相性）',CW/2,y0+8*cs+40);
+  ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');
+  ctx.fillText('太い R（64個）を、細い U と V（各16個）の積で説明する',CW/2,y0+8*cs+60);
+  ctx.fillText('＝ 少ない数で好みを圧縮＝低次元',CW/2,y0+8*cs+78);}
+function drawLossMask(){drawMatrix({fill:false});
+  // 観測セルを緑枠、?セルに×（損失に入れない）
+  for(let u=0;u<NU;u++)for(let i=0;i<NM;i++){const[x,y,w,h]=cellRect(u,i);
+    if(!obs[u][i]){ctx.strokeStyle=hexA(getCSS('--neg'),0.4);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+4,y+4);ctx.lineTo(x+w-4,y+h-4);ctx.moveTo(x+w-4,y+4);ctx.lineTo(x+4,y+h-4);ctx.stroke();}}
+  ctx.fillStyle=getCSS('--text');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';
+  ctx.fillText('濃い枠＝損失に入れる（観測）／ ✕＝入れない（?）',CW/2,368);
+  ctx.fillStyle=getCSS('--neg');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText('穴を0で埋めない＝「見てない」を「嫌い」にしない',CW/2,386);}
+function drawSGDstep(){ // 因子空間で1ユーザー1映画のpull
+  factorScatter({users:true,hlUser:0});
+  const maps=alignMap();const cx=(SLX+SRX)/2,cy=(STY+SBY)/2,SC=(SRX-SLX)/2/1.5;
+  const pu=applyMap(mf.P[0],maps),qi=applyMap(mf.Q[0],maps);
+  const x1=cx+pu[0]*SC,y1=cy-pu[1]*SC,x2=cx+qi[0]*SC,y2=cy-qi[1]*SC;
+  ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--neg');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('e·q だけ寄せる',(x1+x2)/2,(y1+y2)/2-4);
+  caption('観測誤差 e の向きに p を q へ（内積を合わせる）',CH-8);}
+
+/* 復元 R²（映画）*/
+function recoverQ(){const n=NM;let tot=0;for(let tc=0;tc<2;tc++){const y=qTrue.map(r=>r[tc]);const X=mf.Q.map(r=>[1,...r.slice(0,mf.k)]);
+  const w=lstsq(X,y);const yh=X.map(row=>dot(w,row)),ym=y.reduce((a,b)=>a+b,0)/n;let ss=0,sr=0;
+  for(let t=0;t<n;t++){ss+=(y[t]-ym)**2;sr+=(y[t]-yh[t])**2;}tot+=1-sr/ss;}return tot/2;}
+
+/* ===== レンダリング ===== */
+let recoUser=0;
+function renderStepper(){const el=document.getElementById('stepper'),cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx;let obsN=0;for(let u=0;u<NU;u++)for(let i=0;i<NM;i++)if(obs[u][i])obsN++;
+  const bl=baseline(),ho=mf?rmseHold():0;
+  const M={0:'<div>行列 <b>8×8</b></div><div>観測 <b>'+obsN+'/64</b>（残り?）</div>',
+    1:'<div>手がかり <b>評価の相関</b></div><div>穴に強い方法が要る</div>',
+    2:'<div>全体平均 <b>'+bl.global.toFixed(2)+'</b></div><div>ユーザー平均 <b>'+bl.user.toFixed(2)+'</b></div>',
+    3:'<div>隠れた軸 <b>2本</b></div><div>アクション度・人情度</div>',
+    4:'<div class="best">r̂ = μ+bu+bi+pu·qi</div><div>内積＝相性</div>',
+    5:'<div>損失 <b>観測セルのみ</b></div><div>+ L2 正則化(λ)</div>',
+    6:'<div>SGD <b>p,qを相互に</b></div><div>学習率 η='+LR+'</div>',
+    7:'<div class="best">因子が自動分離</div><div>真ジャンル一致 R² <b>'+(mf?recoverQ().toFixed(2):'—')+'</b></div>',
+    8:'<div>epoch <b>'+(mf?mf.epoch:0)+'</b>/140</div><div class="best">訓練RMSE <b>'+(mf?rmseObs().toFixed(2):'—')+'</b></div>',
+    9:'<div>対象 <b>U'+(recoUser+1)+' '+USR[recoUser][1]+'</b></div><div>未観測から予測降順</div>',
+    10:'<div>全体平均 <b>'+bl.global.toFixed(2)+'</b></div><div class="best">行列分解 <b>'+ho.toFixed(2)+'</b></div>',
+    11:'<div>因子数 k <b>'+K+'</b></div><div class="best">真の軸数 <b>2</b></div>',
+    12:'<div>新規ユーザー</div><div class="best">人気順しか出せない</div>',
+    13:'<div>Netflix Prize <b>2006-09</b></div><div>行列分解＝埋め込み</div>',
+    14:'<div class="best">全体'+bl.global.toFixed(2)+'→分解'+ho.toFixed(2)+'</div><div>限界=コールドスタート</div>'};
+  m.innerHTML=M[s]||'';}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain'),ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  cv.style.cursor=SLIDES[slideIdx].click?'pointer':'default';}
+function draw_(){ctx.clearRect(0,0,CW,CH);SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function ensureTrained(){if(!mf||mf.k!==K||mf.epoch<140||coldUser!==-1){coldUser=-1;trainFull(K);}}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i>=7){if(i===12){coldUser=0;initMF(K);stepMF(140);}else ensureTrained();}
+  if(i===8){coldUser=-1;initMF(K);runTrain();return;}
+  renderAll();draw_();}
+function runTrain(){anim=true;renderAll();
+  if(window.__prefersReducedMotion){stepMF(140);anim=false;draw_();renderMini();renderExplain();return;}
+  function go(){if(!anim||slideIdx!==8)return;if(mf.epoch>=140){anim=false;draw_();renderMini();renderExplain();return;}
+    stepMF(3);draw_();renderMini();renderExplain();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;if(anim&&slideIdx===8){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,slideIdx===8?800:3600);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;dice=0;K=2;coldUser=-1;recoUser=0;
+  document.getElementById('kk').value=2;document.getElementById('kVal').textContent='2';
+  genData();trainFull(K);slideIdx=0;renderAll();draw_();}
+
+/* 行クリックで対象ユーザー変更（S9/S12）*/
+cv.addEventListener('pointerdown',e=>{if(!SLIDES[slideIdx].click)return;const r=cv.getBoundingClientRect();
+  const sy=(e.clientY-r.top)*(cv.height/r.height);const sx=(e.clientX-r.left)*(cv.width/r.width);
+  // 散布図上のユーザー●をクリック → 対象変更（S9は散布のみ表示）
+  const maps=alignMap();const cx=(SLX+SRX)/2,cy=(STY+SBY)/2,SC=(SRX-SLX)/2/1.5;
+  let best=-1,bd=18;for(let u=0;u<NU;u++){const p=applyMap(mf.P[u],maps);const x=cx+p[0]*SC,y=cy-p[1]*SC;const d=Math.hypot(x-sx,y-sy);if(d<bd){bd=d;best=u;}}
+  if(best>=0){recoUser=best;renderMini();renderExplain();draw_();}});
+
+/* ===== 配線 ===== */
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{dice++;genData();coldUser=(slideIdx===12)?0:-1;initMF(K);stepMF(140);renderMini();renderExplain();draw_();};
+document.getElementById('kk').oninput=e=>{K=+e.target.value;document.getElementById('kVal').textContent=K;
+  coldUser=(slideIdx===12)?0:-1;initMF(K);stepMF(140);renderMini();renderExplain();draw_();};
+
+genData();trainFull(2);renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

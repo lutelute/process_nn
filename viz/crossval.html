@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交差検証 — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#fff;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);} .mini .bad b{color:var(--neg);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;}
+  select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--gothic);font-size:13px;cursor:pointer;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>交差検証 — 未知への強さを、正しく見積もる</h1>
+  <div class="lead"><b>解いた問題で実力を測ってはいけない。</b>訓練誤差はモデルを複雑にするほど下がり続け、<b>過学習</b>を「最強」と錯覚させます。データを<b>畳んで回せば</b>、全データが一度ずつ試験官になり、<b>未知への強さ</b>を安定して見積もれる——これが交差検証。<a href="reg.html">正則化</a>の U 字が「データの使い方」からも現れ、<a href="metrics.html">評価指標</a>の測り方を支える作法です。「次へ ▶」で進めてください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>限られたデータから<b>「見たことのないデータへの強さ」</b>を、運に左右されず安定して見積もる作法。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>データを k 個に畳み、<b>各塊が一度ずつ試験官</b>になる。全員で測って平均＝公平で低ぶれな見積もり。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>ハイパーパラメータ選択・モデル比較・論文の精度報告・<a href="surrogate.html">ベイズ最適化</a>の内側の評価。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>分割数 k <select id="kSel"><option value="2">2</option><option value="5" selected>5</option><option value="10">10</option><option value="30">LOO</option></select></label>
+      <button id="diceBtn">🎲 データ引き直し</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>1 回のホールドアウトは<b>試験問題を 1 セットだけ解いて合否を決める</b>ようなもの——引いた問題の運で結論が変わる。交差検証は<b>問題を畳んで全員に一度ずつ解かせる</b>。精度が上がるのではない、<b>見積もりの「ぶれ」が消える</b>のだ。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span><span>交差検証はモデルの精度を上げるテクニックだ</span></div>
+    <div class="row"><span class="o">✓</span><span>精度は<b>1 ミリも上がらない</b>。上がるのは「見積もりの信頼」。CV は<b>モデルを良くする道具ではなく、良し悪しを正しく測る物差し</b>。測り方が正しいから、正しい次数（モデル）を選べる。</span></div>
+    <div class="row"><span class="x">✗</span><span>前処理（正規化や特徴選択）はデータ全体で先にやるのが効率的</span></div>
+    <div class="row"><span class="o">✓</span><span>テスト側の情報が前処理に漏れた瞬間、検証は<b>楽観に化ける</b>（純ノイズでも見かけ 82%）。<b>前処理も含めて fold の中で</b>やる——さもないと「未来を見て予想」した反則になる。</span></div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：train/val/test の三分割／時系列の畳み方／リークの正体／バイアス-バリアンス</summary>
+    <div class="det">実務の型は <b>train / validation / test の三分割</b>：train で学習、validation でハイパーパラメータやモデルを選び、<b>test は最後に一度だけ</b>触れて最終報告に使う（test で選び始めた瞬間、test が第二の validation に堕ちて楽観化）。データが少なければ validation を <b>k-fold CV</b> に置き換える（＝このページ）。<b>k の選び方</b>：k を増やすほど訓練に使う割合が増え見積もりの<b>ぶれ（分散）は下がる</b>が、学習を k 回やる<b>計算量</b>が増える。<b>LOO（Leave-One-Out, k=n）</b>は極限で、ぶれは最小だが n 回学習する。実務は 5 か 10 が定番。<b>時系列は畳み方が違う</b>：ランダム分割すると「未来で学び過去を予測」になり反則。時間順に区切り、<b>常に過去だけで学び未来を検証</b>する（前方連鎖）。<b>リークの正体</b>：正規化の平均・分散、特徴選択、欠損補完、over/under サンプリング等の<b>前処理パラメータをテストを含む全データで決める</b>と、テストの情報が漏れて検証誤差が楽観化する。前処理は必ず fold 内の train だけで決め、同じ変換を検証側へ適用する。関連：<a href="reg.html">正則化</a>（複雑さ vs 誤差の U 字）・<a href="metrics.html">評価指標</a>（何を誤差にするか）・<a href="surrogate.html">ベイズ最適化</a>や <a href="bandit.html">バンディット</a>のモデル選択の内側でも CV が回っています。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function makeRng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function randn(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* ===== データと多項式フィット（正規方程式・厳密） ===== */
+const N=30, SIG=0.18, MAXD=9;
+const trueF=x=>2.2*(x*x-0.35)*(x*x-0.35)-0.35;   // 二重谷（真の複雑さ=4次）
+let dataSeed=42, kFold=5, D=null, S=null;
+function genData(seed){const rng=makeRng(seed);const X=[],Y=[];
+  for(let i=0;i<N;i++){const x=-1+2*(i+0.5)/N;X.push(x);Y.push(trueF(x)+randn(rng)*SIG);}return{X,Y};}
+function solve(M,b){const n=b.length,A=M.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;[A[c],A[p]]=[A[p],A[c]];
+    const d=A[c][c]||1e-9;for(let j=c;j<=n;j++)A[c][j]/=d;
+    for(let r=0;r<n;r++)if(r!==c){const f=A[r][c];for(let j=c;j<=n;j++)A[r][j]-=f*A[c][j];}}
+  return A.map(r=>r[n]);}
+function polyFit(X,Y,d){const n=X.length,m=d+1;
+  const A=X.map(x=>{const r=[];let p=1;for(let j=0;j<m;j++){r.push(p);p*=x;}return r;});
+  const AtA=Array.from({length:m},()=>new Array(m).fill(0)),Aty=new Array(m).fill(0);
+  for(let i=0;i<n;i++)for(let a=0;a<m;a++){Aty[a]+=A[i][a]*Y[i];for(let b=0;b<m;b++)AtA[a][b]+=A[i][a]*A[i][b];}
+  for(let a=0;a<m;a++)AtA[a][a]+=1e-7;return solve(AtA,Aty);}
+function predict(w,x){let p=1,s=0;for(let j=0;j<w.length;j++){s+=w[j]*p;p*=x;}return s;}
+function mseW(w,X,Y){let s=0;for(let i=0;i<X.length;i++){const e=Y[i]-predict(w,X[i]);s+=e*e;}return s/Math.max(1,X.length);}
+function trainErr(X,Y,d){return mseW(polyFit(X,Y,d),X,Y);}
+function shuffle(idx,rng){for(let i=idx.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]];}return idx;}
+function holdout(X,Y,rng){const idx=shuffle(X.map((_,i)=>i),rng);const nTr=Math.round(X.length*0.7),tr=idx.slice(0,nTr),te=idx.slice(nTr);
+  let best=0,bE=1e9;const errs=[];for(let d=0;d<=MAXD;d++){const w=polyFit(tr.map(i=>X[i]),tr.map(i=>Y[i]),d);const e=mseW(w,te.map(i=>X[i]),te.map(i=>Y[i]));errs.push(e);if(e<bE){bE=e;best=d;}}
+  return{best,errs,tr,te};}
+function cvRun(X,Y,k,rng){const n=X.length,idx=shuffle(X.map((_,i)=>i),rng);const fo=new Array(n);idx.forEach((ix,pos)=>fo[ix]=pos%k);
+  let best=0,bE=1e9;const cvErr=[],foldErr=[];
+  for(let d=0;d<=MAXD;d++){let se=0,c=0;const fe=[];
+    for(let f=0;f<k;f++){const tr=[],te=[];for(let i=0;i<n;i++)(fo[i]===f?te:tr).push(i);
+      const w=polyFit(tr.map(i=>X[i]),tr.map(i=>Y[i]),d);let s2=0;for(const i of te){const e=Y[i]-predict(w,X[i]);s2+=e*e;se+=e*e;c++;}fe.push(s2/te.length);}
+    const e=se/c;cvErr.push(e);foldErr.push(fe);if(e<bE){bE=e;best=d;}}
+  return{best,cvErr,foldErr,fo};}
+
+/* ===== リークの罠（純ノイズ・特徴選択リーク） ===== */
+function leakDemo(seed){const rng=makeRng(seed);const n=40,p=160,ktop=5,K=5;
+  const Xf=Array.from({length:n},()=>Array.from({length:p},()=>randn(rng)));const y=Array.from({length:n},()=>rng()<0.5?0:1);
+  const pickTop=rows=>{const cors=[];for(let j=0;j<p;j++){let sx=0,sy=0,sxy=0,sxx=0,syy=0,m=rows.length;
+      for(const i of rows){const xv=Xf[i][j],yv=y[i];sx+=xv;sy+=yv;sxy+=xv*yv;sxx+=xv*xv;syy+=yv*yv;}
+      const cov=sxy-sx*sy/m,vx=sxx-sx*sx/m,vy=syy-sy*sy/m;cors.push([Math.abs(cov)/Math.sqrt(vx*vy+1e-9),j]);}
+    cors.sort((a,b)=>b[0]-a[0]);return cors.slice(0,ktop).map(c=>c[1]);};
+  const classify=(feats,tr,te)=>{const sign=feats.map(j=>{let s=0;for(const i of tr)s+=Xf[i][j]*(y[i]===1?1:-1);return s>=0?1:-1;});
+    let hit=0;for(const i of te){let sc=0;feats.forEach((j,q)=>sc+=Xf[i][j]*sign[q]);if((sc>=0?1:0)===y[i])hit++;}return hit/te.length;};
+  const fo=Array.from({length:n},(_,i)=>i%K),fa=pickTop(Array.from({length:n},(_,i)=>i));let lk=0,hn=0;
+  for(let f=0;f<K;f++){const tr=[],te=[];for(let i=0;i<n;i++)(fo[i]===f?te:tr).push(i);lk+=classify(fa,tr,te);hn+=classify(pickTop(tr),tr,te);}
+  return{lk:lk/K,hn:hn/K};}
+
+function sd(v){const m=v.reduce((a,b)=>a+b,0)/v.length;return Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/v.length);}
+function compute(){D=genData(dataSeed);
+  const tE=[];for(let d=0;d<=MAXD;d++)tE.push(trainErr(D.X,D.Y,d));
+  const cv=cvRun(D.X,D.Y,kFold,makeRng(dataSeed*3+1));
+  // 選択次数ヒスト（分割/シャッフルを変えて）
+  const RUN=200,hoV=[],cvV=[],hoH=new Array(MAXD+1).fill(0),cvH=new Array(MAXD+1).fill(0);
+  for(let s=0;s<RUN;s++){const b1=holdout(D.X,D.Y,makeRng(1000+s*7)).best;hoV.push(b1);hoH[b1]++;
+    const b2=cvRun(D.X,D.Y,kFold,makeRng(1000+s*7)).best;cvV.push(b2);cvH[b2]++;}
+  // k の効果
+  const kStd={};for(const k of [2,5,10,N]){const v=[];for(let s=0;s<120;s++)v.push(cvRun(D.X,D.Y,k,makeRng(1000+s*7)).best);kStd[k]=sd(v);}
+  // リーク
+  let la=0,ha=0,LR=120;for(let s=0;s<LR;s++){const r=leakDemo(dataSeed*17+s);la+=r.lk;ha+=r.hn;}
+  S={tE,cv,hoH,cvH,hoSd:sd(hoV),cvSd:sd(cvV),kStd,leak:{ap:la/LR*100,ho:ha/LR*100},
+     hoMode:mode(hoH),cvMode:mode(cvH)};}
+function mode(h){let m=0,c=-1,tot=0;h.forEach((v,i)=>{tot+=v;if(v>c){c=v;m=i;}});return{deg:m,frac:tot?c/tot:0};}
+compute();
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function gridBg(){ctx.lineWidth=1;
+  for(let x=18;x<CW-12;x+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(x+.5,14);ctx.lineTo(x+.5,CH-14);ctx.stroke();}
+  for(let y=18;y<CH-12;y+=29){ctx.strokeStyle='rgba(150,143,127,0.08)';ctx.beginPath();ctx.moveTo(14,y+.5);ctx.lineTo(CW-14,y+.5);ctx.stroke();}}
+const LOx=-1.15,HIx=1.15,LOy=-0.95,HIy=1.05;
+function pxD(x,x0,y0,w,h){return x0+w*(x-LOx)/(HIx-LOx);}
+function pyD(y,x0,y0,w,h){return y0+h*(HIy-y)/(HIy-LOy);}
+/* 散布図＋真関数＋フィット曲線 opt:{deg, tr, te, w(既存), title} */
+function scatter(x0,y0,w,h,opt){opt=opt||{};
+  ctx.fillStyle=getCSS('--panel-2');ctx.fillRect(x0,y0,w,h);ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  // 0 軸
+  ctx.strokeStyle='rgba(26,26,23,0.10)';ctx.beginPath();ctx.moveTo(x0,pyD(0,x0,y0,w,h));ctx.lineTo(x0+w,pyD(0,x0,y0,w,h));ctx.stroke();
+  // 真の関数
+  ctx.strokeStyle='rgba(120,116,110,0.55)';ctx.lineWidth=1.4;ctx.setLineDash([5,4]);ctx.beginPath();
+  for(let i=0;i<=120;i++){const x=LOx+(HIx-LOx)*i/120,y=trueF(x);const X=pxD(x,x0,y0,w,h),Y=pyD(y,x0,y0,w,h);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);
+  // フィット曲線
+  if(opt.deg!=null){const src=opt.trOnly?{X:opt.tr.map(i=>D.X[i]),Y:opt.tr.map(i=>D.Y[i])}:D;
+    const w2=opt.w||polyFit(src.X,src.Y,opt.deg);ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2.4;ctx.beginPath();
+    for(let i=0;i<=160;i++){const x=LOx+(HIx-LOx)*i/160,y=predict(w2,x);const X=pxD(x,x0,y0,w,h),Y=pyD(Math.max(LOy-1,Math.min(HIy+1,y)),x0,y0,w,h);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}
+    ctx.save();ctx.rect(x0,y0,w,h);ctx.clip();ctx.stroke();ctx.restore();}
+  // 点（train/test 色分け）
+  const teSet=opt.te?new Set(opt.te):null;
+  for(let i=0;i<D.X.length;i++){const X=pxD(D.X[i],x0,y0,w,h),Y=pyD(D.Y[i],x0,y0,w,h);
+    const isTe=teSet&&teSet.has(i);
+    ctx.beginPath();ctx.arc(X,Y,3.2,0,7);
+    if(teSet){if(isTe){ctx.fillStyle=getCSS('--neg');ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();}
+      else{ctx.fillStyle='rgba(111,84,196,0.75)';ctx.fill();}}
+    else{ctx.fillStyle=getCSS('--warm');ctx.fill();}}
+  if(opt.title){ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(opt.title,x0+6,y0+15);}}
+
+/* 誤差カーブ: 次数 vs 誤差（train と CV）opt:{showTrain,showCV,markBest,markDeg} */
+function errCurve(x0,y0,w,h,opt){opt=opt||{};
+  ctx.fillStyle=getCSS('--panel-2');ctx.fillRect(x0,y0,w,h);ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  let mx=0;S.tE.forEach(e=>mx=Math.max(mx,e));if(opt.showCV)S.cv.cvErr.forEach(e=>mx=Math.max(mx,Math.min(0.5,e)));mx=Math.max(mx,0.2)*1.1;
+  const PX=d=>x0+10+(w-20)*d/MAXD, PY=e=>y0+h-14-(h-24)*Math.min(1,e/mx);
+  // グリッド/軸
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  for(let d=0;d<=MAXD;d++)ctx.fillText(d,PX(d),y0+h-3);
+  ctx.textAlign='left';ctx.fillText('誤差',x0+4,y0+12);ctx.textAlign='right';ctx.fillText('次数→',x0+w-4,y0+12);
+  const line=(arr,col,wd,cap)=>{ctx.strokeStyle=col;ctx.lineWidth=wd;ctx.beginPath();arr.forEach((e,d)=>{const X=PX(d),Y=PY(Math.min(mx,e));d?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+    arr.forEach((e,d)=>{ctx.beginPath();ctx.arc(PX(d),PY(Math.min(mx,e)),2.3,0,7);ctx.fillStyle=col;ctx.fill();});};
+  if(opt.showTrain)line(S.tE,'rgba(111,84,196,0.85)',1.8);
+  if(opt.showCV)line(S.cv.cvErr.map(e=>Math.min(mx,e)),getCSS('--accent'),2.2);
+  // 最良次数マーク
+  if(opt.markBest){const b=S.cv.best;ctx.strokeStyle=getCSS('--neg');ctx.lineWidth=1.4;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(PX(b),y0+16);ctx.lineTo(PX(b),y0+h-14);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=getCSS('--neg');ctx.font='700 9.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('CV最小 d='+b,PX(b),y0+26);}
+  if(opt.markTrain){ctx.fillStyle=getCSS('--upd');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('訓練誤差は d=9まで下がる',x0+w-6,y0+h-20);}}
+
+/* ヒストグラム（選択次数の分布） arr=counts[0..MAXD] */
+function histBars(x0,y0,w,h,counts,col,title){
+  ctx.fillStyle=getCSS('--text');ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(title,x0,y0-4);
+  const mx=Math.max(1,...counts),bw=(w)/(MAXD+1);
+  for(let d=0;d<=MAXD;d++){const bh=(h-14)*counts[d]/mx,x=x0+d*bw;
+    ctx.fillStyle=d===S.cv.best?getCSS('--accent'):col;ctx.globalAlpha=d===S.cv.best?0.95:0.6;ctx.fillRect(x+1,y0+h-14-bh,bw-2,bh);ctx.globalAlpha=1;
+    ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(d,x+bw/2,y0+h-3);}
+  ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0+h-14);ctx.lineTo(x0+w,y0+h-14);ctx.stroke();}
+
+function caption(txt,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(txt,CW/2,y||CH-12);}
+
+/* fold グリッド: データを k 塊に、test fold を強調 */
+function foldGrid(x0,y0,w,h,k,testF){const cols=k,cw=w/cols,pad=4;
+  for(let f=0;f<k;f++){const bx=x0+f*cw;const isTe=f===testF;
+    ctx.fillStyle=isTe?getCSS('--neg'):'rgba(111,84,196,0.30)';ctx.globalAlpha=isTe?0.85:1;rr(bx+pad/2,y0,cw-pad,h,6);ctx.fill();ctx.globalAlpha=1;
+    ctx.strokeStyle=isTe?getCSS('--neg'):'rgba(111,84,196,0.6)';ctx.lineWidth=1.2;rr(bx+pad/2,y0,cw-pad,h,6);ctx.stroke();
+    ctx.fillStyle=isTe?'#fff':getCSS('--upd');ctx.font='700 10px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(isTe?'検証':'訓練',bx+cw/2,y0+h/2);}
+  ctx.textBaseline='alphabetic';}
+
+/* ===== スライド定義（4章×15枚）===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ実験',c:'var(--loss)',start:5},{t:'Ⅳ まとめ',c:'var(--accent)',start:10}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,animT=0,curSplit=null,splitSeed=1,foldPhase=0;
+
+const SLIDES=[
+// ---- Ⅰ 問題 ----
+{title:'解いた問題で測るな',legend:'訓練誤差は次数を上げるほど下がる＝過学習を最強と錯覚',
+ html(){return'<h3>開演：解いた問題で実力を測ってはいけない</h3><div class="eq curr">訓練誤差 = <span style="font-family:var(--mono)">誤差(モデル, <b>学習に使った</b>データ)</span>　→ 次数↑で単調に↓<span class="read">読み：自分が勉強した問題そのもので測ると、複雑なモデルほど丸暗記できて誤差が下がる。<b>未知への強さは測れていない</b></span></div><div class="desc"><b>'+N+'点</b>のデータに多項式を当てます。次数を上げるほど曲線は点に吸い付き、<b>訓練誤差は下がり続けて次数 9 が「最強」に見えます</b>。でもそれは、テスト範囲を事前に知って丸暗記したのと同じ。<b>解いた問題で実力は測れません</b>。本当に知りたいのは「まだ見ぬ点にどれだけ当たるか」——次のスライドで、この錯覚を暴きます。</div>';},
+ draw(){scatter(28,40,CW-56,180,{deg:9,title:'次数9で全点に吸い付く（訓練誤差ほぼ0）'});
+   errCurve(28,240,CW-56,150,{showTrain:true,markTrain:true});
+   caption('紫=訓練誤差。次数を上げるほど下がる（＝過学習）',CH-8);}},
+{title:'訓練誤差の錯覚',legend:'次数9は点を暗記しただけ。点の間で暴れ、未知に弱い',
+ html(){return'<h3>錯覚の正体：暗記と理解は違う</h3><div class="eq curr">低い訓練誤差 ≠ 高い汎化性能<span class="read">読み：訓練誤差が低いのは「暗記」できたから。点と点の<b>間</b>で曲線が暴れていれば、新しい点には外れる。測るべきは<b>未知データでの誤差（汎化誤差）</b></span></div><div class="desc">次数 9 の曲線（緑）をよく見ると、<b>データ点の間で大きく波打って</b>います。真の関数（灰の破線）からかけ離れ、点と点のすき間に新しいデータが来たら盛大に外す。<b>訓練誤差はモデルの「暗記力」を測っているだけ</b>で、「理解＝未知への強さ」ではありません。ではどうやって未知への強さを測るのか——手持ちのデータの<b>一部を隠して試験官にする</b>のが第一歩。</div>';},
+ draw(){scatter(28,60,CW-56,210,{deg:9,title:'次数9：点の間で暴れる（暗記）'});
+   caption('緑=次数9の当てはめ／灰破線=真の関数。すき間で乖離',CH-92);
+   ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('訓練誤差ほぼ0でも、未知には弱い',CW/2,320);
+   ctx.fillStyle=getCSS('--faint');ctx.font='11px '+getCSS('--gothic');ctx.fillText('→ 手持ちの一部を隠して「試験官」にしよう',CW/2,344);}},
+{title:'1回のholdoutは運ゲー',legend:'70/30分割を引き直すと、選ばれる最良次数がころころ変わる',
+ html(){const b=curSplit?curSplit.best:'—';return'<h3>ホールドアウトは運ゲー：分割で結論が変わる</h3><div class="eq curr">データを 70% 訓練 / 30% 検証にランダム分割 → 検証誤差が最小の次数を選ぶ<span class="read">読み：一度だけ分けて選ぶ「ホールドアウト」。だが<b>どう分けたか（運）</b>で検証誤差が変わり、<b>選ばれる次数がぶれる</b></span></div><div class="desc">手持ちを 1 回だけ <b>70/30</b> に分け、隠した 30%（赤）で各次数を採点、最小の次数を選ぶ——これがホールドアウト。いま選ばれた次数は <b>'+b+'</b>。でも「🎲」や自動再生で<b>分割を引き直すたびに、選ばれる次数がころころ変わります</b>（下のタリー）。検証点がたった '+Math.round(N*0.3)+' 点しかなく<b>採点がぶれる</b>から。1 セットの試験問題で合否を決めるようなもの。もっと安定した測り方が要ります。</div>';},
+ draw(){if(!curSplit)curSplit=holdout(D.X,D.Y,makeRng(splitSeed));
+   scatter(28,40,CW-56,190,{deg:curSplit.best,tr:curSplit.tr,te:curSplit.te,trOnly:true,title:'70%訓練(紫) / 30%検証(赤)'});
+   // タリー
+   ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--mono');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('この分割で選ばれた次数: '+curSplit.best,CW/2,252);
+   if(!window.__hoTally)window.__hoTally=new Array(MAXD+1).fill(0);
+   histBars(40,280,CW-80,96,window.__hoTally,getCSS('--warm'),'これまでに選ばれた次数（分割を変えて）');
+   caption('分割を引き直すと選択がばらつく＝運ゲー',CH-8);}},
+// ---- Ⅱ 仕組み ----
+{title:'畳んで回す：k-fold',legend:'データをk個の塊に分け、各塊が一度ずつ「検証」になる',
+ html(){return'<h3>仕組み：データを畳んで回す（k-fold）</h3><div class="eq curr">データを k 個の塊に分割 → 各回、1 塊を<b>検証</b>・残り k−1 塊で<b>学習</b>、これを k 回<span class="read">読み：k 個に畳み、<b>順番に</b>各塊を試験官にする。1 回の学習では k−1 塊（多く）を訓練に使えるのがホールドアウトとの違い</span></div><div class="desc">交差検証は分割を<b>1 回で終わらせません</b>。データを <b>k 個の塊（fold）</b>に分け、<b>1 番目を検証・残りで学習</b>→<b>2 番目を検証・残りで学習</b>→…と<b>k 回</b>回します。下の帯が k=5 の分割で、赤い塊がその回の検証。<b>全員が一度ずつ試験官</b>になり、しかも毎回データの大部分（k−1 塊）で学習できる。「隠す 1 回の運」に頼らない設計です。</div>';},
+ draw(){ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('データを '+kFold+' 個の塊に分ける',CW/2,50);
+   for(let f=0;f<Math.min(kFold,5);f++){const yy=70+f*62;
+     ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('回'+(f+1),20,yy+22);
+     foldGrid(52,yy,CW-72,34,Math.min(kFold,5),f);}
+   caption('赤=その回の検証塊／紫=訓練。全塊が一度ずつ検証に',CH-10);}},
+{title:'CV誤差＝各回の平均',legend:'k回の検証誤差を平均＝低ぶれな汎化誤差の見積もり',
+ html(){return'<h3>CV 誤差：k 回の平均が物差し</h3><div class="eq curr">CV誤差 = ( 1 / k ) · Σ<sub>f=1..k</sub> 検証誤差<sub>f</sub><span class="read">読み：各回で「その回の検証塊」で測った誤差を、k 回ぶん<b>平均</b>する。平均するから 1 回の運が薄まり、<b>ぶれの小さい見積もり</b>になる</span></div><div class="desc">各回で「そのとき隠した塊」の誤差を測り、<b>k 回の平均</b>を取ります。これが交差検証の物差し <b>CV 誤差</b>。1 回の holdout は検証点が少なくて暴れますが、CV は<b>全点が一度ずつ検証に回り、平均される</b>ので見積もりが安定します（＝ばらつき＝分散が小さい）。この物差しで各次数を測り、<b>CV 誤差が最小の次数</b>を選べば、運に左右されずに複雑さを決められます。</div>';},
+ draw(){ctx.fillStyle=getCSS('--muted');ctx.font='11.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';
+   ctx.fillText('次数 '+S.cv.best+' の場合の各回の検証誤差',CW/2,48);
+   const fe=S.cv.foldErr[S.cv.best],mx=Math.max(...fe)*1.2,bx=50,bw=(CW-100)/fe.length,y0=70,bh=150;
+   fe.forEach((e,f)=>{const x=bx+f*bw,hh=bh*e/mx;ctx.fillStyle='rgba(207,79,95,0.6)';ctx.fillRect(x+3,y0+bh-hh,bw-6,hh);
+     ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('回'+(f+1),x+bw/2,y0+bh+12);});
+   // 平均線
+   const avg=fe.reduce((a,b)=>a+b,0)/fe.length,ay=y0+bh-bh*avg/mx;
+   ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.setLineDash([5,3]);ctx.beginPath();ctx.moveTo(bx,ay);ctx.lineTo(bx+bw*fe.length,ay);ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('平均=CV誤差 '+avg.toFixed(3),bx+2,ay-5);
+   caption('赤=各回の検証誤差／緑破線=その平均＝CV誤差',CH-10);}},
+// ---- Ⅲ ライブ実験 ----
+{title:'5-foldが回る',legend:'各foldが一度ずつ試験官になる。5回の学習と検証を実走',
+ html(){const ph=Math.min(kFold,foldPhase+1);return'<h3>ライブ：'+kFold+'-fold が回る</h3><div class="eq curr">回 '+ph+' / '+kFold+'：塊 '+ph+' を検証、残り '+(kFold-1)+' 塊で学習<span class="read">読み：いま '+ph+' 番目の塊（赤）を試験官にして、残りで学習・採点している。これを '+kFold+' 回くり返して平均する</span></div><div class="desc">実際に <b>'+kFold+'-fold</b> を回します。赤い塊がその回の検証、残りで多項式（次数 '+S.cv.best+'）を学習し、赤で採点。右下のバーに<b>各回の検証誤差</b>が積み上がり、'+kFold+' 回終えると<b>その平均が CV 誤差</b>。<b>全塊が一度ずつ試験官</b>になり、どのデータも学習と検証の両方に一度ずつ使われる——データを無駄なく、かつ公平に使い切ります。「↻ 最初から」で回し直せます。</div>';},
+ draw(){const ph=Math.min(kFold-1,foldPhase);
+   ctx.fillStyle=getCSS('--muted');ctx.font='11.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('回 '+(ph+1)+' / '+kFold,CW/2,44);
+   foldGrid(40,60,CW-80,40,Math.min(kFold,8),ph);
+   // 各回誤差バー
+   const fe=S.cv.foldErr[S.cv.best],mx=Math.max(...fe)*1.2,bx=44,bw=(CW-88)/kFold,y0=140,bh=150;
+   for(let f=0;f<=ph&&f<kFold;f++){const x=bx+f*bw,hh=bh*fe[f]/mx;ctx.fillStyle=f===ph?getCSS('--neg'):'rgba(207,79,95,0.5)';ctx.fillRect(x+2,y0+bh-hh,bw-4,hh);
+     ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText((f+1),x+bw/2,y0+bh+12);}
+   ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.beginPath();ctx.moveTo(bx,y0+bh);ctx.lineTo(bx+bw*kFold,y0+bh);ctx.stroke();
+   ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('各回の検証誤差（次数'+S.cv.best+'）',bx,y0-6);
+   caption('全塊が順に試験官に。'+kFold+'回の平均が物差し',CH-10);}},
+{title:'次数 vs CV誤差のU字',legend:'訓練誤差は下がり続けるが、CV誤差はU字＝最適な複雑さ',
+ html(){return'<h3>U 字カーブ：単純すぎも複雑すぎも損</h3><div class="eq curr">次数↑：訓練誤差↓（単調）　⇔　CV誤差＝U字（底＝最適な複雑さ d='+S.cv.best+'）<span class="read">読み：複雑さを増すと訓練誤差はどこまでも下がるが、CV 誤差は途中で反転して上がる。<b>底が「ちょうど良い複雑さ」</b>＝データの使い方から出る U 字</span></div><div class="desc">同じデータで<b>訓練誤差（紫）</b>と <b>CV 誤差（緑）</b>を次数ごとに並べます。訓練誤差は次数 9 まで下がり続ける一方、<b>CV 誤差は U 字</b>——単純すぎ（左・当てはめ不足）も複雑すぎ（右・過学習）も検証で罰せられ、<b>次数 '+S.cv.best+' で最小</b>。これは <a href="reg.html">正則化</a>の「複雑さ vs 誤差」の U 字と<b>同じ形が、モデルではなく『データの使い方』から現れた</b>もの。CV はこの底を指し示します。</div>';},
+ draw(){errCurve(28,54,CW-56,250,{showTrain:true,showCV:true,markBest:true,markTrain:true});
+   // 凡例
+   ctx.fillStyle=getCSS('--upd');ctx.font='10px '+getCSS('--mono');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('■ 訓練誤差（暗記・単調↓）',40,325);
+   ctx.fillStyle=getCSS('--accent');ctx.fillText('■ CV誤差（未知への強さ・U字）',40,343);
+   caption('CVのU字の底が、選ぶべき複雑さ',CH-8);}},
+{title:'★安定性A/B：holdout vs CV',legend:'選択次数の分布。holdoutは散らばり、CVは1点に集中',
+ html(){return'<h3>A/B：選択の安定性（分布で見る）</h3><div class="eq curr">holdout：選択次数がばらつく（std '+S.hoSd.toFixed(2)+'）　⇔　CV：1点に集中（std '+S.cvSd.toFixed(2)+'）<span class="read">読み：分割/シャッフルを 200 回変えて「選ばれた次数」の分布を作った。holdout は広く散り、CV は<b>ほぼ同じ次数に集まる</b>＝結論が運に揺れない</span></div><div class="desc">これが交差検証の真価。同じデータで<b>分割を 200 回変えて</b>、選ばれた次数の分布を描きました。<b>holdout（橙）</b>は次数 '+S.hoMode.deg+' が最頻でも <b>'+Math.round(S.hoMode.frac*100)+'%</b> どまりで広く散らばる（運ゲー）。<b>'+kFold+'-fold CV（緑）</b>は次数 '+S.cvMode.deg+' に <b>'+Math.round(S.cvMode.frac*100)+'%</b> 集中。<b>精度は同じでも、選択の「ぶれ」が激減</b>——CV はモデルを良くするのでなく、<b>良し悪しを安定して測る</b>のです。上のスライダで k を上げるとさらに集中します。</div>';},
+ draw(){histBars(40,44,CW-80,150,S.hoH,getCSS('--warm'),'holdout 70/30（200回）— std '+S.hoSd.toFixed(2));
+   histBars(40,246,CW-80,150,S.cvH,getCSS('--upd'),kFold+'-fold CV（200回）— std '+S.cvSd.toFixed(2));
+   caption('緑バー=CV最小次数。CVは分布が狭い＝安定',CH-8);}},
+{title:'kの効果',legend:'k=2/5/10/LOO：分割が多いほどぶれ減、ただし計算はk倍',
+ html(){return'<h3>k の効果：ぶれ と 計算量 のトレードオフ</h3><div class="eq curr">k↑ → 見積もりのぶれ↓（分散↓）／ 学習回数 = k（計算量↑）<span class="read">読み：k を増やすほど 1 回の訓練に使う割合が増え、選択の分散が下がる。極限が LOO（k=n）。ただし学習を k 回行う</span></div><div class="desc">分割数 <b>k</b> を変えると選択の安定性が変わります。選択次数の標準偏差は <b>k=2 で '+S.kStd[2].toFixed(2)+' → k=5 で '+S.kStd[5].toFixed(2)+' → k=10 で '+S.kStd[10].toFixed(2)+' → LOO で '+S.kStd[N].toFixed(2)+'</b>。<b>k が大きいほどぶれが減る</b>（LOO はほぼ 0＝毎回同じ次数）。ただし学習は <b>k 回</b>必要で、LOO は n 回——計算量とのトレードオフ。実務は <b>5 か 10</b> が定番の落とし所。右上のスライダで実際に切り替えられます。</div>';},
+ draw(){const ks=[2,5,10,N],labs=['k=2','k=5','k=10','LOO'];const mx=Math.max(...ks.map(k=>S.kStd[k]),0.3)*1.15;
+   const bx=54,bw=(CW-108)/ks.length,y0=70,bh=180;
+   ctx.fillStyle=getCSS('--muted');ctx.font='11.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('選択次数のばらつき（標準偏差）',CW/2,50);
+   ks.forEach((k,i)=>{const x=bx+i*bw,hh=bh*S.kStd[k]/mx;const on=k===kFold;
+     ctx.fillStyle=on?getCSS('--accent'):'rgba(111,84,196,0.55)';ctx.fillRect(x+6,y0+bh-hh,bw-12,hh);
+     ctx.fillStyle=getCSS('--text');ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(S.kStd[k].toFixed(2),x+bw/2,y0+bh-hh-5);
+     ctx.fillStyle=on?getCSS('--accent'):getCSS('--muted');ctx.font=(on?'700 ':'')+'11px '+getCSS('--gothic');ctx.fillText(labs[i],x+bw/2,y0+bh+16);
+     ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.fillText('学習'+(k===N?'n':k)+'回',x+bw/2,y0+bh+30);});
+   ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.beginPath();ctx.moveTo(bx,y0+bh);ctx.lineTo(bx+bw*ks.length,y0+bh);ctx.stroke();
+   caption('低いほど安定。ただし計算量は k 倍（緑=現在のk）',CH-10);}},
+{title:'★リークの罠',legend:'前処理を全データでやると、純ノイズでも見かけ精度が化ける',
+ html(){return'<h3>リークの罠：前処理に漏れるテスト情報</h3><div class="eq curr">全データで特徴選択 → CV ＝ <b class="bad">'+S.leak.ap.toFixed(0)+'%</b>（見かけ）　⇔　fold内で選択 ＝ '+S.leak.ho.toFixed(0)+'%（実力・偶然50%）<span class="read">読み：中身は<b>真の信号ゼロの純ノイズ</b>。なのに「全データで相関上位の特徴を選んでから CV」すると精度が偶然以上に化ける。特徴選択がテストの答えを覗いたから</span></div><div class="desc">最も怖い罠。<b>真の信号がゼロ</b>（ラベルと無関係な純ノイズ、特徴 160 個）のデータで、「<b>全データで相関の高い特徴 5 個を選ぶ</b>→その特徴で 5-fold CV」をすると、見かけ精度が <b class="bad">'+S.leak.ap.toFixed(0)+'%</b> に跳ね上がります。偶然は 50% のはずなのに。<b>特徴選択が検証塊まで含む全データを覗き、たまたま当たる特徴を拾った</b>から。正しく<b>fold の中（訓練だけ）で選ぶ</b>と '+S.leak.ho.toFixed(0)+'% ＝偶然に戻る。<b>前処理も fold の中で</b>——これが鉄則。</div>';},
+ draw(){const bx=70,bw=90,gap=54,y0=70,bh=200;const bars=[['リーク版\n(全体で選択)',S.leak.ap,getCSS('--neg')],['正しい版\n(fold内で選択)',S.leak.ho,getCSS('--accent')]];
+   // 偶然50%線
+   const py=e=>y0+bh-bh*e/100;
+   ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(40,py(50));ctx.lineTo(CW-30,py(50));ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('偶然 50%',CW-32,py(50)-4);
+   bars.forEach((b,i)=>{const x=bx+i*(bw+gap),hh=bh*b[1]/100;ctx.fillStyle=b[2];ctx.globalAlpha=0.82;ctx.fillRect(x,y0+bh-hh,bw,hh);ctx.globalAlpha=1;
+     ctx.fillStyle=getCSS('--text');ctx.font='700 15px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(b[1].toFixed(0)+'%',x+bw/2,y0+bh-hh-8);
+     ctx.fillStyle=getCSS('--muted');ctx.font='10.5px '+getCSS('--gothic');b[0].split('\n').forEach((s,j)=>ctx.fillText(s,x+bw/2,y0+bh+16+j*15));});
+   ctx.strokeStyle='rgba(26,26,23,0.2)';ctx.beginPath();ctx.moveTo(bx-10,y0+bh);ctx.lineTo(CW-30,y0+bh);ctx.stroke();
+   caption('真の信号ゼロ。リークは偶然を実力に見せかける',CH-8);}},
+// ---- Ⅳ まとめ ----
+{title:'実務の型：三分割',legend:'train/validation/test。testは最後に一度だけ触る',
+ html(){return'<h3>実務の型：train / validation / test</h3><div class="eq curr">train（学習）→ validation（選ぶ）→ <b>test（最後に一度だけ）</b><span class="read">読み：学習・選択・最終評価で使うデータを分ける。<b>test で選び始めた瞬間</b>、test は第二の validation に堕ち、報告が楽観化する</span></div><div class="desc">交差検証は「validation の作り方」の話。全体像はこうです——<b>train</b> で学習、<b>validation</b>（またはその CV 版）でハイパーパラメータやモデルを<b>選び</b>、<b>test は封印して最後に一度だけ</b>開けて最終性能を報告。<b>test を見て調整し始めたら、それはもう test ではありません</b>（第二の検証セットに堕ちて楽観化）。データが少なければ validation を k-fold CV に置き換える。この規律が、報告した精度を<b>信用できる数字</b>にします。</div>';},
+ draw(){const y0=90,bw=CW-80,x0=40;const segs=[['train（学習）',0.6,getCSS('--upd')],['validation（選ぶ）',0.22,getCSS('--warm')],['test（封印）',0.18,getCSS('--neg')]];
+   ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('データの三分割',CW/2,60);
+   let xx=x0;segs.forEach(s=>{const ww=bw*s[1];ctx.fillStyle=s[2];ctx.globalAlpha=0.8;rr(xx+2,y0,ww-4,54,7);ctx.fill();ctx.globalAlpha=1;
+     ctx.fillStyle='#fff';ctx.font='700 10.5px '+getCSS('--gothic');ctx.textAlign='center';ctx.textBaseline='middle';
+     s[0].split('（').forEach((t,j)=>ctx.fillText(j===0?t:'（'+t,xx+ww/2,y0+22+j*15));xx+=ww;});
+   ctx.textBaseline='alphabetic';
+   ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.textAlign='center';
+   ctx.fillText('validation が少なければ → k-fold CV に置換',CW/2,y0+92);
+   ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('test は最後に一度だけ。触れば楽観化',CW/2,y0+120);
+   ctx.fillStyle=getCSS('--faint');ctx.font='10.5px '+getCSS('--gothic');ctx.fillText('（test で選び始めたら第二の validation に堕ちる）',CW/2,y0+142);}},
+{title:'時系列は畳み方が違う',legend:'未来を訓練に入れない。時間順に区切り過去だけで学ぶ',
+ html(){return'<h3>時系列：未来を訓練に入れてはいけない</h3><div class="eq curr">ランダム分割 ✗　→　時間順に区切り「過去で学び未来で検証」（前方連鎖）<span class="read">読み：時系列でランダムに分けると、未来のデータで学んで過去を予測する反則になる。時間の壁を越えて情報が漏れる</span></div><div class="desc">時系列データは<b>ランダムに畳んではいけません</b>。ランダム分割だと「未来のデータを訓練に入れて過去を予測」する<b>反則（未来のリーク）</b>になり、本番では出せない好成績が出ます。正しくは<b>時間順</b>に区切り、常に<b>過去だけで学び、その先の未来で検証</b>する（前方連鎖 / expanding window）。下段が正しい畳み方——訓練窓が時間とともに伸び、検証は必ずその<b>右隣（未来）</b>。株価・需要・センサなど、順序が意味を持つデータの鉄則です。</div>';},
+ draw(){ctx.fillStyle=getCSS('--neg');ctx.font='700 11px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('✗ ランダム分割（未来が漏れる）',30,54);
+   // ランダム: 混ざった色
+   const rngd=makeRng(7);for(let i=0;i<20;i++){const x=34+i*((CW-70)/20);ctx.fillStyle=rngd()<0.3?getCSS('--neg'):'rgba(111,84,196,0.6)';rr(x,64,(CW-70)/20-2,20,3);ctx.fill();}
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('✓ 前方連鎖（過去で学び未来で検証）',30,120);
+   for(let r=0;r<3;r++){const yy=132+r*44,tr=6+r*4;
+     for(let i=0;i<20;i++){const x=34+i*((CW-70)/20);let col='rgba(26,26,23,0.08)';if(i<tr)col='rgba(111,84,196,0.6)';else if(i<tr+3)col=getCSS('--neg');
+       ctx.fillStyle=col;rr(x,yy,(CW-70)/20-2,20,3);ctx.fill();}
+     ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('回'+(r+1),CW-42,yy+14);}
+   ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('紫=訓練（過去）／赤=検証（その先）／時間→',CW/2,CH-14);}},
+{title:'どこで出会うか',legend:'ハイパラ選択・モデル比較・論文の精度報告の読み方',
+ html(){return'<h3>どこで出会うか：測り方が結論を決める</h3><div class="eq curr">選ぶ・比べる・報告する — すべて「正しく測れているか」に懸かる<span class="read">読み：モデル選択もハイパラ調整も論文の精度も、土台は「未知への強さを正しく見積もれているか」。CV はその共通の物差し</span></div><div class="desc">交差検証は機械学習の<b>測定の作法</b>として遍在します。<b>ハイパーパラメータ選択</b>（学習率・正則化・木の深さ…）、<b>モデル比較</b>（どのアルゴリズムが強いか）、<b><a href="surrogate.html">ベイズ最適化</a>の内側</b>（各候補の良さを CV で採点して次を選ぶ）。そして<b>論文の精度報告を読むとき</b>——「test で何度も調整していないか」「前処理を全データでやっていないか」を疑えるようになります。<b>正しく測れて初めて、良いモデルを選べる</b>。測り方は結果と同じくらい大事です。</div>';},
+ draw(){const items=[['🎛 ハイパラ選択','学習率・正則化・次数を CV 誤差で選ぶ'],['⚖ モデル比較','どのアルゴリズムが未知に強いかを公平に'],['🔎 ベイズ最適化の内側','各候補を CV で採点し、次の候補を選ぶ'],['📄 論文を読む目','test の使い回し・前処理リークを見抜く']];
+   items.forEach((it,i)=>{const y=44+i*90;ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;rr(24,y,CW-48,76,10);ctx.fill();ctx.stroke();
+     ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(it[0],40,y+26);
+     ctx.fillStyle=getCSS('--muted');ctx.font='11px '+getCSS('--gothic');ctx.fillText(it[1],40,y+50);});}},
+{title:'まとめ',legend:'CVは物差し。全員が試験官、前処理もfoldの中で',
+ html(){return'<h3>まとめ：正しく測る、が土台</h3><div class="eq curr">CV＝全員が一度ずつ試験官　／　精度でなく<b>見積もりの信頼</b>を上げる<span class="read">読み：交差検証はモデルを良くする道具ではなく、良し悪しを<b>ぶれなく測る</b>物差し。正しく測れるから、正しく選べる</span></div><div class="desc">今日の芯——<b>解いた問題で実力を測るな</b>。1 回の holdout は分割の運で結論が揺れ、CV は<b>全データを一度ずつ試験官</b>にして見積もりのぶれを消す。CV 誤差の U 字が最適な複雑さ（次数 '+S.cv.best+'）を指し、k を増やすほど安定する。そして<b>前処理も fold の中で</b>——さもないと純ノイズでも '+S.leak.ap.toFixed(0)+'% に化ける。関連：<a href="reg.html">正則化</a>（同じ U 字を複雑さの罰から）・<a href="metrics.html">評価指標</a>（何を誤差にするか）・<a href="surrogate.html">ベイズ最適化</a>や <a href="bandit.html">バンディット</a>のモデル選択の内側でも CV が回っています。</div>';},
+ draw(){ctx.fillStyle=getCSS('--panel-2');ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;rr(24,50,CW-48,150,12);ctx.fill();ctx.stroke();
+   ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('要点',42,76);
+   ctx.fillStyle=getCSS('--muted');ctx.font='12px '+getCSS('--gothic');
+   ['・訓練誤差は暗記。未知への強さは別に測る','・1回のholdoutは分割の運ゲー','・k-fold＝全員が一度ずつ試験官＝低ぶれ','・CV誤差のU字が最適な複雑さを指す','・前処理もfoldの中で（リーク厳禁）'].forEach((t,i)=>ctx.fillText(t,42,102+i*20));
+   // 二本の導線
+   const y0=222;ctx.strokeStyle='rgba(26,26,23,0.4)';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(100,y0);ctx.lineTo(100,y0+18);ctx.stroke();ctx.beginPath();ctx.moveTo(CW-100,y0);ctx.lineTo(CW-100,y0+18);ctx.stroke();
+   ctx.fillStyle='#f2effb';ctx.strokeStyle=getCSS('--upd');ctx.lineWidth=1.4;rr(30,y0+18,140,90,10);ctx.fill();ctx.stroke();
+   ctx.fillStyle=getCSS('--upd');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('同じ U 字を複雑さの罰から',100,y0+44);ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('正則化',100,y0+68);ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('reg.html',100,y0+88);
+   ctx.fillStyle='#e4f4ef';ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=1.4;rr(CW-170,y0+18,140,90,10);ctx.fill();ctx.stroke();
+   ctx.fillStyle=getCSS('--accent');ctx.font='700 12px '+getCSS('--gothic');ctx.fillText('何を誤差にするか',CW-100,y0+44);ctx.fillStyle=getCSS('--text');ctx.font='700 13px '+getCSS('--gothic');ctx.fillText('評価指標',CW-100,y0+68);ctx.fillStyle=getCSS('--muted');ctx.font='10px '+getCSS('--gothic');ctx.fillText('metrics.html',CW-100,y0+88);}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper');const cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini');const s=slideIdx;
+  if(s<=1){m.innerHTML='<div>点 <b>'+N+'</b></div><div class="bad">訓練最小 <b>d=9</b></div><div class="best">真の複雑さ <b>d='+S.cv.best+'</b></div>';}
+  else if(s===2){m.innerHTML='<div>検証点 <b>'+Math.round(N*0.3)+'</b></div><div class="bad">選択がぶれる</div>';}
+  else if(s===3||s===4){m.innerHTML='<div>分割 <b>k='+kFold+'</b></div><div class="best">CV最小 <b>d='+S.cv.best+'</b></div>';}
+  else if(s===5){m.innerHTML='<div>回 <b>'+Math.min(kFold,foldPhase+1)+'/'+kFold+'</b></div><div class="best">CV誤差 <b>'+S.cv.cvErr[S.cv.best].toFixed(3)+'</b></div>';}
+  else if(s===6){m.innerHTML='<div class="bad">訓練最小 <b>d=9</b></div><div class="best">CV最小 <b>d='+S.cv.best+'</b></div>';}
+  else if(s===7){m.innerHTML='<div class="bad">holdout std <b>'+S.hoSd.toFixed(2)+'</b></div><div class="best">CV std <b>'+S.cvSd.toFixed(2)+'</b></div>';}
+  else if(s===8){m.innerHTML='<div>k=2 <b>'+S.kStd[2].toFixed(2)+'</b></div><div class="best">LOO <b>'+S.kStd[N].toFixed(2)+'</b></div>';}
+  else if(s===9){m.innerHTML='<div class="bad">リーク <b>'+S.leak.ap.toFixed(0)+'%</b></div><div class="best">正しく <b>'+S.leak.ho.toFixed(0)+'%</b></div>';}
+  else{m.innerHTML='<div class="best">正しく測る＝正しく選ぶ</div>';}}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);}
+function draw_(){ctx.clearRect(0,0,CW,CH);gridBg();SLIDES[slideIdx].draw();}
+
+/* ===== 制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===2){window.__hoTally=new Array(MAXD+1).fill(0);splitSeed=1;curSplit=holdout(D.X,D.Y,makeRng(splitSeed));window.__hoTally[curSplit.best]++;runHoldout();}
+  else if(i===5){foldPhase=0;runFolds();}
+  renderAll();draw_();}
+function runHoldout(){anim=true;if(window.__prefersReducedMotion){for(let s=2;s<=40;s++){const b=holdout(D.X,D.Y,makeRng(s)).best;window.__hoTally[b]++;}anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==2)return;splitSeed++;curSplit=holdout(D.X,D.Y,makeRng(splitSeed));window.__hoTally[curSplit.best]++;draw_();renderMini();renderExplain();
+    if(splitSeed<40)setTimeout(()=>requestAnimationFrame(go),650);else anim=false;}
+  setTimeout(()=>requestAnimationFrame(go),700);}
+function runFolds(){anim=true;foldPhase=0;if(window.__prefersReducedMotion){foldPhase=kFold-1;anim=false;draw_();return;}
+  function go(){if(!anim||slideIdx!==5)return;draw_();renderMini();renderExplain();
+    if(foldPhase<kFold-1){foldPhase++;setTimeout(()=>requestAnimationFrame(go),720);}else anim=false;}
+  setTimeout(()=>requestAnimationFrame(go),300);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===2||slideIdx===5);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,4200);};
+  requestAnimationFrame(wait);}else stopAuto();}
+function reset(){stopAuto();anim=false;dataSeed=42;kFold=5;document.getElementById('kSel').value='5';compute();slideIdx=0;window.__hoTally=null;foldPhase=0;curSplit=null;renderAll();draw_();}
+function reroll(){stopAuto();dataSeed=Math.floor(Math.random()*1e6)+1;/*seed更新のみ*/dataSeed=(dataSeed*2654435761>>>0)%99999+1;compute();
+  window.__hoTally=null;curSplit=null;foldPhase=0;
+  if(slideIdx===2)goSlide(2);else if(slideIdx===6)goSlide(6);else{renderAll();draw_();}}
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=reroll;
+document.getElementById('kSel').onchange=function(){stopAuto();kFold=+this.value;compute();window.__hoTally=null;
+  if(slideIdx===6)goSlide(6);else{renderAll();draw_();}};
+renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
