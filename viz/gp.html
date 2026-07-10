@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ガウス過程回帰 — 動くインフォグラフ</title>
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#fffdf6; --line:#dcd8cc; --grid:#e7e3d8;
+    --text:#1a1a17; --muted:#52504a; --faint:#928f84;
+    --accent:#1f9e8a; --warm:#b3812f; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho",YuMincho,"Songti SC",serif;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--gothic);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 20px 50px;}
+  .nav{font-size:12.5px;margin-bottom:16px;line-height:1.9;}
+  .nav a{color:var(--accent);text-decoration:none;} .nav a:hover{text-decoration:underline;}
+  h1{font-family:var(--mincho);font-weight:600;font-size:25px;margin:0 0 5px;letter-spacing:.02em;}
+  .lead{color:var(--muted);font-size:13.5px;max-width:730px;margin-bottom:18px;}
+  .lead a{color:var(--accent);}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+  .stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .stp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;cursor:pointer;position:relative;border-right:1px solid var(--line);transition:.18s;}
+  .stp:last-child{border-right:none;}
+  .stp .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;background:#ffffff;color:var(--faint);border:1px solid var(--line);transition:.18s;}
+  .stp .t{font-size:12px;color:var(--faint);transition:.18s;}
+  .stp.done .n{background:#e4f4ef;color:var(--accent);border-color:#1f9e8a;} .stp.done .t{color:var(--muted);}
+  .stp.active{background:var(--panel);}
+  .stp.active .n{background:var(--c);color:#06231f;border-color:var(--c);font-weight:700;}
+  .stp.active .t{color:var(--text);font-weight:600;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--c);}
+  .body{display:grid;grid-template-columns:1fr 1fr;}
+  .vis{padding:16px;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;}
+  canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);touch-action:none;}
+  .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
+  .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
+  .explain{padding:18px 18px 16px;}
+  .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
+  .explain h3{font-family:var(--mincho);font-size:17px;margin:0 0 8px;}
+  .eq{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:8px 0;line-height:1.9;}
+  .eq.curr{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .desc{font-size:13px;color:var(--muted);} .desc b{color:var(--text);}
+  .bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-top:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap;}
+  button{font-family:var(--gothic);font-size:13.5px;border-radius:9px;padding:9px 15px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:.15s;}
+  button:hover:not(:disabled){border-color:var(--faint);} button:disabled{opacity:.4;cursor:default;}
+  button.primary{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:600;}
+  .bar .spacer{flex:1;}
+  .bar label{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:7px;}
+  input[type=range]{accent-color:var(--accent);cursor:pointer;width:84px;}
+  details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  summary{padding:13px 16px;cursor:pointer;font-size:13.5px;color:var(--muted);} summary:hover{color:var(--text);}
+  .det{padding:0 16px 16px;font-size:13px;color:var(--muted);}
+  .det a{color:var(--accent);}
+  @media(max-width:760px){.body{grid-template-columns:1fr;}.vis{border-right:none;border-bottom:1px solid var(--line);}.stp .t{display:none;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>ガウス過程回帰 — 関数の上の確率分布</h1>
+  <div class="lead">数点の観測から、観測の<b>「間」と「外」</b>の関数を推す方法。1 本の線を引く<a href="linreg.html">線形回帰</a>と違い、ガウス過程は<b>あり得る関数の束</b>を扱い、各 <i>x</i> で<b>平均と不確かさ（±2σ の帯）</b>を返します。<b>観測から遠いほど帯は太る</b>。<a href="surrogate.html">ベイズ最適化</a>の心臓部でもあります。ライブでは<b>キャンバスをクリックして観測を足す</b>と、帯がその場で締まります。下の流れを「次へ」で追ってください。</div>
+
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>予測に「<b>どれだけ自信がないか</b>」を付けられる数少ない回帰。少数データ・実験計画・ベイズ最適化の土台。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>関数そのものの上の確率分布。観測に条件付けると各 <i>x</i> で<b>平均 ± 不確かさ</b>が出る。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span><a href="surrogate.html">ベイズ最適化</a>・ハイパラ探索、地質や気象の空間補間（クリギング）、センサ較正、時系列の欠測補間。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="360" height="430"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 最初から</button>
+      <span class="spacer"></span>
+      <label>ℓ <input type="range" id="ell" min="6" max="100" step="2" value="30"><span id="ellVal" style="font-family:var(--mono);color:var(--text)">0.30</span></label>
+      <label>σ<sub>n</sub> <input type="range" id="sn" min="0" max="40" step="2" value="6"><span id="snVal" style="font-family:var(--mono);color:var(--text)">0.06</span></label>
+      <button id="diceBtn">🎲 別の例</button>
+    </div>
+  </div>
+
+  <div class="aha">
+    <div class="aha-h">💡 見方が変わる一文</div>
+    <p>「回帰＝1 本の線を引くこと」だと思っていたなら、見方が変わります。ガウス過程は<b>関数そのものの上に確率分布</b>を敷き、観測で条件付けて、各 <i>x</i> に<b>平均と自信を同時に</b>返す。<b>予測とは点ではなく分布</b>——「どこがまだ分からないか」まで言えるから、次にどこを測るかまで決められます。</p>
+  </div>
+
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>ガウス過程の帯（±2σ）は、観測ノイズの大きさを表している</div>
+    <div class="row"><span class="o">✓</span>帯は<b>モデル自身の「無知の量」</b>。ノイズ σ<sub>n</sub>=0（完全に正確な観測）でも、<b>観測から離れた場所では帯は太る</b>——見ていない所は分からない、というだけ。ノイズは帯の<b>床</b>を決めるだけで、帯の広がりの正体ではありません。</div>
+    <div class="row"><span class="x">✗</span>ガウス過程は「データがガウス分布に従う」ことを仮定した手法だ</div>
+    <div class="row"><span class="o">✓</span>ガウスなのは<b>関数値の同時分布</b>のこと——「どんな有限個の点 <i>x</i> を選んでも、そこでの関数値 <i>f</i>(<i>x</i>) の組が多変量正規に従う」という<b>関数の族への仮定</b>。データ点の分布や誤差分布の話ではありません。</div>
+  </div>
+
+  <details>
+    <summary>もっと詳しく：O(n³) の壁／カーネル選び／深層学習との関係</summary>
+    <div class="det"><b>計算コスト O(n³)</b>：事後は行列 (K+σ<sub>n</sub>²I) の逆（実装はコレスキー分解）を要し、観測数 <i>n</i> の 3 乗で重くなる。数千点を超えると<b>疎近似・誘導点（inducing points）・SVGP</b> などの近似が要る。このページは <i>n</i>≤20 程度なので<b>厳密に</b>解いています。<b>カーネル選び＝事前の仮定選び</b>：RBF（無限回微分できる＝つるつる）のほかに、より荒れた関数を許す <b>Matérn</b>、周期性を組み込む周期カーネル、線形カーネルなどがあり、足したり掛けたりして組める。ハイパーパラメータ（ℓ・σ<sub>f</sub>・σ<sub>n</sub>）は<b>対数周辺尤度</b>の最大化で自動選択できる（このページの既定シーンのようになめらかなデータでは、既定 ℓ=0.3 よりやや大きめが最尤になりがち）。<b>次元の呪い</b>：入力が高次元（目安 20 次元超）だと「近い」が意味を失い、RBF は苦しくなる。<b>深層学習との関係</b>：無限幅のニューラルネットは厳密にガウス過程になる（<b>NNGP</b>）ことが知られ、NN で特徴を学んでから GP に渡す<b>ディープカーネル学習</b>もある。位置づけ：<a href="linreg.html">線形回帰</a>＝1 本の直線、<a href="knn.html">k-NN</a>＝近所の平均、そして<b>ガウス過程＝不確かさ付きの滑らかな内挿</b>。この帯を「次にどこを測るか」に使うのが <a href="surrogate.html">ベイズ最適化（サロゲート）</a> です。</div>
+  </details>
+</div>
+
+<script>
+"use strict";
+/* ===== シード付き乱数（Math.random 不使用）===== */
+function mkrng(s){let seed=s|0;return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function mkrandn(r){return()=>{let u=0,v=0;while(u===0)u=r();while(v===0)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function hexA(h,a){h=(h||'#000').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return`rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+
+/* ===== ガウス過程回帰の数値コア（RBF・コレスキーで厳密計算）===== */
+const SF2=1.0;                                   // σf²（振幅）
+function rbf(a,b,ell){const d=a-b;return SF2*Math.exp(-d*d/(2*ell*ell));}
+function chol(K,jit){const n=K.length,L=Array.from({length:n},()=>new Array(n).fill(0));
+  for(let i=0;i<n;i++)for(let j=0;j<=i;j++){let s=K[i][j];for(let k=0;k<j;k++)s-=L[i][k]*L[j][k];
+    if(i===j){const d=s+(jit||0);L[i][j]=Math.sqrt(d>0?d:1e-12);}else L[i][j]=s/L[j][j];}
+  return L;}
+function fsolve(L,b){const n=L.length,y=new Array(n).fill(0);
+  for(let i=0;i<n;i++){let s=b[i];for(let k=0;k<i;k++)s-=L[i][k]*y[k];y[i]=s/L[i][i];}return y;}
+function bsolve(L,y){const n=L.length,x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){let s=y[i];for(let k=i+1;k<n;k++)s-=L[k][i]*x[k];x[i]=s/L[i][i];}return x;}
+function gpFit(X,Y,ell,sn2){const n=X.length;
+  if(n===0)return{predict:x=>({mu:0,s2:SF2}),X,Y,ell,post:null};
+  const K=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>rbf(X[i],X[j],ell)+(i===j?sn2:0)));
+  const L=chol(K,1e-8),alpha=bsolve(L,fsolve(L,Y));
+  const predict=xt=>{const ks=X.map(xi=>rbf(xi,xt,ell));let mu=0;for(let i=0;i<n;i++)mu+=ks[i]*alpha[i];
+    const v=fsolve(L,ks);let vv=0;for(let i=0;i<n;i++)vv+=v[i]*v[i];
+    return{mu,s2:Math.max(0,rbf(xt,xt,ell)-vv)};};
+  const postCov=xs=>{const m=xs.length,Ks=xs.map(xt=>X.map(xi=>rbf(xi,xt,ell)));
+    const V=Ks.map(ks=>fsolve(L,ks)),mu=Ks.map(ks=>{let s=0;for(let i=0;i<n;i++)s+=ks[i]*alpha[i];return s;});
+    const Sig=Array.from({length:m},()=>new Array(m).fill(0));
+    for(let a=0;a<m;a++)for(let b=0;b<m;b++){let kab=rbf(xs[a],xs[b],ell),vv=0;for(let i=0;i<n;i++)vv+=V[a][i]*V[b][i];Sig[a][b]=kab-vv;}
+    return{mu,Sig};};
+  return{predict,postCov,X,Y,ell};}
+function priorCov(xs,ell){const m=xs.length,K=Array.from({length:m},(_,i)=>Array.from({length:m},(_,j)=>rbf(xs[i],xs[j],ell)));return{mu:new Array(m).fill(0),Sig:K};}
+function pathsFrom(cov,zMat){const L=chol(cov.Sig,1e-7);return zMat.map(z=>{const m=L.length,o=new Array(m).fill(0);
+  for(let i=0;i<m;i++){let s=0;for(let k=0;k<=i;k++)s+=L[i][k]*z[k];o[i]=cov.mu[i]+s;}return o;});}
+
+/* ===== シーンの状態 ===== */
+const NG=121, NS=5;
+const GX=Array.from({length:NG},(_,i)=>-1.2+2.4*i/(NG-1));
+let SCENE=0, trueFn=x=>0, obs=[], obsVer=0, zMat=[];
+let ell=0.30, sn=0.06;
+const sn2=()=>sn*sn;
+function trueFnFor(s){const a=[[2.6,0.95,0.25],[3.4,0.80,-0.15],[2.0,1.0,0.42],[4.0,0.7,0.05]][s%4];return x=>Math.sin(a[0]*x)*a[1]+a[2]*x;}
+function genScene(reseed){if(reseed)SCENE++;trueFn=trueFnFor(SCENE);
+  const rn=mkrandn(mkrng(101+SCENE*7)),xs=[-0.92,-0.45,0.05,0.5,0.95];
+  obs=xs.map(x=>({x,y:trueFn(x)+0.06*rn()}));obsVer++;
+  const rz=mkrandn(mkrng(503+SCENE*13));zMat=Array.from({length:NS},()=>GX.map(()=>rz()));}
+function reseedSamples(){SCENE++;const rz=mkrandn(mkrng(503+SCENE*13));zMat=Array.from({length:NS},()=>GX.map(()=>rz()));}
+
+/* ===== 派生量 ===== */
+function computeFit(ellv,sn2v){const X=obs.map(o=>o.x),Y=obs.map(o=>o.y);const gp=gpFit(X,Y,ellv,sn2v);
+  const mu=GX.map(x=>0),sd=GX.map(x=>0);for(let i=0;i<NG;i++){const r=gp.predict(GX[i]);mu[i]=r.mu;sd[i]=Math.sqrt(r.s2);}
+  return{gp,mu,sd,X,Y,ellv,sn2v};}
+function avgBand(fit){let s=0;for(let i=0;i<NG;i++)s+=4*fit.sd[i];return s/NG;}
+function interpRMSE(){const fit=computeFit(ell,sn2());let s=0,n=0;for(let i=0;i<NG;i++){const x=GX[i];if(x<-0.95||x>0.98)continue;const e=fit.mu[i]-trueFn(x);s+=e*e;n++;}return Math.sqrt(s/n);}
+function linfit(){const n=obs.length;if(n<2)return{a:0,b:0};let sx=0,sy=0,sxx=0,sxy=0;obs.forEach(o=>{sx+=o.x;sy+=o.y;sxx+=o.x*o.x;sxy+=o.x*o.y;});const den=n*sxx-sx*sx||1;const b=(n*sxy-sx*sy)/den,a=(sy-b*sx)/n;return{a,b};}
+function argmaxSd(fit){let bi=0;for(let i=0;i<NG;i++)if(fit.sd[i]>fit.sd[bi])bi=i;return bi;}
+
+/* ===== 描画 ===== */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const PLX=36,PRX=346,YT=24,YB=316,YMIN=-2.6,YMAX=2.6;
+const px=x=>PLX+(x+1.2)/2.4*(PRX-PLX);
+const py=y=>YT+(YMAX-y)/(YMAX-YMIN)*(YB-YT);      // クランプせず：曲線はクリップで領域内に収める
+const ix=p=>((p-PLX)/(PRX-PLX))*2.4-1.2;
+const iy=p=>YMAX-((p-YT)/(YB-YT))*(YMAX-YMIN);
+const ST=334,SB=412; // 下部ストリップ
+function clipPlot(fn){ctx.save();ctx.beginPath();ctx.rect(PLX-2,YT-1,PRX-PLX+4,YB-YT+2);ctx.clip();fn();ctx.restore();}
+
+function bg(){ctx.lineWidth=1;
+  for(let gx=-1;gx<=1;gx+=0.5){ctx.strokeStyle=getCSS('--grid');ctx.beginPath();ctx.moveTo(px(gx),YT);ctx.lineTo(px(gx),YB);ctx.stroke();}
+  for(let gy=-2;gy<=2;gy+=1){ctx.strokeStyle=gy===0?'rgba(146,143,132,0.55)':getCSS('--grid');ctx.beginPath();ctx.moveTo(PLX,py(gy));ctx.lineTo(PRX,py(gy));ctx.stroke();}
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('x',PRX-4,py(0)-5);ctx.textAlign='right';ctx.fillText('y',PLX+11,YT+9);}
+function drawBand(fit,alpha){clipPlot(()=>{ctx.fillStyle=hexA(getCSS('--accent'),alpha||0.16);ctx.beginPath();
+  for(let i=0;i<NG;i++){const X=px(GX[i]),Y=py(fit.mu[i]+2*fit.sd[i]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}
+  for(let i=NG-1;i>=0;i--){const X=px(GX[i]),Y=py(fit.mu[i]-2*fit.sd[i]);ctx.lineTo(X,Y);}
+  ctx.closePath();ctx.fill();});}
+function drawMean(fit,color,w,dash){clipPlot(()=>{ctx.strokeStyle=color||getCSS('--accent');ctx.lineWidth=w||2.4;if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();for(let i=0;i<NG;i++){const X=px(GX[i]),Y=py(fit.mu[i]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);});}
+function drawPaths(paths,color,alpha,w){clipPlot(()=>{ctx.lineWidth=w||1.2;
+  paths.forEach(p=>{ctx.strokeStyle=hexA(color||getCSS('--upd'),alpha||0.6);ctx.beginPath();
+    for(let i=0;i<NG;i++){const X=px(GX[i]),Y=py(p[i]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();});});}
+function drawTrue(){clipPlot(()=>{ctx.strokeStyle='rgba(133,149,168,0.5)';ctx.lineWidth=1.4;ctx.setLineDash([5,4]);ctx.beginPath();
+  for(let i=0;i<NG;i++){const X=px(GX[i]),Y=py(trueFn(GX[i]));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);});}
+function drawObs(showErr){clipPlot(()=>{obs.forEach(o=>{
+  if(showErr&&sn>0.02){ctx.strokeStyle=hexA(getCSS('--warm'),0.7);ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px(o.x),py(o.y-2*sn));ctx.lineTo(px(o.x),py(o.y+2*sn));ctx.stroke();}
+  ctx.beginPath();ctx.arc(px(o.x),py(o.y),4,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();ctx.lineWidth=1;ctx.strokeStyle='#fffdf6';ctx.stroke();});});}
+function stripBox(title){ctx.fillStyle='rgba(255,253,246,0.9)';ctx.fillRect(PLX,ST-2,PRX-PLX,SB-ST+8);
+  ctx.strokeStyle='rgba(26,26,23,0.28)';ctx.lineWidth=1;ctx.strokeRect(PLX,ST-2,PRX-PLX,SB-ST+8);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(title,PLX+6,ST+11);}
+function drawKernelStrip(){stripBox('カーネル k(0,d)：距離 d が近いほど「似る」（幅＝ℓ）');
+  const cy=SB-8,cx=(PLX+PRX)/2,H=SB-ST-14;
+  ctx.strokeStyle='rgba(26,26,23,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PLX+6,cy);ctx.lineTo(PRX-6,cy);ctx.stroke();
+  ctx.strokeStyle=getCSS('--accent');ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<=120;i++){const d=-1.2+2.4*i/120,X=cx+d/1.2*((PRX-PLX)/2-8),v=Math.exp(-d*d/(2*ell*ell)),Y=cy-v*H;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+  // ℓ の目印
+  const xL=cx+ell/1.2*((PRX-PLX)/2-8);ctx.strokeStyle=hexA(getCSS('--loss'),0.9);ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(xL,cy);ctx.lineTo(xL,cy-Math.exp(-0.5)*H);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--loss');ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('d=ℓ',xL+3,cy-Math.exp(-0.5)*H-2);}
+function drawSigmaStrip(fit){stripBox('不確かさ σ(x)：観測点で凹み、離れると σf へ膨らむ');
+  const cy=SB-8,H=SB-ST-16;ctx.strokeStyle='rgba(26,26,23,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PLX+6,cy);ctx.lineTo(PRX-6,cy);ctx.stroke();
+  ctx.strokeStyle=getCSS('--loss');ctx.lineWidth=1.8;ctx.beginPath();
+  for(let i=0;i<NG;i++){const X=px(GX[i]),Y=cy-Math.min(1,fit.sd[i]/Math.sqrt(SF2))*H;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();
+  obs.forEach(o=>{ctx.fillStyle=hexA(getCSS('--warm'),0.7);ctx.beginPath();ctx.arc(px(o.x),cy,2.5,0,7);ctx.fill();});
+  ctx.fillStyle=getCSS('--faint');ctx.font='8.5px '+getCSS('--mono');ctx.textAlign='right';ctx.fillText('σf',PRX-8,cy-H+4);}
+function caption(t,y){ctx.fillStyle=getCSS('--faint');ctx.font='10px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(t,CW/2,y||CH-10);}
+function tag(t,x,y,color){ctx.fillStyle=color;ctx.font='700 10px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText(t,x,y);}
+
+/* ===== 章・スライド ===== */
+const CHAPTERS=[{t:'Ⅰ 問題',c:'var(--neg)',start:0},{t:'Ⅱ 仕組み',c:'var(--upd)',start:3},{t:'Ⅲ ライブ',c:'var(--loss)',start:8},{t:'Ⅳ まとめ',c:'var(--accent)',start:13}];
+function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
+let slideIdx=0,anim=false,auto=false,abFlip=false,funnelT=0,funnelPre=null;
+const ELL_SM=0.09,ELL_LG=0.62,SN_HI=0.22;
+
+const SLIDES=[
+/* 0 */{title:'問題：数点から関数を推す',legend:'橙●＝観測。この観測を生んだ関数は？——候補は無数（薄紫）',
+  html(){return'<h3>① 問題：数点から関数を推す</h3><div class="eq curr">観測 D = { (<i>x</i><sub>1</sub>, <i>y</i><sub>1</sub>), …, (<i>x</i><sub>n</sub>, <i>y</i><sub>n</sub>) }　→　<i>x</i> の「間」と「外」の <i>y</i> は？<span class="read">読み：手元にあるのは飛び飛びの点だけ。知りたいのは<b>観測していない場所</b>での値。ここを埋めるのが回帰</span></div><div class="desc">観測は '+obs.length+' 点だけ（橙●）。この点たちを生んだ関数は<b>1 つに決まりません</b>——薄紫のように、同じ点を通る関数は<b>無数に</b>引けます。この「無数」をどう扱うかが、線を 1 本引く回帰との分かれ道です。</div>';},
+  draw(){const fit=computeFit(0.30,0.02*0.02);drawPaths(pathsFrom(fit.gp.postCov(GX),zMat),getCSS('--upd'),0.35,1.1);drawObs(false);caption('同じ点を通る関数は無数にある',CH-10);}},
+/* 1 */{title:'1 本 vs 束＋自信',legend:'灰＝線形回帰の1本、薄紫＝あり得る関数の束',
+  html(){return'<h3>② 線を 1 本 引く回帰との違い</h3><div class="eq curr"><a href="linreg.html">線形回帰</a>：<i>f</i>(<i>x</i>) を<b>1 本</b>に決める　⇔　ガウス過程：<b>あり得る関数の束</b>を保つ<span class="read">読み：普通の回帰は「これが答え」と 1 本に決め打つ。ガウス過程は候補を束のまま持ち、<b>ばらけ具合＝不確かさ</b>として残す</span></div><div class="desc"><a href="linreg.html">線形回帰</a>（灰）は点たちに一番合う<b>1 本の直線</b>を返します。でも点の間や外での「本当らしさ」の幅は捨ててしまう。ガウス過程は<b>束（薄紫）を保ったまま</b>——束が狭い所は自信あり、広い所は分からない、と表現できます。</div>';},
+  draw(){const fit=computeFit(0.30,0.02*0.02);drawPaths(pathsFrom(fit.gp.postCov(GX),zMat),getCSS('--upd'),0.35,1.1);
+    const lf=linfit();ctx.strokeStyle=getCSS('--muted');ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(px(-1.2),py(lf.a+lf.b*(-1.2)));ctx.lineTo(px(1.2),py(lf.a+lf.b*1.2));ctx.stroke();
+    drawObs(false);tag('― 線形回帰（1本）',PLX+6,YB-10,getCSS('--muted'));caption('1本に決めるか、束を保つか',CH-10);}},
+/* 2 */{title:'束を要約＝平均±不確かさ',legend:'緑＝事後平均μ、緑帯＝±2σ、灰破線＝隠れた真の関数',
+  html(){const fit=computeFit(ell,sn2());return'<h3>③ 束を要約すると「平均 ± 不確かさ」</h3><div class="eq curr">各 <i>x</i> で：　平均 <i>μ</i>(<i>x</i>)　と　帯 <i>μ</i>(<i>x</i>) ± 2<i>σ</i>(<i>x</i>)<span class="read">読み：無数の候補を各 <i>x</i> ごとにまとめると、代表値 <i>μ</i> と広がり <i>σ</i> の 2 つで言い表せる。この帯が「95% くらいはこの中」の目安</span></div><div class="desc">束を各 <i>x</i> でならすと、<b>緑＝平均 μ</b> と <b>緑帯＝±2σ</b> になります。これがガウス過程の返すもの。観測（橙）の近くでは帯が細く、離れると太い。破線＝隠していた真の関数は、ほぼ帯の中に収まっています（±2σ は<b>約 95% の信頼区間</b>の目安）。平均帯幅 '+avgBand(fit).toFixed(2)+'。</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit);drawTrue();drawMean(fit,getCSS('--accent'),2.6);drawObs(true);caption('無数の候補 → 平均 μ と帯 ±2σ に要約',CH-10);}},
+/* 3 */{title:'カーネル＝近さの約束',legend:'下＝カーネルの形。近い x どうしほど強く「似る」',
+  html(){return'<h3>④ カーネル：近い x は近い y になるはず</h3><div class="eq curr"><i>k</i>(<i>x</i>, <i>x</i>′) = σ<sub>f</sub>² · exp( −(<i>x</i> − <i>x</i>′)² / 2ℓ² )<span class="read">読み：2 点 <i>x</i>,<i>x</i>′ の「似ているべき度合い」を距離で決める関数。<b>ℓ＝相関の届く距離</b>（大きいほど遠くまで似る）、σ<sub>f</sub>＝縦の振れ幅</span></div><div class="desc">ガウス過程の唯一の仮定は<b>「近い入力は近い出力になるはず」</b>——それを数式にしたのが<b>カーネル</b>（RBF）。下のベル形が k で、<b>ℓ が幅</b>を決めます。ℓ が大きいほど「遠くの点まで似ているはず」＝なめらかな関数を想定。いま ℓ='+ell.toFixed(2)+'。下のスライダで動かせます。</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit,0.10);drawMean(fit,hexA(getCSS('--accent'),0.5),1.6);drawObs(true);drawKernelStrip();}},
+/* 4 */{title:'事前分布＝関数のくじ引き',legend:'薄紫＝事前サンプル（観測前にあり得る関数のくじ）',
+  html(){return'<h3>⑤ 事前分布：観測前の「あり得る関数」</h3><div class="eq curr"><i>f</i> ～ 𝒢𝒫( 0, <i>k</i> )　＝　平均 0・カーネル k の「関数の上の正規分布」<span class="read">読み：観測を見る前から、ガウス過程は<b>関数そのものに確率</b>を割り当てている。サンプルするたび、カーネルの性格に沿った 1 本の関数が出てくる</span></div><div class="desc">観測をまだ 1 つも見ていない状態が<b>事前分布</b>。ここから関数を<b>くじ引き（サンプル）</b>すると、薄紫のような曲線が何本でも出ます——どれも「ℓ の幅でうねる」性格を共有。帯（±2σ）は場所によらず一定 ±2σ<sub>f</sub>：まだ何も分かっていないので、どこも同じだけ不確か。</div>';},
+  draw(){drawBand({mu:GX.map(()=>0),sd:GX.map(()=>Math.sqrt(SF2))},0.12);
+    drawPaths(pathsFrom(priorCov(GX,ell),zMat),getCSS('--upd'),0.6,1.3);
+    ctx.strokeStyle=hexA(getCSS('--accent'),0.5);ctx.lineWidth=1.4;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px(-1.2),py(0));ctx.lineTo(px(1.2),py(0));ctx.stroke();ctx.setLineDash([]);
+    caption('観測前：どこも同じだけ不確か（±2σf）',CH-10);}},
+/* 5 */{title:'観測で条件付け＝矛盾を捨てる',legend:'くじの束が観測点を通るものだけに絞られていく',
+  html(){return'<h3>⑥ 観測で条件付け：通らない関数を捨てる</h3><div class="eq curr">事前の束　──（観測 D を通す）──▶　事後の束<span class="read">読み：無数のくじのうち、<b>観測点を通らないものを捨てる</b>だけ。残った束が「観測と両立する関数たち」＝事後分布。ベイズの更新そのもの</span></div><div class="desc">観測が入ると、事前のくじの束から<b>観測点（橙）と矛盾する関数を捨て</b>、通るものだけを残します。すると束は観測点で<b>くびれ</b>、間や外では広がったまま——これが<b>条件付き分布（事後）</b>。式でなく操作で言えば「両立しない候補を落とす」だけです。'+(window.__prefersReducedMotion?'':'（束が絞られる様子をアニメで表示）')+'</div>';},
+  draw(){const t=funnelT;if(!funnelPre){caption('…',CH-10);return;}
+    const blend=funnelPre.prior.map((pp,i)=>pp.map((v,k)=>(1-t)*v+t*funnelPre.post[i][k]));
+    // 帯も prior→post へ
+    const mu=GX.map((_,k)=>t*funnelPre.mu[k]),sd=GX.map((_,k)=>Math.sqrt((1-t)*SF2+t*funnelPre.pv[k]));
+    drawBand({mu,sd},0.12);drawPaths(blend,getCSS('--upd'),0.6,1.3);drawObs(false);
+    caption(t<0.5?'事前：観測を無視した束':'事後：観測を通る束だけ残る',CH-10);}},
+/* 6 */{title:'事後平均の式 μ*',legend:'緑＝事後平均μ*。観測 y を「近さ」で重み付けした和',
+  html(){return'<h3>⑦ 事後平均：観測を近さで重み付け</h3><div class="eq curr"><i>μ</i>* = <b>k</b>*<sup>ᵀ</sup> (K + σ<sub>n</sub>² I)<sup>−1</sup> <b>y</b><span class="read">読み：<b>k</b>*＝新しい点と各観測点の近さ／K＝観測点どうしの近さの表／<b>y</b>＝観測値。「近い観測ほど強く効かせて」平均を作る、と読める</span></div><div class="desc">新しい点 <i>x</i> の予測 <b>μ*</b> は、<b>観測値 y の重み付き和</b>。重みは「その観測が <i>x</i> にどれだけ近いか（<b>k</b>*）」と「観測どうしの重なりの補正（K の逆）」で決まります。σ<sub>n</sub>² は観測のノイズを見込む項——大きいほど、個々の観測を鵜呑みにせず滑らかにならします。緑がその μ*。</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit,0.10);drawMean(fit,getCSS('--accent'),2.8);drawObs(true);
+    // 観測から現在点への「近さ」を薄く：中央の x0 で寄与線
+    caption('μ* ＝ 観測 y を「近さ」で重み付けした平均',CH-10);}},
+/* 7 */{title:'事後分散の式 σ*²',legend:'下＝σ(x)。観測点で凹み、遠いほど σf へ膨らむ',
+  html(){return'<h3>⑧ 事後分散：遠いほど不確かさが太る</h3><div class="eq curr"><i>σ</i>*² = k** − <b>k</b>*<sup>ᵀ</sup> (K + σ<sub>n</sub>² I)<sup>−1</sup> <b>k</b>*<span class="read">読み：k**＝その点のもともとの分散（σ<sub>f</sub>²）から、<b>観測が減らしてくれた分</b>を引く。観測に近いほど引かれて小さく、遠いほど引かれず大きい</span></div><div class="desc">帯の広さ <b>σ*²</b> は、もとの不確かさ k**（＝σ<sub>f</sub>²）から<b>「観測が説明してくれた分」を差し引いた残り</b>。式に <b>y が入っていない</b>のがポイント——<b>不確かさは観測の値ではなく、観測の「配置」だけで決まる</b>。だから下の σ(x) は観測点で凹み、間や外で膨らみます。ノイズ σ<sub>n</sub> は凹みの<b>底</b>を決めるだけ。</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit);drawTrue();drawMean(fit,getCSS('--accent'),2.4);drawObs(true);drawSigmaStrip(fit);}},
+/* 8 */{title:'ライブ：点を打つと帯が締まる',legend:'🖱 クリックで観測を追加・ドラッグで移動。近くの帯が締まる',
+  html(){const fit=computeFit(ell,sn2());return'<h3>⑨ ライブ：観測を足すと帯が締まる</h3><div class="eq curr">観測を 1 つ足す　→　その近傍で <i>σ</i>(<i>x</i>) が縮む（帯が締まる）<span class="read">読み：観測は「不確かさを削る」。ただし削れるのは<b>近所だけ</b>。遠い場所の帯は、いくら別の場所を測っても太いまま</span></div><div class="desc"><b>キャンバスをクリック</b>して観測を足してください（ドラッグで移動）。足した点の近くで帯がその場で締まります。逆に、点のない領域はいくら周りを測っても太いまま——<b>「見た所しか分からない」</b>が目で分かります。いま観測 '+obs.length+' 点、平均帯幅 '+avgBand(fit).toFixed(2)+'。「🎲 別の例」で真の関数ごとやり直せます。</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit);drawMean(fit,getCSS('--accent'),2.6);drawObs(true);caption('🖱 クリックで観測を追加／ドラッグで移動',CH-10);},dice:true},
+/* 9 */{title:'事後サンプルの揺らぎ',legend:'紫＝事後サンプル。全て観測を通り、間で自由に揺れる',
+  html(){return'<h3>⑩ 事後サンプル：帯の中の「あり得る 1 本」</h3><div class="eq curr"><i>f</i> ～ 𝒩( <i>μ</i>*, Σ* )　を　コレスキー分解 Σ*=L Lᵀ で生成<span class="read">読み：平均だけでなく<b>関数を丸ごと 1 本サンプル</b>できる。事後共分散 Σ* を分解した L に乱数を通すと、観測を通る 1 本の候補が出る</span></div><div class="desc">帯は「幅」を示すだけ。実際に<b>関数を 1 本引いてみる</b>のが事後サンプル（紫）。どれも<b>観測点（橙）をきちんと通り</b>、観測から離れた所で<b>大きく揺れる</b>——帯の広い所ほどサンプルもばらけます。この揺れ幅こそ帯の正体。「🎲」で別の乱数のサンプルに差し替わります。</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit,0.12);drawMean(fit,hexA(getCSS('--accent'),0.6),1.8);
+    drawPaths(pathsFrom(fit.gp.postCov(GX),zMat),getCSS('--upd'),0.65,1.3);drawObs(true);caption('全サンプルが観測を通り、間で揺れる',CH-10);},dice:true},
+/* 10 */{title:'ℓ の性格：神経質 vs 鷹揚',legend:'ℓ小＝ぐにゃぐにゃ（観測を疑わない）／ℓ大＝なめらか',
+  html(){return'<h3>⑪ カーネル幅 ℓ：関数の「性格」</h3><div class="eq curr">ℓ 小 → 相関がすぐ切れる（ぐにゃぐにゃ・神経質）　⇔　ℓ 大 → 遠くまで相関（なめらか・鷹揚）<span class="read">読み：ℓ は「どれだけ遠くの点まで似ていると信じるか」。小さいと各点を個別扱いして波打ち、大きいと全体をなだらかに結ぶ</span></div><div class="desc">同じ観測でも、ℓ で<b>まるで別の性格</b>になります。<b>ℓ 小＝神経質</b>：近い点しか信じず、点の間で大きく波打ち、少し離れると即・帯が太る。<b>ℓ 大＝鷹揚</b>：遠くまで似ていると信じ、なめらかに大局を結ぶ。'+(window.__prefersReducedMotion?'両方を重ね描き（実線＝ℓ大、破線＝ℓ小）。':'ℓ 小と ℓ 大を交互に表示。')+'どちらが正しいかはデータ次第——それを対数周辺尤度で選べます（詳しくは下の折りたたみ）。</div>';},
+  draw(){if(window.__prefersReducedMotion){const fS=computeFit(ELL_SM,sn2()),fL=computeFit(ELL_LG,sn2());
+      drawBand(fL,0.14);drawMean(fL,getCSS('--accent'),2.4);drawMean(fS,getCSS('--upd'),1.8,[5,4]);drawObs(true);
+      tag('― ℓ大（なめらか）',PLX+6,YB-24,getCSS('--accent'));tag('┈ ℓ小（ぐにゃぐにゃ）',PLX+6,YB-10,getCSS('--upd'));return;}
+    const ellNow=abFlip?ELL_LG:ELL_SM,fit=computeFit(ellNow,sn2());
+    drawBand(fit,0.15);drawMean(fit,abFlip?getCSS('--accent'):getCSS('--upd'),2.6);drawObs(true);
+    tag(abFlip?'ℓ大 = '+ELL_LG.toFixed(2)+'（なめらか・鷹揚）':'ℓ小 = '+ELL_SM.toFixed(2)+'（ぐにゃぐにゃ・神経質）',PLX+6,YB-10,abFlip?getCSS('--accent'):getCSS('--upd'));}},
+/* 11 */{title:'σn の性格：内挿 vs 回帰',legend:'σn=0＝点を厳密に通す（内挿）／σn大＝ならして通す（回帰）',
+  html(){return'<h3>⑫ ノイズ σ<sub>n</sub>：厳密に通すか、ならすか</h3><div class="eq curr">σ<sub>n</sub> = 0 → 観測点を<b>厳密に</b>通る（内挿）　⇔　σ<sub>n</sub> > 0 → 観測を<b>ならして</b>通る（回帰）<span class="read">読み：σ<sub>n</sub> は「観測をどれだけ信じるか」。0 なら鵜呑みにして全点を通り、大きいほど「多少ズレてよい」と滑らかに寄せる</span></div><div class="desc">観測にノイズがある前提が σ<sub>n</sub>。<b>σ<sub>n</sub>=0＝完全に信じる</b>：平均は全観測点を<b>ぴったり通り</b>、観測点での帯はゼロに潰れます（＝内挿）。<b>σ<sub>n</sub> 大＝疑う</b>：ノイズを見込み、点を多少外して<b>なだらかに</b>通り、帯の底も σ<sub>n</sub> 分だけ残る（＝回帰）。'+(window.__prefersReducedMotion?'両方を重ね描き（実線＝回帰、破線＝内挿）。':'交互に表示。')+'</div>';},
+  draw(){if(window.__prefersReducedMotion){const f0=computeFit(ell,1e-6),fN=computeFit(ell,SN_HI*SN_HI);
+      drawBand(fN,0.14);drawMean(fN,getCSS('--accent'),2.4);drawMean(f0,getCSS('--upd'),1.8,[5,4]);drawObs(true);
+      tag('― σn大（回帰・ならす）',PLX+6,YB-24,getCSS('--accent'));tag('┈ σn=0（内挿・厳密に通す）',PLX+6,YB-10,getCSS('--upd'));return;}
+    const hi=abFlip,fit=computeFit(ell,hi?SN_HI*SN_HI:1e-6);
+    drawBand(fit,0.15);drawMean(fit,hi?getCSS('--accent'):getCSS('--upd'),2.6);drawObs(!hi?false:true);
+    if(!hi)obs.forEach(o=>{ctx.beginPath();ctx.arc(px(o.x),py(o.y),4,0,7);ctx.fillStyle=getCSS('--warm');ctx.fill();});
+    tag(hi?'σn = '+SN_HI.toFixed(2)+'（回帰：ならして通す）':'σn = 0（内挿：全点を厳密に通す）',PLX+6,YB-10,hi?getCSS('--accent'):getCSS('--upd'));}},
+/* 12 */{title:'どこで出会うか（実例）',legend:'緑＝GP予測。▼＝いちばん不確かな場所＝次に測りたい所',
+  html(){const fit=computeFit(ell,sn2());const bi=argmaxSd(fit);return'<h3>⑬ どこで出会うか</h3><div class="eq curr">少数の高価な観測　＋　滑らかさの仮定　→　全域の予測＋不確かさ<span class="read">読み：測るのが高価・飛び飛びにしか測れない——そんな場面で「間と外」を不確かさ付きで埋めるのがガウス過程の出番</span></div><div class="desc">この帯は色々な現場で使われています。<b>ベイズ最適化</b>（<a href="surrogate.html">サロゲート</a>）＝ハイパラ探索や実験計画で「次にどこを試すか」を決める心臓部。<b>クリギング</b>＝鉱脈・気温・大気汚染など空間データの補間（GP の別名）。ほかにセンサ較正、ロボットの制御、時系列の欠測補間。共通点は<b>「1 回の観測が高価」で「滑らかさが期待できる」</b>こと。▼＝いま最も不確かな x='+GX[bi].toFixed(2)+'。</div>';},
+  draw(){const fit=computeFit(ell,sn2());const bi=argmaxSd(fit);drawBand(fit);drawMean(fit,getCSS('--accent'),2.6);drawObs(true);
+    const X=px(GX[bi]);ctx.strokeStyle=getCSS('--loss');ctx.setLineDash([4,3]);ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(X,YT);ctx.lineTo(X,YB);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=getCSS('--loss');ctx.beginPath();ctx.moveTo(X,py(fit.mu[bi]+2*fit.sd[bi])-8);ctx.lineTo(X-5,py(fit.mu[bi]+2*fit.sd[bi])-16);ctx.lineTo(X+5,py(fit.mu[bi]+2*fit.sd[bi])-16);ctx.closePath();ctx.fill();
+    caption('▼ 最も不確かな所＝次に測ると効く所',CH-10);},dice:true},
+/* 13 */{title:'不確かさが言える価値',legend:'帯の広い所＝知らない所。次に測る場所を教えてくれる',
+  html(){const fit=computeFit(ell,sn2());const bi=argmaxSd(fit);return'<h3>⑭ 「分からない」と言えることの価値</h3><div class="eq curr">帯が広い ＝ まだ知らない　→　次に測る候補　→　<a href="surrogate.html">獲得関数</a>で 1 点を選ぶ<span class="read">読み：普通の予測器は自信満々に外す。ガウス過程は<b>自分の無知を申告できる</b>から、無知の大きい所を優先して測る、という賢い探索ができる</span></div><div class="desc">点予測しか返さないモデルは「知らない」と言えず、見ていない所でも自信満々に外します。ガウス過程は<b>帯という形で無知を申告</b>できる——だから「<b>いちばん分からない所（▼ x='+GX[bi].toFixed(2)+'）を次に測ろう</b>」という戦略が立つ。この「予測が高い所（活用）× 帯が広い所（探索）」の両取りが <a href="surrogate.html">ベイズ最適化の獲得関数</a>です。帯は飾りではなく<b>次の一手</b>を生みます。</div>';},
+  draw(){const fit=computeFit(ell,sn2());const bi=argmaxSd(fit);drawBand(fit);drawMean(fit,getCSS('--accent'),2.6);drawObs(true);
+    const X=px(GX[bi]);ctx.fillStyle=hexA(getCSS('--loss'),0.14);ctx.fillRect(X-24,YT,48,YB-YT);
+    ctx.strokeStyle=getCSS('--loss');ctx.setLineDash([4,3]);ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(X,YT);ctx.lineTo(X,YB);ctx.stroke();ctx.setLineDash([]);
+    caption('無知の大きい所を優先して測る＝探索',CH-10);}},
+/* 14 */{title:'まとめと限界',legend:'緑帯＝この例の事後。破線＝真の関数（ほぼ帯の中）',
+  html(){const r=interpRMSE();return'<h3>⑮ まとめ：関数の上の確率分布</h3><div class="desc">ガウス過程回帰は、<b>関数そのものの上に確率分布</b>を敷き、観測で条件付けて各 <i>x</i> に<b>平均と不確かさ</b>を返す回帰でした。この例の<b>内挿 RMSE ≈ '+r.toFixed(3)+'</b>、真の関数（破線）はほぼ帯の中。<b>限界</b>も明確：観測数 n に対し <b>O(n³)</b> で重く（数千点で近似が要る）、<b>高次元では「近い」が意味を失い</b>（次元の呪い）、そして<b>カーネル選び＝仮定選び</b>で結果が変わります。次は、この帯を「次にどこを測るか」に使う <a href="surrogate.html">ベイズ最適化</a> へ。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・関数の上の確率分布：各 <i>x</i> で μ ± 2σ を返す<br>・帯＝モデルの無知。観測の「配置」で決まり、遠いほど太る<br>・ℓ＝なめらかさ／σ<sub>n</sub>＝内挿⇔回帰／限界は O(n³)・高次元</div>';},
+  draw(){const fit=computeFit(ell,sn2());drawBand(fit);drawTrue();drawMean(fit,getCSS('--accent'),2.6);drawObs(true);caption('関数の上の確率分布として回帰する',CH-10);}},
+];
+
+/* ===== レンダリング ===== */
+function renderStepper(){const el=document.getElementById('stepper'),cur=chOf(slideIdx);
+  el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
+  el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
+function renderMini(){const m=document.getElementById('mini'),s=slideIdx,fit=computeFit(ell,sn2());
+  const M={0:'<div>観測 <b>'+obs.length+'</b> 点</div><div>あり得る関数 <b>∞</b></div>',
+    1:'<div>線形回帰 <b>1 本</b></div><div class="best">ガウス過程 <b>束＋帯</b></div>',
+    2:'<div>各 x に <b>μ と σ</b></div><div class="best">±2σ ≈ <b>95% 目安</b></div>',
+    3:'<div>σf² <b>'+SF2.toFixed(1)+'</b></div><div class="best">ℓ <b>'+ell.toFixed(2)+'</b>（相関の距離）</div>',
+    4:'<div>事前サンプル <b>'+NS+'</b> 本</div><div>観測 <b>0</b>（どこも ±2σf）</div>',
+    5:'<div>通す点 <b>'+obs.length+'</b></div><div class="best">矛盾する関数を <b>捨てる</b></div>',
+    6:'<div class="best">μ* = k*ᵀ(K+σn²I)⁻¹y</div><div>観測 y の重み付き和</div>',
+    7:'<div>σ*² = k** − k*ᵀ…k*</div><div class="best">y に依存 <b>しない</b></div>',
+    8:'<div>観測 <b>'+obs.length+'</b> 点</div><div class="best">平均帯幅 <b>'+avgBand(fit).toFixed(2)+'</b></div>',
+    9:'<div>事後サンプル <b>'+NS+'</b> 本</div><div class="best">全て観測を <b>通る</b></div>',
+    10:'<div>ℓ小 <b>'+ELL_SM.toFixed(2)+'</b>（波打つ）</div><div>ℓ大 <b>'+ELL_LG.toFixed(2)+'</b>（なめらか）</div>',
+    11:'<div>σn=0 <b>内挿</b></div><div>σn='+SN_HI.toFixed(2)+' <b>回帰</b></div>',
+    12:'<div>応用 <b>BO・クリギング</b></div><div>高価な観測を <b>補間</b></div>',
+    13:'<div class="best">最も不確か x* <b>'+GX[argmaxSd(fit)].toFixed(2)+'</b></div><div>→ 次に測る</div>',
+    14:'<div class="best">内挿RMSE <b>'+interpRMSE().toFixed(3)+'</b></div><div>コスト <b>O(n³)</b></div>'};
+  m.innerHTML=M[s]||'';}
+function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
+function renderExplain(){const el=document.getElementById('explain'),ch=CHAPTERS[chOf(slideIdx)];
+  el.style.setProperty('--c',ch.c);
+  el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
+function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
+  document.getElementById('prevBtn').disabled=(slideIdx===0);
+  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
+  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;
+  cv.style.cursor=(slideIdx>=8)?'crosshair':'default';}
+function draw_(){ctx.clearRect(0,0,CW,CH);bg();SLIDES[slideIdx].draw();}
+
+/* ===== スライド制御 ===== */
+function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
+function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideIdx=i;
+  if(i===5)runFunnel(); else if(i===10||i===11)runAB();
+  renderAll();draw_();}
+function runFunnel(){const fit=computeFit(ell,sn2());const pc=fit.gp.postCov(GX);
+  funnelPre={prior:pathsFrom(priorCov(GX,ell),zMat),post:pathsFrom(pc,zMat),mu:pc.mu,pv:pc.Sig.map((r,i)=>Math.max(0,r[i]))};
+  if(window.__prefersReducedMotion){funnelT=1;draw_();return;}
+  anim=true;funnelT=0;let t0=null;
+  function go(ts){if(!anim||slideIdx!==5)return;if(t0===null)t0=ts;funnelT=Math.min(1,(ts-t0)/2200);draw_();
+    if(funnelT<1)requestAnimationFrame(go);else{setTimeout(()=>{if(slideIdx===5&&anim){t0=null;funnelT=0;requestAnimationFrame(go);}},1400);}}
+  requestAnimationFrame(go);}
+function runAB(){if(window.__prefersReducedMotion){draw_();return;}
+  anim=true;abFlip=false;let t0=null;
+  function go(ts){if(!anim||(slideIdx!==10&&slideIdx!==11))return;if(t0===null)t0=ts;
+    if((ts-t0)>2200){t0=ts;abFlip=!abFlip;renderMini();}
+    draw_();requestAnimationFrame(go);}
+  requestAnimationFrame(go);}
+let autoT=null;
+function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
+  autoT=setTimeout(autoTick,(slideIdx===5||slideIdx===10||slideIdx===11)?5200:3800);}else stopAuto();}
+function reset(){stopAuto();anim=false;SCENE=0;genScene(false);ell=0.30;sn=0.06;
+  document.getElementById('ell').value=30;document.getElementById('sn').value=6;
+  document.getElementById('ellVal').textContent='0.30';document.getElementById('snVal').textContent='0.06';
+  slideIdx=0;renderAll();draw_();}
+
+/* ===== クリック/ドラッグで観測を操作 ===== */
+let dragIdx=null;
+function canvasXY(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*(cv.width/r.width),(e.clientY-r.top)*(cv.height/r.height)];}
+cv.addEventListener('pointerdown',e=>{if(slideIdx<8)return;const[sx,sy]=canvasXY(e);
+  if(sy<YT-6||sy>YB+6)return;
+  let hit=-1,best=15;obs.forEach((o,i)=>{const d=Math.hypot(px(o.x)-sx,py(o.y)-sy);if(d<best){best=d;hit=i;}});
+  if(hit>=0){dragIdx=hit;cv.setPointerCapture(e.pointerId);}
+  else{const x=Math.max(-1.18,Math.min(1.18,ix(sx))),y=Math.max(YMIN+0.15,Math.min(YMAX-0.15,iy(sy)));obs.push({x,y});obsVer++;renderMini();renderExplain();draw_();}});
+cv.addEventListener('pointermove',e=>{if(dragIdx===null)return;const[sx,sy]=canvasXY(e);
+  obs[dragIdx]={x:Math.max(-1.18,Math.min(1.18,ix(sx))),y:Math.max(YMIN+0.15,Math.min(YMAX-0.15,iy(sy)))};obsVer++;renderMini();renderExplain();draw_();});
+cv.addEventListener('pointerup',()=>{dragIdx=null;});
+cv.addEventListener('pointercancel',()=>{dragIdx=null;});
+
+/* ===== 配線 ===== */
+document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
+document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('autoBtn').onclick=()=>{if(auto){stopAuto();return;}if(slideIdx===SLIDES.length-1)goSlide(0);auto=true;document.getElementById('autoBtn').textContent='⏸ 停止';autoTick();};
+document.getElementById('diceBtn').onclick=()=>{if(slideIdx===8){genScene(true);}else{reseedSamples();}renderMini();renderExplain();draw_();};
+document.getElementById('ell').oninput=e=>{ell=(+e.target.value)/100;document.getElementById('ellVal').textContent=ell.toFixed(2);if(slideIdx===5)runFunnel();renderMini();renderExplain();draw_();};
+document.getElementById('sn').oninput=e=>{sn=(+e.target.value)/100;document.getElementById('snVal').textContent=sn.toFixed(2);if(slideIdx===5)runFunnel();renderMini();renderExplain();draw_();};
+
+genScene(false);renderAll();draw_();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
