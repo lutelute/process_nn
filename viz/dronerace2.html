@@ -37,6 +37,8 @@
   canvas{display:block;width:100%;max-width:360px;height:auto;border-radius:10px;background:var(--panel-2);}
   .mini{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;align-self:flex-start;}
   .mini b{color:var(--text);font-weight:600;} .mini .best b{color:var(--accent);}
+  .chip{display:inline-block;font-family:var(--gothic);font-size:11px;border:1px solid var(--line);border-radius:20px;padding:3px 11px;margin-right:6px;cursor:pointer;color:var(--muted);background:var(--panel);transition:.12s;}
+  .chip:hover{border-color:var(--faint);} .chip.on{background:var(--accent);color:#06231f;border-color:var(--accent);font-weight:700;}
   .legend{font-size:11.5px;color:var(--faint);margin-top:6px;align-self:flex-start;}
   .explain{padding:18px 18px 16px;}
   .explain .lbl{display:inline-block;font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--c,var(--accent));border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-bottom:10px;}
@@ -123,6 +125,7 @@ function buildCourse(centers,start,hwArr){const n=centers.length;
 const COURSES={
   diamond:{gates:[{cx:3,cy:0,nx:0,ny:1,hw:0.6},{cx:0,cy:3,nx:-1,ny:0,hw:0.6},{cx:-3,cy:0,nx:0,ny:-1,hw:0.6},{cx:0,cy:-3,nx:1,ny:0,hw:0.6}],start:{x:3,y:-1.5,vx:0,vy:1},ng:4},
   figure8:buildCourse([[2.8,-1.6],[2.8,1.6],[0.15,0.0],[-2.8,1.6],[-2.8,-1.6],[-0.15,0.0]],{x:1.6,y:-2.4,vx:0.4,vy:0.9}),
+  hairpin:buildCourse([[3.0,-1.8],[3.0,1.8],[1.4,2.4],[1.4,-1.2],[-1.4,-1.2],[-1.4,2.4],[-3.0,1.8],[-3.0,-1.8]],{x:2.2,y:-2.6,vx:0.3,vy:0.9}),   // 8ゲート蛇行=急な折り返し
 };
 function crossGate(g,p0,p1){const d0=(p0.x-g.cx)*g.nx+(p0.y-g.cy)*g.ny,d1=(p1.x-g.cx)*g.nx+(p1.y-g.cy)*g.ny;
   if(d0>=0||d1<0)return false;const t=d0/(d0-d1),ix=p0.x+(p1.x-p0.x)*t,iy=p0.y+(p1.y-p0.y)*t;
@@ -176,10 +179,10 @@ function evalLap(actor,C,wind){const r=runTraj(greedyPilot(actor,C),C,2,wind);re
 
 /* ===== 学習器（コース＋ドメインランダム化 windMax を指定）===== */
 const GAM=0.99, LR_A=0.012, LR_C=0.05, R_GATE=6, R_TIME=0.03, R_PROG=1.0;
-function makeLearner(C,seed,episodes,windMax){
-  return {C,seed,episodes,windMax:windMax||0, rnd:mulberry(seed),
+function makeLearner(C,seed,episodes,windMax,shaped){
+  return {C,seed,episodes,windMax:windMax||0, shaped:shaped!==false, rnd:mulberry(seed),
     actor:mlp([6,24,NA],seed+1), critic:mlp([6,24,1],seed+2),
-    gA:null,gC:null,bcount:0,bsteps:0, ep:0, hist:[], best:Infinity, bestSnap:null, lastTraj:null};}
+    gA:null,gC:null,bcount:0,bsteps:0, ep:0, hist:[], best:Infinity, bestSnap:null, lastTraj:null, reach:[]};}
 function trainEpisodes(L,n){const G=L.C.gates,MAXS=Math.min(600,110*G.length);
   if(!L.gA){L.gA=zg(L.actor);L.gC=zg(L.critic);}
   for(let e=0;e<n&&L.ep<L.episodes;e++){
@@ -190,7 +193,7 @@ function trainEpisodes(L,n){const G=L.C.gates,MAXS=Math.min(600,110*G.length);
       let u=L.rnd(),ai=0;for(;ai<NA-1;ai++){u-=pi[ai];if(u<=0)break;}
       const w=actWorld(st,ai,G);const passed=stepPhys(st,w[0],w[1],G,wind);
       const g=G[st.gi%G.length];const dist=Math.hypot(g.cx-st.x,g.cy-st.y);
-      R.push((passed?R_GATE:(pd-dist)*R_PROG)-R_TIME);pd=dist;S.push(x);A.push(ai);
+      R.push((passed?R_GATE:(L.shaped?(pd-dist)*R_PROG:0))-R_TIME);pd=dist;S.push(x);A.push(ai);   // shaped=false は密な道しるべ無し
       if(st.passed>=G.length)break;}
     let Gr=0;const gd=new Array(R.length);for(let t=R.length-1;t>=0;t--){Gr=R[t]+GAM*Gr;gd[t]=Gr;}
     const advs=gd.map((g,t)=>{const as=fwd(L.critic,S[t]);return g-as[as.length-1][0];});
@@ -205,26 +208,33 @@ function trainEpisodes(L,n){const G=L.C.gates,MAXS=Math.min(600,110*G.length);
       L.gC.forEach(l=>{l.W.forEach(r=>r.forEach((v,i,ar)=>ar[i]*=inv));l.b.forEach((v,i,ar)=>ar[i]*=inv);});
       adam(L.actor,L.gA,LR_A);adam(L.critic,L.gC,LR_C);L.gA=zg(L.actor);L.gC=zg(L.critic);L.bcount=0;L.bsteps=0;}
     L.ep++;
-    if(L.ep%50===0){const lap=evalLap(L.actor,L.C,null);L.hist.push({ep:L.ep,lap});
+    if(L.ep%50===0){const r=runTraj(greedyPilot(L.actor,L.C),L.C,2,null);const lap=r.done?r.time:Infinity;L.hist.push({ep:L.ep,lap});
+      L.reach.push({ep:L.ep,g:r.done?G.length*2:(r.passed||0)});   // 到達ゲート数（報酬シェイピング比較用）
       if(lap<L.best){L.best=lap;L.bestSnap=snap(L.actor);}
-      L.lastTraj=runTraj(greedyPilot(L.actor,L.C),L.C,2,null).traj;}}}
+      L.lastTraj=r.traj;}}}
 function bestActor(L){const a=mlp([6,24,NA],L.seed+1);restore(a,L.bestSnap);return a;}
 function bestPilot(L){return greedyPilot(bestActor(L),L.C);}
 
 /* ===== キャッシュ（3つの学習: diamond基準 / figure8 / diamond+風ランダム化）===== */
-let seedDia=7, seedF8=101, seedDR=7;
-const EP_DIA=3000, EP_F8=4000, EP_DR=3000, WMAX=0.45;   // WMAX=風ランダム化の訓練範囲（この内側で頑健）
-let lDia=null, lF8=null, lDR=null;                 // 学習器
-let pdDia=null, pdF8=null;                          // PD限界
-let liveL=null;                                     // 現在ライブ学習中の学習器
+let seedDia=7, seedF8=101, seedDR=7, seedHP=55;
+const EP_DIA=3000, EP_F8=4000, EP_DR=3000, EP_HP=4000, WMAX=0.45;   // WMAX=風ランダム化の訓練範囲（この内側で頑健）
+let lDia=null, lF8=null, lDR=null, lHP=null;       // 学習器
+let lShapeOn=null, lShapeOff=null;                 // 報酬シェイピング有無の比較用
+let pdDia=null, pdF8=null, pdHP=null;              // PD限界
 function ensurePDdia(){if(!pdDia)pdDia=pdBest(COURSES.diamond,2);}
 function ensurePDf8(){if(!pdF8)pdF8=pdBest(COURSES.figure8,2);}
+function ensurePDhp(){if(!pdHP)pdHP=pdBest(COURSES.hairpin,2);}
 function ensureDia(){if(lDia&&lDia.ep>=EP_DIA)return;if(!lDia)lDia=makeLearner(COURSES.diamond,seedDia,EP_DIA,0);trainEpisodes(lDia,EP_DIA-lDia.ep);}
 function ensureF8(){if(lF8&&lF8.ep>=EP_F8)return;if(!lF8)lF8=makeLearner(COURSES.figure8,seedF8,EP_F8,0);trainEpisodes(lF8,EP_F8-lF8.ep);}
 function ensureDR(){if(lDR&&lDR.ep>=EP_DR)return;if(!lDR)lDR=makeLearner(COURSES.diamond,seedDR,EP_DR,WMAX);trainEpisodes(lDR,EP_DR-lDR.ep);}
+function ensureHP(){if(lHP&&lHP.ep>=EP_HP)return;if(!lHP)lHP=makeLearner(COURSES.hairpin,seedHP,EP_HP,0);trainEpisodes(lHP,EP_HP-lHP.ep);}
 function diaDone(){return lDia&&lDia.ep>=EP_DIA;}
 function f8Done(){return lF8&&lF8.ep>=EP_F8;}
 function drDone(){return lDR&&lDR.ep>=EP_DR;}
+function hpDone(){return lHP&&lHP.ep>=EP_HP;}
+function initShaping(){if(!lShapeOn){lShapeOn=makeLearner(COURSES.figure8,7,EP_F8,0,true);lShapeOff=makeLearner(COURSES.figure8,7,EP_F8,0,false);}}
+function ensureShaping(){initShaping();if(lShapeOn.ep<EP_F8)trainEpisodes(lShapeOn,EP_F8-lShapeOn.ep);if(lShapeOff.ep<EP_F8)trainEpisodes(lShapeOff,EP_F8-lShapeOff.ep);}
+function shapingDone(){return lShapeOn&&lShapeOn.ep>=EP_F8&&lShapeOff&&lShapeOff.ep>=EP_F8;}
 
 /* ===== 描画基盤 ===== */
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
@@ -286,19 +296,23 @@ function drawF8race(){ensurePDf8();ensureF8();drawCourse(COURSES.figure8);
   ctx.fillStyle=getCSS('--loss');ctx.fillText('人間流 '+pdF8.time.toFixed(1)+'s',30,CH-54);
   ctx.fillStyle=getCSS('--accent');ctx.fillText('学習 '+(f8Done()?lF8.best.toFixed(1):'…')+'s',30,CH-36);
   ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');ctx.fillText('差 '+(f8Done()?(pdF8.time-lF8.best).toFixed(1):'…')+'s（単純コースの差より大きい）',30,CH-16);}
-// Ⅲ: 風のA/B（無風学習 vs ドメインランダム化学習）
-let windRace=null;
-function startWindRace(w){ensureDia();ensureDR();
-  windRace={w:[w,0],stN:makeState(COURSES.diamond),stD:makeState(COURSES.diamond),trN:[],trD:[],tN:null,tD:null,fN:0,fD:0,
+// Ⅲ: 風のA/B（無風学習 vs ドメインランダム化学習）／定常風・突風を切替
+let windRace=null, windGust=false;
+function windAt(mag,gust,t){if(!gust)return[mag,0];   // 突風=風向と強さが時間で揺れる（決定的な正弦、乱数なし）
+  const ang=Math.sin(t*0.045)*1.15, m=mag*(0.55+0.6*Math.sin(t*0.085+0.7));
+  return[Math.cos(ang)*m, Math.sin(ang)*m*0.6];}
+function startWindRace(w,gust){ensureDia();ensureDR();windGust=!!gust;
+  windRace={mag:w,gust:!!gust,cw:windAt(w,!!gust,0),t:0,stN:makeState(COURSES.diamond),stD:makeState(COURSES.diamond),trN:[],trD:[],tN:null,tD:null,fN:0,fD:0,
     pN:bestPilot(lDia),pD:bestPilot(lDR)};
   windRace.trN.push({x:windRace.stN.x,y:windRace.stN.y});windRace.trD.push({x:windRace.stD.x,y:windRace.stD.y});}
 function stepWindRace(){if(!windRace)return false;const G=COURSES.diamond.gates;let any=false;
-  if(windRace.tN==null&&windRace.fN<900){const[ax,ay]=windRace.pN(windRace.stN);stepPhys(windRace.stN,ax,ay,G,windRace.w);windRace.trN.push({x:windRace.stN.x,y:windRace.stN.y});windRace.fN++;
+  windRace.t++;windRace.cw=windAt(windRace.mag,windRace.gust,windRace.t);const W=windRace.cw;
+  if(windRace.tN==null&&windRace.fN<900){const[ax,ay]=windRace.pN(windRace.stN);stepPhys(windRace.stN,ax,ay,G,W);windRace.trN.push({x:windRace.stN.x,y:windRace.stN.y});windRace.fN++;
     if(windRace.stN.passed>=8)windRace.tN=windRace.fN*DT;else if(windRace.fN>=900)windRace.tN=-1;any=true;}
-  if(windRace.tD==null&&windRace.fD<900){const[ax,ay]=windRace.pD(windRace.stD);stepPhys(windRace.stD,ax,ay,G,windRace.w);windRace.trD.push({x:windRace.stD.x,y:windRace.stD.y});windRace.fD++;
+  if(windRace.tD==null&&windRace.fD<900){const[ax,ay]=windRace.pD(windRace.stD);stepPhys(windRace.stD,ax,ay,G,W);windRace.trD.push({x:windRace.stD.x,y:windRace.stD.y});windRace.fD++;
     if(windRace.stD.passed>=8)windRace.tD=windRace.fD*DT;else if(windRace.fD>=900)windRace.tD=-1;any=true;}
   return any;}
-function drawWindRace(){drawWindArrows(windRace?windRace.w:null);drawCourse(COURSES.diamond);
+function drawWindRace(){drawWindArrows(windRace?windRace.cw:null);drawCourse(COURSES.diamond);
   if(!windRace)return;
   drawTrajLine(windRace.trN,getCSS('--neg'),1.6,0.8);drawTrajLine(windRace.trD,getCSS('--accent'),1.8,0.88);
   const lN=windRace.trN[windRace.trN.length-1],lD=windRace.trD[windRace.trD.length-1];
@@ -307,7 +321,8 @@ function drawWindRace(){drawWindArrows(windRace?windRace.w:null);drawCourse(COUR
   const stt=(t,st)=>t==null?('ゲート'+st.passed+'/8'):(t<0?'墜落 '+st.passed+'/8':t.toFixed(1)+'s 完走');
   ctx.fillStyle=getCSS('--neg');ctx.fillText('無風で学習: '+stt(windRace.tN,windRace.stN),28,CH-52);
   ctx.fillStyle=getCSS('--accent');ctx.fillText('風で鍛えた: '+stt(windRace.tD,windRace.stD),28,CH-34);
-  ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--gothic');ctx.fillText('横風 '+windRace.w[0].toFixed(2)+'（青矢印）を受けながらの2周',28,CH-16);}
+  ctx.fillStyle=getCSS('--muted');ctx.font='9.5px '+getCSS('--gothic');
+  ctx.fillText((windRace.gust?'突風（風向と強さが揺れる, 平均':'横風（一定 ')+windRace.mag.toFixed(2)+'）を受けながらの2周',28,CH-16);}
 // Ⅲ: 風スイープ
 let windSweep=null;
 function ensureWindSweep(){if(windSweep)return;ensureDia();ensureDR();
@@ -351,8 +366,78 @@ function drawClosing(){ensurePDf8();
   ctx.fillText('未知への強さ＝訓練に未知を入れておくこと',CW/2,323);ctx.textBaseline='alphabetic';
   caption('見たものしか扱えない。だから幅広く見せる 🎓',CH-10);}
 
+/* Ⅲ追加: なぜ風に強いか＝横滑りを打ち消す「反射」を実測（方策の振る舞いを覗く）*/
+let driftResp=null;
+function meanRestore(actor,drift){const G=COURSES.diamond.gates;let sum=0,n=0;
+  for(let gx=-2;gx<=2;gx+=1)for(let gy=-2;gy<=2;gy+=1)for(const gi of [0,1,2,3]){
+    const g=G[gi%4],e2=[-g.ny,g.nx];const st={x:gx,y:gy,vx:e2[0]*drift,vy:e2[1]*drift,gi,passed:0};
+    const as=fwd(actor,obsOf(st,G));const pi=softmax(as[as.length-1]);let bi=0;for(let k=1;k<NA;k++)if(pi[k]>pi[bi])bi=k;
+    const w=actWorld(st,bi,G);sum+=(w[0]*e2[0]+w[1]*e2[1]);n++;}   // 推力の横成分（横滑りと逆向きが打ち消し）
+  return sum/n;}
+function ensureDriftResp(){if(driftResp)return;ensureDia();ensureDR();
+  const dr=bestActor(lDR),pl=bestActor(lDia);const ds=[0,0.3,0.6,0.9,1.2];
+  const b0dr=meanRestore(dr,0),b0pl=meanRestore(pl,0);
+  driftResp={ds,dr:ds.map(d=>-(meanRestore(dr,d)-b0dr)),pl:ds.map(d=>-(meanRestore(pl,d)-b0pl))};}  // 横滑りで増える「打ち消し推力」
+function drawDriftResponse(){ensureDriftResp();const S=driftResp;
+  const h=200,x0=54,y0=54,w=CW-2*x0;
+  const all=S.dr.concat(S.pl);const mx=Math.max(0.02,Math.max.apply(null,all)*1.25);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 12px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('横滑りに対して「打ち消す推力」をどれだけ強めるか',CW/2,30);
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  ctx.strokeStyle='rgba(26,26,23,0.12)';ctx.beginPath();ctx.moveTo(x0,y0+h);ctx.lineTo(x0+w,y0+h);ctx.stroke();
+  const lx=i=>x0+w*i/(S.ds.length-1),ly=v=>y0+h-(h-10)*Math.max(0,v)/mx;
+  const line=(arr,col,lw)=>{ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.beginPath();arr.forEach((v,i)=>{const X=lx(i),Y=ly(v);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();
+    arr.forEach((v,i)=>{ctx.beginPath();ctx.arc(lx(i),ly(v),2.4,0,7);ctx.fillStyle=col;ctx.fill();});};
+  line(S.pl,getCSS('--neg'),1.8);line(S.dr,getCSS('--accent'),2.2);
+  ctx.fillStyle=getCSS('--faint');ctx.font='9px '+getCSS('--mono');ctx.textAlign='center';
+  ctx.fillText('横滑りの速さ →',CW/2,y0+h+16);
+  ctx.textAlign='left';ctx.fillText('打ち消し',x0-46,y0+12);ctx.fillText('推力↑',x0-46,y0+24);
+  ctx.fillStyle=getCSS('--accent');ctx.font='700 10px '+getCSS('--gothic');ctx.fillText('風で鍛えた＝滑るほど強く押し戻す',x0+6,y0+h-14);
+  ctx.fillStyle=getCSS('--neg');ctx.fillText('無風学習＝ほぼ無反応（流されるまま）',x0+6,y0+h-2);
+  caption('小さな反射でも、2周積もれば大きな差になる',CH-12);}
+/* Ⅱ追加: コース別A/B（切替）＋差トレンド */
+let courseSel='figure8';
+function courseRaceData(name){const C=COURSES[name];let pd,L;
+  if(name==='figure8'){ensurePDf8();ensureF8();pd=pdF8;L=lF8;}
+  else{ensurePDhp();ensureHP();pd=pdHP;L=lHP;}
+  return{C,pd,L};}
+function drawCourseRace(name){const{C,pd,L}=courseRaceData(name);drawCourse(C);
+  drawTrajLine(runTraj(st=>pdPilot(st,C.gates,{vmax:pd.vmax,brake:pd.brake}),C,2,null).traj,getCSS('--loss'),1.5,0.6);
+  if(L&&L.ep>=L.episodes)drawTrajLine(runTraj(bestPilot(L),C,2,null).traj,getCSS('--accent'),1.9,0.9);
+  ctx.font='11px '+getCSS('--mono');ctx.textAlign='left';
+  ctx.fillStyle=getCSS('--loss');ctx.fillText('人間流 '+pd.time.toFixed(1)+'s',28,CH-52);
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('学習 '+(L&&L.ep>=L.episodes?L.best.toFixed(1):'…')+'s',28,CH-34);
+  ctx.fillStyle=getCSS('--text');ctx.font='700 11px '+getCSS('--gothic');
+  ctx.fillText('差 '+(L&&L.ep>=L.episodes?(pd.time-L.best).toFixed(1):'…')+'s',28,CH-16);}
+function gapOf(name){const{pd,L}=courseRaceData(name);return(L&&L.ep>=L.episodes)?(pd.time-L.best):null;}
+// 右上に差トレンドをコンパクト表示（菱形<8の字<ヘアピン）
+function drawGapTrendMini(){const x0=CW-108,y0=20,w=94,h=62;
+  ensurePDdia();ensureDia();
+  const items=[{n:'菱',g:diaDone()?(pdDia.time-lDia.best):null,c:'#7a776e'},{n:'8',g:gapOf('figure8'),c:getCSS('--upd')},{n:'ヘ',g:gapOf('hairpin'),c:getCSS('--neg')}];
+  const gaps=items.map(i=>i.g).filter(v=>v!=null);const hi=Math.max(9,Math.max.apply(null,gaps.concat([1])))*1.12;
+  ctx.fillStyle='rgba(255,253,246,0.9)';roundRect(x0-6,y0-14,w+12,h+30,5);ctx.fill();ctx.strokeStyle=getCSS('--line');ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText('人間流との差',x0+w/2,y0-4);
+  const bw=w/items.length;
+  items.forEach((it,i)=>{const gx=x0+i*bw+bw/2;
+    if(it.g==null){ctx.fillStyle=getCSS('--faint');ctx.font='7px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText('…',gx,y0+h/2);}
+    else{const bh=(h-4)*it.g/hi;ctx.fillStyle=it.c;const bwid=bw*0.5;roundRect(gx-bwid/2,y0+h-bh,bwid,bh,2);ctx.fill();
+      ctx.fillStyle=it.c;ctx.font='700 7.5px '+getCSS('--mono');ctx.textAlign='center';ctx.fillText(it.g.toFixed(1),gx,y0+h-bh-2);}
+    ctx.fillStyle=getCSS('--muted');ctx.font='8px '+getCSS('--gothic');ctx.textAlign='center';ctx.fillText(it.n,gx,y0+h+10);});}
+/* Ⅱ追加: 報酬シェイピングA/B（密な道しるべ 有り/無し の到達曲線）*/
+function drawRewardAB(y0){const h=118,x0=44,w=CW-2*x0;
+  const on=lShapeOn,off=lShapeOff;const NG=COURSES.figure8.gates.length*2;
+  ctx.fillStyle=getCSS('--faint');ctx.font='9.5px '+getCSS('--mono');ctx.textAlign='left';ctx.fillText('8の字での到達ゲート数の推移（上ほど良い・満点=12）',x0-6,y0-6);
+  ctx.strokeStyle='rgba(26,26,23,0.25)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,w,h);
+  const drawc=(L,col)=>{if(!L||!L.reach.length)return;ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.beginPath();
+    L.reach.forEach((p,i)=>{const X=x0+w*p.ep/EP_F8,Y=y0+h-4-(h-8)*Math.min(1,p.g/NG);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.stroke();};
+  ctx.strokeStyle='rgba(26,26,23,0.12)';ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(x0,y0+4);ctx.lineTo(x0+w,y0+4);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=getCSS('--faint');ctx.font='8px '+getCSS('--mono');ctx.fillText('満点12',x0+3,y0+11);
+  drawc(off,getCSS('--neg'));drawc(on,getCSS('--accent'));
+  ctx.font='9px '+getCSS('--mono');ctx.textAlign='left';
+  ctx.fillStyle=getCSS('--accent');ctx.fillText('■密な道しるべ 有り',x0+3,y0+h-14);
+  ctx.fillStyle=getCSS('--neg');ctx.fillText('■通過ボーナスだけ（疎）',x0+3,y0+h-3);}
+
 /* ===== スライド ===== */
-const CHAPTERS=[{t:'Ⅰ 未知に弱い',c:'var(--neg)',start:0},{t:'Ⅱ 難コースを学ぶ',c:'var(--upd)',start:2},{t:'Ⅲ 外乱＝風',c:'var(--loss)',start:5},{t:'Ⅳ まとめ',c:'var(--accent)',start:9}];
+const CHAPTERS=[{t:'Ⅰ 未知に弱い',c:'var(--neg)',start:0},{t:'Ⅱ 難コースを学ぶ',c:'var(--upd)',start:2},{t:'Ⅲ 外乱＝風',c:'var(--loss)',start:7},{t:'Ⅳ まとめ',c:'var(--accent)',start:12}];
 function chOf(i){let c=0;CHAPTERS.forEach((ch,k)=>{if(i>=ch.start)c=k;});return c;}
 let slideIdx=0,anim=false,auto=false;
 
@@ -385,13 +470,30 @@ const SLIDES=[
  html(){ensurePDf8();ensureF8();const gap=f8Done()?(pdF8.time-lF8.best).toFixed(1):'…';
    return'<h3>差が広がる：複雑なほど賢い線が効く</h3><div class="eq curr">8の字：人間流 '+pdF8.time.toFixed(1)+'s vs 学習 '+(f8Done()?lF8.best.toFixed(1):'…')+'s（差 '+gap+'s）　＞　菱形の差(約1.5s)<span class="read">読み：単純な菱形では差は約1.5秒だった。8 の字では<b>差が広がる</b>——曲がりが多いほど、減速せずに賢い線を通す学習ドローンの利点が<b>積み重なる</b></span></div><div class="desc">両者を重ねます。橙（人間流）は交差のたびに<b>正対して減速</b>。緑（学習）は<b>交差を見越した滑らかな線</b>で速度を保ちます。差は <b>'+gap+' 秒</b>——菱形での約 1.5 秒より<b>広がりました</b>。ここが大事：<b>コースが複雑・難しいほど、学習の価値は増す</b>。単純な問題ならルールでも十分でも、入り組んだ現実では「経験から賢い線を見つける」学習が効いてくる。Swift が挑んだのも、まさに<b>複雑な実コース</b>でした。</div>';},
  draw(){drawF8race();}},
-/* 5 ── 風の物理 ── */
+/* 5 ── 報酬シェイピングA/B ── */
+{title:'なぜ学べた？密な「道しるべ」報酬のおかげ',legend:'8の字を密な報酬 有り(緑)/無し(赤)で同時にライブ学習。到達ゲート数の推移',
+ html(){initShaping();const on=lShapeOn?lShapeOn.ep:0;
+   const bOn=lShapeOn&&lShapeOn.best<Infinity?lShapeOn.best.toFixed(1)+'s':'—';
+   const bOff=lShapeOff&&lShapeOff.best<Infinity?lShapeOff.best.toFixed(1)+'s':'まだ';
+   return'<h3>なぜ学べた？密な「道しるべ」報酬のおかげ</h3><div class="eq curr">報酬 = 6·[通過] − 0.03　＜密な道しるべ有りは＋＞ 1.0·(近づいた距離)<span class="read">読み：8 の字で<b>同じ設定を 2 通り</b>ライブ学習中（'+on+'/'+EP_F8+'）。緑＝<b>近づいたら褒める密な道しるべ</b>あり、赤＝<b>通過ボーナスだけ</b>（疎）。緑は<b>早く上達</b>し、赤は最初の通過まで手がかりゼロで<b>出遅れる</b>（今のベスト 緑='+bOn+' / 赤='+bOff+'）</span></div><div class="desc">前スライドで 8 の字を学べたのは、報酬に<b>密な道しるべ</b>（ゲートに近づくほど小さく褒める）を入れていたから。それを<b>外して（通過ボーナスだけに）</b>同じ学習を並走させます。緑（道しるべ有り）は<b>早くから着実に</b>ゲート数を伸ばし良い線に到達。赤（疎）は<b>最初の通過が起きるまで手がかりがなく</b>、上達が<b>遅れ</b>ます（下の曲線／ベスト 緑='+bOn+' 対 赤='+bOff+'）。この 8 の字は疎でも<b>いずれ</b>たどり着けますが、<b>ゲートがもっと遠い・入り組むほど、密な道しるべ無しでは学習が始まらない</b>ことも。報酬設計は「何を褒めるか」だけでなく<b>「どれだけこまめに褒めるか」</b>が効くのです。</div>';},
+ draw(){drawCourse(COURSES.figure8);
+   if(lShapeOn&&lShapeOn.lastTraj)drawTrajLine(lShapeOn.lastTraj,'rgba(31,158,138,0.5)',1.3);
+   drawRewardAB(300);},
+ dice:false},
+/* 6 ── ヘアピン＋差トレンド ── */
+{title:'もっと複雑なら、差はもっと開く',legend:'コース切替（8の字/ヘアピン）でA/B。下=3コースの差トレンド',
+ html(){ensurePDhp();const g=courseSel==='hairpin'?'ヘアピン':'8の字';const{pd,L}=courseRaceData(courseSel);
+   const gap=L&&L.ep>=L.episodes?(pd.time-L.best).toFixed(1):'…';
+   return'<h3>もっと複雑なら、差はもっと開く</h3><div class="eq curr">差＝人間流−学習：菱形 約1.5s ＜ 8の字 約5s ＜ <b>ヘアピン 約9s</b>（下のトレンド）<span class="read">読み：3 つ目の難コース＝<b>ヘアピン</b>（8ゲートの蛇行、急な折り返し）。今表示中は<b>'+g+'</b>：人間流 '+pd.time.toFixed(1)+'s vs 学習 '+(L&&L.ep>=L.episodes?L.best.toFixed(1):'…')+'s（差 '+gap+'s）。下のミニに切替チップ</span></div><div class="desc"><b>ヘアピン</b>コースを追加しました——8 ゲートが左右に蛇行し、<b>急な折り返し</b>が連続します。正対して減速する人間流は折り返しのたびに<b>大きく時間を失い</b>、限界でも '+pdHP.time.toFixed(1)+' 秒。学習ドローンは<b>折り返しを見越した線</b>でそれを大きく上回ります。下のトレンドを見てください：人間流との差は<b>菱形（単純）→ 8の字 → ヘアピン（最難）</b>と<b>一貫して広がる</b>。結論はこう——<b>問題が難しく複雑になるほど、経験から線を編み出す学習の価値は増していく</b>。単純な仕事はルールで十分でも、入り組んだ現実ほど学習が効くのです（ミニの<b>チップでコースを切替</b>できます）。</div>';},
+ draw(){drawCourseRace(courseSel);drawGapTrendMini();},
+ dice:false},
+/* 7 ── 風の物理 ── */
 {title:'外乱：風が吹くと、機体は流される',legend:'青矢印=横風。推力に加えて風が速度を押す。訓練では無風だった',
  html(){return'<h3>外乱：風が吹くと、機体は流される</h3><div class="eq curr"><i>v</i> ← (<i>v</i> + <i>a</i>·Δt)(1−β) <b>＋ 風·Δt</b><span class="read">読み：これまで無風で学習してきた。本番で<b>横風</b>が加わると、速度に毎瞬<b>風の力</b>が足される。狙った所からズレる——訓練で<b>一度も経験していない</b>力</span></div><div class="desc">もう一つの分布シフト——<b>外乱（風）</b>。実機のドローンは風・気流・機体のばらつきに常にさらされます。ここではモデルに<b>横風</b>を足します（青矢印）：推力とは別に、速度へ毎瞬<b>一定の力</b>が加わる。厄介なのは、これまでの学習は<b>すべて無風</b>だったこと。方策は「無風ならこう」を覚えただけで、<b>風のことを何も知りません</b>。次のスライドで、無風で鍛えたドローンに風を当ててみます。</div>';},
  draw(){drawWindArrows([0.4,0]);drawCourse(COURSES.diamond);
    ensureDia();if(diaDone())drawTrajLine(runTraj(bestPilot(lDia),COURSES.diamond,2,null).traj,getCSS('--accent'),1.6,0.7);
    caption('無風で学んだ線（緑）。ここに横風を当てると？',CH-10);}},
-/* 6 ── 無風学習が崩れる ── */
+/* 8 ── 無風学習が崩れる ── */
 {title:'無風で鍛えたドローンは、風で崩れる',legend:'赤=無風学習ドローンに横風。狙いがずれ、大きく膨らんで時間を失う',
  html(){ensureDia();const r=runTraj(bestPilot(lDia),COURSES.diamond,2,[0.35,0]);
    const res=r.done?('流されて大回り＝'+r.time.toFixed(1)+'秒（無風なら17秒）'):('ゲート'+r.passed+'/8で墜落');
@@ -401,22 +503,29 @@ const SLIDES=[
    const r=runTraj(bestPilot(lDia),COURSES.diamond,2,[w,0]);drawTrajLine(r.traj,getCSS('--neg'),1.9,0.9);
    const lp=r.traj[r.traj.length-1];drawDrone(lp.x,lp.y,getCSS('--neg'));
    caption('横風0.35：無風学習は'+(r.done?'大回りで'+r.time.toFixed(0)+'秒に激減速':' '+r.passed+'/8で墜落'),CH-10);}},
-/* 7 ── ドメインランダム化 A/B ── */
+/* 9 ── ドメインランダム化 A/B ── */
 {title:'ドメインランダム化：毎回ちがう風で鍛える',legend:'赤=無風学習／緑=風ランダム化学習。同じ横風での2周勝負',
  html(){return'<h3>ドメインランダム化：毎回ちがう風で鍛える</h3><div class="eq curr">訓練の各エピソードで <b>風向・強さをランダム</b>に振って学習（0〜'+WMAX+'）<span class="read">読み：無風でなく、<b>毎回ちがう風</b>の中で学習させる＝<b>ドメインランダム化</b>。すると方策は「風が来たら流されるぶん打ち消す」を覚え、<b>見たことのある変動</b>として本番の風を扱える</span></div><div class="desc">対策は<b>ドメインランダム化</b>：訓練の毎エピソードで<b>風向と強さをランダムに変え</b>、あらゆる風を経験させます。すると方策は「風に応じて推力を補正する」操縦を自然に身につける。同じ横風で<b>無風学習（赤）</b>と<b>風で鍛えた方策（緑）</b>を走らせると——赤は<b>外へ大きく膨らんで激しく遅れ</b>、<b>緑は流されながらも速いまま完走</b>します。頑健さの正体は特別な仕組みではなく、<b>経験の幅</b>。本物の Swift も、シミュレータで<b>ばらつきを混ぜて</b>学び、実機の未知に備えました。</div>';},
  draw(){drawWindRace();},
  dice:false},
-/* 8 ── 風スイープ ── */
+/* 10 ── なぜ風に強いか＝横滑りを打ち消す反射 ── */
+{title:'なぜ風に強い？横滑りを打ち消す「反射」',legend:'横滑りの速さを変え、それを打ち消す推力をどれだけ強めるか実測。緑=風で鍛えた／赤=無風学習',
+ html(){ensureDriftResp();const S=driftResp;
+   const dr=S.dr[S.dr.length-1].toFixed(2),pl=S.pl[S.pl.length-1].toFixed(2);
+   return'<h3>なぜ風に強い？横滑りを打ち消す「反射」</h3><div class="eq curr">横滑り速度を与え、それを<b>打ち消す向きの推力</b>がどれだけ増えるかを実測<span class="read">読み：風は機体を<b>横滑り</b>させる。方策が観測の<b>速度</b>から「滑っている」を読み、打ち消す推力を出すか。<b>緑（風で鍛えた）は滑るほど強く押し戻す</b>（最大 +'+dr+'）、<b>赤（無風学習）はほぼ無反応</b>（+'+pl+'）</span></div><div class="desc">ドメインランダム化が<b>何を学ばせたか</b>を実測で覗きます。方策は風を直接は見えませんが、観測の<b>速度</b>から「横に流されている」を感じ取れます。そこで<b>横滑り速度を少しずつ与え</b>、方策が出す<b>それを打ち消す向きの推力</b>を測りました（下の曲線）。<b>緑（風で鍛えた方策）は、滑りが大きいほど押し戻しを強めます</b>——「流れを感じたら逆らう」<b>反射</b>を身につけた。一方<b>赤（無風学習）はほぼ横ばい</b>——滑っても反応せず、流されるまま。特別な風センサはありません。<b>速度から流れを読み、打ち消す癖が重みに刻まれた</b>のです。1 歩あたりは小さな補正でも、<b>2 周ぶん積もれば</b>「完走」と「墜落」を分ける大差になります。</div>';},
+ draw(){drawDriftResponse();},
+ dice:false},
+/* 11 ── 風スイープ ── */
 {title:'強さを変えて：頑健さは「見せた範囲」まで',legend:'横風0→0.5での2周タイム。×=墜落。赤=無風学習/緑=風で鍛えた。紫線=風学習の訓練範囲',
  html(){ensureWindSweep();const s=windSweep;
    const f=v=>v==null?'×':v.toFixed(0)+'s';
    return'<h3>強さを変えて：頑健さは「見せた範囲」まで</h3><div class="eq curr">無風学習[ '+s.map(x=>f(x.n)).join(' / ')+' ]　風で鍛えた[ '+s.map(x=>f(x.d)).join(' / ')+' ]（風 0/0.2/0.35/0.5）<span class="read">読み：訓練範囲内（〜'+WMAX+'）では、風で鍛えた方策は<b>ほぼ一定の速さ</b>を保つ一方、無風学習は<b>4倍以上に激減速</b>。だが<b>訓練範囲を超える風0.5では、風学習も崩れる</b>——ランダム化も「見せた範囲」までしか守れない</span></div><div class="desc">横風を 0→0.5 まで変えて 2 周タイムを実測（下の棒、×＝墜落）。<b>訓練範囲内</b>（紫線 '+WMAX+' まで）では、<b>風で鍛えた方策（緑）はほぼ一定</b>（17〜19秒）に対し<b>無風学習（赤）は 45→77 秒へ激減速</b>——歴然の差。ところが<b>風0.5＝訓練範囲を超える</b>と、風で鍛えた方策<b>も崩れます</b>。ここが深い教訓：ドメインランダム化は魔法ではなく、<b>訓練で見せた変動の内側でしか頑健にできない</b>。守備範囲を広げたければ<b>もっと広い範囲で訓練</b>する——ただし広げるほど学習は難しく、無風での速さも譲る（<b>頑健さと速さのトレードオフ</b>）。</div>';},
  draw(){drawWindSweep(60);}},
-/* 9 ── sim-to-real ── */
+/* 12 ── sim-to-real ── */
 {title:'これが sim-to-real の入口',legend:'Swift が実機に載る前にやったこと。分布シフトへの備えの全体像',
  html(){return'<h3>これが sim-to-real の入口</h3><div class="eq curr">シミュレータで学習 ＋ <b>ドメインランダム化</b> ＋ 実機補正 → 実機へ転移<span class="read">読み：ここで見た「訓練に変動を入れる」が、シミュレータで学んだ方策を<b>現実の機体</b>で動かす鍵。訓練で見た変動の<b>内側</b>に現実を収めれば、方策は驚かない</span></div><div class="desc">ここまでの 2 つの備え——<b>難コースは再学習、外乱はドメインランダム化</b>——は、実は<b>同じ一つの考え</b>です：<b>本番で出会うものを、訓練であらかじめ見せておく</b>。これが<b>sim-to-real</b>（シミュレータ→実機）の核心。<a href="dronerace.html">前作</a>の Swift は、シミュレータで<b>空力や外乱をランダムに振って</b>学び、実機データで残差を補正し、観測にノイズを混ぜてから実機に載せました。だから現実の風や個体差にも<b>「訓練で見た変動の一種」</b>として応じられた。<b>未知への強さは、経験の幅から来る</b>。</div>';},
  draw(){drawSimReal();}},
-/* 10 ── 閉演 ── */
+/* 13 ── 閉演 ── */
 {title:'閉演：見たものしか扱えない、だから幅広く見せる',legend:'8の字を学び直したベスト軌道。今日の要約',
  html(){return'<h3>閉演：見たものしか扱えない、だから幅広く見せる</h3><div class="desc">今日の芯は 1 つ——<b>学習器は訓練で見た分布の中でしか賢くない（分布シフトに弱い）。未知に強くする道は、訓練の中に未知を入れておくこと</b>。別コースには<b>そのコースで学び直し</b>、風には<b>毎回ちがう風で鍛える（ドメインランダム化）</b>。どちらも「経験の幅を広げる」同じ処方です。強化学習を実機で使うとき、この視点——<b>本番で出会うものを訓練に先回りして混ぜる</b>——が sim-to-real の生命線になります。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・方策は<b>訓練の分布に特化</b>：別コースは早々に墜落（'+(transfer?transfer.onF8.passed:'数')+'/12）<br>・難コースは<b>再学習</b>で乗り越え、<b>複雑なほど人間流との差が拡大</b><br>・外乱は<b>ドメインランダム化</b>（毎回ちがう風）で頑健化——ただし速さと引き換え<br>・共通原理＝<b>本番の未知を訓練に入れる</b>＝sim-to-real の核心</div>';},
  draw(){drawClosing();}},
@@ -427,18 +536,29 @@ function renderStepper(){const el=document.getElementById('stepper');const cur=c
   el.innerHTML=CHAPTERS.map((ch,i)=>'<div class="stp '+(i===cur?'active':(i<cur?'done':''))+'" data-i="'+i+'" style="--c:'+ch.c+'"><div class="n">'+(i<cur?'✓':(i+1))+'</div><div class="t">'+ch.t+'</div></div>').join('');
   el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goSlide(CHAPTERS[+d.dataset.i].start);});}
 function renderMini(){const m=document.getElementById('mini'),s=slideIdx;let h='';
+  const chip=(active,label)=>'<span class="chip'+(active?' on':'')+'">'+label+'</span>';
   if(s===0)h='<div>分布シフト<b>に弱い</b></div>';
   else if(s===1){ensureTransfer();h='<div>別コースで <b>'+transfer.onF8.passed+'/12</b></div><div class="best">＝早々に墜落</div>';}
   else if(s===2){ensurePDf8();h='<div>8の字 人間流 <b>'+pdF8.time.toFixed(1)+'s</b></div><div>交差で難しい</div>';}
   else if(s===3){const ep=lF8?lF8.ep:0;h='<div>試行 <b>'+ep+'</b>/'+EP_F8+'</div><div class="best">ベスト <b>'+(lF8&&lF8.best<Infinity?lF8.best.toFixed(1)+'s':'—')+'</b></div>';}
   else if(s===4){ensurePDf8();h='<div>差 <b>'+(f8Done()?(pdF8.time-lF8.best).toFixed(1)+'s':'…')+'</b></div><div class="best">単純コースより大</div>';}
-  else if(s===5)h='<div>風＝<b>訓練外の力</b></div>';
-  else if(s===6)h='<div class="best">無風学習は<b>風で大回り・激減速</b></div>';
-  else if(s===7)h='<div>赤=無風 / 緑=風で鍛えた</div>';
-  else if(s===8){ensureWindSweep();h='<div>訓練範囲内は<b>風学習が圧勝</b></div><div class="best">範囲外は<b>両方×</b></div>';}
-  else if(s===9)h='<div><b>訓練に未知を入れる</b></div>';
+  else if(s===5){const ep=lShapeOn?lShapeOn.ep:0;h='<div>並走学習 <b>'+ep+'</b>/'+EP_F8+'</div><div class="best">密な道しるべが効く</div>';}
+  else if(s===6){h='<div data-chips="course">'+chip(courseSel==='figure8','8の字')+chip(courseSel==='hairpin','ヘアピン')+'</div>';}
+  else if(s===7)h='<div>風＝<b>訓練外の力</b></div>';
+  else if(s===8)h='<div class="best">無風学習は<b>風で大回り・激減速</b></div>';
+  else if(s===9){h='<div data-chips="gust">'+chip(!windGust,'定常風')+chip(windGust,'突風')+'</div><div class="best">緑=風で鍛えた</div>';}
+  else if(s===10)h='<div>横滑りに<b>反応する？</b></div><div class="best">緑=反射あり／赤=無反応</div>';
+  else if(s===11){ensureWindSweep();h='<div>訓練範囲内は<b>風学習が圧勝</b></div><div class="best">範囲外は<b>両方×</b></div>';}
+  else if(s===12)h='<div><b>訓練に未知を入れる</b></div>';
   else h='<div class="best">経験の幅＝未知への強さ</div>';
-  m.innerHTML=h;}
+  m.innerHTML=h;
+  // チップのクリック配線
+  const cc=m.querySelector('[data-chips]');
+  if(cc){const kind=cc.getAttribute('data-chips');const chips=cc.querySelectorAll('.chip');
+    chips.forEach((el,idx)=>el.onclick=()=>{
+      if(kind==='course'){courseSel=idx===0?'figure8':'hairpin';renderAll();draw_();}
+      else if(kind==='gust'){stopAuto();startWindRace(0.35,idx===1);renderAll();draw_();runWindRace();}
+    });}}
 function renderLegend(){document.getElementById('legend').textContent=SLIDES[slideIdx].legend;}
 function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
   el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
@@ -457,8 +577,14 @@ function runLiveF8(){anim=true;
   requestAnimationFrame(go);}
 function runWindRace(){anim=true;
   if(window.__prefersReducedMotion){while(stepWindRace()){}anim=false;draw_();renderMini();return;}
-  function go(){if(!anim||slideIdx!==7)return;let alive=false;for(let k=0;k<3;k++)alive=stepWindRace()||alive;
+  function go(){if(!anim||slideIdx!==9)return;let alive=false;for(let k=0;k<3;k++)alive=stepWindRace()||alive;
     draw_();if(alive)requestAnimationFrame(go);else{anim=false;renderMini();renderExplain();}}
+  requestAnimationFrame(go);}
+function runLiveShaping(){anim=true;initShaping();
+  if(window.__prefersReducedMotion){ensureShaping();anim=false;renderMini();renderExplain();draw_();return;}
+  function go(){if(!anim||slideIdx!==5)return;
+    trainEpisodes(lShapeOn,40);trainEpisodes(lShapeOff,40);draw_();renderMini();renderExplain();
+    if(lShapeOn.ep<EP_F8)requestAnimationFrame(go);else anim=false;}
   requestAnimationFrame(go);}
 
 /* ===== スライド制御 ===== */
@@ -468,16 +594,19 @@ function goSlide(i){i=Math.max(0,Math.min(SLIDES.length-1,i));anim=false;slideId
   else if(i===2)ensurePDf8();
   else if(i===3){ensurePDf8();if(!lF8)lF8=makeLearner(COURSES.figure8,seedF8,EP_F8,0);renderAll();draw_();runLiveF8();return;}
   else if(i===4){ensurePDf8();ensureF8();}
-  else if(i===5)ensureDia();
-  else if(i===6){ensureDia();ensureWindSweep();}
-  else if(i===7){ensureDia();ensureDR();startWindRace(0.35);renderAll();draw_();runWindRace();return;}
-  else if(i===8)ensureWindSweep();
+  else if(i===5){initShaping();renderAll();draw_();runLiveShaping();return;}
+  else if(i===6){ensurePDdia();ensurePDhp();ensureF8();ensureHP();ensureDia();}   // 差トレンドに3コース分要る
+  else if(i===7)ensureDia();
+  else if(i===8){ensureDia();ensureWindSweep();}
+  else if(i===9){ensureDia();ensureDR();startWindRace(0.35,windGust);renderAll();draw_();runWindRace();return;}
+  else if(i===10){ensureDia();ensureDR();}
+  else if(i===11)ensureWindSweep();
   renderAll();draw_();}
 let autoT=null;
 function autoTick(){if(!auto)return;if(slideIdx<SLIDES.length-1){goSlide(slideIdx+1);
-  const wait=()=>{if(!auto)return;const heavy=(slideIdx===3||slideIdx===7);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,heavy?900:3800);};
+  const wait=()=>{if(!auto)return;const heavy=(slideIdx===3||slideIdx===5||slideIdx===9);if(anim&&heavy){requestAnimationFrame(wait);}else autoT=setTimeout(autoTick,heavy?900:3800);};
   requestAnimationFrame(wait);}else stopAuto();}
-function reset(){stopAuto();anim=false;seedDia=7;seedF8=101;seedDR=7;lDia=null;lF8=null;lDR=null;pdDia=null;pdF8=null;transfer=null;windRace=null;windSweep=null;slideIdx=0;renderAll();draw_();}
+function reset(){stopAuto();anim=false;seedDia=7;seedF8=101;seedDR=7;seedHP=55;lDia=null;lF8=null;lDR=null;lHP=null;lShapeOn=null;lShapeOff=null;pdDia=null;pdF8=null;pdHP=null;transfer=null;windRace=null;windSweep=null;courseSel='figure8';windGust=false;driftResp=null;slideIdx=0;renderAll();draw_();}
 document.getElementById('nextBtn').onclick=()=>{stopAuto();if(slideIdx<SLIDES.length-1)goSlide(slideIdx+1);};
 document.getElementById('prevBtn').onclick=()=>{stopAuto();if(slideIdx>0)goSlide(slideIdx-1);};
 document.getElementById('resetBtn').onclick=reset;
