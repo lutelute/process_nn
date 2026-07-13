@@ -106,7 +106,7 @@
   <header>
     <div>
       <h1>機械学習 学習ロードマップ</h1>
-      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、40 以上の動くインフォグラフを学習の流れで並べた地図。各ページは 1 手法を実際に動かして理解できます。</div>
+      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、74テーマの動くインフォグラフを学習の流れで並べた地図。実学習・実計算と簡略デモの範囲を分けて理解できます。</div>
       <div style="margin-top:9px;font-size:12.5px;letter-spacing:.02em;">
         <a href="viz/" style="color:var(--accent);text-decoration:none;">▶ 最初から始める（信号の流れ）</a>
         <span style="color:var(--faint);margin:0 8px;">·</span>
@@ -115,6 +115,8 @@
         <a href="gpt2/" style="color:var(--accent);text-decoration:none;">GPT-2（到達点）</a>
         <span style="color:var(--faint);margin:0 8px;">·</span>
         <a href="viz/map.html" style="color:var(--accent);text-decoration:none;">🗺 手法マップ（俯瞰）</a>
+        <span style="color:var(--faint);margin:0 8px;">·</span>
+        <a href="quality-review.html" style="color:var(--accent);text-decoration:none;">✓ 品質レビュー</a>
       </div>
     </div>
     <div class="readout">
@@ -247,7 +249,7 @@
       <a class="mapcard spineCard" href="viz/transformer.html"><div class="tag">言語モデル</div><div class="t">Transformer 学習</div><div class="d">小型 GPT をブラウザで学習。loss 低下で attention・生成が変化。</div><div class="dep"><b>前提:</b> 自己注意 ／ <b>次:</b> GPT-2</div></a>
       <a class="mapcard spineCard" href="gpt2/"><div class="tag">到達点</div><div class="t">GPT-2 推論</div><div class="d">本物の GPT-2 (124M) の生成過程と内部（注意・各層の寄与）を可視化。</div><div class="dep"><b>前提:</b> Transformer</div></a>
       <a class="mapcard branchCard" href="viz/moe.html"><div class="tag">LLMの構造</div><div class="t">Mixture of Experts</div><div class="d">専門家の集団＋受付。毎回1〜2人だけ呼ぶ＝巨大でも計算は薄い。専門分化が学習で創発する様子を実演。</div><div class="dep"><b>前提:</b> Transformer ／ <b>関連:</b> Mixtral・GPT-4</div></a>
-      <a class="mapcard" href="viz/rag.html"><div class="tag">応用・検索拡張</div><div class="t">RAG（検索拡張生成）</div><div class="d">文書を意味ベクトル化→コサイン類似で検索→取得文を文脈に足して出典つきで回答。幻覚対策。</div><div class="dep"><b>前提:</b> 単語埋め込み・GPT-2</div></a>
+      <a class="mapcard" href="viz/rag.html"><div class="tag">応用・検索拡張</div><div class="t">RAG（検索拡張生成）</div><div class="d">TF-IDFとコサイン類似で検索→取得文からgenerator用の文脈を構築。検索と生成の境界、残る幻覚・引用検証も扱う。</div><div class="dep"><b>前提:</b> 単語埋め込み・GPT-2</div></a>
     </div>
 
     <div class="mapsec"><span class="num">STEP 6</span><span class="ttl">教師なし学習・クラスタリング</span><span class="badge">ラベルなしで、データの構造を見つける。</span></div>

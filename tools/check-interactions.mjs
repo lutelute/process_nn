@@ -10,11 +10,12 @@ const { chromium } = await import('playwright').catch(() => {
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), '..');
 const base = 'http://localhost:' + (process.argv[2] || '8000');
-const pages = ['/index.html', '/gpt2/index.html',
+const pages = ['/index.html', '/quality-review.html', '/gpt2/index.html',
   ...readdirSync(join(root, 'viz')).filter(f => f.endsWith('.html')).map(f => '/viz/' + f)];
 
 const browser = await chromium.launch();
 const context = await browser.newContext({ reducedMotion: 'reduce' });
+await context.route('https://fonts.googleapis.com/**', route => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
 let failed = 0, deferred = 0, clicks = 0;
 
 for (const path of pages) {

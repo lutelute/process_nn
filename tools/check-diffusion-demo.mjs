@@ -3,7 +3,9 @@ import { chromium } from 'playwright';
 
 const base = 'http://localhost:' + (process.argv[2] || '8000');
 const browser = await chromium.launch();
-const page = await browser.newPage();
+const context = await browser.newContext();
+await context.route('https://fonts.googleapis.com/**', route => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+const page = await context.newPage();
 const errors = [];
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 page.on('pageerror', error => errors.push(error.message));

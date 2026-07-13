@@ -18,11 +18,13 @@ const { chromium } = await import('playwright').catch(() => {
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), '..');
 const base = 'http://localhost:' + (process.argv[2] || '8000');
-const pages = ['/index.html', '/gpt2/index.html',
+const pages = ['/index.html', '/quality-review.html', '/gpt2/index.html',
   ...readdirSync(join(root, 'viz')).filter(f => f.endsWith('.html')).map(f => '/viz/' + f)];
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext();
+// 外部フォントの一時障害でCIを落とさず、CSSに定義したfallback fontで再現可能に検査する。
+await ctx.route('https://fonts.googleapis.com/**', route => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
 let bad = 0;
 for (const p of pages) {
   const pg = await ctx.newPage();
