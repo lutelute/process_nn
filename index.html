@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ニューラルネットの学習過程</title>
-<meta name="description" content="機械学習74テーマを学習順にたどる、ブラウザで動くインフォグラフ集。実学習・実計算と、簡略化した構造デモの範囲を分けて理解できる。">
+<meta name="description" content="機械学習75テーマを学習順にたどる、ブラウザで動くインフォグラフ集。実学習・実計算と、簡略化した構造デモの範囲を分けて理解できる。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="機械学習 学習ロードマップ — 動くインフォグラフ集">
-<meta property="og:description" content="信号の流れから GPT-2 まで、74テーマを実計算と可視化で理解する学習地図。">
+<meta property="og:description" content="数学の道具箱から GPT-2 まで、75テーマを実計算と可視化で理解する学習地図。">
 <meta property="og:url" content="https://lutelute.github.io/process_nn/">
 <meta property="og:image" content="https://lutelute.github.io/process_nn/assets/og.png">
 <meta property="og:image:width" content="1200">
@@ -106,9 +106,9 @@
   <header>
     <div>
       <h1>機械学習 学習ロードマップ</h1>
-      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、74テーマの動くインフォグラフを学習の流れで並べた地図。実学習・実計算と簡略デモの範囲を分けて理解できます。</div>
+      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、75テーマの動くインフォグラフを学習の流れで並べた地図。実学習・実計算と簡略デモの範囲を分けて理解できます。</div>
       <div style="margin-top:9px;font-size:12.5px;letter-spacing:.02em;">
-        <a href="viz/" style="color:var(--accent);text-decoration:none;">▶ 最初から始める（信号の流れ）</a>
+        <a href="viz/foundations.html" style="color:var(--accent);text-decoration:none;">▶ 最初から始める（数学の道具箱）</a>
         <span style="color:var(--faint);margin:0 8px;">·</span>
         <a href="#demo" style="color:var(--accent);text-decoration:none;">関数近似デモ</a>
         <span style="color:var(--faint);margin:0 8px;">·</span>
@@ -170,16 +170,17 @@
     <div class="spine">
       <div class="slbl">🧭 <b>推奨順路</b>：何から始め、次にどこへ（クリックで各ページへ）</div>
       <div class="spineflow">
-        <a href="viz/"><b>1</b>信号の流れ</a><i>→</i>
-        <a href="#demo"><b>2</b>関数近似</a><i>→</i>
-        <a href="viz/gradient.html"><b>3</b>勾配降下</a><i>→</i>
-        <a href="viz/backprop.html"><b>4</b>誤差逆伝播</a><i>→</i>
-        <a href="viz/classify.html"><b>5</b>分類</a><i>→</i>
-        <a href="viz/cnn.html"><b>6</b>CNN</a><i>→</i>
-        <a href="viz/rnn.html"><b>7</b>RNN</a><i>→</i>
-        <a href="viz/attention.html"><b>8</b>自己注意</a><i>→</i>
-        <a href="viz/transformer.html"><b>9</b>Transformer</a><i>→</i>
-        <a href="gpt2/"><b>10</b>GPT-2</a>
+        <a href="viz/foundations.html"><b>1</b>数学の道具箱</a><i>→</i>
+        <a href="viz/"><b>2</b>信号の流れ</a><i>→</i>
+        <a href="#demo"><b>3</b>関数近似</a><i>→</i>
+        <a href="viz/gradient.html"><b>4</b>勾配降下</a><i>→</i>
+        <a href="viz/backprop.html"><b>5</b>誤差逆伝播</a><i>→</i>
+        <a href="viz/classify.html"><b>6</b>分類</a><i>→</i>
+        <a href="viz/cnn.html"><b>7</b>CNN</a><i>→</i>
+        <a href="viz/rnn.html"><b>8</b>RNN</a><i>→</i>
+        <a href="viz/attention.html"><b>9</b>自己注意</a><i>→</i>
+        <a href="viz/transformer.html"><b>10</b>Transformer</a><i>→</i>
+        <a href="gpt2/"><b>11</b>GPT-2</a>
       </div>
     </div>
 
@@ -188,6 +189,7 @@
     <div class="catbody">
     <div class="mapsec"><span class="num">STEP 1</span><span class="ttl">数学・最適化の基礎</span><span class="badge">学習＝損失を小さくすること。その土台。</span></div>
     <div class="mapgrid">
+      <a class="mapcard spineCard" href="viz/foundations.html"><div class="tag">全ページの前提</div><div class="t">数学の道具箱</div><div class="d">shape・内積・行列積・連鎖律・entropy / KLを、同じ実数を追いながら計算する。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> 信号の流れ・勾配降下</div></a>
       <a class="mapcard spineCard" href="viz/gradient.html"><div class="tag">最適化</div><div class="t">勾配降下法</div><div class="d">損失の地形を、傾き（勾配）の逆向きに下って最小へ。SGD/Momentum/Adam を比較。</div><div class="dep"><b>前提:</b> なし ／ <b>次:</b> 誤差逆伝播</div></a>
       <a class="mapcard branchCard" href="viz/ga.html"><div class="tag">発展・分岐</div><div class="t">遺伝的アルゴリズム</div><div class="d">勾配を使わない最適化。集団が選択・交叉・突然変異で進化。</div><div class="dep"><b>前提:</b> 最適化の考え方 ／ <b>関連:</b> 勾配降下</div></a>
       <a class="mapcard branchCard" href="viz/surrogate.html"><div class="tag">発展・分岐</div><div class="t">サロゲートモデル</div><div class="d">評価が高価な関数の「安い代理」を不確かさ付きで学び、次に測る1点を賢く選ぶ（ベイズ最適化）。</div><div class="dep"><b>前提:</b> 最適化の考え方 ／ <b>関連:</b> 勾配降下・GA</div></a>
@@ -205,7 +207,7 @@
       <a class="mapcard" href="viz/reg.html"><div class="tag">過学習と汎化</div><div class="t">正則化（L2）</div><div class="d">高表現力モデルの暗記＝過学習を、罰 λΣw² で抑え汎化。テスト誤差のU字で最適な複雑さ。</div><div class="dep"><b>前提:</b> 線形回帰・関数近似 ／ <b>関連:</b> 全モデル共通</div></a>
       <a class="mapcard" href="viz/dropout.html"><div class="tag">NN・過学習対策</div><div class="t">ドロップアウト</div><div class="d">訓練中に隠れ素子をランダムに落とす＝サブネットのアンサンブル。NN特有の正則化。</div><div class="dep"><b>前提:</b> 誤差逆伝播・正則化 ／ <b>関連:</b> 全NN共通</div></a>
       <a class="mapcard" href="viz/vanishing.html"><div class="tag">NN・深さの壁</div><div class="t">勾配消失問題</div><div class="d">逆伝播で勾配は各層の微分の掛け算→sigmoidだと指数的に消える。ReLUが解決し深層学習を実現。</div><div class="dep"><b>前提:</b> 誤差逆伝播 ／ <b>関連:</b> 活性化・RNN</div></a>
-      <a class="mapcard" href="viz/batchnorm.html"><div class="tag">NN・訓練安定化</div><div class="t">バッチ正規化</div><div class="d">各層の活性をバッチごとに平均0分散1へ正規化＋γβで戻す。分布が安定し速く学習。</div><div class="dep"><b>前提:</b> 誤差逆伝播・勾配消失 ／ <b>関連:</b> Layer Norm</div></a>
+      <a class="mapcard" href="viz/batchnorm.html"><div class="tag">NN・活性の尺度</div><div class="t">バッチ正規化</div><div class="d">固定ネットで各層の活性を平均0・分散1へ正規化し、γβで表現力を戻す。訓練速度を直接比較するデモではない。</div><div class="dep"><b>前提:</b> 誤差逆伝播・勾配消失 ／ <b>関連:</b> Layer Norm</div></a>
       <a class="mapcard" href="viz/resnet.html"><div class="tag">NN・深さの突破</div><div class="t">残差接続（ResNet）</div><div class="d">差分だけ学び、skip を勾配が素通り。同条件32層の一騎打ちで「深くしても壊れない」を実測。勾配消失の解答編。</div><div class="dep"><b>前提:</b> 勾配消失 ／ <b>関連:</b> バッチ正規化・Transformer</div></a>
       <a class="mapcard" href="viz/transfer.html"><div class="tag">NN・実務の型</div><div class="t">転移学習</div><div class="d">土台を凍らせ頭だけ替える。12点の少データで ゼロから59% vs 凍結99% の実測、データ量で逆転する曲線つき。</div><div class="dep"><b>前提:</b> CNN・逆伝播 ／ <b>関連:</b> 残差接続・LoRA</div></a>
       <a class="mapcard" href="viz/distill.html"><div class="tag">NN・圧縮</div><div class="t">知識蒸留</div><div class="d">先生のソフトラベルは情報が濃い。1/25サイズの生徒が 正解のみ64% vs 蒸留78%、暗黒知識と温度Tを実演。</div><div class="dep"><b>前提:</b> 分類・softmax ／ <b>関連:</b> サロゲート②・転移学習</div></a>

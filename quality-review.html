@@ -69,19 +69,19 @@
   <header>
     <div>
       <h1>教材の「動く」と「正しい」を<br>同じ水準へそろえる</h1>
-      <p class="lead">74テーマの可視化を、技術的正確性、説明と実装の一致、再現性、ブラウザ応答性の観点から監査した結果です。初回レビューで見つけた中核問題、ブランチで実装した改善、まだ保証していない範囲を分けて記録しています。</p>
+      <p class="lead">75テーマの可視化を、技術的正確性、説明と実装の一致、再現性、ブラウザ応答性の観点から監査した結果です。初回レビューで見つけた中核問題、ブランチで実装した改善、まだ保証していない範囲を分けて記録しています。</p>
     </div>
     <div class="stamp">
       BRANCH<br><b>codex/technical-quality-pass</b><br>
       REVIEW BASELINE<br><b>2026-07-13</b><br>
-      STATUS<br><b>first quality pass complete</b>
+      STATUS<br><b>quality pass + first bridge</b>
     </div>
   </header>
 
   <div class="summary" aria-label="改善の概要">
     <div class="metric"><div class="n">2/2</div><div class="k">P0 中核不一致を修正</div></div>
-    <div class="metric"><div class="n">76+1</div><div class="k">既存HTML＋本レビュー</div></div>
-    <div class="metric"><div class="n">493</div><div class="k">自動操作クリック</div></div>
+    <div class="metric"><div class="n">77+1</div><div class="k">教材等HTML＋本レビュー</div></div>
+    <div class="metric"><div class="n">497</div><div class="k">自動操作クリック</div></div>
     <div class="metric"><div class="n">8/8</div><div class="k">拡散デモの分布カバー</div></div>
   </div>
 
@@ -106,6 +106,12 @@
         <h3>断定を条件付きの説明へ</h3>
         <p>BatchNormの訓練速度、AEのリング圧縮、VAEのlatent holes、線形回帰の一意性、MoEの非公開モデル採用、GMMの単調性を、デモが実測する範囲と理論上の条件に合わせました。</p>
         <div class="links"><a href="viz/batchnorm.html">BatchNorm</a><a href="viz/autoencoder.html">AE</a><a href="viz/vae.html">VAE</a><a href="viz/linreg.html">線形回帰</a><a href="viz/moe.html">MoE</a></div>
+      </article>
+      <article class="card">
+        <span class="tag">橋渡し教材 / 追加済み</span>
+        <h3>数学の道具箱</h3>
+        <p>shape、内積、行列積、連鎖律、softmax、entropy / cross-entropy / KLを5ステップで実計算。解析勾配と有限差分、CE = H + KLは共通計算モジュールとNode回帰テストでも照合します。</p>
+        <div class="links"><a href="viz/foundations.html">教材を見る</a><a href="viz/lib/foundations-math.mjs">計算実装</a></div>
       </article>
       <article class="card">
         <span class="tag partial">P1 / 一部対応</span>
@@ -134,9 +140,9 @@
       <table>
         <thead><tr><th>検証</th><th>結果</th><th>保証する範囲</th></tr></thead>
         <tbody>
-          <tr><td><code>npm run verify</code></td><td class="ok">PASS</td><td>tokenizer、内容回帰条件、77 HTMLのローカルリンクとインラインJS構文</td></tr>
-          <tr><td><code>npm run test:browser -- 8765</code></td><td class="ok">PASS</td><td>全77 HTMLのconsole error、未捕捉例外、request failure</td></tr>
-          <tr><td><code>npm run test:interactions -- 8765</code></td><td class="ok">PASS</td><td>教材のステップ操作493クリックと、重い3経路の非同期busy応答</td></tr>
+          <tr><td><code>npm run verify</code></td><td class="ok">PASS</td><td>tokenizer、数学・拡散などの内容回帰条件、78 HTMLのローカルリンクとインラインJS構文</td></tr>
+          <tr><td><code>npm run test:browser -- 8765</code></td><td class="ok">PASS</td><td>全78 HTMLのconsole error、未捕捉例外、request failure</td></tr>
+          <tr><td><code>npm run test:interactions -- 8765</code></td><td class="ok">PASS</td><td>教材のステップ操作497クリックと、重い3経路の非同期busy応答</td></tr>
           <tr><td><code>npm run test:diffusion -- 8765</code></td><td class="ok">PASS</td><td>固定シードでloss 0.608、8/8モードを再現</td></tr>
           <tr><td><code>npm ci --ignore-scripts</code></td><td class="ok">PASS</td><td>lockfileからPlaywright 1.58.0をクリーン導入、既知の脆弱性0件</td></tr>
         </tbody>
@@ -150,22 +156,22 @@
     <ul>
       <li>548 MBのGPT-2重みをリポジトリに保存していないため、参照実装との層別テンソル・logits一致、実生成速度、最大メモリは未検証です。</li>
       <li>全教材の全データ選択・全seedに対する収束値までは網羅していません。</li>
-      <li>主要なlabel、status、Canvas代替ラベルは改善しましたが、全77 HTMLの包括的なWCAG監査ではありません。</li>
+      <li>主要なlabel、status、Canvas代替ラベルは改善しましたが、全78 HTMLの包括的なWCAG監査ではありません。</li>
       <li>公開中のGitHub Pagesとこのローカルブランチの一致、外部リンクの将来的な永続性は保証していません。</li>
     </ul>
   </section>
 
   <section id="next">
-    <h2>次に追加する価値が高い教材</h2>
-    <p class="note">応用アルゴリズムをさらに増やす前に、既存74テーマを正しくつなぐ「橋」を優先します。</p>
+    <h2>追加した教材と、次に価値が高い教材</h2>
+    <p class="note">最優先だった数学の橋を追加しました。次も、既存75テーマを正しく読み解くための素材を優先します。</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>優先</th><th>素材</th><th>含める内容</th><th>理由</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td><strong>数学の道具箱</strong></td><td>shape、内積、行列積、偏微分、連鎖律、確率、entropy / KL</td><td>既存ページの数式を同じ表記で追えるようにする</td></tr>
-          <tr><td>2</td><td><strong>モデルを正しく測る</strong></td><td>MAE / RMSE、校正、ROC / PR、誤差棒、複数seed、ablation</td><td>教材内の改善率を批判的に読めるようにする</td></tr>
-          <tr><td>3</td><td><strong>データ工程と学習診断</strong></td><td>標準化、欠損、leakage、学習曲線、early stopping、OOD</td><td>アルゴリズム以外の実務上の失敗を扱う</td></tr>
-          <tr><td>4</td><td><strong>LLMの一連の流れ</strong></td><td>tokenizer→事前学習→SFT→選好最適化、decoding、KV cache、RAG評価</td><td>点在する言語モデル教材を一本の因果関係でつなぐ</td></tr>
+          <tr><td class="ok">実装済み</td><td><strong><a href="viz/foundations.html">数学の道具箱</a></strong></td><td>shape、内積、行列積、偏微分、連鎖律、確率、entropy / KL</td><td>既存ページの数式を同じ表記で追えるようにする</td></tr>
+          <tr><td>1</td><td><strong>モデルを正しく測る</strong></td><td>MAE / RMSE、校正、ROC / PR、誤差棒、複数seed、ablation</td><td>教材内の改善率を批判的に読めるようにする</td></tr>
+          <tr><td>2</td><td><strong>データ工程と学習診断</strong></td><td>標準化、欠損、leakage、学習曲線、early stopping、OOD</td><td>アルゴリズム以外の実務上の失敗を扱う</td></tr>
+          <tr><td>3</td><td><strong>LLMの一連の流れ</strong></td><td>tokenizer→事前学習→SFT→選好最適化、decoding、KV cache、RAG評価</td><td>点在する言語モデル教材を一本の因果関係でつなぐ</td></tr>
           <tr><td>横断</td><td><strong>このデモの前提</strong></td><td>一次資料、省略部分、toyと実データ、seed、一般化できない数値</td><td>新規ページより小さい変更で、全教材の信頼性を上げる</td></tr>
         </tbody>
       </table>

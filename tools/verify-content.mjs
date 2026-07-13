@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cosineDiffusionSchedule } from '../viz/lib/diffusion-schedule.mjs';
+import { chainRuleExample, crossEntropy, dot, entropy, klDivergence, matMul, matVec, softmax } from '../viz/lib/foundations-math.mjs';
 import { sampleNext, topkSoftmax } from '../gpt2/tools/gpt2.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,6 +12,25 @@ const ok = message => console.log('  ok   ' + message);
 const fail = message => { console.error('  FAIL ' + message); failed++; };
 const check = (condition, message) => condition ? ok(message) : fail(message);
 const read = path => readFileSync(resolve(root, path), 'utf8');
+const close = (a, b, tolerance = 1e-9) => Math.abs(a - b) <= tolerance;
+
+// 数学の道具箱で表示する計算を、画面とは独立した参照値で固定する。
+check(close(dot([2, -1], [1.5, -0.8]), 3.8), 'foundations dot product: scalar reference');
+check(JSON.stringify(matVec([[1, 2], [3, 4]], [2, -1], [0.5, -0.5])) === JSON.stringify([0.5, 1.5]),
+  'foundations matrix-vector product: shape and values');
+check(JSON.stringify(matMul([[1, 2, 3], [4, 5, 6]], [[7, 8], [9, 10], [11, 12]])) === JSON.stringify([[58, 64], [139, 154]]),
+  'foundations matrix product: row-column references');
+const targetDistribution = [0.8, 0.1, 0.1];
+const predictedDistribution = softmax([1.2, 1, -0.5]);
+check(close(predictedDistribution.reduce((a, b) => a + b, 0), 1), 'foundations softmax: probabilities sum to 1');
+check(close(crossEntropy(targetDistribution, predictedDistribution),
+  entropy(targetDistribution) + klDivergence(targetDistribution, predictedDistribution)),
+  'foundations probability identity: CE(q,p) = H(q) + KL(q||p)');
+const chainX = 1.2, chainW = 1.5, epsilon = 1e-4;
+const analyticGradient = chainRuleExample({ x: chainX, w: chainW }).dLossDw;
+const numericGradient = (chainRuleExample({ x: chainX, w: chainW + epsilon }).loss
+  - chainRuleExample({ x: chainX, w: chainW - epsilon }).loss) / (2 * epsilon);
+check(close(analyticGradient, numericGradient, 1e-7), 'foundations chain rule: analytic gradient matches finite difference');
 
 for (const steps of [20, 40, 80]) {
   const { beta, alpha, alphaBar } = cosineDiffusionSchedule(steps);
