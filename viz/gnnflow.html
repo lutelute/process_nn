@@ -446,12 +446,15 @@ function renderExplain(){const el=document.getElementById('explain');const ch=CH
   el.style.setProperty('--c',ch.c);
   el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
-  document.getElementById('prevBtn').disabled=(slideIdx===0);
-  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
-  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+  document.getElementById('prevBtn').disabled=busy||(slideIdx===0);
+  document.getElementById('nextBtn').disabled=busy||(slideIdx===SLIDES.length-1);
+  document.getElementById('autoBtn').disabled=busy;document.getElementById('resetBtn').disabled=busy;
+  document.getElementById('diceBtn').disabled=busy||!SLIDES[slideIdx].dice;}
 function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
 
 /* ===== スライド制御 ===== */
+let busy=false;
+function setBusy(v){busy=v;for(const id of ['prevBtn','nextBtn','autoBtn','resetBtn','diceBtn'])document.getElementById(id).disabled=v;document.getElementById('stepper').style.pointerEvents=v?'none':'';document.getElementById('stepper').setAttribute('aria-busy',String(v));if(!v)renderAll();}
 function stopAuto(){auto=false;document.getElementById('autoBtn').textContent='⏵ 自動';}
 function ensureTrained(){if(it<ITER){if(!trainData){genTrain();dataCount=160;}trainAll();}}
 function ensureCase(){if(!testCase||!testCase.fP){ensureTrained();testCase=newCase();}}
@@ -479,7 +482,9 @@ function runData(){anim=true;dataCount=trainData?160:0;
     if(dataCount>=160){anim=false;return;}setTimeout(go,90);}
   go();}
 function runTrain(){anim=true;if(!net)net=makeNet();
-  if(window.__prefersReducedMotion){trainAll();anim=false;return;}
+  if(window.__prefersReducedMotion){setBusy(true);function reduced(){if(!anim||slideIdx!==10){setBusy(false);return;}
+      for(let s=0;s<10&&it<ITER;s++){const g=zeroG(net);let l=0;for(let b=0;b<BS;b++){const smp=trainData[(it*BS+b)%trainData.length];l+=gnnGrad(net,smp.P,smp.th,g);}adam(net,g,LR,BS);it++;if(it%10===0)lossHist.push(l/BS);}
+      if(it<ITER){setTimeout(reduced,0);return;}anim=false;setBusy(false);renderMini();renderExplain();draw_();}setTimeout(reduced,0);return;}
   function go(){if(!anim||slideIdx!==10)return;
     if(it>=ITER){anim=false;renderMini();renderExplain();draw_();return;}
     for(let s=0;s<10&&it<ITER;s++){const g=zeroG(net);let l=0;

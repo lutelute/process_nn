@@ -563,25 +563,31 @@ function renderLegend(){document.getElementById('legend').textContent=SLIDES[sli
 function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
   el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
-  document.getElementById('prevBtn').disabled=(slideIdx===0);
-  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
-  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+  document.getElementById('prevBtn').disabled=busy||(slideIdx===0);
+  document.getElementById('nextBtn').disabled=busy||(slideIdx===SLIDES.length-1);
+  document.getElementById('autoBtn').disabled=busy;document.getElementById('resetBtn').disabled=busy;
+  document.getElementById('diceBtn').disabled=busy||!SLIDES[slideIdx].dice;}
 function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
 
 /* ===== ライブ学習（8の字）＆風レース ===== */
+let busy=false;
+function setBusy(v){busy=v;for(const id of ['prevBtn','nextBtn','autoBtn','resetBtn','diceBtn'])document.getElementById(id).disabled=v;document.getElementById('stepper').style.pointerEvents=v?'none':'';document.getElementById('stepper').setAttribute('aria-busy',String(v));if(!v)renderAll();}
 function runLiveF8(){anim=true;
-  if(window.__prefersReducedMotion){ensureF8();anim=false;renderMini();renderExplain();draw_();return;}
+  if(window.__prefersReducedMotion){setBusy(true);function reduced(){if(!anim||slideIdx!==3){setBusy(false);return;}trainEpisodes(lF8,40);
+      if(lF8.ep<EP_F8){setTimeout(reduced,0);return;}anim=false;setBusy(false);renderMini();renderExplain();draw_();}setTimeout(reduced,0);return;}
   function go(){if(!anim||slideIdx!==3)return;
     trainEpisodes(lF8,40);draw_();renderMini();renderExplain();
     if(lF8.ep<EP_F8)requestAnimationFrame(go);else anim=false;}
   requestAnimationFrame(go);}
 function runWindRace(){anim=true;
-  if(window.__prefersReducedMotion){while(stepWindRace()){}anim=false;draw_();renderMini();return;}
+  if(window.__prefersReducedMotion){setBusy(true);function reduced(){if(!anim||slideIdx!==9){setBusy(false);return;}let alive=false;for(let k=0;k<30;k++)alive=stepWindRace()||alive;
+      if(alive){setTimeout(reduced,0);return;}anim=false;setBusy(false);draw_();renderMini();renderExplain();}setTimeout(reduced,0);return;}
   function go(){if(!anim||slideIdx!==9)return;let alive=false;for(let k=0;k<3;k++)alive=stepWindRace()||alive;
     draw_();if(alive)requestAnimationFrame(go);else{anim=false;renderMini();renderExplain();}}
   requestAnimationFrame(go);}
 function runLiveShaping(){anim=true;initShaping();
-  if(window.__prefersReducedMotion){ensureShaping();anim=false;renderMini();renderExplain();draw_();return;}
+  if(window.__prefersReducedMotion){setBusy(true);function reduced(){if(!anim||slideIdx!==5){setBusy(false);return;}trainEpisodes(lShapeOn,40);trainEpisodes(lShapeOff,40);
+      if(lShapeOn.ep<EP_F8){setTimeout(reduced,0);return;}anim=false;setBusy(false);renderMini();renderExplain();draw_();}setTimeout(reduced,0);return;}
   function go(){if(!anim||slideIdx!==5)return;
     trainEpisodes(lShapeOn,40);trainEpisodes(lShapeOff,40);draw_();renderMini();renderExplain();
     if(lShapeOn.ep<EP_F8)requestAnimationFrame(go);else anim=false;}

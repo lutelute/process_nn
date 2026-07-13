@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ニューラルネットの学習過程</title>
-<meta name="description" content="機械学習の40以上の手法を、学習の流れで並べた動くインフォグラフ集。各ページは1手法をブラウザ上で実際に学習させて理解できる。">
+<meta name="description" content="機械学習74テーマを学習順にたどる、ブラウザで動くインフォグラフ集。実学習・実計算と、簡略化した構造デモの範囲を分けて理解できる。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="機械学習 学習ロードマップ — 動くインフォグラフ集">
-<meta property="og:description" content="信号の流れから GPT-2 まで、40以上の手法を実際に動かして理解する学習地図。">
+<meta property="og:description" content="信号の流れから GPT-2 まで、74テーマを実計算と可視化で理解する学習地図。">
 <meta property="og:url" content="https://lutelute.github.io/process_nn/">
 <meta property="og:image" content="https://lutelute.github.io/process_nn/assets/og.png">
 <meta property="og:image:width" content="1200">
@@ -308,7 +308,7 @@
   <div class="grid" id="demo">
     <div class="card">
       <div class="cap">関数近似</div>
-      <div class="canvas-host" id="fitHost"><canvas id="fit"></canvas></div>
+      <div class="canvas-host" id="fitHost"><canvas id="fit" role="img" aria-label="教師データ、真の関数、ニューラルネット予測の比較"></canvas></div>
       <div class="legend">
         <span><i class="dotmark" style="background:var(--dot)"></i>教師データ</span>
         <span><i class="swatch" style="border-top-color:var(--true)"></i>真の関数</span>
@@ -318,7 +318,7 @@
     <div class="side">
       <div class="card">
         <div class="cap">ネットワーク（重み）</div>
-        <div class="canvas-host" id="netHost"><canvas id="net"></canvas></div>
+        <div class="canvas-host" id="netHost"><canvas id="net" role="img" aria-label="現在のニューラルネット構造と重み"></canvas></div>
         <div class="legend" style="padding-top:0;">
           <span><i class="swatch" style="border-top-color:var(--pos)"></i>正の重み</span>
           <span><i class="swatch" style="border-top-color:var(--neg)"></i>負の重み</span>
@@ -326,18 +326,18 @@
       </div>
       <div class="card">
         <div class="cap">損失の推移（対数）</div>
-        <div class="canvas-host" id="lossHost"><canvas id="loss"></canvas></div>
+        <div class="canvas-host" id="lossHost"><canvas id="loss" role="img" aria-label="学習ステップに対する損失の推移"></canvas></div>
       </div>
     </div>
   </div>
 
   <div class="controls">
     <div class="field">
-      <label>近似する関数</label>
+      <label for="fnSel">近似する関数</label>
       <select id="fnSel"></select>
     </div>
     <div class="field">
-      <label>活性化関数</label>
+      <label for="actSel">活性化関数</label>
       <select id="actSel">
         <option value="tanh">tanh</option>
         <option value="relu">ReLU</option>
@@ -345,19 +345,19 @@
       </select>
     </div>
     <div class="field">
-      <label>最適化手法</label>
+      <label for="optSel">最適化手法</label>
       <select id="optSel">
         <option value="adam">Adam</option>
         <option value="sgd">SGD</option>
       </select>
     </div>
     <div class="field">
-      <label>学習率 <span class="val" id="lrVal"></span></label>
+      <label for="lrSlider">学習率 <span class="val" id="lrVal"></span></label>
       <input type="range" id="lrSlider" min="-3.3" max="-0.5" step="0.01">
     </div>
 
     <div class="field">
-      <label>隠れ層の数</label>
+      <label for="depthSel">隠れ層の数</label>
       <select id="depthSel">
         <option value="1">1</option>
         <option value="2" selected>2</option>
@@ -366,7 +366,7 @@
       </select>
     </div>
     <div class="field">
-      <label>各層のユニット数</label>
+      <label for="widthSel">各層のユニット数</label>
       <select id="widthSel">
         <option value="4">4</option>
         <option value="8">8</option>
@@ -375,11 +375,11 @@
       </select>
     </div>
     <div class="field">
-      <label>データのノイズ <span class="val" id="noiseVal"></span></label>
+      <label for="noiseSlider">データのノイズ <span class="val" id="noiseVal"></span></label>
       <input type="range" id="noiseSlider" min="0" max="0.4" step="0.01" value="0">
     </div>
     <div class="field">
-      <label>速度（更新/フレーム） <span class="val" id="spdVal"></span></label>
+      <label for="spdSlider">速度（更新/フレーム） <span class="val" id="spdVal"></span></label>
       <input type="range" id="spdSlider" min="1" max="20" step="1" value="2">
     </div>
 
@@ -396,7 +396,10 @@
 <script>
 "use strict";
 /* ====================== ニューラルネット中核 ====================== */
-function randn(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();
+let randomState=20260713;
+function reseed(value){randomState=value>>>0;}
+function seededRandom(){randomState=(randomState+0x6D2B79F5)>>>0;let t=randomState;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;}
+function randn(){let u=0,v=0;while(u===0)u=seededRandom();while(v===0)v=seededRandom();
   return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
 function actFn(name,z){
   if(name==='tanh')return Math.tanh(z);
@@ -535,6 +538,8 @@ const DEMO_MAX_EPOCH=3600;
 function leaveDemo(){demoMode=false;if(demoPauseTimer){clearTimeout(demoPauseTimer);demoPauseTimer=null;}}
 
 function buildData(fnIdx,noise){
+  // 同じ設定なら同じデータになるよう、教材用の乱数を固定する。
+  reseed(20260713+fnIdx*101);
   const cfg=FUNCS[fnIdx];
   const xData=[],yClean=[],yNoisy=[];
   for(let i=0;i<N_SAMPLE;i++){
@@ -565,11 +570,13 @@ function currentSizes(){
 
 function rebuildAll(resetData){
   if(resetData||!data)data=buildData(+fnSel.value,+noiseSlider.value);
+  reseed(20260714);
   net=new MLP(currentSizes(),actSel.value,optSel.value);
   epoch=0;lossHist=[];lastLoss=null;
   updateReadout();drawAll();
 }
 function resetNetOnly(){
+  reseed(20260714);
   net=new MLP(currentSizes(),actSel.value,optSel.value);
   epoch=0;lossHist=[];lastLoss=null;updateReadout();drawAll();
 }

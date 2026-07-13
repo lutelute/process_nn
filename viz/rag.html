@@ -69,10 +69,10 @@
 <div class="wrap">
   <div class="nav"></div>
   <h1>RAG（検索拡張生成）を理解する</h1>
-  <div class="lead">大規模言語モデルは<b>学習した知識しか持たず</b>、特定の文書（昔話・論文・契約書 等）の中身は知りません。知らないことを<b>もっともらしく間違える</b>（幻覚）。RAG は質問に関係する<b>文章を文書から検索（Retrieval）</b>し、それを根拠に<b>出典つきで回答（Generation）</b>する手法。下では実際に<b>文字バイグラムのコサイン類似度</b>で該当箇所を探します。右下で文書と質問を選べます。</div>
+  <div class="lead">言語モデルのパラメータだけでは、最新情報や手元の文書を確実には参照できません。RAG は質問に関係する<b>文章を検索（Retrieval）</b>し、その文章を<b>生成器へ渡す文脈</b>に加える設計です。下では<b>文字バイグラムの TF-IDF とコサイン類似度</b>で検索を実際に計算し、取得文からプロンプト用コンテキストを作ります。LLM による生成自体は実行せず、取得文を<b>抽出的な回答候補</b>として表示するところまでを正直に可視化します。</div>
 
   <div class="purpose">
-    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>LLM は知らないことを<b>もっともらしく間違える</b>（幻覚）。実務投入のための最重要パッチ。</span></div>
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>モデル本体と外部知識を分け、知識の更新・根拠確認・アクセス制御を設計できる。</span></div>
     <div class="prow"><span class="pq">一言で言うと</span><span>質問に関係する文書を検索して、根拠つきで答えさせる仕組み。</span></div>
     <div class="prow"><span class="pq">どこで使われる?</span><span>社内文書 QA・カスタマーサポート・検索連動チャット。</span></div>
   </div>
@@ -115,14 +115,14 @@
   <div class="myth">
     <div class="myth-h">⚠ よくある誤解</div>
     <div class="row"><span class="x">✗</span>RAG を使えば幻覚（作話）は完全に消える</div>
-    <div class="row"><span class="o">✓</span><b>検索が外れれば答えも外れる</b>。減るのは「知らないのに作る」型の幻覚で、答えの質は<b>検索の質に上限を握られる</b>。</div>
+    <div class="row"><span class="o">✓</span><b>検索が当たっても生成器が無視・誤読・混成する</b>ことがある。RAG は根拠を与えて検証しやすくするが、検索評価・回答の忠実性評価・引用検証は別に必要。</div>
     <div class="row"><span class="x">✗</span>文書を丸ごとモデルに読ませるのと同じこと</div>
     <div class="row"><span class="o">✓</span>丸ごとは文脈長とコストで破綻する。<b>関係する断片だけ選んで渡す</b>のが RAG の要点——だからチャンクの切り方と埋め込みの質が効く。</div>
   </div>
 
   <details>
     <summary>もっと詳しく：チャンク・埋め込み・なぜ効くか・限界</summary>
-    <div class="det">実際の RAG は、文書を意味のまとまり（<b>チャンク</b>）に分け、文埋め込みモデル（<a href="word2vec.html">単語埋め込み</a>の発展形）で<b>意味ベクトル</b>に変換して<b>ベクトルDB</b>に保存します。質問も同じ空間にベクトル化し、<b>コサイン類似度</b>で上位 k 件を取得（近似最近傍探索 ANN を使うことも）。取得文を<b>プロンプトに連結</b>して LLM に渡し、<b>出典つき</b>で答えさせます。ここでは埋め込みを<b>文字バイグラムの TF-IDF</b>で簡略化し、検索（コサイン類似）を実際に計算しています。<b>利点</b>：再学習せず最新・専門・社内の文書を扱え、根拠（出典）を示せ<b>幻覚が減る</b>。<b>限界</b>：検索が外せば答えも外れ、チャンク設計や埋め込み品質に依存。本物の言語モデルは <a href="../gpt2/">GPT-2</a> へ。</div>
+    <div class="det">実際の RAG は、文書を意味のまとまり（<b>チャンク</b>）に分け、文埋め込みモデルで<b>意味ベクトル</b>に変換して索引へ保存します。質問も同じ空間にベクトル化し、上位 k 件を取得し、必要なら reranker で並べ直します。取得文を<b>プロンプトに連結</b>して generator に渡すのが生成段階です。このページが実行するのは、文字バイグラム TF-IDF による<b>検索とコンテキスト構築まで</b>。事前に用意した正解文は使わず、検索上位の原文を抽出的な回答候補として示します。実運用では、検索の recall、生成文が取得文に忠実か、引用先が主張を本当に支えるかを別々に評価します。原型: <a href="https://arxiv.org/abs/2005.11401">Lewis et al. (2020)</a>。</div>
   </details>
 </div>
 
@@ -140,11 +140,11 @@ const CORPORA={
     '道中で、犬・猿・雉がきびだんごをもらって家来になりました。',
     '桃太郎たちは鬼ヶ島で鬼を退治し、宝物を持ち帰りました。',
   ], qs:[
-    {q:'桃太郎は何から生まれた？', a:'桃から生まれました（桃を切ると中から男の子が）。'},
-    {q:'きびだんごを作ったのは誰？', a:'おばあさんが作りました。'},
-    {q:'家来になった動物は？', a:'犬・猿・雉です。'},
-    {q:'鬼を退治しに行ったのは？', a:'桃太郎（と犬・猿・雉）です。'},
-    {q:'桃はどこから流れてきた？', a:'川上から流れてきました。'},
+    {q:'桃太郎は何から生まれた？'},
+    {q:'きびだんごを作ったのは誰？'},
+    {q:'家来になった動物は？'},
+    {q:'鬼を退治しに行ったのは？'},
+    {q:'桃はどこから流れてきた？'},
   ]},
   urashima:{label:'昔話（浦島太郎）', docs:[
     'むかしむかし、浜辺で子どもたちが亀をいじめていました。',
@@ -156,10 +156,10 @@ const CORPORA={
     '浦島太郎は約束を忘れて玉手箱を開けてしまいました。',
     '白い煙が立ちのぼり、浦島太郎はおじいさんになってしまいました。',
   ], qs:[
-    {q:'浦島太郎は何を助けた？', a:'いじめられていた亀を助けました。'},
-    {q:'竜宮城でもてなしたのは誰？', a:'乙姫さまです。'},
-    {q:'玉手箱を開けるとどうなった？', a:'白い煙が出て、おじいさんになってしまいました。'},
-    {q:'亀はお礼に何をした？', a:'浦島太郎を竜宮城へ連れて行きました。'},
+    {q:'浦島太郎は何を助けた？'},
+    {q:'竜宮城でもてなしたのは誰？'},
+    {q:'玉手箱を開けるとどうなった？'},
+    {q:'亀はお礼に何をした？'},
   ]},
   paper:{label:'論文（要旨）', docs:[
     '本研究では画像分類のための新しい畳み込みネットワークを提案する。',
@@ -169,10 +169,10 @@ const CORPORA={
     '提案手法は従来比で精度を 2% 向上させ、推論速度を 3 倍にした。',
     '今後は物体検出や領域分割への応用を計画している。',
   ], qs:[
-    {q:'提案手法は精度をどれだけ向上させた？', a:'従来比で精度を 2% 向上させました。'},
-    {q:'実験はどのデータセットで行った？', a:'ImageNet データセットです。'},
-    {q:'従来手法の課題は何だった？', a:'計算コストが高く小型デバイスで動作困難でした。'},
-    {q:'今後の応用先は？', a:'物体検出や領域分割への応用を計画しています。'},
+    {q:'提案手法は精度をどれだけ向上させた？'},
+    {q:'実験はどのデータセットで行った？'},
+    {q:'従来手法の課題は何だった？'},
+    {q:'今後の応用先は？'},
   ]},
   legal:{label:'利用規約（法的）', docs:[
     '本サービスの利用には、満 13 歳以上であることが必要です。',
@@ -182,10 +182,10 @@ const CORPORA={
     'サービスの停止により生じた損害について、当社は責任を負いません。',
     '本規約の変更は、本ページに掲載した時点で効力を生じます。',
   ], qs:[
-    {q:'利用は何歳から可能？', a:'満 13 歳以上から利用できます。'},
-    {q:'個人情報は第三者に販売される？', a:'いいえ、第三者に販売することはありません。'},
-    {q:'アカウントの解約はどうする？', a:'いつでも設定画面から行えます。'},
-    {q:'規約の変更はいつ効力を生じる？', a:'本ページに掲載した時点で効力を生じます。'},
+    {q:'利用は何歳から可能？'},
+    {q:'個人情報は第三者に販売される？'},
+    {q:'アカウントの解約はどうする？'},
+    {q:'規約の変更はいつ効力を生じる？'},
   ]},
 };
 let ck='tale', qi=0, K=2;
@@ -221,7 +221,7 @@ function cos(a,b){let d=0,na=0,nb=0;for(const g in a){na+=a[g]*a[g];if(b[g])d+=a
 function ranked(){const qv=tfidf(bigrams(CORPORA[ck].qs[qi].q));return docV.map((d,i)=>({i,s:cos(qv,d)})).sort((a,b)=>b.s-a.s);}
 buildIndex();
 
-const STEPS=[{key:'prob',t:'問題'},{key:'chunk',t:'チャンク'},{key:'retrieve',t:'検索'},{key:'answer',t:'回答生成'},{key:'res',t:'結果'}];
+const STEPS=[{key:'prob',t:'問題'},{key:'chunk',t:'チャンク'},{key:'retrieve',t:'検索'},{key:'answer',t:'文脈構築'},{key:'res',t:'限界'}];
 let stepIdx=0;
 function renderDoc(){const k=STEPS[stepIdx].key,docs=CORPORA[ck].docs,r=ranked();const top=new Set(r.slice(0,K).map(o=>o.i));const mx=r[0].s||1;
   document.getElementById('qbox').innerHTML='<span class="qi">Q</span>'+CORPORA[ck].qs[qi].q;
@@ -234,8 +234,8 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
   if(k==='prob'){h+='<h3>① 問題：文書の中身は知らない</h3><div class="desc">言語モデルは<b>学習時の一般知識</b>しか持たず、この「'+CORPORA[ck].label+'」のような<b>特定の文書</b>の中身は知りません。そのまま聞くと<b>もっともらしく間違える</b>（幻覚）。そこで文書から関係する箇所を<b>検索して与え</b>、それを根拠に答えさせます。</div>';}
   else if(k==='chunk'){h+='<h3>② 文書をチャンクに分けて埋め込み</h3><div class="eq">文書 → 文ごとに分割 → 各文を意味ベクトルに</div><div class="desc">文書を扱いやすい<b>チャンク（ここでは 1 文）</b>に分け、各チャンクを<b>ベクトル</b>に変換しておきます（ここでは<b>文字バイグラムの TF-IDF</b>で簡略化）。実際は文埋め込みモデルでベクトル化し<b>ベクトルDB</b>に保存します。</div>';}
   else if(k==='retrieve'){h+='<h3>③ 検索：コサイン類似で上位k件</h3><div class="eq">類似度 = cos(質問, 文) = (q·d)/(‖q‖‖d‖)</div><div class="desc">質問「<b>'+Q.q+'</b>」も同じくベクトル化し、各チャンクとの<b>コサイン類似度</b>を計算（左：バーと数値）。最も近い<b>上位 '+K+' 件</b>を取得します（緑＝取得）。最類似は <b>文'+(r[0].i+1)+'</b>（'+r[0].s.toFixed(2)+'）。</div>';}
-  else if(k==='answer'){const tops=r.slice(0,K);h+='<h3>④ 取得文を根拠に回答</h3><div class="desc">取得したチャンクを<b>文脈（context）</b>としてプロンプトに足し、それに基づいて答えます：</div><div class="ans"><span class="a">'+Q.a+'</span><span class="cite">▸ 出典: '+tops.map(o=>'文'+(o.i+1)).join(', ')+'「'+CORPORA[ck].docs[tops[0].i]+'」</span></div><div class="desc">回答が<b>取得文に基づく</b>ので、<b>出典</b>を示せて検証でき、文書に書かれていないことは答えません。</div>';}
-  else{h+='<h3>⑤ 結果：出典つき・最新文書OK</h3><div class="desc">RAG は<b>再学習せず</b>に外部文書（最新・専門・社内）を扱え、回答が文書に基づくので<b>幻覚が減り</b>、<b>出典で検証</b>できます。文書や質問を変えても同じ仕組みで動きます（右下で切替）。検索が外すと答えも外れるので、<b>分割（チャンク）と埋め込みの品質</b>が肝心。</div><div class="eq"><b>要点</b><br>・文書をチャンクに分け意味ベクトル化<br>・質問とコサイン類似で上位k件を検索<br>・取得文を根拠に出典つきで回答（幻覚減）</div>';}
+  else if(k==='answer'){const tops=r.slice(0,K),docs=CORPORA[ck].docs;h+='<h3>④ 取得文からプロンプト用の文脈を作る</h3><div class="desc">generator に渡す情報は、質問と検索上位のチャンクです。このページは LLM を実行しないため、検索 1 位の原文を<b>抽出的な回答候補</b>としてそのまま示します：</div><div class="ans"><span class="a">'+docs[tops[0].i]+'</span><span class="cite">▸ 検索由来: '+tops.map(o=>'文'+(o.i+1)+' (cos='+o.s.toFixed(2)+')').join(', ')+'</span></div><div class="eq">質問: '+Q.q+'<br>文脈:<br>'+tops.map(o=>'[文'+(o.i+1)+'] '+docs[o.i]).join('<br>')+'<br>指示: 文脈を根拠に回答し、根拠不足ならそう述べる</div><div class="desc"><b>ここまでがこのデモで実際に動く範囲</b>です。実際の RAG は、この後に generator が回答文を作ります。</div>';}
+  else{h+='<h3>⑤ 限界：検索・生成・引用は別々に確かめる</h3><div class="desc">RAG は外部文書を再学習なしで参照でき、回答を検証する手掛かりを増やします。ただし、<b>幻覚をなくす保証ではありません</b>。検索が外れる、正しい文が上位 k 件に入らない、generator が文脈を無視する、引用が主張を支えない、といった失敗が残ります。右下で文書と質問を変え、まず検索結果そのものを確認してください。</div><div class="eq"><b>要点</b><br>・このページの実動作＝TF-IDF検索＋文脈構築<br>・実際のRAG＝retriever＋generator<br>・検索精度、回答忠実性、引用整合性を分けて評価</div>';}
   el.innerHTML=h;}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>goStep(+d.dataset.i));}
 function renderAll(){renderStepper();renderDoc();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}

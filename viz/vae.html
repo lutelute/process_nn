@@ -96,14 +96,14 @@
   <div class="myth">
     <div class="myth-h">⚠ よくある誤解</div>
     <div class="row"><span class="x">✗</span>VAE はオートエンコーダにノイズを足しただけ</div>
-    <div class="row"><span class="o">✓</span>核心は KL 罰で潜在空間を <b>N(0,1) へ整える</b>こと。これで潜在に「穴」が無くなり、<b>どの z からでも生成できる</b>ようになる——ノイズは手段で目的ではない。</div>
+    <div class="row"><span class="o">✓</span>核心は、再構成だけでなく KL 項で各 q(z|x) を<b>事前分布へ近づけるよう促す</b>こと。サンプリングしやすくなるが、穴の消失や任意の z の品質を保証するわけではない。</div>
     <div class="row"><span class="x">✗</span>再構成が一番きれいな VAE が最良</div>
     <div class="row"><span class="o">✓</span>再構成だけなら素の <a href="autoencoder.html">AE</a> が勝つ。VAE は<b>再構成 vs 潜在の整い（KL）のトレードオフ</b>で、生成の質はこのバランスが決める。</div>
   </div>
 
   <details>
     <summary>もっと詳しく：再パラメータ化・KL・AE/GAN との違い</summary>
-    <div class="det"><b>再パラメータ化トリック</b>：z = μ + σ·ε（ε～N(0,1)）と書くと、サンプリングを通して<b>勾配が流せる</b>（μ,σ を学習できる）。損失は<b>再構成誤差 ＋ β·KL(q(z|x)‖N(0,1))</b>。KL は各入力の潜在分布を標準正規へ引き寄せ、潜在空間に<b>穴のない連続な構造</b>を作る——これが生成のカギ。<b>素のオートエンコーダ</b>は潜在に穴があり、適当な z を復号すると破綻しがち。<b>GAN</b> は識別器との敵対で生成し鮮明だが学習が不安定。VAE は安定で潜在が解釈しやすい反面、出力がぼやけやすい。発展に画像生成の VQ-VAE や拡散モデルがあります。</div>
+    <div class="det"><b>再パラメータ化トリック</b>：z = μ + σ·ε（ε～N(0,1)）と書くと、サンプリングを通して<b>勾配が流せる</b>（μ,σ を学習できる）。損失は<b>再構成誤差 ＋ β·KL(q(z|x)‖N(0,1))</b>。KL は各入力の条件付き事後分布を標準正規へ引き寄せますが、データ全体の<b>集約事後分布</b>が事前分布と完全に一致するとは限りません。latent holes や、潜在が入力情報を失う posterior collapse も起こりえます（<a href="https://arxiv.org/abs/2311.07693">Saha et al., 2023</a>）。VAE の価値は「穴なし」の保証ではなく、再構成と事前分布への正則化を同じ確率モデルとして最適化できる点にあります。</div>
   </details>
 </div>
 
@@ -162,9 +162,9 @@ function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('lege
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='prob'){h+='<h3>① 問題：新しいデータを生成したい</h3><div class="desc">学習データ（橙）に似た<b>新しいデータを自分で作りたい</b>。オートエンコーダは復元はできても、潜在空間に<b>穴</b>があり、適当な z を復号すると変な点になりがち。VAE は潜在を整えて「サンプルすれば生成できる」状態にします。右下で形を変えられます。</div>';}
   else if(k==='enc'){h+='<h3>② 確率的にエンコード</h3><div class="eq curr">x → (μ, σ)、z = μ + σ·ε　(ε～N(0,1))</div><div class="desc">各入力を 1 点でなく<b>分布（平均 μ・幅 σ）</b>に符号化し、そこから z を<b>サンプリング</b>。この「<b>再パラメータ化</b>（z=μ+σε）」のおかげで、ランダムさを含むのに勾配が流せて学習できます。下のストリップが潜在 z（各点の μ）。</div>';}
-  else if(k==='kl'){h+='<h3>③ KL で潜在を整える</h3><div class="eq curr">損失 = 再構成誤差 + β·KL( q(z|x) ‖ N(0,1) )</div><div class="desc"><b>KL 項</b>が各入力の潜在分布を<b>標準正規 N(0,1)（紫の釣鐘）へ引き寄せ</b>ます。これで潜在空間が穴なく N(0,1) で埋まり、「<b>N(0,1) からサンプルした z はすべて意味のある点に復号される</b>」状態に。再構成と KL のせめぎ合いが要。</div>';}
+  else if(k==='kl'){h+='<h3>③ KL で潜在を整える</h3><div class="eq curr">損失 = 再構成誤差 + β·KL( q(z|x) ‖ N(0,1) )</div><div class="desc"><b>KL 項</b>が各入力の潜在分布を<b>標準正規 N(0,1)（紫の釣鐘）へ近づけるよう促します</b>。その結果、事前分布からサンプルした z を復号しやすくなります。ただし集約した潜在分布に穴が残ることや、復号品質の低い z があることは防ぎきれません。再構成と KL のせめぎ合いが要です。</div>';}
   else if(k==='learn'){h+='<h3>④ 学習</h3><div class="eq curr">再構成 + KL を同時に最小化（誤差逆伝播）</div><div class="desc">青＝復元点がデータ（橙）に重なり、同時に下の潜在 z 分布が<b>釣鐘（N(0,1)）に整って</b>いきます。epoch '+epoch+'・再構成 '+lastRec.toFixed(3)+'・KL '+lastKL.toFixed(2)+'。</div>';}
-  else{h+='<h3>⑤ 生成：z～N(0,1) を復号</h3><div class="desc">学習データを<b>一切見ずに</b>、<b>標準正規から z をサンプル</b>して復号するだけ（紫の点）。それが学習データの形（灰破線）に<b>ちゃんと乗る</b>＝新しいデータの生成に成功。これが生成モデルです。「↻最初から」で別の生成を。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入力を分布(μ,σ)に符号化＝確率的<br>・KLで潜在をN(0,1)に整える(穴なし)<br>・z～N(0,1)を復号→新データ生成</div>';}
+  else{h+='<h3>⑤ 生成：z～N(0,1) を復号</h3><div class="desc">学習後は<b>標準正規から z をサンプル</b>して復号します（紫の点）。多くがデータの形へ近づけば、事前分布からの生成が機能した証拠です。外れた紫点があれば、それも隠さず確認してください。この toy VAE の有限データ・有限容量では、すべての z が良い出力になる保証はありません。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・入力を分布(μ,σ)に符号化<br>・KLは事前分布との整合を促すが穴なしを保証しない<br>・生成品質は再構成とのトレードオフとモデル容量に依存</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 

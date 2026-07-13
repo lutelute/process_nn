@@ -224,18 +224,25 @@ function vecNorm(v) { let s = 0; for (let i = 0; i < v.length; i++) s += v[i] * 
 // logits → top-k の {id, prob}（softmax は全体で計算）。
 export function topkSoftmax(logits, k) {
   const n = logits.length;
+  k = Math.max(0, Math.min(n, k | 0));
+  if (k === 0) return [];
   const probs = new Float32Array(n);
   let max = -Infinity;
   for (let i = 0; i < n; i++) if (logits[i] > max) max = logits[i];
   let sum = 0;
   for (let i = 0; i < n; i++) { probs[i] = Math.exp(logits[i] - max); sum += probs[i]; }
   for (let i = 0; i < n; i++) probs[i] /= sum;
-  const idx = Array.from({ length: n }, (_, i) => i);
-  // 部分選択（top-k）
-  idx.sort((a, b) => probs[b] - probs[a]);
-  const out = [];
-  for (let i = 0; i < Math.min(k, n); i++) out.push({ id: idx[i], prob: probs[idx[i]] });
-  return out;
+  // 全語彙 sort O(V log V) を避け、必要な k 件だけを降順に保つ O(Vk)。
+  const best = [];
+  for (let id = 0; id < n; id++) {
+    const p = probs[id];
+    if (best.length === k && p <= best[best.length - 1].prob) continue;
+    let at = best.length;
+    while (at > 0 && best[at - 1].prob < p) at--;
+    best.splice(at, 0, { id, prob: p });
+    if (best.length > k) best.pop();
+  }
+  return best;
 }
 
 // 次トークンをサンプリング。opts: {temperature, topK, topP, greedy, rand}
@@ -255,10 +262,24 @@ export function sampleNext(logits, opts = {}) {
   let sum = 0; const probs = new Float32Array(n);
   for (let i = 0; i < n; i++) { probs[i] = Math.exp(scaled[i] - max); sum += probs[i]; }
   for (let i = 0; i < n; i++) probs[i] /= sum;
-  // top-k / top-p で候補を絞る
-  let idx = Array.from({ length: n }, (_, i) => i);
-  idx.sort((a, b) => probs[b] - probs[a]);
-  if (topK > 0) idx = idx.slice(0, topK);
+  // top-k / top-p で候補を絞る。通常の top-k では語彙全体の sort を避ける。
+  let idx;
+  if (topK > 0 && topK < n) {
+    const best = [];
+    for (let id = 0; id < n; id++) {
+      const p = probs[id];
+      if (best.length === topK && p <= probs[best[best.length - 1]]) continue;
+      let at = best.length;
+      while (at > 0 && probs[best[at - 1]] < p) at--;
+      best.splice(at, 0, id);
+      if (best.length > topK) best.pop();
+    }
+    idx = best;
+  } else if (topP < 1.0) {
+    idx = Array.from({ length: n }, (_, i) => i).sort((a, b) => probs[b] - probs[a]);
+  } else {
+    idx = Array.from({ length: n }, (_, i) => i);
+  }
   if (topP < 1.0) {
     const kept = []; let acc = 0;
     for (const i of idx) { kept.push(i); acc += probs[i]; if (acc >= topP) break; }

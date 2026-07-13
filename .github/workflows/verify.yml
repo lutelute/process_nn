@@ -12,7 +12,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: GPT-2 トークナイザの既知値・往復一致を検証
-        run: node tools/verify.mjs
-      - name: 全 50 ページの静的健全性を検証（リンク切れ・インライン JS 構文）
-        run: node tools/check-pages.mjs
+          cache: npm
+      - name: 依存関係を固定バージョンで導入
+        run: npm ci
+      - name: tokenizer・教材内容・全ページ静的健全性を検証
+        run: npm run verify
+      - name: Chromium を導入
+        run: npx playwright install --with-deps chromium
+      - name: 全ページを実ブラウザで検証
+        run: |
+          python3 -m http.server 8765 &
+          sleep 1
+          npm run test:browser -- 8765
+          npm run test:interactions -- 8765
+          npm run test:diffusion -- 8765

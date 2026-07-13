@@ -1,17 +1,18 @@
 // tools/crawl-pages.mjs — 全ページを実ブラウザで開き、実行時の異常を検出する（ローカル用）。
 //
 // console error / pageerror（未捕捉例外）/ requestfailed を全ページで収集する。
-// CI には入れない（ブラウザ取得が重い）— リリース前・大きな変更後にローカルで回す。
+// CI とリリース前・大きな変更後のローカル確認で使う。
 //
 // 使い方:
 //   python3 -m http.server 8000   # リポジトリ直下で
-//   npx playwright@1.58.0 install chromium   # 初回のみ
-//   node tools/crawl-pages.mjs [port]        # 既定 8000
+//   npm ci
+//   npx playwright install chromium          # 初回のみ
+//   npm run test:browser -- [port]            # 既定 8000
 import { readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 
 const { chromium } = await import('playwright').catch(() => {
-  console.error('playwright が見つかりません。`npm i --no-save playwright@1.58.0` を実行してください。');
+  console.error('playwright が見つかりません。`npm ci` を実行してください。');
   process.exit(2);
 });
 

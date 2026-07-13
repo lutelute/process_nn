@@ -64,9 +64,9 @@
   <div class="lead">巨大な<b>一つの脳</b>で全部やるのではなく、<b>専門家の集団＋受付（ルーター）</b>で分業する。入力ごとに受付が「担当」を選び、<b>呼ぶのは毎回 1〜2 人だけ</b>——だから総容量が巨大でも計算は薄いまま。ここでは区分的な関数を<b>(a)単一 MLP と (b)MoE（ゲート＋4 専門家）</b>でその場で実学習して比べます。<a href="mlp3d.html">MLP</a> や <a href="transformer.html">Transformer</a> の続きです。下の流れを「次へ ▶」で追ってください。</div>
 
   <div class="purpose">
-    <div class="prow"><span class="pq">なぜ学ぶ?</span><span><b>Mixtral など現代の巨大 LLM の中核構造</b>（GPT-4 も採用と広く推測される）。パラメータを増やしても計算を抑える「疎な」設計の代表。</span></div>
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span><b>Mixtral など公開仕様で確認できる LLM</b>に使われる、容量と 1 トークン当たりの計算を分ける「疎な」設計の代表。</span></div>
     <div class="prow"><span class="pq">一言で言うと</span><span>受付（ルーター）が入力ごとに<b>専門家を選んで呼ぶ</b>。全部は使わないから、巨大でも計算は薄い。</span></div>
-    <div class="prow"><span class="pq">どこで使われる?</span><span>大規模言語モデル（Mixtral 8×7B・Switch Transformer、GPT-4 も採用と目される）、マルチタスク学習。</span></div>
+    <div class="prow"><span class="pq">どこで使われる?</span><span>大規模言語モデル（Mixtral 8×7B・Switch Transformer など）、マルチタスク学習。非公開モデルの内部構造は推測と事実を分けて扱う。</span></div>
   </div>
 
   <div class="stage">
@@ -91,7 +91,7 @@
 
   <div class="aha">
     <div class="aha-h">💡 見方が変わる一文</div>
-    <p>MoE の賢さは「<b>容量と計算を切り離した</b>」ところにある。ふつうのネットは<b>大きくすると必ず計算も重くなる</b>。MoE は専門家を増やして<b>知識の総量（容量）だけ</b>を増やし、<b>1 入力あたりの計算は 1〜2 人ぶんに固定</b>する。だから「兆パラメータでも動く」。</p>
+    <p>MoE の設計上の要点は「<b>総容量と 1 入力あたりの計算を切り離す</b>」こと。専門家を増やして総パラメータを増やしても、各トークンでは上位の少数専門家だけを計算する。ただし、全専門家のメモリ、ルーティング、通信コストは残るため、「総パラメータが増えても無料」という意味ではない。</p>
   </div>
 
   <div class="myth">
@@ -104,7 +104,7 @@
 
   <details>
     <summary>もっと詳しく：top-k ルーティング・負荷分散・Switch/Mixtral</summary>
-    <div class="det">実際の大規模 MoE は Transformer の各層の <b>FFN（全結合層）を「ゲート＋多数の専門家 FFN」に置き換え</b>ます。ゲートが各トークンについて専門家のスコアを出し、<b>上位 k 個（top-k）だけ</b>を選んで通す（<b>Switch Transformer</b> は k=1、<b>Mixtral 8×7B</b> は 8 専門家中 top-2）。<b>Mixtral は総パラメータ 47B ですが、1 トークンの計算は約 13B 相当</b>——容量は大きく計算は薄い。<b>負荷分散（load balancing）</b>：放置すると人気の専門家に集中し、他は死ぬ（dead expert）ので、ゲートの使用頻度を均す<b>補助損失</b>を足すのが定石。さらに <b>noisy top-k</b>（探索用のノイズ）や、専門家ごとの<b>容量制限（capacity factor）</b>であふれたトークンを捨てる工夫もあります。課題は<b>通信・メモリ（全専門家を保持）・訓練の不安定さ</b>。関連：<a href="transformer.html">Transformer</a>（MoE が差し込まれる FFN 層）・<a href="dropout.html">アンサンブル的な見方</a>との対比。全員平均の<a href="forest.html">ランダムフォレスト</a>とは逆に、MoE は毎回 1〜2 人だけ働く分業です。</div>
+    <div class="det">実際の大規模 MoE は Transformer の <b>FFN を「ゲート＋多数の専門家 FFN」に置き換え</b>ます。ゲートが各トークンについて専門家のスコアを出し、<b>上位 k 個だけ</b>を選びます。Switch Transformer は top-1、<a href="https://docs.mistral.ai/models/model-cards/mixtral-8x7b-0-1">Mixtral 8×7B</a> は 8 専門家中 top-2 で、公開 model card は総 47B・active 13B としています。放置すると人気の専門家に集中するため、負荷分散の補助損失などが必要です。課題は<b>通信・全専門家のメモリ・容量制限・訓練の不安定さ</b>。なお GPT-4 Technical Report は追加のアーキテクチャ詳細を非公開としているため、GPT-4 の MoE 採用を確認済み事実としては扱いません。</div>
   </details>
 </div>
 
