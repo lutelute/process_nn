@@ -473,5 +473,6 @@ function clearCanvas(id){ const cv=$(id); cv.getContext('2d').clearRect(0,0,cv.w
 function showTok(id){ const s = tok? tok.decode([id]) : String(id); return JSON.stringify(s).slice(1,-1) || '∅'; }
 function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 </script>
+<script src="../viz/term-notes.js"></script>
 </body>
 </html>

@@ -60,6 +60,7 @@
     <div class="brand">process_nn / TECHNICAL QUALITY REVIEW</div>
     <nav class="topnav" aria-label="ページ内とプロジェクトへの移動">
       <a href="index.html">学習ロードマップ</a>
+      <a href="viz/terms.html">用語Wiki</a>
       <a href="#score">採点</a>
       <a href="#implemented">改善内容</a>
       <a href="#verification">検証</a>
@@ -75,31 +76,31 @@
     <div class="stamp">
       BRANCH<br><b>codex/technical-quality-pass</b><br>
       REVIEW BASELINE<br><b>2026-07-13</b><br>
-      STATUS<br><b>quality score 8.9 / 10</b>
+      STATUS<br><b>quality score 9.1 / 10</b>
     </div>
   </header>
 
   <div class="summary" aria-label="改善の概要">
     <div class="metric"><div class="n">2/2</div><div class="k">P0 中核不一致を修正</div></div>
-    <div class="metric"><div class="n">78+1</div><div class="k">教材等HTML＋本レビュー</div></div>
+    <div class="metric"><div class="n">79+1</div><div class="k">教材等HTML＋本レビュー</div></div>
     <div class="metric"><div class="n">501</div><div class="k">自動操作クリック</div></div>
     <div class="metric"><div class="n">8/8</div><div class="k">拡散デモの分布カバー</div></div>
   </div>
 
   <section id="score">
-    <h2>現在の採点：8.7 → 8.9 / 10</h2>
+    <h2>現在の採点：8.7 → 9.1 / 10</h2>
     <p class="note">絶対的な真理ではなく、重みを固定した品質rubricです。点数だけでなく、各点を裏づける検査可能な証拠と未保証範囲を併記します。</p>
     <div class="table-wrap"><table>
       <thead><tr><th>軸</th><th>重み</th><th>改善前</th><th>現在</th><th>今回、確実に上げた根拠</th></tr></thead>
       <tbody>
-        <tr><td><strong>技術的正確性</strong></td><td>30%</td><td>8.8</td><td class="ok">8.9</td><td>評価計算を共通モジュール化し、GPの帯を「信頼区間」からモデル仮定下の点ごとの信用帯へ正確化</td></tr>
-        <tr><td><strong>教材設計・導線</strong></td><td>25%</td><td>9.2</td><td class="ok">9.4</td><td>数学→学習→分類→測定をつなぎ、比較実験を批判的に読む5ステップ教材を追加</td></tr>
-        <tr><td><strong>検証・再現性</strong></td><td>20%</td><td>9.4</td><td class="ok">9.5</td><td>MAE/RMSE/R²、ROC AUC、AP、Brier、t区間を既知値で回帰検証</td></tr>
-        <tr><td><strong>アクセシビリティ</strong></td><td>10%</td><td>7.8</td><td class="ok">7.9</td><td>新教材をネイティブbutton、Canvas代替名、live説明、reduced-motion非連続動作で実装</td></tr>
-        <tr><td><strong>根拠・限界の透明性</strong></td><td>15%</td><td>7.6</td><td class="ok">8.1</td><td>一次資料、CIの解釈、Brierの限界、testを一度だけ使う境界、採点根拠を明文化</td></tr>
+        <tr><td><strong>技術的正確性</strong></td><td>30%</td><td>8.8</td><td class="ok">8.9</td><td>評価計算とGP用語を修正。注釈では「歴史的由来」と理解用の原語分解を区別し、断定範囲を限定</td></tr>
+        <tr><td><strong>教材設計・導線</strong></td><td>25%</td><td>9.2</td><td class="ok">9.7</td><td>数学→測定の順路に加え、全77ノートから関係語3〜4件をその場で開き、中央Wikiへ往復できる注釈層を追加</td></tr>
+        <tr><td><strong>検証・再現性</strong></td><td>20%</td><td>9.4</td><td class="ok">9.6</td><td>数値回帰に加え、112語の必須欄・ID一意性・全ノート割当・リンクを独立検証</td></tr>
+        <tr><td><strong>アクセシビリティ</strong></td><td>10%</td><td>7.8</td><td class="ok">8.0</td><td>注釈ドロワーをネイティブbutton/details、dialog名、Escape操作、モバイル1列で実装。包括監査は未実施</td></tr>
+        <tr><td><strong>根拠・限界の透明性</strong></td><td>15%</td><td>7.6</td><td class="ok">8.3</td><td>一次資料と評価境界に加え、語源欄の方針と代表的な原典をWiki内に明記</td></tr>
       </tbody>
     </table></div>
-    <p class="note" style="margin-top:10px">加重平均は改善前 8.74、現在 8.93（小数1桁表示）。詳細rubricは <a href="docs/PROJECT_SCORECARD_2026-07-15.md">採点記録</a> に保存しています。</p>
+    <p class="note" style="margin-top:10px">加重平均は改善前 8.74、現在 9.06（小数1桁表示）。詳細rubricは <a href="docs/PROJECT_SCORECARD_2026-07-15.md">採点記録</a> に保存しています。</p>
   </section>
 
   <section id="implemented">
@@ -137,6 +138,12 @@
         <div class="links"><a href="viz/evaluation.html">教材を見る</a><a href="viz/lib/evaluation-metrics.mjs">計算実装</a></div>
       </article>
       <article class="card">
+        <span class="tag">全ノート注釈 / 追加済み</span>
+        <h3>名前をほどく用語Wiki</h3>
+        <p>112語を「原語の部品・30秒の意味・なぜ必要か・Coffee Break」に分割。全76のvizノートとGPT-2へ関係語3〜4件の共通ドロワーを配り、中央Wikiの検索・カテゴリ・固定リンクへ接続しました。</p>
+        <div class="links"><a href="viz/terms.html">用語Wikiを見る</a><a href="viz/lib/term-notes.mjs">注釈データ</a></div>
+      </article>
+      <article class="card">
         <span class="tag partial">P1 / 一部対応</span>
         <h3>GPT-2の安全な表示範囲</h3>
         <p>教育用ビューアを合計64トークンで停止し、attentionを間引き描画、top-kで語彙全体sortを回避しました。一方、実重みによる参照logits一致は未整備として正直に残しています。</p>
@@ -163,9 +170,9 @@
       <table>
         <thead><tr><th>検証</th><th>結果</th><th>保証する範囲</th></tr></thead>
         <tbody>
-          <tr><td><code>npm run verify</code></td><td class="ok">PASS</td><td>tokenizer、数学・評価・拡散などの内容回帰条件、79 HTMLのローカルリンクとインラインJS構文</td></tr>
-          <tr><td><code>npm run test:browser -- 8765</code></td><td class="ok">PASS</td><td>全79 HTMLのconsole error、未捕捉例外、request failure</td></tr>
-          <tr><td><code>npm run test:interactions -- 8765</code></td><td class="ok">PASS</td><td>教材のステップ操作501クリックと、重い3経路の非同期busy応答</td></tr>
+          <tr><td><code>npm run verify</code></td><td class="ok">PASS</td><td>tokenizer、数学・評価・拡散、用語112語と全77ノート割当の内容回帰条件、80 HTMLのリンクと構文</td></tr>
+          <tr><td><code>npm run test:browser -- 8766</code></td><td class="ok">PASS</td><td>全80 HTMLのconsole error、未捕捉例外、request failure</td></tr>
+          <tr><td><code>npm run test:interactions -- 8766</code></td><td class="ok">PASS</td><td>教材のステップ操作501クリックと、重い3経路の非同期busy応答</td></tr>
           <tr><td><code>npm run test:diffusion -- 8765</code></td><td class="ok">PASS</td><td>固定シードでloss 0.608、8/8モードを再現</td></tr>
           <tr><td><code>npm ci --ignore-scripts</code></td><td class="ok">PASS</td><td>lockfileからPlaywright 1.58.0をクリーン導入、既知の脆弱性0件</td></tr>
         </tbody>
@@ -179,20 +186,21 @@
     <ul>
       <li>548 MBのGPT-2重みをリポジトリに保存していないため、参照実装との層別テンソル・logits一致、実生成速度、最大メモリは未検証です。</li>
       <li>全教材の全データ選択・全seedに対する収束値までは網羅していません。</li>
-      <li>主要なlabel、status、Canvas代替ラベルは改善しましたが、全79 HTMLの包括的なWCAG監査ではありません。</li>
+      <li>主要なlabel、status、Canvas代替ラベルは改善しましたが、全80 HTMLの包括的なWCAG監査ではありません。</li>
       <li>公開中のGitHub Pagesとこのローカルブランチの一致、外部リンクの将来的な永続性は保証していません。</li>
     </ul>
   </section>
 
   <section id="next">
     <h2>追加した教材と、次に価値が高い教材</h2>
-    <p class="note">数学とモデル評価の橋を追加しました。次も、既存76テーマを正しく使うための素材を優先します。</p>
+    <p class="note">数学、モデル評価、用語注釈の橋を追加しました。次も、既存76テーマを正しく使うための素材を優先します。</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>優先</th><th>素材</th><th>含める内容</th><th>理由</th></tr></thead>
         <tbody>
           <tr><td class="ok">実装済み</td><td><strong><a href="viz/foundations.html">数学の道具箱</a></strong></td><td>shape、内積、行列積、偏微分、連鎖律、確率、entropy / KL</td><td>既存ページの数式を同じ表記で追えるようにする</td></tr>
           <tr><td class="ok">実装済み</td><td><strong><a href="viz/evaluation.html">モデルを正しく測る</a></strong></td><td>MAE / RMSE、校正、ROC / PR、誤差棒、複数seed、ablation</td><td>教材内の改善率を批判的に読めるようにする</td></tr>
+          <tr><td class="ok">実装済み</td><td><strong><a href="viz/terms.html">用語Wikiと注釈ノート</a></strong></td><td>112語の原語分解、意味、必要な理由、小話、原典、全ページ関連語</td><td>専門語で読解が止まっても、そのページから離れず理解を補う</td></tr>
           <tr><td>1</td><td><strong>データ工程と学習診断</strong></td><td>標準化、欠損、leakage、学習曲線、early stopping、OOD</td><td>アルゴリズム以外の実務上の失敗を扱う</td></tr>
           <tr><td>2</td><td><strong>LLMの一連の流れ</strong></td><td>tokenizer→事前学習→SFT→選好最適化、decoding、KV cache、RAG評価</td><td>点在する言語モデル教材を一本の因果関係でつなぐ</td></tr>
           <tr><td>横断</td><td><strong>このデモの前提</strong></td><td>一次資料、省略部分、toyと実データ、seed、一般化できない数値</td><td>新規ページより小さい変更で、全教材の信頼性を上げる</td></tr>

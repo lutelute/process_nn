@@ -256,6 +256,7 @@
     const head = '<div class="navhead">'
       + '<a href="../">▲ 地図（トップ）</a>'
       + (cur === 'map.html' ? '<b>手法マップ</b>' : '<a href="map.html">手法マップ</a>')
+      + (cur === 'terms.html' ? '<b>用語Wiki</b>' : '<a href="terms.html">☕ 用語Wiki</a>')
       + '</div>';
     // 上＝均一な分野タイル列（領域マップ）／下＝選択中分野の手法パネル。構造を上下に分ける。
     const tiles = cats.map(function (c, i) { return tileHtml(c, i, i === curCat, i === curCat); }).join('');
@@ -350,7 +351,17 @@
     (document.querySelector('.wrap') || document.body).appendChild(el);
   }
 
-  function init() { render(); enhanceA11y(); injectFooterNav(); }
+  // ===== 全ノート共通の注釈ドロワー =====
+  // 中央Wikiと同じデータを使うUIを遅延読込する。Wiki自身では二重表示しない。
+  function injectTermNotes() {
+    if (cur === 'terms.html' || document.querySelector('script[data-term-notes]')) return;
+    const script = document.createElement('script');
+    script.src = 'term-notes.js';
+    script.dataset.termNotes = '1';
+    document.body.appendChild(script);
+  }
+
+  function init() { render(); enhanceA11y(); injectFooterNav(); injectTermNotes(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
