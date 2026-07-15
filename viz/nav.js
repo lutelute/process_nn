@@ -150,6 +150,7 @@
       { href: 'digit.html',       label: '数字認識' },
       { href: 'metrics.html',     label: '評価指標' },
       { href: 'crossval.html',    label: '交差検証' },
+      { href: 'evaluation.html',  label: '測定・校正' },
     ]},
     { name: '木・カーネル', items: [
       { href: 'dtree.html',       label: '決定木' },

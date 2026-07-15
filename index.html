@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ニューラルネットの学習過程</title>
-<meta name="description" content="機械学習75テーマを学習順にたどる、ブラウザで動くインフォグラフ集。実学習・実計算と、簡略化した構造デモの範囲を分けて理解できる。">
+<meta name="description" content="機械学習76テーマを学習順にたどる、ブラウザで動くインフォグラフ集。実学習・実計算と、簡略化した構造デモの範囲を分けて理解できる。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="機械学習 学習ロードマップ — 動くインフォグラフ集">
-<meta property="og:description" content="数学の道具箱から GPT-2 まで、75テーマを実計算と可視化で理解する学習地図。">
+<meta property="og:description" content="数学の道具箱から GPT-2 まで、76テーマを実計算と可視化で理解する学習地図。">
 <meta property="og:url" content="https://lutelute.github.io/process_nn/">
 <meta property="og:image" content="https://lutelute.github.io/process_nn/assets/og.png">
 <meta property="og:image:width" content="1200">
@@ -106,7 +106,7 @@
   <header>
     <div>
       <h1>機械学習 学習ロードマップ</h1>
-      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、75テーマの動くインフォグラフを学習の流れで並べた地図。実学習・実計算と簡略デモの範囲を分けて理解できます。</div>
+      <div class="sub">「いま何を学び／前提は何で／次にどこへ」が分かるように、76テーマの動くインフォグラフを学習の流れで並べた地図。実学習・実計算と簡略デモの範囲を分けて理解できます。</div>
       <div style="margin-top:9px;font-size:12.5px;letter-spacing:.02em;">
         <a href="viz/foundations.html" style="color:var(--accent);text-decoration:none;">▶ 最初から始める（数学の道具箱）</a>
         <span style="color:var(--faint);margin:0 8px;">·</span>
@@ -176,11 +176,12 @@
         <a href="viz/gradient.html"><b>4</b>勾配降下</a><i>→</i>
         <a href="viz/backprop.html"><b>5</b>誤差逆伝播</a><i>→</i>
         <a href="viz/classify.html"><b>6</b>分類</a><i>→</i>
-        <a href="viz/cnn.html"><b>7</b>CNN</a><i>→</i>
-        <a href="viz/rnn.html"><b>8</b>RNN</a><i>→</i>
-        <a href="viz/attention.html"><b>9</b>自己注意</a><i>→</i>
-        <a href="viz/transformer.html"><b>10</b>Transformer</a><i>→</i>
-        <a href="gpt2/"><b>11</b>GPT-2</a>
+        <a href="viz/evaluation.html"><b>7</b>正しく測る</a><i>→</i>
+        <a href="viz/cnn.html"><b>8</b>CNN</a><i>→</i>
+        <a href="viz/rnn.html"><b>9</b>RNN</a><i>→</i>
+        <a href="viz/attention.html"><b>10</b>自己注意</a><i>→</i>
+        <a href="viz/transformer.html"><b>11</b>Transformer</a><i>→</i>
+        <a href="gpt2/"><b>12</b>GPT-2</a>
       </div>
     </div>
 
@@ -219,7 +220,8 @@
       <a class="mapcard spineCard" href="viz/classify.html"><div class="tag">分類の基本</div><div class="t">決定境界</div><div class="d">2 クラスを分ける境界が学習で形成。softmax＋交差エントロピー。</div><div class="dep"><b>前提:</b> ロジスティック回帰・誤差逆伝播 ／ <b>次:</b> 数字認識・CNN</div></a>
       <a class="mapcard" href="viz/digit.html"><div class="tag">解釈つき分類</div><div class="t">数字認識</div><div class="d">描いた数字を分類し、判断の根拠（注目画素）を saliency で表示。</div><div class="dep"><b>前提:</b> 決定境界</div></a>
       <a class="mapcard" href="viz/metrics.html"><div class="tag">分類器の測り方</div><div class="t">評価指標</div><div class="d">混同行列→適合率/再現率/F1。しきい値でトレードオフ。正答率だけでは不均衡で誤解。</div><div class="dep"><b>前提:</b> 分類全般 ／ <b>次:</b> 交差検証</div></a>
-      <a class="mapcard" href="viz/crossval.html"><div class="tag">評価の作法</div><div class="t">交差検証</div><div class="d">解いた問題で実力を測らない。holdoutの運ゲー vs 5-foldの安定を実測、リークの罠（見かけ82%・実力50%）も実演。</div><div class="dep"><b>前提:</b> 評価指標・正則化 ／ <b>関連:</b> 全モデル共通</div></a>
+      <a class="mapcard" href="viz/crossval.html"><div class="tag">評価の作法</div><div class="t">交差検証</div><div class="d">解いた問題で実力を測らない。holdoutの運ゲー vs 5-foldの安定を実測、リークの罠（見かけ82%・実力50%）も実演。</div><div class="dep"><b>前提:</b> 評価指標・正則化 ／ <b>次:</b> モデルを正しく測る</div></a>
+      <a class="mapcard spineCard" href="viz/evaluation.html"><div class="tag">比較実験の読み方</div><div class="t">モデルを正しく測る</div><div class="d">MAE/RMSE、ROCとPR、確率校正、複数seedの95%CI、ablationを同じ実数で検証。</div><div class="dep"><b>前提:</b> 評価指標・交差検証 ／ <b>関連:</b> 全モデル共通</div></a>
     </div>
     <div class="branchnote">↓ NN 以外の分類器（別アプローチ・寄り道。境界の作り方を比べると理解が深まる）</div>
     <div class="mapgrid">

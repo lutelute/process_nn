@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cosineDiffusionSchedule } from '../viz/lib/diffusion-schedule.mjs';
+import { averagePrecision, brierScore, meanConfidenceInterval, regressionMetrics, rocAuc } from '../viz/lib/evaluation-metrics.mjs';
 import { chainRuleExample, crossEntropy, dot, entropy, klDivergence, matMul, matVec, softmax } from '../viz/lib/foundations-math.mjs';
 import { sampleNext, topkSoftmax } from '../gpt2/tools/gpt2.mjs';
 
@@ -31,6 +32,19 @@ const analyticGradient = chainRuleExample({ x: chainX, w: chainW }).dLossDw;
 const numericGradient = (chainRuleExample({ x: chainX, w: chainW + epsilon }).loss
   - chainRuleExample({ x: chainX, w: chainW - epsilon }).loss) / (2 * epsilon);
 check(close(analyticGradient, numericGradient, 1e-7), 'foundations chain rule: analytic gradient matches finite difference');
+
+// モデル評価ページの物差しを、既知の小さな参照例で固定する。
+const regressionReference = regressionMetrics([1, 2, 3], [1, 2, 5]);
+check(close(regressionReference.mae, 2 / 3) && close(regressionReference.rmse, Math.sqrt(4 / 3))
+  && close(regressionReference.r2, -1), 'evaluation regression: MAE, RMSE, and negative R-squared references');
+check(close(rocAuc([1, 0, 1, 0], [0.9, 0.8, 0.7, 0.1]), 0.75)
+  && close(rocAuc([1, 0], [0.5, 0.5]), 0.5), 'evaluation ROC AUC: pair ordering and tie references');
+check(close(averagePrecision([1, 0, 1], [0.9, 0.8, 0.7]), 5 / 6),
+  'evaluation average precision: ranked reference');
+check(close(brierScore([1, 0], [0.8, 0.3]), 0.065), 'evaluation Brier score: probability reference');
+const confidenceReference = meanConfidenceInterval([1, 2, 3, 4, 5]);
+check(close(confidenceReference.mean, 3) && close(confidenceReference.critical, 2.776)
+  && close(confidenceReference.margin, 1.9629284245738559), 'evaluation confidence interval: t-based 95% reference');
 
 for (const steps of [20, 40, 80]) {
   const { beta, alpha, alphaBar } = cosineDiffusionSchedule(steps);
@@ -66,6 +80,12 @@ check(!readme.includes('Mixtral/GPT-4 の構造'), 'MoE: undisclosed GPT-4 archi
 
 const vae = read('viz/vae.html');
 check(!vae.includes('すべて意味のある点に復号される'), 'VAE: no guarantee that every latent sample is meaningful');
+
+for (const path of ['viz/gp.html', 'viz/surrogate.html']) {
+  check(!read(path).includes('95% 信頼区間') && !read(path).includes('95%信頼区間'),
+    `${path}: GP posterior band is not mislabeled as a frequentist confidence interval`);
+  check(read(path).includes('信用帯'), `${path}: model-conditional credible-band boundary is explicit`);
+}
 
 for (const path of ['index.html', 'viz/attention3d.html', 'viz/transformer.html']) {
   check(!read(path).includes('Math.random'), `${path}: seeded teaching-demo RNG`);

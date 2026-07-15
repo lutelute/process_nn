@@ -124,6 +124,7 @@ const M=[
   {n:'決定境界',h:'classify.html',c:'supervised',x:0.50,y:0.30,mo:'boundary'},
   {n:'数字認識',h:'digit.html',c:'supervised',x:0.55,y:0.36,mo:'pixel'},
   {n:'評価指標',h:'metrics.html',c:'supervised',x:0.42,y:0.17,mo:'confusion'},
+  {n:'測定・校正',h:'evaluation.html',c:'supervised',x:0.34,y:0.17,mo:'bars'},
   {n:'決定木',h:'dtree.html',c:'supervised',x:0.60,y:0.16,mo:'tree'},
   {n:'ランダムフォレスト',h:'forest.html',c:'supervised',x:0.68,y:0.22,mo:'tree'},
   {n:'勾配ブースティング',h:'boosting.html',c:'supervised',x:0.68,y:0.30,mo:'tree'},
@@ -163,7 +164,7 @@ const M=[
   {n:'PINN',h:'pinn.html',c:'imgseq',x:0.61,y:0.40,mo:'curve'},
   {n:'推薦・行列分解',h:'recommend.html',c:'dimred',x:0.28,y:0.60,mo:'pixel'},
 ];
-const SPINE=['数学の道具箱','信号の流れ','勾配降下','誤差逆伝播','決定境界','CNN','RNN','自己注意','Transformer','GPT-2'];
+const SPINE=['数学の道具箱','信号の流れ','勾配降下','誤差逆伝播','決定境界','測定・校正','CNN','RNN','自己注意','Transformer','GPT-2'];
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
 const PAD=66, CWH=44, CHH=30; // card half-width / half-height
