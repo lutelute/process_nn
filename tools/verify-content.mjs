@@ -16,26 +16,26 @@ const check = (condition, message) => condition ? ok(message) : fail(message);
 const read = path => readFileSync(resolve(root, path), 'utf8');
 const close = (a, b, tolerance = 1e-9) => Math.abs(a - b) <= tolerance;
 
-// 用語Wikiは「一部のページだけ充実」を許さず、全ノートへの割当とデータ構造を固定する。
+// 解釈付き注釈は「一部のページだけ充実」を許さず、全ノートへの割当とデータ構造を固定する。
 const termIds = TERM_NOTES.map(term => term.id);
 const termIdSet = new Set(termIds);
 check(TERM_NOTES.length >= 100 && termIdSet.size === TERM_NOTES.length,
-  `term wiki: ${TERM_NOTES.length} unique entries`);
+  `interpretation notes: ${TERM_NOTES.length} unique entries`);
 check(TERM_NOTES.every(term => term.term && term.en && TERM_CATEGORIES.includes(term.category)
   && term.parts.length >= 2 && term.parts.every(part => part.word && part.meaning)
   && term.plain && term.why && term.coffee),
-  'term wiki: every entry has name parts, meaning, rationale, and coffee break');
+  'interpretation notes: every entry has name parts, human meaning, rationale, and coffee break');
 check(Object.values(PAGE_TERMS).every(ids => ids.length >= 3 && ids.every(id => termIdSet.has(id))),
-  'term wiki: every page has at least three valid annotations');
+  'interpretation notes: every page has at least three valid annotations');
 const expectedTermPages = [
-  ...readdirSync(resolve(root, 'viz')).filter(file => file.endsWith('.html') && file !== 'terms.html').map(file => 'viz/' + file),
+  ...readdirSync(resolve(root, 'viz')).filter(file => file.endsWith('.html')).map(file => 'viz/' + file),
   'gpt2/index.html',
 ].sort();
 check(JSON.stringify(Object.keys(PAGE_TERMS).sort()) === JSON.stringify(expectedTermPages),
-  `term wiki: all ${expectedTermPages.length} existing notes are mapped exactly once`);
+  `interpretation notes: all ${expectedTermPages.length} existing notes are mapped exactly once`);
 check(read('viz/nav.js').includes("script.src = 'term-notes.js'")
   && read('gpt2/index.html').includes('../viz/term-notes.js'),
-  'term wiki: shared drawer reaches viz notes and GPT-2');
+  'interpretation notes: in-page renderer reaches viz notes and GPT-2');
 
 // 数学の道具箱で表示する計算を、画面とは独立した参照値で固定する。
 check(close(dot([2, -1], [1.5, -0.8]), 3.8), 'foundations dot product: scalar reference');

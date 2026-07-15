@@ -1,6 +1,6 @@
 // 全ノート共通の注釈データ。
 // 「語源」は歴史的初出の断定ではなく、まず原語を分解して名前から発想を復元する。
-// 歴史に触れる項目だけ source に原論文を持たせ、Wiki 側で区別して表示する。
+// 歴史に触れる項目だけ source に原論文を持たせ、理解用の比喩と検証可能な由来をデータ上で区別する。
 
 const T = (id, term, en, category, parts, plain, why, coffee, source = null) => ({
   id, term, en, category,

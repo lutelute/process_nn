@@ -1,14 +1,12 @@
-// すべての教材ページへ「このノートの用語」ドロワーを追加する共有UI。
-// データは ESM に分離し、中央Wikiと同じ112語を参照する。
+// 各教材の本文へ、その場で読める「人間向けの解釈」を追記する共有UI。
+// 外部の用語集へ説明を逃がさず、名前の分解・意味・理由・小話をページ内に実体表示する。
 (function () {
   if (window.__termNotesMounted) return;
   window.__termNotesMounted = true;
 
   const ownScript = document.currentScript;
   if (!ownScript || !ownScript.src) return;
-  const vizBase = new URL('./', ownScript.src);
-  const wikiUrl = new URL('terms.html', vizBase);
-  const dataUrl = new URL('lib/term-notes.mjs', vizBase);
+  const dataUrl = new URL('lib/term-notes.mjs', new URL('./', ownScript.src));
 
   function pageKey() {
     const path = location.pathname;
@@ -31,147 +29,83 @@
     const style = document.createElement('style');
     style.id = 'term-notes-style';
     style.textContent = `
-      .tn-trigger{position:fixed;right:18px;bottom:18px;z-index:9997;display:flex;align-items:center;gap:7px;
-        padding:9px 12px;background:var(--ink,#1a1a17);color:#fff;border:1px solid var(--ink,#1a1a17);
-        border-radius:2px;font:700 12px/1.2 var(--gothic,system-ui,sans-serif);box-shadow:0 4px 18px rgba(26,26,23,.16);}
-      .tn-trigger:hover:not(:disabled){background:#000;color:#fff}.tn-trigger .tn-count{font:500 10px/1 var(--mono,monospace);
-        border:1px solid rgba(255,255,255,.55);padding:2px 4px;border-radius:2px}
-      .tn-drawer[hidden]{display:none!important}.tn-drawer{position:fixed;z-index:9998;right:0;top:0;width:min(430px,100%);
-        height:100dvh;overflow:auto;background:var(--bg,#faf8f1);color:var(--ink,#1a1a17);border-left:1px solid var(--ink,#1a1a17);
-        box-shadow:-10px 0 30px rgba(26,26,23,.13);padding:20px 18px 30px;font-family:var(--gothic,system-ui,sans-serif)}
-      .tn-head{position:sticky;top:-20px;z-index:1;background:var(--bg,#faf8f1);display:flex;justify-content:space-between;
-        align-items:flex-start;gap:12px;padding:20px 0 12px;border-bottom:1px solid var(--ink,#1a1a17);margin-bottom:12px}
-      .tn-kicker{font:700 10px/1.4 var(--mono,monospace);letter-spacing:.14em;color:var(--accent,#1f9e8a)}
-      .tn-title{font-size:18px;line-height:1.4;margin:3px 0 0}.tn-close{flex:none;width:32px;height:32px;padding:0;
-        background:transparent;color:var(--ink,#1a1a17);border:1px solid var(--rule,#dcd8cc);font-size:18px}
-      .tn-intro{font-size:12px;line-height:1.75;color:var(--ink-2,#52504a);margin:0 0 12px}
-      .tn-card{background:var(--panel,#fff);border:1px solid var(--rule,#dcd8cc);border-radius:2px;margin:8px 0;padding:0}
-      .tn-card summary{list-style:none;cursor:pointer;padding:11px 12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-      .tn-card summary::-webkit-details-marker{display:none}.tn-card summary::after{content:'＋';color:var(--accent,#1f9e8a);font-family:var(--mono,monospace)}
-      .tn-card[open] summary::after{content:'−'}.tn-term{font-weight:700;font-size:14px}.tn-en{font:10px/1.4 var(--mono,monospace);
-        color:var(--ink-3,#6e6a60);text-align:right}.tn-body{padding:0 12px 13px;border-top:1px dashed var(--rule,#dcd8cc)}
-      .tn-parts{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}.tn-part{border:1px solid var(--rule,#dcd8cc);background:var(--panel-2,#f2efe6);
-        padding:3px 6px;border-radius:2px;font:10.5px/1.4 var(--mono,monospace)}.tn-part b{color:var(--accent,#1f9e8a)}
-      .tn-section{margin:9px 0}.tn-label{display:block;font:700 9.5px/1.4 var(--mono,monospace);letter-spacing:.11em;
-        color:var(--ink-3,#6e6a60);margin-bottom:2px}.tn-section p{font-size:12px;line-height:1.75;margin:0;color:var(--ink-2,#52504a)}
-      .tn-coffee{border-left:3px solid var(--warm,#b3812f);padding:7px 9px;background:var(--panel-2,#f2efe6)}
-      .tn-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:11px;font:11px/1.5 var(--mono,monospace)}
-      .tn-links a{color:var(--accent,#1f9e8a)}.tn-all{display:block;margin-top:14px;padding:10px 12px;text-align:center;
-        border:1px solid var(--ink,#1a1a17);color:var(--ink,#1a1a17);text-decoration:none;font:700 12px/1.4 var(--mono,monospace)}
-      .tn-all:hover{background:var(--ink,#1a1a17);color:#fff}.tn-backdrop{position:fixed;z-index:9996;inset:0;background:rgba(26,26,23,.22)}
-      .tn-backdrop[hidden]{display:none!important}
-      @media(max-width:560px){.tn-trigger{right:10px;bottom:10px}.tn-drawer{border-left:0;padding-left:14px;padding-right:14px}.tn-head{top:-20px}}
-      @media print{.tn-trigger,.tn-drawer,.tn-backdrop{display:none!important}}
+      .tn-interpret{margin:0 0 20px;padding:14px 15px 15px;background:var(--panel-2,#f2efe6);
+        border:1px solid var(--rule,#dcd8cc);border-left:3px solid var(--accent,#1f9e8a);border-radius:2px;
+        color:var(--ink,#1a1a17);font-family:var(--gothic,system-ui,sans-serif)}
+      .tn-intro{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+      .tn-interpret h2{font:700 14px/1.5 var(--gothic,system-ui,sans-serif);letter-spacing:.02em;margin:0;padding:0;border:0;color:var(--ink,#1a1a17)}
+      .tn-kicker{font:700 9.5px/1.4 var(--mono,monospace);letter-spacing:.12em;color:var(--accent,#1f9e8a)}
+      .tn-guide{font-size:11.5px;line-height:1.7;color:var(--ink-2,#52504a);margin:0 0 10px}
+      .tn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:7px}
+      .tn-note{min-width:0;background:var(--panel,#fff);border:1px solid var(--rule,#dcd8cc);padding:10px 11px;border-radius:2px}
+      .tn-name{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-bottom:6px;border-bottom:1px dashed var(--rule,#dcd8cc)}
+      .tn-term{font-weight:700;font-size:13px}.tn-en{font:9.5px/1.4 var(--mono,monospace);color:var(--ink-3,#6e6a60);text-align:right}
+      .tn-parts{display:flex;flex-wrap:wrap;gap:4px;margin:7px 0}.tn-part{background:var(--panel-2,#f2efe6);border:1px solid var(--rule,#dcd8cc);
+        padding:2px 5px;border-radius:2px;font:9.5px/1.4 var(--mono,monospace)}.tn-part b{color:var(--accent,#1f9e8a)}
+      .tn-line{font-size:11.5px;line-height:1.7;color:var(--ink-2,#52504a);margin:6px 0 0}
+      .tn-label{display:block;font:700 9px/1.35 var(--mono,monospace);letter-spacing:.09em;color:var(--ink-3,#6e6a60);margin-bottom:1px}
+      .tn-human{color:var(--ink,#1a1a17)}.tn-human .tn-label{color:var(--accent,#1f9e8a)}
+      .tn-coffee{border-left:2px solid var(--warm,#b3812f);padding:5px 6px;background:var(--panel-2,#f2efe6)}
+      .tn-coffee .tn-label{color:var(--warm,#b3812f)}
+      @media(max-width:560px){.tn-interpret{padding:12px 11px}.tn-grid{grid-template-columns:1fr}}
+      @media print{.tn-interpret{break-inside:avoid}.tn-note{break-inside:avoid}}
     `;
     document.head.appendChild(style);
   }
 
-  function section(label, text, coffee) {
-    const box = el('div', 'tn-section' + (coffee ? ' tn-coffee' : ''));
-    box.appendChild(el('span', 'tn-label', label));
-    box.appendChild(el('p', '', text));
-    return box;
+  function line(label, text, className) {
+    const paragraph = el('p', 'tn-line' + (className ? ' ' + className : ''));
+    paragraph.appendChild(el('span', 'tn-label', label));
+    paragraph.appendChild(document.createTextNode(text));
+    return paragraph;
   }
 
-  function termCard(term, open) {
-    const card = el('details', 'tn-card');
-    card.id = 'note-' + term.id;
-    card.open = open;
-    const summary = el('summary');
-    summary.appendChild(el('span', 'tn-term', term.term));
-    summary.appendChild(el('span', 'tn-en', term.en));
-    card.appendChild(summary);
-    const body = el('div', 'tn-body');
+  function note(term) {
+    const article = el('article', 'tn-note');
+    const name = el('div', 'tn-name');
+    name.appendChild(el('span', 'tn-term', term.term));
+    name.appendChild(el('span', 'tn-en', term.en));
+    article.appendChild(name);
+
     const parts = el('div', 'tn-parts');
     term.parts.forEach(part => {
       const chip = el('span', 'tn-part');
-      const word = el('b', '', part.word);
-      chip.appendChild(word);
+      chip.appendChild(el('b', '', part.word));
       chip.appendChild(document.createTextNode(' = ' + part.meaning));
       parts.appendChild(chip);
     });
-    body.appendChild(parts);
-    body.appendChild(section('30秒でいうと', term.plain));
-    body.appendChild(section('なぜこの考え方？', term.why));
-    body.appendChild(section('COFFEE BREAK', term.coffee, true));
-    const links = el('div', 'tn-links');
-    const wiki = el('a', '', 'Wikiで開く →');
-    wiki.href = wikiUrl.href + '#' + encodeURIComponent(term.id);
-    links.appendChild(wiki);
-    if (term.source) {
-      const source = el('a', '', '原典 ↗');
-      source.href = term.source.url;
-      source.target = '_blank';
-      source.rel = 'noopener';
-      source.title = term.source.label;
-      links.appendChild(source);
-    }
-    body.appendChild(links);
-    card.appendChild(body);
-    return card;
+    article.appendChild(parts);
+    article.appendChild(line('人間の感覚でいうと', term.plain, 'tn-human'));
+    article.appendChild(line('なぜこの考え方？', term.why));
+    article.appendChild(line('COFFEE BREAK', term.coffee, 'tn-coffee'));
+    return article;
   }
 
-  function mount(terms, total) {
-    if (!terms.length || pageKey() === 'viz/terms.html') return;
+  function mount(terms) {
+    if (!terms.length || document.querySelector('.tn-interpret')) return;
     injectStyles();
-    const trigger = el('button', 'tn-trigger');
-    trigger.type = 'button';
-    trigger.setAttribute('aria-expanded', 'false');
-    trigger.setAttribute('aria-controls', 'term-notes-drawer');
-    trigger.appendChild(el('span', '', '☕ 用語ノート'));
-    trigger.appendChild(el('span', 'tn-count', String(terms.length)));
+    const section = el('section', 'tn-interpret');
+    section.setAttribute('aria-labelledby', 'term-interpret-title');
+    const intro = el('div', 'tn-intro');
+    const title = el('h2', '', 'このページのことばを、人間の感覚に戻す');
+    title.id = 'term-interpret-title';
+    intro.appendChild(title);
+    intro.appendChild(el('span', 'tn-kicker', 'INTERPRETATION / ' + terms.length + ' NOTES'));
+    section.appendChild(intro);
+    section.appendChild(el('p', 'tn-guide', '専門語を名前の部品へほどき、意味だけでなく「なぜそう考えるのか」まで本文の前に置きます。リンク先を読まなくても、この場で理解できます。'));
+    const grid = el('div', 'tn-grid');
+    terms.forEach(term => grid.appendChild(note(term)));
+    section.appendChild(grid);
 
-    const backdrop = el('div', 'tn-backdrop');
-    backdrop.hidden = true;
-    const drawer = el('aside', 'tn-drawer');
-    drawer.id = 'term-notes-drawer';
-    drawer.hidden = true;
-    drawer.setAttribute('role', 'dialog');
-    drawer.setAttribute('aria-modal', 'false');
-    drawer.setAttribute('aria-labelledby', 'term-notes-title');
-    const head = el('div', 'tn-head');
-    const headText = el('div');
-    headText.appendChild(el('div', 'tn-kicker', 'ANNOTATION / SIDE NOTE'));
-    const title = el('h2', 'tn-title', 'このノートの用語');
-    title.id = 'term-notes-title';
-    headText.appendChild(title);
-    const close = el('button', 'tn-close', '×');
-    close.type = 'button';
-    close.setAttribute('aria-label', '用語ノートを閉じる');
-    head.appendChild(headText);
-    head.appendChild(close);
-    drawer.appendChild(head);
-    drawer.appendChild(el('p', 'tn-intro', '名前を分解し、意味 → なぜ必要か → 小話の順で寄り道します。歴史的な由来と、理解のための原語分解は区別しています。'));
-    terms.forEach((term, index) => drawer.appendChild(termCard(term, index === 0)));
-    const all = el('a', 'tn-all', '全' + total + '語を用語Wikiで見る →');
-    all.href = wikiUrl.href;
-    drawer.appendChild(all);
-
-    function open() {
-      drawer.hidden = false;
-      backdrop.hidden = false;
-      trigger.setAttribute('aria-expanded', 'true');
-      close.focus();
-    }
-    function shut() {
-      drawer.hidden = true;
-      backdrop.hidden = true;
-      trigger.setAttribute('aria-expanded', 'false');
-      trigger.focus();
-    }
-    trigger.addEventListener('click', open);
-    close.addEventListener('click', shut);
-    backdrop.addEventListener('click', shut);
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !drawer.hidden) shut();
-    });
-    document.body.appendChild(backdrop);
-    document.body.appendChild(trigger);
-    document.body.appendChild(drawer);
-    window.__TERM_NOTES_READY__ = { page: pageKey(), count: terms.length, total };
+    const purpose = document.querySelector('.purpose');
+    const lead = document.querySelector('.lead');
+    const anchor = purpose || lead || document.querySelector('h1');
+    if (anchor && anchor.parentNode) anchor.insertAdjacentElement('afterend', section);
+    else (document.querySelector('.wrap') || document.body).prepend(section);
+    window.__TERM_NOTES_READY__ = { page: pageKey(), count: terms.length, inline: true };
   }
 
   import(dataUrl.href)
-    .then(module => mount(module.termsForPage(pageKey()), module.TERM_NOTES.length))
-    .catch(error => console.error('用語ノートを読み込めませんでした:', error));
+    .then(module => mount(module.termsForPage(pageKey())))
+    .catch(error => console.error('解釈付き注釈を読み込めませんでした:', error));
 })();
