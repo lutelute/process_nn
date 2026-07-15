@@ -115,10 +115,18 @@ logits = ln_f(h[-1]) @ wteᵀ                # [50257]
 
 ---
 
-## 10. 本リポジトリでの進捗（Phase 0 完了）
-- `gpt2/tools/tokenizer.mjs` — byte-level BPE 自前実装（検証通過）
-- `gpt2/tools/safetensors.mjs` — F32/F16 safetensors ローダー（149テンソル読み出し確認）
-- `gpt2/assets/` — config.json / vocab.json / merges.txt（重み本体は `.gitignore` で除外、再DL元: `huggingface.co/gpt2/resolve/main/model.safetensors`）
+## 10. 本リポジトリでの現在地
 
-**次の段階**: Node.js で forward を実装 → 本家(PyTorch)と数値照合 → ブラウザへ移植 → 生成過程＋attention可視化。
-方針は「いきなりブラウザに書かず、まず正しさを実測で固めてから移植する」。
+- `gpt2/tools/tokenizer.mjs` — byte-level BPE 自前実装。既知値と往復一致の自動テストあり。
+- `gpt2/tools/safetensors.mjs` — F32/F16 safetensors ローダー。
+- `gpt2/tools/gpt2.mjs` — GPT-2 small の素の JavaScript forward、生成、attention / 残差 / MLP / logit lens capture を実装済み。
+- `gpt2/index.html` — ローカル重みまたは HuggingFace 取得からブラウザ内 forward を実行。
+- `gpt2/assets/` — config.json / vocab.json / merges.txt。重み本体は `.gitignore` で除外。
+
+### 検証済みと未検証の境界
+
+- **自動検証済み**: tokenizer の既知値 `encode("Hello world") = [15496, 995]` と UTF-8 往復。
+- **リポジトリ内で未整備**: 参照実装と比較する層別テンソル / logits の数値許容差テスト、本物重みを使う生成 smoke test、ブラウザ別の速度・最大メモリ。
+- **性能上の制約**: WebGPU と KV cache がなく、生成ごとに全文脈を再計算する。全層 attention の capture は O(LHT²) メモリなので、教育用 UI は合計 64 トークンで停止する。
+
+次に必要なのは、新機能よりも固定 prompt の参照 logits と中間 checksum を保存し、Python / PyTorch 参照実装との誤差を自動判定すること。その後に KV cache または高速バックエンドを検討する。

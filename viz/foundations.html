@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数学の道具箱 — shape・行列・連鎖律・確率</title>
+<style>
+  :root{
+    --bg:#faf8f1;--panel:#fff;--panel-2:#f2efe6;--line:#dcd8cc;--grid:#e7e3d8;
+    --text:#1a1a17;--muted:#52504a;--faint:#928f84;--accent:#1f9e8a;--warm:#b3812f;
+    --neg:#cf4f5f;--loss:#c2891b;--upd:#6f54c4;--ink:#1a1a17;--ink-2:#52504a;--ink-3:#928f84;--rule:#dcd8cc;
+    --gothic:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--gothic);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 24px 58px}.nav{margin-bottom:18px}
+  h1{font-size:24px;letter-spacing:.035em;margin:0;padding-bottom:10px;border-bottom:1px solid var(--ink)}
+  .lead{font-size:13.5px;color:var(--ink-2);max-width:820px;margin:14px 0 20px}.lead b{color:var(--ink)}
+  .purpose{background:var(--panel);border:1px solid var(--rule);padding:10px 14px;margin-bottom:16px}.prow{display:flex;gap:12px;font-size:12px;color:var(--ink-2);padding:3px 0}.pq{flex:none;width:100px;color:var(--accent);font-family:var(--mono)}
+  .stage{background:var(--panel);border:1px solid var(--ink);border-radius:3px;overflow:hidden}.stepper{display:flex;background:var(--panel-2);border-bottom:1px solid var(--ink)}
+  .stp{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 5px;cursor:pointer;border:0;border-right:1px dashed var(--rule);border-radius:0;background:transparent;color:inherit;font:inherit;position:relative}.stp:last-child{border-right:0}.stp .n{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid var(--ink-3);font:11px var(--mono);color:var(--ink-3)}.stp .t{font:11px var(--mono);color:var(--ink-3)}.stp.done .n{color:var(--accent);border-color:var(--accent)}.stp.active{background:var(--panel)}.stp.active .n{background:var(--ink);border-color:var(--ink);color:#fff}.stp.active .t{color:var(--ink);font-weight:700}.stp.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink)}
+  .body{display:grid;grid-template-columns:1.08fr .92fr}.vis{padding:16px;border-right:1px dashed var(--rule)}canvas{display:block;width:100%;height:auto;background:#fffdf6;border:1px solid var(--rule)}.mini{display:flex;gap:15px;flex-wrap:wrap;margin-top:9px;font:11.5px var(--mono);color:var(--ink-3)}.mini b{color:var(--ink)}.legend{margin-top:7px;font-size:10.5px;color:var(--ink-3)}
+  .explain{padding:18px}.lbl{display:inline-block;font:10px var(--mono);letter-spacing:.15em;color:var(--ink-3);border:1px solid var(--ink-3);padding:2px 7px;margin-bottom:10px}.explain h3{font-size:16px;margin:0 0 8px}.desc{font-size:12.5px;line-height:1.85;color:var(--ink-2)}.desc b{color:var(--ink)}.eq{background:#fff;border:1px solid var(--ink);border-left:3px solid var(--accent);padding:9px 12px;margin:9px 0;font-size:13px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 15px;border-top:1px solid var(--ink);background:var(--panel-2)}button{font:12px var(--gothic);padding:8px 13px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;border-radius:2px}button.primary{background:var(--ink);color:#fff}.spacer{flex:1}.control{display:flex;gap:8px;align-items:center;font:11px var(--mono);color:var(--ink-2)}input[type=range]{width:155px;accent-color:var(--accent)}
+  .aha,.myth,details{background:var(--panel);border:1px solid var(--rule);margin-top:14px}.aha{border-left:3px solid var(--upd);padding:12px 15px}.aha-h,.myth-h{font:700 10px var(--mono);letter-spacing:.12em;margin-bottom:5px}.aha-h{color:var(--upd)}.aha p{margin:0;font-size:13px}.myth{border-left:3px solid var(--warm);padding:12px 15px}.myth-h{color:var(--warm)}.myth .row{font-size:12.5px;color:var(--ink-2)}.x{color:var(--neg);font-weight:700;margin-right:8px}.o{color:var(--accent);font-weight:700;margin-right:8px}summary{padding:11px 14px;cursor:pointer;font:12px var(--mono);color:var(--ink-2)}.det{padding:0 14px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.85}.det a{color:var(--accent)}
+  @media(max-width:760px){.body{grid-template-columns:1fr}.vis{border-right:0;border-bottom:1px dashed var(--rule)}.stp .t{display:none}.prow{display:block}.pq{display:block;width:auto;margin-bottom:2px}.bar .spacer{display:none}.control{width:100%}input[type=range]{flex:1}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"></div>
+  <h1>数学の道具箱 — shape・行列・連鎖律・確率</h1>
+  <p class="lead">ニューラルネットの式は、別々の難しい魔法ではありません。<b>値を箱に並べる（shape）→掛けて足す（内積・行列積）→変化率をつなぐ（連鎖律）→確率のずれを測る（entropy・KL）</b>の組み合わせです。スライダーを動かし、式・図・実数が同時に変わるのを追います。</p>
+  <div class="purpose">
+    <div class="prow"><span class="pq">なぜ学ぶ?</span><span>既存の線形回帰、逆伝播、CNN、Attention、VAEを同じ記号で読めるようにする。</span></div>
+    <div class="prow"><span class="pq">一言で言うと</span><span>「何を何に掛け、どの変化率をつないだか」をshapeと実数で確認する道具箱。</span></div>
+    <div class="prow"><span class="pq">使う場所</span><span>ほぼ全ページ。特に <a href="backprop.html">逆伝播</a>、<a href="attention.html">Attention</a>、<a href="vae.html">VAE</a> の前提。</span></div>
+  </div>
+
+  <div class="stage">
+    <div class="stepper" id="stepper" aria-label="教材の5ステップ"></div>
+    <div class="body">
+      <div class="vis">
+        <canvas id="cv" width="460" height="330" role="img" aria-label="数学の道具箱の実数計算図"></canvas>
+        <div class="mini" id="mini"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <button id="autoBtn">⏵ 自動</button>
+      <button id="resetBtn">↻ 初期値</button>
+      <span class="spacer"></span>
+      <label class="control" for="valueSlider"><span id="controlLabel">入力 x₁</span><input id="valueSlider" type="range" min="0" max="100" value="60"><b id="controlValue"></b></label>
+    </div>
+  </div>
+
+  <div class="aha"><div class="aha-h">💡 見方が変わる一文</div><p>式が読めないときは、記号の意味を暗記する前に<b>shape を書く</b>。掛けられる向きと、結果に残る軸が分かれば、計算の骨格が見える。</p></div>
+  <div class="myth">
+    <div class="myth-h">⚠ よくある誤解</div>
+    <div class="row"><span class="x">✗</span>行列は数字が四角く並んだだけなので、向きは気にしなくてよい</div>
+    <div class="row"><span class="o">✓</span>行＝出力、列＝入力など<b>軸の意味</b>があり、内側のshapeが一致するときだけ掛けられる。</div>
+    <div class="row"><span class="x">✗</span>連鎖律は「微分をたくさん暗記する」方法</div>
+    <div class="row"><span class="o">✓</span>計算グラフの各辺にある<b>局所的な変化率を、経路に沿って掛ける</b>だけ。有限差分でも値を照合できる。</div>
+  </div>
+  <details><summary>もっと詳しく：このページから既存教材へ</summary><div class="det"><b>shape・行列積</b>は <a href="index.html">信号の流れ</a>と <a href="attention.html">自己注意</a>、<b>連鎖律</b>は <a href="gradient.html">勾配降下</a>と <a href="backprop.html">逆伝播</a>、<b>cross-entropy</b> は <a href="logreg.html">ロジスティック回帰</a>、<b>KL divergence</b> は <a href="vae.html">VAE</a>につながります。ここでは自然対数を使うため単位は nat です。内積を類似度として読む場合は、ベクトルの長さの影響を除く cosine similarity との違いにも注意してください。</div></details>
+</div>
+
+<script type="module">
+import { dot, matVec, matMul, softmax, entropy, crossEntropy, klDivergence, chainRuleExample } from './lib/foundations-math.mjs';
+const $=id=>document.getElementById(id),cv=$('cv'),ctx=cv.getContext('2d'),CW=cv.width,CH=cv.height;
+const STEPS=[{key:'shape',t:'shape'},{key:'dot',t:'内積'},{key:'mat',t:'行列積'},{key:'chain',t:'連鎖律'},{key:'prob',t:'確率とKL'}];
+let stepIdx=0,auto=false,phase=0,lastTime=0;
+const baseA=[[1,2,-1],[0.5,-1,1.5]],baseB=[[1,-1],[2,0.5],[-0.5,2]];
+const colors={accent:'#1f9e8a',warm:'#b3812f',neg:'#cf4f5f',upd:'#6f54c4',ink:'#1a1a17',muted:'#6e6a60',grid:'#dcd8cc',paper:'#fffdf6'};
+function slider01(){return +$('valueSlider').value/100}
+function valueFor(key){const u=slider01();if(key==='mat')return Math.min(3,Math.floor(u*4));if(key==='prob')return -1+u*4;return -2+u*4}
+function f(n,d=2){return Number(n).toFixed(d)}
+function clear(){ctx.clearRect(0,0,CW,CH);ctx.fillStyle=colors.paper;ctx.fillRect(0,0,CW,CH)}
+function txt(s,x,y,size=13,color=colors.ink,align='center',bold=false){ctx.fillStyle=color;ctx.font=(bold?'700 ':'')+size+'px ui-monospace,monospace';ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(s,x,y)}
+function arrow(x1,y1,x2,y2,color=colors.muted,w=1.5){ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();const a=Math.atan2(y2-y1,x2-x1);ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-8*Math.cos(a-.45),y2-8*Math.sin(a-.45));ctx.lineTo(x2-8*Math.cos(a+.45),y2-8*Math.sin(a+.45));ctx.closePath();ctx.fill()}
+function box(x,y,w,h,label,value,color=colors.accent){ctx.fillStyle='#fff';ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.fillRect(x,y,w,h);ctx.strokeRect(x+.5,y+.5,w-1,h-1);txt(label,x+w/2,y+15,10,colors.muted);txt(value,x+w/2,y+h/2+7,16,color,'center',true)}
+function matrix(m,x,y,cell=34,hi=null){for(let r=0;r<m.length;r++)for(let c=0;c<m[0].length;c++){const on=hi&&hi(r,c);ctx.fillStyle=on?'rgba(31,158,138,.18)':'#fff';ctx.strokeStyle=on?colors.accent:colors.grid;ctx.fillRect(x+c*cell,y+r*cell,cell,cell);ctx.strokeRect(x+c*cell+.5,y+r*cell+.5,cell-1,cell-1);txt(f(m[r][c],1),x+c*cell+cell/2,y+r*cell+cell/2,11,on?colors.ink:colors.muted)}}
+function drawShape(){clear();const x=[valueFor('shape'),-1,2],W=[[1,.5,-1],[-.5,2,.5]],b=[.5,-1],y=matVec(W,x,b);txt('x  shape=(3)',75,27,12,colors.accent);matrix([x],24,46,46);txt('W  shape=(2×3)',230,27,12,colors.upd);matrix(W,161,46,46);txt('b',348,27,12,colors.warm);matrix([b],326,46,46);arrow(120,112,170,150,colors.muted);arrow(300,112,288,150,colors.muted);arrow(372,92,332,150,colors.muted);box(202,151,136,72,'y = Wx + b','['+y.map(v=>f(v,2)).join(', ')+']',colors.accent);txt('内側の 3 が消え、W の行数 2 が出力に残る',CW/2,258,12,colors.ink);txt('(2×3) · (3) + (2) → (2)',CW/2,286,15,colors.upd,'center',true)}
+function drawDot(){clear();const x=[valueFor('dot'),2],w=[1.5,-.8],parts=x.map((v,i)=>v*w[i]),s=dot(x,w);txt('対応する成分を「掛けて、全部足す」',CW/2,30,14,colors.ink,'center',true);for(let i=0;i<2;i++){box(40,70+i*82,88,58,'x'+(i+1),f(x[i],2),colors.accent);txt('×',154,99+i*82,18,colors.muted);box(180,70+i*82,88,58,'w'+(i+1),f(w[i],2),colors.upd);txt('=',292,99+i*82,18,colors.muted);box(318,70+i*82,96,58,'寄与',f(parts[i],2),parts[i]>=0?colors.accent:colors.neg)}arrow(364,210,300,246,colors.muted);arrow(364,128,300,246,colors.muted);box(190,245,150,62,'x · w = Σ xᵢwᵢ',f(s,3),colors.warm)}
+function drawMat(){clear();const focus=valueFor('mat'),fr=Math.floor(focus/2),fc=focus%2,C=matMul(baseA,baseB);txt('A (2×3)',90,28,12,colors.accent);matrix(baseA,38,48,34,(r)=>r===fr);txt('×',165,82,20,colors.muted);txt('B (3×2)',232,28,12,colors.upd);matrix(baseB,198,48,34,(_,c)=>c===fc);txt('=',294,82,20,colors.muted);txt('C (2×2)',365,28,12,colors.warm);matrix(C,331,48,34,(r,c)=>r===fr&&c===fc);const products=baseA[fr].map((v,k)=>v*baseB[k][fc]);txt('C'+(fr+1)+(fc+1)+' = A の '+(fr+1)+' 行 · B の '+(fc+1)+' 列',CW/2,184,14,colors.ink,'center',true);txt(products.map(v=>f(v,1)).join(' + ')+' = '+f(C[fr][fc],1),CW/2,218,16,colors.accent);txt('掛け合わせる内側のshapeは 3 = 3',CW/2,266,12,colors.muted);txt('(2×3) · (3×2) → (2×2)',CW/2,294,15,colors.upd,'center',true)}
+function chainVals(x,w=1.5){return chainRuleExample({x,w,b:-.4,target:.8})}
+function drawChain(){clear();const x=valueFor('chain'),v=chainVals(x),nodes=[['x',f(x,2)],['z=wx+b',f(v.z,2)],['ŷ=σ(z)',f(v.y,3)],['L=½(ŷ−t)²',f(v.loss,4)]],xs=[18,134,252,360],ws=[82,92,92,84];for(let i=0;i<nodes.length;i++){box(xs[i],57,ws[i],64,nodes[i][0],nodes[i][1],[colors.accent,colors.upd,colors.warm,colors.neg][i]);if(i<3)arrow(xs[i]+ws[i],89,xs[i+1]-5,89,colors.muted)}txt('逆向きに局所微分を掛ける',CW/2,160,14,colors.ink,'center',true);const ds=[['∂L/∂ŷ',v.dLossDy],['∂ŷ/∂z',v.dYdZ],['∂z/∂w',v.dZdW]];for(let i=0;i<3;i++){box(30+i*144,187,112,58,ds[i][0],f(ds[i][1],4),[colors.neg,colors.warm,colors.upd][i]);if(i<2)txt('×',160+i*144,216,17,colors.muted)}const eps=1e-4,fd=(chainVals(x,1.5+eps).loss-chainVals(x,1.5-eps).loss)/(2*eps);txt('解析 ∂L/∂w = '+f(v.dLossDw,6),110,283,12,colors.accent,'left',true);txt('有限差分 = '+f(fd,6),110,307,12,colors.muted,'left')}
+function drawProb(){clear();const logit=valueFor('prob'),p=softmax([logit,1,-.5]),q=[.8,.1,.1],H=entropy(q),CE=crossEntropy(q,p),KL=klDivergence(q,p);txt('目標分布 q と予測分布 p',CW/2,25,14,colors.ink,'center',true);const x0=48,base=202,barW=42,gap=68;for(let i=0;i<3;i++){const x=x0+i*gap;ctx.fillStyle='rgba(111,84,196,.35)';ctx.fillRect(x,base-q[i]*125,barW,q[i]*125);ctx.fillStyle='rgba(31,158,138,.85)';ctx.fillRect(x+barW+5,base-p[i]*125,barW,p[i]*125);txt('class '+i,x+barW,220,10,colors.muted);txt(f(q[i],2),x+barW/2,base-q[i]*125-9,9,colors.upd);txt(f(p[i],2),x+barW+5+barW/2,base-p[i]*125-9,9,colors.accent)}txt('■ q 目標',313,77,11,colors.upd,'left');txt('■ p 予測',313,100,11,colors.accent,'left');box(300,128,130,54,'H(q)',f(H,4),colors.upd);box(300,190,130,54,'KL(q ‖ p)',f(KL,4),colors.warm);box(300,252,130,54,'CE(q, p)',f(CE,4),colors.neg);txt('CE = H(q) + KL',158,279,15,colors.ink,'center',true);txt(f(CE,4)+' = '+f(H,4)+' + '+f(KL,4),158,305,12,colors.muted)}
+function values(){const key=STEPS[stepIdx].key,v=valueFor(key);if(key==='shape'){const x=[v,-1,2],y=matVec([[1,.5,-1],[-.5,2,.5]],x,[.5,-1]);return{v,label:'入力 x₁',mini:'<div>shape <b>(2×3)·(3)→(2)</b></div><div>出力 <b>['+y.map(n=>f(n,2)).join(', ')+']</b></div>'}}if(key==='dot')return{v,label:'入力 x₁',mini:'<div>x·w <b>'+f(dot([v,2],[1.5,-.8]),3)+'</b></div><div>shape <b>(2)·(2)→scalar</b></div>'};if(key==='mat'){const r=Math.floor(v/2),c=v%2,C=matMul(baseA,baseB);return{v,label:'注目セル',display:'C'+(r+1)+(c+1),mini:'<div>注目 <b>C'+(r+1)+(c+1)+'</b></div><div>値 <b>'+f(C[r][c],2)+'</b></div>'}}if(key==='chain'){const z=chainVals(v);return{v,label:'入力 x',mini:'<div>loss <b>'+f(z.loss,4)+'</b></div><div>∂L/∂w <b>'+f(z.dLossDw,5)+'</b></div>'}}const p=softmax([v,1,-.5]),q=[.8,.1,.1];return{v,label:'class 0 logit',mini:'<div>p₀ <b>'+f(p[0],3)+'</b></div><div>KL <b>'+f(klDivergence(q,p),4)+'</b></div>'}}
+function draw(){({shape:drawShape,dot:drawDot,mat:drawMat,chain:drawChain,prob:drawProb})[STEPS[stepIdx].key]()}
+function renderExplain(){const key=STEPS[stepIdx].key,V=values();let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';if(key==='shape')h+='<h3>① shape：値の「並び方」を書く</h3><div class="eq">W(2×3) · x(3) + b(2) → y(2)</div><div class="desc">ベクトル x は 3 個の特徴、W の各行は 1 個の出力を作る重みです。掛け算で消える<b>内側の 3</b>が一致し、W の行数 2 が結果に残ります。値を動かしても shape は変わりません。</div>';else if(key==='dot')h+='<h3>② 内積：対応成分を掛けて足す</h3><div class="eq">x·w = Σᵢ xᵢwᵢ</div><div class="desc">ニューロンは入力ごとの寄与を足します。符号が同じ成分は正、逆なら負の寄与です。内積は<b>重み付き和</b>であり、ベクトルを正規化した場合に cosine similarity と強く結びつきます。</div>';else if(key==='mat')h+='<h3>③ 行列積：行と列の内積を並べる</h3><div class="eq">Cᵢⱼ = Σₖ AᵢₖBₖⱼ</div><div class="desc">選択した C の 1 セルは、A の 1 行と B の 1 列の内積です。出力の各セルで同じ計算を行います。Attention の QKᵀ も、全ペアの内積を行列として一度に作る操作です。</div>';else if(key==='chain')h+='<h3>④ 連鎖律：局所的な変化率をつなぐ</h3><div class="eq">∂L/∂w = (∂L/∂ŷ)(∂ŷ/∂z)(∂z/∂w)</div><div class="desc">前向きに値を計算し、後ろ向きに各演算の局所微分を掛けます。下段では、w を ±10⁻⁴ だけ動かした<b>有限差分</b>と解析勾配が一致します。これが誤差逆伝播の数値的な確認です。</div>';else h+='<h3>⑤ 確率：不確かさと分布のずれを分ける</h3><div class="eq">CE(q,p) = H(q) + KL(q ‖ p)</div><div class="desc">softmax が logits を確率 p に変換します。cross-entropy は、目標 q 自体の不確かさ H(q) と、予測 p との追加のずれ KL の和です。q が固定なら CE を下げることは KL を下げることと同じですが、KL は対称な距離ではありません。</div>';$('explain').innerHTML=h;$('controlLabel').textContent=V.label;$('controlValue').textContent=V.display??f(V.v,key==='mat'?0:2);$('mini').innerHTML=V.mini}
+function renderStepper(){$('stepper').innerHTML=STEPS.map((s,i)=>'<button type="button" class="stp '+(i===stepIdx?'active':i<stepIdx?'done':'')+'" data-i="'+i+'"'+(i===stepIdx?' aria-current="step"':'')+'><span class="n">'+(i<stepIdx?'✓':i+1)+'</span><span class="t">'+s.t+'</span></button>').join('');$('stepper').querySelectorAll('.stp').forEach(el=>el.onclick=()=>goStep(+el.dataset.i))}
+function render(){renderStepper();renderExplain();$('legend').textContent=['shape=軸ごとの要素数','橙=和 / 緑・紫=各成分','緑=注目する行・列・セル','上=順伝播 / 下=局所微分','紫=目標q / 緑=予測p'][stepIdx];$('prevBtn').disabled=stepIdx===0;$('nextBtn').disabled=stepIdx===4;draw()}
+function stopAuto(){auto=false;$('autoBtn').textContent=window.__prefersReducedMotion?'値を変える':'⏵ 自動'}function goStep(i){stopAuto();stepIdx=Math.max(0,Math.min(4,i));$('valueSlider').value=stepIdx===2?12:60;render()}
+function tick(t){if(!auto)return;if(!lastTime)lastTime=t;if(t-lastTime>35){phase+=.025;const wave=(Math.sin(phase)+1)/2;$('valueSlider').value=STEPS[stepIdx].key==='mat'?Math.floor(wave*99):Math.round(wave*100);lastTime=t;renderExplain();draw()}requestAnimationFrame(tick)}
+$('prevBtn').onclick=()=>goStep(stepIdx-1);$('nextBtn').onclick=()=>goStep(stepIdx+1);$('resetBtn').onclick=()=>{stopAuto();$('valueSlider').value=stepIdx===2?12:60;render()};$('autoBtn').onclick=()=>{if(window.__prefersReducedMotion){const now=+$('valueSlider').value;$('valueSlider').value=STEPS[stepIdx].key==='mat'?(now+25)%100:(now+15)%101;renderExplain();draw();return}if(auto){stopAuto();return}auto=true;lastTime=0;$('autoBtn').textContent='⏸ 停止';requestAnimationFrame(tick)};$('valueSlider').oninput=()=>{stopAuto();renderExplain();draw()};render();if(window.__prefersReducedMotion)$('autoBtn').textContent='値を変える';
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

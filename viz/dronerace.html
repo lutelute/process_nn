@@ -639,14 +639,18 @@ function renderLegend(){document.getElementById('legend').textContent=SLIDES[sli
 function renderExplain(){const el=document.getElementById('explain');const ch=CHAPTERS[chOf(slideIdx)];el.style.setProperty('--c',ch.c);
   el.innerHTML='<span class="lbl">SLIDE '+(slideIdx+1)+' / '+SLIDES.length+' — '+ch.t+'</span>'+SLIDES[slideIdx].html();}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();
-  document.getElementById('prevBtn').disabled=(slideIdx===0);
-  document.getElementById('nextBtn').disabled=(slideIdx===SLIDES.length-1);
-  document.getElementById('diceBtn').disabled=!SLIDES[slideIdx].dice;}
+  document.getElementById('prevBtn').disabled=busy||(slideIdx===0);
+  document.getElementById('nextBtn').disabled=busy||(slideIdx===SLIDES.length-1);
+  document.getElementById('autoBtn').disabled=busy;document.getElementById('resetBtn').disabled=busy;
+  document.getElementById('diceBtn').disabled=busy||!SLIDES[slideIdx].dice;}
 function draw_(){ctx.clearRect(0,0,CW,CH);drawGridBg();SLIDES[slideIdx].draw();}
 
 /* ===== ライブ学習・レースの駆動 ===== */
+let busy=false;
+function setBusy(v){busy=v;for(const id of ['prevBtn','nextBtn','autoBtn','resetBtn','diceBtn'])document.getElementById(id).disabled=v;document.getElementById('stepper').style.pointerEvents=v?'none':'';document.getElementById('stepper').setAttribute('aria-busy',String(v));if(!v)renderAll();}
 function runLiveTrain(){anim=true;
-  if(window.__prefersReducedMotion){ensureRL();anim=false;renderMini();renderExplain();draw_();return;}
+  if(window.__prefersReducedMotion){setBusy(true);function reduced(){if(!anim||slideIdx!==8){setBusy(false);return;}trainEpisodes(learner,40);
+      if(learner.ep<EPISODES){setTimeout(reduced,0);return;}if(!rlBest)rlBest=runTraj(bestPilotOf(learner),600,NLAP_G);anim=false;setBusy(false);renderMini();renderExplain();draw_();}setTimeout(reduced,0);return;}
   function go(){if(!anim||slideIdx!==8)return;
     trainEpisodes(learner,40);
     if(learner.ep>=EPISODES&&!rlBest)rlBest=runTraj(bestPilotOf(learner),600,NLAP_G);
@@ -654,7 +658,8 @@ function runLiveTrain(){anim=true;
     if(learner.ep<EPISODES)requestAnimationFrame(go);else anim=false;}
   requestAnimationFrame(go);}
 function runRaceAnim(){anim=true;
-  if(window.__prefersReducedMotion){while(stepRace()){}anim=false;draw_();renderMini();return;}
+  if(window.__prefersReducedMotion){setBusy(true);function reduced(){if(!anim||slideIdx!==10){setBusy(false);return;}let alive=false;for(let k=0;k<30;k++)alive=stepRace()||alive;
+      if(alive){setTimeout(reduced,0);return;}anim=false;setBusy(false);draw_();renderMini();renderExplain();}setTimeout(reduced,0);return;}
   function go(){if(!anim||slideIdx!==10)return;
     let alive=false;for(let k=0;k<3;k++)alive=stepRace()||alive;   // 3倍速再生
     draw_();

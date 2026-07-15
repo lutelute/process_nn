@@ -105,7 +105,7 @@
   <h2>1. トークナイザ実演 <span class="pill">重みDL不要・即動作</span></h2>
   <p class="lead small">GPT-2 の byte-level BPE。テキスト → 事前分割 → バイト列 → BPE マージ → トークン ID。未知語が原理的に存在しません（日本語・絵文字も可）。</p>
   <div class="panel">
-    <label>テキスト</label>
+    <label for="tokInput">テキスト</label>
     <textarea id="tokInput" rows="2">Hello world! 日本語も 👍 トークン化できる。</textarea>
     <div class="btnrow">
       <button id="tokBtn" disabled>トークン化</button>
@@ -113,7 +113,7 @@
       <button class="ghost" data-ex="def softmax(x):&#10;    return e**x / sum(e**x)">コード例</button>
       <button class="ghost" data-ex="制御工学における可制御性と可観測性。">日本語例</button>
     </div>
-    <div id="tokStatus" class="status">vocab.json / merges.txt を読み込み中…</div>
+    <div id="tokStatus" class="status" aria-live="polite">vocab.json / merges.txt を読み込み中…</div>
     <div id="tokChips" style="margin-top:10px;"></div>
     <div id="tokIds" class="status" style="margin-top:8px;"></div>
   </div>
@@ -142,7 +142,7 @@
     <h3>モデル読み込み</h3>
     <div class="row">
       <div style="flex:2;">
-        <label>ローカルの model.safetensors を選択（推奨）</label>
+        <label for="fileInput">ローカルの model.safetensors を選択（推奨）</label>
         <input type="file" id="fileInput" accept=".safetensors">
       </div>
       <div>
@@ -150,20 +150,20 @@
         <button id="hfBtn" class="ghost" style="width:100%;">HuggingFace から取得（523MB）</button>
       </div>
     </div>
-    <div id="modelStatus" class="status">未読み込み</div>
+    <div id="modelStatus" class="status" aria-live="polite">未読み込み</div>
   </div>
 
   <div class="panel" id="genPanel" style="opacity:.45;pointer-events:none;">
     <h3>生成</h3>
-    <label>プロンプト</label>
+    <label for="prompt">プロンプト</label>
     <input type="text" id="prompt" value="The capital of France is">
     <div class="row" style="margin-top:10px;">
-      <div><label>サンプリング</label>
+      <div><label for="mode">サンプリング</label>
         <select id="mode"><option value="greedy">greedy（決定的）</option><option value="sample">確率サンプリング</option></select>
       </div>
-      <div><label>temperature</label><input type="number" id="temp" value="0.8" step="0.1" min="0" max="2"></div>
-      <div><label>top-k</label><input type="number" id="topk" value="40" step="1" min="0"></div>
-      <div><label>最大トークン数</label><input type="number" id="maxtok" value="20" step="1" min="1" max="80"></div>
+      <div><label for="temp">temperature</label><input type="number" id="temp" value="0.8" step="0.1" min="0" max="2"></div>
+      <div><label for="topk">top-k</label><input type="number" id="topk" value="40" step="1" min="0"></div>
+      <div><label for="maxtok">最大トークン数</label><input type="number" id="maxtok" value="20" step="1" min="1" max="48"></div>
     </div>
     <div class="btnrow">
       <button id="stepBtn">⏭ 1 トークン生成</button>
@@ -171,7 +171,7 @@
       <button id="stopBtn" class="ghost" disabled>⏹ 停止</button>
       <button id="resetBtn" class="ghost">↺ リセット</button>
     </div>
-    <div id="genStatus" class="status"></div>
+    <div id="genStatus" class="status" aria-live="polite"></div>
     <div id="narrGPT" style="margin-top:10px;padding:10px 13px;background:var(--panel-2,#f2efe6);border:1px solid var(--line,#dcd8cc);border-radius:8px;font-size:12.5px;line-height:1.7;color:var(--text,#1a1a17);">重みを読み込み「▶ 生成」すると、各ステップで「次の単語」の予測と内部（注意・各層の寄与・MLP 発火）を実況します。</div>
     <h3 style="margin-top:16px;">出力</h3>
     <div id="genOut" class="gen-out"><span class="muted">プロンプトから生成が始まります</span></div>
@@ -189,8 +189,8 @@
 
     <h3 style="margin-top:18px;">Attention 行列 <span class="muted small">softmax(QKᵀ/√d) ・下三角（因果）</span></h3>
     <div class="row" style="margin-bottom:8px;">
-      <div><label>層 (0–11)</label><input type="number" id="attnLayer" value="0" min="0" max="11"></div>
-      <div><label>ヘッド (0–11)</label><input type="number" id="attnHead" value="0" min="0" max="11"></div>
+      <div><label for="attnLayer">層 (0–11)</label><input type="number" id="attnLayer" value="0" min="0" max="11"></div>
+      <div><label for="attnHead">ヘッド (0–11)</label><input type="number" id="attnHead" value="0" min="0" max="11"></div>
       <div style="flex:3;display:flex;align-items:flex-end;"><span class="muted small" id="attnHint">行=クエリ位置（どのトークンが）／列=キー位置（どこを見るか）。明るいほど強い注目。</span></div>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
@@ -219,8 +219,8 @@
   </div>
 
   <p class="note">
-    実装は教育目的。素の JS のため WebGPU 等の最適化はしておらず、1 トークンの生成に数百ms〜数秒かかります。トークナイザは Node で
-    <code class="kbd">encode("Hello world") = [15496, 995]</code> と往復一致を検証済み。forward はコンポーネント単体テストと本物重みでの生成健全性で確認しています。
+    実装は教育目的。WebGPU、KV cache、バッチ化を使わない素の JS なので、短い文脈でも 1 トークンに長い時間がかかる場合があります。内部可視化のメモリを制限するため、このビューアは<b>合計 64 トークン</b>で停止します（GPT-2 自体の仕様上限は 1024）。トークナイザは Node で
+    <code class="kbd">encode("Hello world") = [15496, 995]</code> と往復一致を検証済み。forward の参照 logits テストは重みを別途取得する検証として未整備であり、性能値も環境ごとに実測してください。
   </p>
 </div>
 
@@ -230,6 +230,7 @@ import { parseSafetensors, GPT2, sampleNext, topkSoftmax } from './tools/gpt2.mj
 
 const $ = (id) => document.getElementById(id);
 const CONFIG = { n_layer:12, n_head:12, n_embd:768, n_ctx:1024, vocab_size:50257, layer_norm_epsilon:1e-5 };
+const VIEWER_TOKEN_LIMIT = 64; // captureする全層attentionのメモリと描画負荷を抑える教育用上限
 
 // ---------- トークナイザ ----------
 let tok = null;
@@ -315,7 +316,10 @@ function resetGen(){
   renderGenText(true);
   $('probView').innerHTML='—'; $('lensView').innerHTML='—'; $('attnTokens').innerHTML='';
   clearCanvas('attnCanvas'); clearCanvas('residCanvas'); clearCanvas('headsCanvas'); clearCanvas('contribCanvas'); clearCanvas('mlpCanvas');
-  $('genStatus').textContent = 'プロンプト '+promptLen+' トークン。';
+  $('genStatus').textContent = promptLen>VIEWER_TOKEN_LIMIT
+    ? 'プロンプトが '+promptLen+' トークンあります。この教育用ビューアの上限 '+VIEWER_TOKEN_LIMIT+' 以下に短くしてください。'
+    : 'プロンプト '+promptLen+' トークン（ビューア上限 '+VIEWER_TOKEN_LIMIT+'）。';
+  $('genStatus').className = promptLen>VIEWER_TOKEN_LIMIT?'status err':'status';
 }
 $('resetBtn').addEventListener('click', resetGen);
 $('prompt').addEventListener('change', resetGen);
@@ -331,7 +335,7 @@ function decodeRange(a,b){ return tok.decode(genTokens.slice(a,b)); }
 
 async function step(){
   if(!model) return false;
-  if(genTokens.length >= CONFIG.n_ctx) { $('genStatus').textContent='文脈長 1024 に到達。'; return false; }
+  if(genTokens.length >= VIEWER_TOKEN_LIMIT) { $('genStatus').textContent='内部可視化の安全上限 '+VIEWER_TOKEN_LIMIT+' トークンに到達。'; $('genStatus').className='status err'; return false; }
   const t0 = performance.now();
   $('genStatus').textContent = 'forward 計算中…（'+genTokens.length+' トークン）';
   await new Promise(r=>setTimeout(r,10)); // UIを更新させる
@@ -357,7 +361,8 @@ async function step(){
   genTokens.push(nextId);
   renderGenText(false);
   const dt = ((performance.now()-t0)/1000).toFixed(1);
-  $('genStatus').textContent = genTokens.length-promptLen+' トークン生成。直近 forward: '+dt+'s';
+  $('genStatus').textContent = genTokens.length-promptLen+' トークン生成。直近 forward: '+dt+'s（合計 '+genTokens.length+'/'+VIEWER_TOKEN_LIMIT+'）';
+  $('genStatus').className='status';
   return true;
 }
 
@@ -406,10 +411,11 @@ function drawAttention(){
   const L=+$('attnLayer').value|0, Hh=+$('attnHead').value|0, T=lastForward.T;
   const mat=lastForward.attn[L]; if(!mat) return;
   const cv=$('attnCanvas'), ctx=cv.getContext('2d'); const W=cv.width, Hpx=cv.height;
-  ctx.clearRect(0,0,W,Hpx); const cell=Math.floor(Math.min(W,Hpx)/Math.max(T,1));
-  for(let i=0;i<T;i++) for(let j=0;j<T;j++){
-    ctx.fillStyle = j<=i ? heat(mat[Hh*T*T + i*T + j]) : MASK;
-    ctx.fillRect(j*cell, i*cell, cell-0.5, cell-0.5);
+  ctx.clearRect(0,0,W,Hpx); const side=Math.min(W,Hpx), shown=Math.min(T,Math.floor(side)),cell=side/Math.max(shown,1);
+  for(let i=0;i<shown;i++) for(let j=0;j<shown;j++){
+    const si=Math.min(T-1,Math.floor((i+.5)*T/shown)),sj=Math.min(T-1,Math.floor((j+.5)*T/shown));
+    ctx.fillStyle = sj<=si ? heat(mat[Hh*T*T + si*T + sj]) : MASK;
+    ctx.fillRect(j*cell, i*cell, Math.ceil(cell), Math.ceil(cell));
   }
 }
 $('attnLayer').addEventListener('input', ()=>{ drawAttention(); drawHeads(); drawMlp(); });
@@ -432,10 +438,11 @@ function drawHeads(){
   const cv=$('headsCanvas'), ctx=cv.getContext('2d'), W=cv.width, Hpx=cv.height; ctx.clearRect(0,0,W,Hpx);
   const cols=6, rows=Math.ceil(H/cols), cellW=W/cols, cellH=Hpx/rows, sz=Math.min(cellW,cellH)-20;
   for(let head=0;head<H;head++){
-    const r=Math.floor(head/cols), c=head%cols, ox=c*cellW+(cellW-sz)/2, oy=r*cellH+14, cs=sz/Math.max(T,1);
-    for(let i=0;i<T;i++)for(let j=0;j<T;j++){
-      ctx.fillStyle=j<=i?heat(mat[head*T*T+i*T+j]):MASK;
-      ctx.fillRect(ox+j*cs, oy+i*cs, Math.max(1,cs-0.3), Math.max(1,cs-0.3)); }
+    const r=Math.floor(head/cols), c=head%cols, ox=c*cellW+(cellW-sz)/2, oy=r*cellH+14, shown=Math.min(T,Math.max(1,Math.floor(sz))),cs=sz/shown;
+    for(let i=0;i<shown;i++)for(let j=0;j<shown;j++){
+      const si=Math.min(T-1,Math.floor((i+.5)*T/shown)),sj=Math.min(T-1,Math.floor((j+.5)*T/shown));
+      ctx.fillStyle=sj<=si?heat(mat[head*T*T+si*T+sj]):MASK;
+      ctx.fillRect(ox+j*cs, oy+i*cs, Math.ceil(cs), Math.ceil(cs)); }
     ctx.fillStyle='#6e6a60'; ctx.font='9px monospace'; ctx.textAlign='center'; ctx.fillText('層'+L+' H'+head, ox+sz/2, oy-3);
   }
 }
@@ -466,5 +473,6 @@ function clearCanvas(id){ const cv=$(id); cv.getContext('2d').clearRect(0,0,cv.w
 function showTok(id){ const s = tok? tok.decode([id]) : String(id); return JSON.stringify(s).slice(1,-1) || '∅'; }
 function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 </script>
+<script src="../viz/term-notes.js"></script>
 </body>
 </html>

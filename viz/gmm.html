@@ -102,8 +102,8 @@
   </div>
 
   <details>
-    <summary>もっと詳しく：k-means との違い／対数尤度が必ず上がる理由</summary>
-    <div class="det">k-means は「最も近い 1 つ」に割り当てる（ハード）＆等方的（丸）。GMM は各点が「各ガウスに何 % 属すか」（ソフト）＆<b>共分散</b>で楕円の向き・伸びを表せるので、傾いた/重なったクラスタに強い。EM は E ステップ（責任を計算）と M ステップ（その責任で分布を更新）を繰り返し、<b>対数尤度が単調に増加</b>して収束します（局所最適）。実は k-means は GMM の特殊な極限（分散→0・ハード割当）。</div>
+    <summary>もっと詳しく：k-means との違い／EM と数値安定化</summary>
+    <div class="det">k-means は「最も近い 1 つ」に割り当てる（ハード）＆等方的（丸）。GMM は各点が「各ガウスに何 % 属すか」（ソフト）＆<b>共分散</b>で楕円の向き・伸びを表せます。厳密な E/M 更新なら、観測データの対数尤度を下げないことが EM の性質です。この toy 実装は共分散の特異化を防ぐため対角へ `2e-3` を加えるので、表示する未正則化対数尤度について厳密な単調性までは保証しません。通常は上昇しますが、目的関数と安定化項を区別して読みます。</div>
   </details>
 </div>
 
@@ -145,7 +145,7 @@ function renderExplain(){const el=document.getElementById('explain'),k=STEPS[ste
   else if(k==='model'){h+='<h3>② モデル：K 個のガウス</h3><div class="eq curr">p(x) = Σ π<sub>k</sub> · 𝒩(x | μ<sub>k</sub>, Σ<sub>k</sub>)</div><div class="desc">データを K 個のガウス分布（<b>楕円</b>）の重ね合わせで表す。各ガウスは平均 μ（中心）・共分散 Σ（楕円の形）・重み π（大きさ）を持つ。最初は適当に配置。</div>';}
   else if(k==='e'){h+='<h3>③ E ステップ：責任を計算</h3><div class="eq curr">γ(点 → k) = <span class="frac"><span>π<sub>k</sub> 𝒩<sub>k</sub></span><span>Σ<sub>j</sub> π<sub>j</sub> 𝒩<sub>j</sub></span></span></div><div class="desc">各点が「どのガウスに何 % 属すか」（<b>責任 γ</b>＝ソフト割当）を計算。点の色は所属確率を<b>混ぜた色</b>で表示（境界の点は中間色）。k-means の 0/1 と違い連続的。</div>';}
   else if(k==='m'){h+='<h3>④ M ステップ：分布を更新</h3><div class="eq curr">μ<sub>k</sub>, Σ<sub>k</sub>, π<sub>k</sub> ← 責任 γ で重み付けした統計量</div><div class="desc">いま計算した責任を使って、各ガウスの<b>平均・共分散（楕円の向き/伸び）・重み</b>を更新。楕円がデータの塊の形にフィットしていきます。</div>';}
-  else{h+='<h3>⑤ 反復 → 収束</h3><div class="eq curr">E ⇄ M を、対数尤度が増えなくなるまで繰り返す</div><div class="desc">E と M を交互に繰り返すと、<b>対数尤度（右上）が単調に増加</b>し収束。楕円が各クラスタの形にぴったり吸い付きます。反復 '+iterN+'・対数尤度 '+(lastLL!=null?lastLL.toFixed(3):'—')+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・データ＝ガウスの重ね合わせ<br>・E=責任(ソフト割当)、M=分布の更新<br>・共分散で楕円＝傾き/重なりに強い</div>';}
+  else{h+='<h3>⑤ 反復 → 収束</h3><div class="eq curr">E ⇄ M を、変化が小さくなるまで繰り返す</div><div class="desc">E と M を交互に繰り返すと、楕円が各クラスタへ近づきます。右上の対数尤度の推移を実測してください。厳密 EM では非減少ですが、この実装は共分散に小さな安定化項を加えるため、表示値の単調性を保証とは扱いません。反復 '+iterN+'・対数尤度 '+(lastLL!=null?lastLL.toFixed(3):'—')+'。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・データ＝ガウスの重ね合わせ<br>・E=責任(ソフト割当)、M=分布の更新<br>・理論上のEMと数値安定化入り実装を区別</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 

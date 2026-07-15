@@ -98,12 +98,12 @@
     <div class="row"><span class="x">✗</span>公式（正規方程式）で解けるのだから反復学習は無駄</div>
     <div class="row"><span class="o">✓</span>一発で解けるのは特徴が少ないとき。特徴が多い・データが巨大だと<b>反復（勾配降下）の方が実用的</b>——線形回帰はニューラルネット学習への<b>橋</b>でもある。</div>
     <div class="row"><span class="x">✗</span>誤差を二乗するのは単なる慣習</div>
-    <div class="row"><span class="o">✓</span>微分しやすく解が<b>一意（凸）</b>、ガウスノイズ仮定の最尤推定と一致という根拠がある。代償は<b>外れ値に弱い</b>こと（絶対値誤差・Huber で緩和）。</div>
+    <div class="row"><span class="o">✓</span>微分しやすく<b>凸な最適化問題</b>になり、ガウスノイズ仮定の最尤推定と一致する。解が一意かはデータ行列の rank に依存し、代償として<b>外れ値に弱い</b>。</div>
   </div>
 
   <details>
     <summary>もっと詳しく：正規方程式・なぜ二乗か・決定係数 R²</summary>
-    <div class="det"><b>正規方程式</b>：単回帰なら w = Σ(xᵢ−x̄)(yᵢ−ȳ) / Σ(xᵢ−x̄)²、b = ȳ − w·x̄ で<b>一発で厳密解</b>が出ます（行列なら w = (XᵀX)⁻¹Xᵀy）。勾配降下は同じ最小点へ反復で近づく方法で、特徴が多い・データが巨大なときに有利。<b>なぜ二乗？</b> 微分しやすく解が一意（凸関数）になり、ガウスノイズ仮定での最尤推定と一致するため。外れ値に弱いのが弱点（絶対値誤差や Huber 損失で緩和）。<b>決定係数 R²</b>＝1 − (残差平方和)/(全平方和) で、1 に近いほど当てはまりが良い。曲線データには直線は構造的に当てはまらず R² が下がります（特徴量を増やす＝多項式回帰へ）。</div>
+    <div class="det"><b>解析解</b>：この単回帰では x にばらつきがあるので、w = Σ(xᵢ−x̄)(yᵢ−ȳ) / Σ(xᵢ−x̄)²、b = ȳ − w·x̄ で最小解が一意に求まります。行列表示の `(XᵀX)⁻¹Xᵀy` は、X が full column rank で `XᵀX` が可逆な場合だけ使えます。rank が不足する一般の場合は解が複数あり、擬似逆行列や正則化を使います。勾配降下は解析式そのものではなく、適切な学習率で反復し、最小解の一つへ近づく方法です。二乗損失は凸で微分しやすく、ガウスノイズ仮定の最尤推定と一致しますが、凸であることだけでは一意性を保証しません。外れ値には弱いため、絶対値誤差や Huber 損失を使う場合があります。</div>
   </details>
 </div>
 
@@ -148,13 +148,13 @@ let stepIdx=0,anim=false,auto=false;
 function draw_(){const k=STEPS[stepIdx].key;if(k==='data')draw({});else if(k==='line')draw({line:true,resid:true});else if(k==='sq')draw({line:true,resid:true,squares:true});else if(k==='fit')draw({line:true,resid:true,loss:true,optLine:true});else draw({line:true,resid:true,optLine:true});}
 function renderStepper(){const el=document.getElementById('stepper');el.innerHTML=STEPS.map((s,i)=>'<div class="stp '+(i===stepIdx?'active':(i<stepIdx?'done':''))+'" data-i="'+i+'" style="--c:'+s.c+'"><div class="n">'+(i<stepIdx?'✓':(i+1))+'</div><div class="t">'+s.t+'</div></div>').join('');el.querySelectorAll('.stp').forEach(d=>d.onclick=()=>{stopAuto();goStep(+d.dataset.i);});}
 function renderMini(){const m=document.getElementById('mini'),k=STEPS[stepIdx].key;if(k==='data'){m.innerHTML='<div>点 <b>'+X.length+'</b></div>';return;}m.innerHTML='<div>w <b>'+w.toFixed(2)+'</b></div><div>b <b>'+b.toFixed(2)+'</b></div><div class="ls">MSE <b>'+mse(w,b).toFixed(3)+'</b></div>'+((k==='fit'||k==='res')?'<div class="r2">R² <b>'+r2(w,b).toFixed(2)+'</b></div>':'');}
-function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='data')?'● データ点 (x, y)':(k==='fit'||k==='res')?'青=学習中の直線, 緑破線=厳密解(正規方程式), 赤=残差':'● データ, 青線=直線, 赤=残差(ずれ)';}
+function renderLegend(){const k=STEPS[stepIdx].key;document.getElementById('legend').textContent=(k==='data')?'● データ点 (x, y)':(k==='fit'||k==='res')?'青=学習中の直線, 緑破線=このデータの解析解, 赤=残差':'● データ, 青線=直線, 赤=残差(ずれ)';}
 function renderExplain(){const el=document.getElementById('explain'),k=STEPS[stepIdx].key;el.style.setProperty('--c',STEPS[stepIdx].c);const curve=document.getElementById('dataSel').value==='curve';let h='<span class="lbl">STEP '+(stepIdx+1)+' / 5</span>';
   if(k==='data'){h+='<h3>① 問題：直線で関係を捉える</h3><div class="desc">入力 x と出力 y の組（点）があります——たとえば<b>広さと家賃</b>、<b>気温とアイスの売上</b>。x が増えると y はどう動くか、その関係を<b>1 本の直線</b>で表せれば、未知の x でも y を予測できます。これが回帰（数値の予測）の最も基本形。右下でデータの素性を変えられます。</div>';}
   else if(k==='line'){h+='<h3>② 直線とパラメータ</h3><div class="eq curr">ŷ = w·x + b　（w=傾き, b=切片）</div><div class="desc">直線は <b>傾き w</b> と <b>切片 b</b> の 2 つで決まります。各点の実測 y と、直線の予測 ŷ の<b>縦のずれ＝残差</b>（赤線）。この残差を全体で小さくする w, b を見つけるのが目標。今は適当な直線なので残差が大きい。</div>';}
   else if(k==='sq'){h+='<h3>③ 二乗誤差（コスト）</h3><div class="eq curr">MSE = <span class="frac"><span>1</span><span>n</span></span> Σ (yᵢ − (w·xᵢ+b))²</div><div class="desc">残差を<b>二乗</b>して平均したものがコスト（赤い四角＝各残差の二乗＝面積）。二乗するのは符号を消し、大きなずれを強く罰し、微分しやすくするため。<b>この面積の合計が最小</b>になる直線が「最小二乗解」。今の MSE = '+mse(w,b).toFixed(3)+'。</div>';}
-  else if(k==='fit'){h+='<h3>④ 最小化（勾配降下）</h3><div class="eq curr">w ← w − η·<span class="frac"><span>∂MSE</span><span>∂w</span></span>,　b ← b − η·<span class="frac"><span>∂MSE</span><span>∂b</span></span></div><div class="desc">コストが下がる向き（勾配の逆）へ w, b を少しずつ動かすと、直線がデータに吸い付いていきます。緑の破線は<b>正規方程式の厳密解</b>——勾配降下はそこへ収束します。反復 '+iter+'・MSE '+mse(w,b).toFixed(3)+'。</div>';}
-  else{const R=r2(w,b);h+='<h3>⑤ 結果：最良の直線 — そして学習の原型</h3><div class="desc">最小二乗の直線が完成（傾き w='+w.toFixed(2)+', 切片 b='+b.toFixed(2)+'）。当てはまりの良さは<b>決定係数 R² = '+R.toFixed(2)+'</b>（1 に近いほど良い）。'+(curve?'<b style="color:var(--neg)">曲線データ</b>なので直線では構造を捉えきれず R² が低い＝線形の限界（多項式回帰へ）。':'残差が最小になり、データの傾向をよく説明できています。')+'　いま調整したのは <b>w と b のたった 2 個</b>。でも「誤差を測って、下がる向きに直す」という手順は、<b>パラメータが 1 億個（GPT-2）になってもまったく同じ</b>——ここが全ての学習の原型です。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・直線 ŷ=wx+b の w,b を最適化<br>・二乗誤差(MSE)を最小化＝最小二乗<br>・正規方程式で一発、勾配降下でも同じ解<br>・<b>「誤差→修正」は 2 個でも 1 億個でも学習の骨格</b></div>';}
+  else if(k==='fit'){h+='<h3>④ 最小化（勾配降下）</h3><div class="eq curr">w ← w − η·<span class="frac"><span>∂MSE</span><span>∂w</span></span>,　b ← b − η·<span class="frac"><span>∂MSE</span><span>∂b</span></span></div><div class="desc">コストが下がる向きへ w, b を少しずつ動かします。緑の破線は、このデータでは一意に求まる<b>最小二乗の解析解</b>です。選んだ学習率で十分反復すると、勾配降下がそこへ近づきます。反復 '+iter+'・MSE '+mse(w,b).toFixed(3)+'。</div>';}
+  else{const R=r2(w,b);h+='<h3>⑤ 結果：最良の直線 — そして学習の原型</h3><div class="desc">最小二乗の直線が完成（傾き w='+w.toFixed(2)+', 切片 b='+b.toFixed(2)+'）。当てはまりの良さは<b>決定係数 R² = '+R.toFixed(2)+'</b>（1 に近いほど良い）。'+(curve?'<b style="color:var(--neg)">曲線データ</b>なので直線では構造を捉えきれず R² が低い＝線形の限界（多項式回帰へ）。':'残差が小さくなり、データの傾向をよく説明できています。')+'　いま調整したのは <b>w と b の 2 個</b>。パラメータが増えても「誤差を測り、勾配で更新する」という骨格は同じです。</div><div class="eq" style="margin-top:8px;"><b>要点</b><br>・直線 ŷ=wx+b の w,b を最適化<br>・二乗誤差(MSE)を最小化＝最小二乗<br>・この full-rank の例では勾配降下が一意な解析解へ近づく<br>・一般には rank と収束条件を確認する</div>';}
   el.innerHTML=h;}
 function renderAll(){renderStepper();renderMini();renderLegend();renderExplain();document.getElementById('prevBtn').disabled=(stepIdx===0);document.getElementById('nextBtn').disabled=(stepIdx===STEPS.length-1);}
 

@@ -81,7 +81,7 @@
       <button id="prevBtn">◀ 前へ</button>
       <button class="primary" id="nextBtn">次へ ▶</button>
       <button id="autoBtn">⏵ 学習</button>
-      <button id="resetBtn">↻ 最初から</button>
+      <button id="resetBtn" title="比較を再現できるよう同じ seed=7 へ戻します">↻ 同じ条件から</button>
       <span class="spacer"></span>
       <select id="envSel" title="迷路の種類"><option value="回廊">迷路: 回廊</option><option value="オープン">迷路: オープン</option><option value="2部屋">迷路: 2部屋</option></select>
       <select id="stabSel" title="安定化技（外すと不安定になる対比）"><option value="both">安定化: 両方 on</option><option value="noreplay">経験再生 なし</option><option value="notarget">ターゲット網 なし</option><option value="none">両方 なし(素朴)</option></select>
@@ -128,7 +128,7 @@ function fwd(M,x){let a=[x.slice()];const L=sizes.length-1;for(let l=1;l<=L;l++)
 function qvals(M,x,y){return fwd(M,feat(x,y))[sizes.length-1];}
 function maxQ(M,x,y){const o=qvals(M,x,y);let m=o[0];for(const v of o)if(v>m)m=v;return m;}
 function greedy(M,x,y){const o=qvals(M,x,y);let a=0;for(let j=1;j<4;j++)if(o[j]>o[a])a=j;return a;}
-function reset(){seed=7+(episodes?Math.floor(mul()*900):0)|0;seed=7;Q=netNew();Tnet=copyNet(Q);mW=[null];vW=[null];mB=[null];vB=[null];for(let l=1;l<sizes.length;l++){const nI=sizes[l-1],nO=sizes[l];mW[l]=Q.W[l].map(()=>new Float64Array(nI));vW[l]=Q.W[l].map(()=>new Float64Array(nI));mB[l]=new Float64Array(nO);vB[l]=new Float64Array(nO);}tA=0;buf=[];eps=1;episodes=0;steps=0;agent=[0,0];reach=0;}
+function reset(){seed=7;Q=netNew();Tnet=copyNet(Q);mW=[null];vW=[null];mB=[null];vB=[null];for(let l=1;l<sizes.length;l++){const nI=sizes[l-1],nO=sizes[l];mW[l]=Q.W[l].map(()=>new Float64Array(nI));vW[l]=Q.W[l].map(()=>new Float64Array(nI));mB[l]=new Float64Array(nO);vB[l]=new Float64Array(nO);}tA=0;buf=[];eps=1;episodes=0;steps=0;agent=[0,0];reach=0;}
 reset();
 function trainBatch(batch,lr,gamma){const L=sizes.length-1;const dW=[null],dB=[null];for(let l=1;l<=L;l++){dW[l]=Q.W[l].map(r=>new Float64Array(r.length));dB[l]=new Float64Array(sizes[l]);}
   for(const e of batch){const a=fwd(Q,e.s),o=a[L];let tgt=e.r;if(!e.done)tgt+=gamma*Math.max(...fwd(Tnet,e.ns)[L]);

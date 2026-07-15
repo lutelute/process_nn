@@ -1,0 +1,15 @@
+{
+  "name": "process-nn",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run verify",
+    "verify": "node tools/verify.mjs && node tools/verify-content.mjs && node tools/check-pages.mjs",
+    "test:browser": "node tools/crawl-pages.mjs",
+    "test:interactions": "node tools/check-interactions.mjs",
+    "test:diffusion": "node tools/check-diffusion-demo.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.58.0"
+  }
+}

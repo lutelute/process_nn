@@ -70,10 +70,11 @@ label{color:var(--ink-2);}
 /* ⚠ よくある誤解 — 誤解(✗)→正しい理解(✓) の対比ブロック。reg/dropout 等の .myth 共通部品 */
 .myth{background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--warm);border-radius:2px;padding:13px 16px;margin:14px 0;}
 .myth-h{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--warm);font-weight:700;margin-bottom:8px;}
-.myth .row{font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);display:flex;gap:8px;align-items:baseline;}
+.myth .row{font-family:var(--gothic);font-size:12.5px;line-height:1.8;color:var(--ink-2);display:block;position:relative;padding-left:24px;}
 .myth .row+.row{margin-top:2px;}
-.myth .x{color:var(--neg);font-weight:700;flex:none;}
-.myth .o{color:var(--accent);font-weight:700;flex:none;}
+.myth .x,.myth .o{position:absolute;left:0;top:0;font-weight:700;}
+.myth .x{color:var(--neg);}
+.myth .o{color:var(--accent);}
 .myth .row b{color:var(--ink);}
 details{background:var(--panel);border:1px solid var(--rule);border-radius:2px;}
 summary{font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--ink-2);} summary:hover{color:var(--ink);}

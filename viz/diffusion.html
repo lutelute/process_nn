@@ -106,11 +106,12 @@
 
   <details>
     <summary>もっと詳しく：前進・逆過程の式・GANとの違い</summary>
-    <div class="det"><b>前進過程</b>は本物 x₀ にノイズを足す決まった操作で、任意の時刻 t の状態を一発で書けます：<b>x<sub>t</sub> = √(ā<sub>t</sub>)·x₀ + √(1−ā<sub>t</sub>)·ε</b>（ε～N(0,I)、ā<sub>t</sub> は残る信号の割合で t が進むほど 0 へ）。ネットは「x<sub>t</sub> と時刻 t を見て、混ぜられた<b>ノイズ ε を当てる</b>」よう <b>‖ε − ε<sub>θ</sub>(x<sub>t</sub>,t)‖²</b> の二乗誤差で学習します（普通の回帰なので安定）。<b>逆過程（生成）</b>は x<sub>T</sub>～N(0,I) から、各 t で予測ノイズを少し引く操作を T 回くり返して x₀ に戻します。<b>GAN との違い</b>：<a href="gan.html">GAN</a> は識別器との敵対で不安定・モード崩壊しがちですが、拡散は<b>1 つの回帰損失</b>で<b>安定</b>に学習でき、多様性も保ちやすい。代わりに生成は T ステップ必要で遅め（高速化が研究テーマ）。時刻 t はサイン埋め込みで与えています。<a href="vae.html">VAE</a> とも比較を。</div>
+    <div class="det"><b>前進過程</b>は本物 x₀ にノイズを足す決まった操作で、任意の時刻 t の状態を一発で書けます：<b>x<sub>t</sub> = √(ā<sub>t</sub>)·x₀ + √(1−ā<sub>t</sub>)·ε</b>（ε～N(0,I)、ā<sub>t</sub> は残る信号の割合で t が進むほど 0 へ）。この短い 20〜80 ステップのデモでは、終端にも信号を残してしまう 1000 ステップ用の線形 β を流用せず、<a href="https://proceedings.mlr.press/v139/nichol21a.html">Nichol &amp; Dhariwal (2021)</a> の<b>コサインスケジュール</b>から β を計算します。ネットは「x<sub>t</sub> と時刻 t を見て、混ぜられた<b>ノイズ ε を当てる</b>」よう <b>‖ε − ε<sub>θ</sub>(x<sub>t</sub>,t)‖²</b> の二乗誤差で学習します。<b>逆過程（生成）</b>は x<sub>T</sub>～N(0,I) から、予測ノイズを少し引く操作を T 回くり返します。ここでは 2 次元で仕組みを追うための小型 MLP と固定分散を使う簡略版で、画像用 DDPM の U-Net・学習分散・多数ステップは省略しています。<b>GAN との違い</b>：<a href="gan.html">GAN</a> のように識別器と競わせず、1 つのノイズ予測回帰を学習します。代わりに生成は反復が必要です。<a href="vae.html">VAE</a> とも比較を。</div>
   </details>
 </div>
 
-<script>
+<script type="module">
+import { cosineDiffusionSchedule } from './lib/diffusion-schedule.mjs';
 "use strict";
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 let seed=42;function mul(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}
@@ -130,11 +131,11 @@ const TARGETS={
 function tgt(){return TARGETS[targetKind];}
 function x0sample(){return tgt().sample();}
 let T=40;const beta=[],alpha=[],abar=[];
-function buildSchedule(){beta.length=0;alpha.length=0;abar.length=0;let ab=1;for(let t=0;t<T;t++){const b=1e-4+(0.02-1e-4)*t/(T-1);beta[t]=b;alpha[t]=1-b;ab*=alpha[t];abar[t]=ab;}}
+function buildSchedule(){const s=cosineDiffusionSchedule(T);beta.splice(0,beta.length,...s.beta);alpha.splice(0,alpha.length,...s.alpha);abar.splice(0,abar.length,...s.alphaBar);}
 buildSchedule();
 function temb(t){const p=t/T,e=[];for(let f=1;f<=3;f++){e.push(Math.sin(p*Math.PI*f));e.push(Math.cos(p*Math.PI*f));}return e;}
-function inp(x,t){return[x[0],x[1],temb(t)[0],temb(t)[1],temb(t)[2],temb(t)[3],temb(t)[4],temb(t)[5]];}
-const S=[8,64,64,2];
+function inp(x,t){const e=temb(t);return[x[0],x[1],...e];}
+const S=[8,32,32,2];
 function mlp(s){const W=[null],B=[null];for(let l=1;l<s.length;l++){const nI=s[l-1],nO=s[l],sc=Math.sqrt(2/nI),Wl=[];for(let j=0;j<nO;j++){const r=new Float64Array(nI);for(let k=0;k<nI;k++)r[k]=randn()*sc;Wl.push(r);}W[l]=Wl;B[l]=new Float64Array(nO);}return{W,B,sizes:s,m:opt(s),v:opt(s),t:0};}
 function opt(s){const W=[null],B=[null];for(let l=1;l<s.length;l++){W[l]=Array.from({length:s[l]},()=>new Float64Array(s[l-1]));B[l]=new Float64Array(s[l]);}return{W,B};}
 const rl=z=>z>0?z:0.1*z,drl=z=>z>0?1:0.1;
@@ -143,11 +144,11 @@ function bp(M,fc,dOut,G){const s=M.sizes,L=s.length-1;let d=dOut;for(let l=L;l>=
 function adam(M,G,lr){const L=M.sizes.length-1;M.t++;const b1=.9,b2=.999,bc1=1-Math.pow(b1,M.t),bc2=1-Math.pow(b2,M.t);for(let l=1;l<=L;l++)for(let j=0;j<M.sizes[l];j++){const gb=G.B[l][j];M.m.B[l][j]=b1*M.m.B[l][j]+(1-b1)*gb;M.v.B[l][j]=b2*M.v.B[l][j]+(1-b2)*gb*gb;M.B[l][j]-=lr*(M.m.B[l][j]/bc1)/(Math.sqrt(M.v.B[l][j]/bc2)+1e-8);for(let k=0;k<M.sizes[l-1];k++){const gw=G.W[l][j][k];M.m.W[l][j][k]=b1*M.m.W[l][j][k]+(1-b1)*gw;M.v.W[l][j][k]=b2*M.v.W[l][j][k]+(1-b2)*gw*gw;M.W[l][j][k]-=lr*(M.m.W[l][j][k]/bc1)/(Math.sqrt(M.v.W[l][j][k]/bc2)+1e-8);}}}
 // ===== 状態 =====
 let M,trained,trainIter,lossHist,parts,animT,mode,auto,pendingReverse;
-const NP=150, MAXIT=4000;
+const NP=150, BS=48, MAXIT=3000;
 function reset(){seed=42;M=mlp(S);trained=false;trainIter=0;lossHist=[];parts=[];animT=0;mode=null;auto=false;pendingReverse=false;initForward();}
 function initForward(){parts=[];for(let i=0;i<NP;i++)parts.push({x0:x0sample(),eps:[randn(),randn()],pos:[0,0]});animT=0;for(const p of parts)p.pos=p.x0.slice();}
 function initReverse(){parts=[];for(let i=0;i<NP;i++)parts.push({pos:[randn(),randn()]});animT=T-1;}
-function trainStep(){const BS=64,g=opt(S);let loss=0;for(let b=0;b<BS;b++){const x0=x0sample(),t=Math.floor(mul()*T),eps=[randn(),randn()];
+function trainStep(){const g=opt(S);let loss=0;for(let b=0;b<BS;b++){const x0=x0sample(),t=Math.floor(mul()*T),eps=[randn(),randn()];
   const xt=[Math.sqrt(abar[t])*x0[0]+Math.sqrt(1-abar[t])*eps[0],Math.sqrt(abar[t])*x0[1]+Math.sqrt(1-abar[t])*eps[1]];
   const fc=fwd(M,inp(xt,t)),pr=fc.a[3];loss+=(pr[0]-eps[0])**2+(pr[1]-eps[1])**2;bp(M,fc,[pr[0]-eps[0],pr[1]-eps[1]],g);}
   for(let l=1;l<=3;l++)for(let j=0;j<S[l];j++){g.B[l][j]/=BS;for(let k=0;k<S[l-1];k++)g.W[l][j][k]/=BS;}adam(M,g,0.002);trainIter++;lossHist.push(loss/BS);if(lossHist.length>300)lossHist.shift();}
@@ -185,7 +186,7 @@ function drawStep(){const k=STEPS[stepIdx].key;
   drawBar();}
 function stopAuto(){auto=false;mode=(STEPS[stepIdx].key==='forward'||STEPS[stepIdx].key==='reverse')?mode:null;document.getElementById('playBtn').textContent='⏵ 再生';}
 function frame(){if(!auto)return;
-  if(mode==='train'){for(let i=0;i<35;i++)trainStep();renderMini();drawBar();
+  if(mode==='train'){for(let i=0;i<35&&trainIter<MAXIT;i++)trainStep();renderMini();drawBar();
     if(trainIter>=MAXIT){trained=true;auto=false;document.getElementById('playBtn').textContent='⏵ 再生';renderExplain();if(pendingReverse){pendingReverse=false;startReverse();}return;}requestAnimationFrame(frame);return;}
   if(mode==='forward'){for(const p of parts)p.pos=[Math.sqrt(abar[animT])*p.x0[0]+Math.sqrt(1-abar[animT])*p.eps[0],Math.sqrt(abar[animT])*p.x0[1]+Math.sqrt(1-abar[animT])*p.eps[1]];
     draw(true,true);renderMini();drawBar();animT++;if(animT>=T){animT=0;}requestAnimationFrame(frame);return;}

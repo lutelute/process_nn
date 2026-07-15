@@ -1,5 +1,8 @@
 .DS_Store
-logs/
+logs/*
+!logs/loops/
+logs/loops/*
+!logs/loops/technical-quality-pass.md
 node_modules/
 
 # GPT-2 の重み（巨大・再DL可能なのでコミットしない）
