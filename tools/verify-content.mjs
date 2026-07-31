@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { cosineDiffusionSchedule } from '../viz/lib/diffusion-schedule.mjs';
 import { averagePrecision, brierScore, meanConfidenceInterval, regressionMetrics, rocAuc } from '../viz/lib/evaluation-metrics.mjs';
 import { chainRuleExample, crossEntropy, dot, entropy, klDivergence, matMul, matVec, softmax } from '../viz/lib/foundations-math.mjs';
-import { PAGE_TERMS, TERM_CATEGORIES, TERM_NOTES } from '../viz/lib/term-notes.mjs';
+import { PAGE_TERMS, TERM_CATEGORIES, TERM_NAMING, TERM_NOTES } from '../viz/lib/term-notes.mjs';
 import { sampleNext, topkSoftmax } from '../gpt2/tools/gpt2.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,6 +27,11 @@ check(TERM_NOTES.every(term => term.term && term.en && TERM_CATEGORIES.includes(
   'interpretation notes: every entry has name parts, human meaning, rationale, and coffee break');
 check(Object.values(PAGE_TERMS).every(ids => ids.length >= 3 && ids.every(id => termIdSet.has(id))),
   'interpretation notes: every page has at least three valid annotations');
+// 「なぜこの名前？」は名前が設計思想の要約であることを示す欄。全語に置き、原語の分解の言い換えで埋めない。
+check(TERM_NOTES.every(term => term.naming && term.naming.length <= 140),
+  'naming origins: every entry says why it carries that name (<= 140 chars)');
+check(Object.keys(TERM_NAMING).every(id => termIdSet.has(id)),
+  'naming origins: every key refers to an existing term');
 const expectedTermPages = [
   ...readdirSync(resolve(root, 'viz')).filter(file => file.endsWith('.html')).map(file => 'viz/' + file),
   'gpt2/index.html',

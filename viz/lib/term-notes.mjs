@@ -1,6 +1,13 @@
 // 全ノート共通の注釈データ。
 // 「語源」は歴史的初出の断定ではなく、まず原語を分解して名前から発想を復元する。
 // 歴史に触れる項目だけ source に原論文を持たせ、理解用の比喩と検証可能な由来をデータ上で区別する。
+//
+// 各語は 5 欄で書く（表示順もこの通り）:
+//   parts  … 原語の分解（T() の第 5 引数、'語=意味|語=意味' 形式）
+//   naming … なぜその名前なのか＝命名の由来（下の TERM_NAMING に 1 行足すだけ。省略可）
+//   plain  … 人間の感覚でいうと
+//   why    … なぜこの考え方？
+//   coffee … COFFEE BREAK（小話・注意点。naming と内容が重ならないようにする）
 
 const T = (id, term, en, category, parts, plain, why, coffee, source = null) => ({
   id, term, en, category,
@@ -150,6 +157,152 @@ export const TERM_NOTES = [
   T('lime','LIME','Local Interpretable Model-agnostic Explanations','説明可能AI','local=一点の近所|interpretable=読める|model-agnostic=モデル不問','説明したい一点の周囲でブラックボックスを線形モデルに近似し、特徴寄与を示す方法。','複雑な全体を説明せず、今の一予測の近所だけ単純化するため。','近所の広さや乱数で説明が変わり得る。地球全体でなく、その地点の接平面を見る発想。', ['Ribeiro, Singh & Guestrin (2016)','https://arxiv.org/abs/1602.04938']),
   T('shap','SHAP','SHapley Additive exPlanations','説明可能AI','SHapley=協力ゲームの配分|Additive=足し合わせる|exPlanations=説明','特徴を参加者とみなし、予測への貢献をShapley値で公平に配分する説明法。','特徴の参加順すべてを平均し、相互作用を含む貢献配分の原則を持たせるため。','SHAPの大文字は略称を作る言葉遊び。厳密計算は組合せ爆発するため近似や専用算法を使う。', ['Lundberg & Lee (2017)','https://arxiv.org/abs/1705.07874']),
 ];
+
+// ===== 命名の由来（なぜその名前なのか）=====
+// 用語ノートの「なぜこの名前？」欄。ここへ 1 行足すだけで、その語を載せる全ページに反映される。
+//
+//   テンプレ:  '<id>': '<名前の各語が何を指すか／どこから借りた語か>。<誤読しやすい点・対になる語>。',
+//
+// 書き方の約束:
+//   - 原語の分解（parts）で言い切れることは繰り返さず、「なぜその語を選んだか」を書く。
+//   - 歴史は確実なものだけ。曖昧なら「〜と説明されることが多い」と留保を付ける。
+//   - COFFEE BREAK と内容が重ならないようにする（重なる場合は片方の角度を変える）。
+//   - 未記入の語はこの欄ごと非表示になるので、部分的に増やしても表示は崩れない。
+export const TERM_NAMING = {
+  // ── 学習の基本語 ──
+  'machine-learning': '人が規則を書き下す代わりに、例から規則を得る点を強調して learning と名付けた。日本語は machine=機械 / learning=学習 の直訳。',
+  'supervised-learning': '日本語の「教師」は supervisor（監督者）の訳語。学習中ずっと正解を横に置ける状況を、監督者付きの作業になぞらえた名前。',
+  'unsupervised-learning': 'un- を付けただけの名前で、「監督者がいない＝正解ラベルがない」と消極的に定義している。何を目指すか（構造の発見）は名前に含まれない。',
+  'reinforcement-learning': '心理学の reinforcement（強化＝ある行動の起こりやすさを高める操作）から借りた語。学ぶ対象が「行動の選び方」であることを名前が示す。',
+  'generative-model': '境界だけを引く discriminative（識別）モデルとの対で付いた名前。データがどう生まれる（generate）かを表す側、という役割分担を表す。',
+  'model': '工学の「模型」と同じ語。実物ではなく目的に必要な性質だけを写した縮尺、という含意がそのまま数式の模型へ引き継がれている。',
+  'feature': 'feature は顔立ち・目立つ特徴の意。日本語で「量」を足したのは、測って数にしたものだけがモデルへ入るから。',
+  'label': '貼り札の意で、データ点に外から貼り付ける正解という関係を表す。連続値を予測するときは target（標的）と呼ぶことが多い。',
+  'parameter': 'ギリシャ語 para（そばに）＋ metron（測る）。主役の変数のかたわらで形を決める量、という数学の用法をそのまま引き継いだ。',
+  'hyperparameter': 'parameter の外側にあるので hyper-（上位の）。学習で決まらず人が決める、という階層関係がそのまま名前になっている。',
+  'training': '動物や人の訓練と同じ語。一度で仕上げず、繰り返しと反復修正で仕上げる工程だという含みがある。',
+  'inference': 'ラテン語 in-（中へ）＋ ferre（運ぶ）で、手掛かりから結論を運び込むこと。統計学の推論から借りたが、実務では学習済みモデルの実行そのものを指すことが多い。',
+  'loss-function': '決定理論の loss（誤った決定で失う価値）に由来する。cost / objective / error とも呼ばれ、いずれも「下げたい量」という役割は同じ。',
+  'optimizer': 'optimum（最良点）を探す仕組みの意。最良点へ到達する保証を名乗っているのではなく、探し方に付いた名前である。',
+  'epoch': '天文や地質で使う「区切りとなる時点」の語。訓練の進み具合を測る単位として、全データ一巡を一区切りと定めた。',
+  'batch': '工場で一度にまとめて処理する単位を指す語。1 件ずつ流す online 処理に対する呼び名として定着した。',
+  'seed': '疑似乱数は出発値から決定的に育つ数列なので、その出発値を「種」と呼ぶ。同じ種からは同じ列が育つ。',
+  'overfitting': 'fit は曲線を当てはめること。over- は当てはめ過ぎを指す。日本語の「過学習」は学びすぎの語感になるが、正しくは訓練データへ合わせすぎ。',
+  'generalization': '個別例から一般則へ広げる generalize の名詞形。日本語の「汎」は広く行き渡るという意味。',
+  'train-valid-test': 'validation は「妥当性の確認」で設定を選ぶための試験、test は最後に一度だけ使う本試験。役割分担がそのまま名前になっている。',
+  'bias-variance': '統計学の bias（推定量の偏り）と variance（推定量の分散）を持ち込んだ名前。日本語では「偏り」と「ばらつき」。',
+  'distribution-shift': '分布そのものがずれる現象をそのまま名にしたもの。入力側がずれる covariate shift、答え側がずれる label shift と細分される。',
+
+  // ── 数学・確率 ──
+  'tensor': 'ラテン語 tendere（張る）に由来し、もとは弾性体の張力を表す物理量の名前だった。深層学習では「多次元配列」の意味へ緩めて使う。',
+  'gradient': 'ラテン語 gradus（段・歩み）から。坂の傾きを表す語をベクトル解析が採り、日本語は「勾配」と訳した。',
+  'gradient-descent': '勾配の逆向きへ降りる（descent）動作をそのまま名前にした。最大化したいときは同じ手順を gradient ascent と呼ぶ。',
+  'sgd': 'stochastic はギリシャ語で「狙って推し量る」が原義。全データの勾配を、標本から狙い撃ちに見積もることを指している。',
+  'genetic-algorithm': '集団遺伝学の語彙を計算手順へ移植したので genetic。個体・交叉・突然変異という語が、そのまま操作の名前になっている。',
+  'probability-distribution': '起こりやすさ（probability）を、あり得る値へ配って回る（distribute）ことから。合計が 1 になるのは配り切るため。',
+  'likelihood': 'likely（ありそう）の名詞形。日本語の「尤」は"もっとも"の意で、もっともらしさを表す。確率と区別するために別の語が用意された。',
+  'posterior': '証拠を取り込んだ「後（posterior）」の信念という意味で、取り込む前の prior（事前）と対になる。時間の前後ではなく、更新の前後を指す。',
+  'entropy': '熱力学でクラウジウスが作った造語（en-＋trope＝内側の変化）。情報理論が同じ形の式を見いだし、名前ごと借りた。',
+  'cross-entropy': '真の分布を、別の分布の符号で測る＝二つの分布が交差する形なので cross。両者が一致すれば通常のエントロピーへ戻る。',
+  'kl-divergence': '1951 年の Kullback と Leibler の論文に由来し、二人の姓がそのまま指標名になった人名由来の典型例。',
+  'softmax': '最大値だけを 1 にする hard max を滑らかにしたので soft＋max。argmax の微分可能な代用という位置づけが名前に出ている。',
+  'kernel': '核・果実の中身の意。積分方程式で中心に置かれる関数を kernel と呼んだ数学の用法が、そのまま機械学習へ引き継がれた。',
+  'covariance': 'co-（共に）＋ variance（分散）。1 変数の散らばりを 2 変数の連動へ広げたことが、名前だけで分かる。',
+  'latent-space': 'latent は医学や心理学でいう「潜伏している」。観測できないが背後で効いている統計の latent variable（潜在変数）から来ている。',
+  'embedding': '数学の embedding（ある空間を、構造を保ったまま別の空間へ入れる写像）から。離散的な記号をベクトル空間へ入れる操作をそう呼んだ。',
+  'gaussian-process': 'どの有限個の点を取り出しても同時ガウス分布になるので Gaussian。process は時間発展ではなく、入力に沿って値が定まる確率的な仕組みを指す。',
+
+  // ── ニューラルネット ──
+  'forward-propagation': '信号が入力から出力へ前向き（forward）に伝わる（propagate）から。訓練時の逆伝播と対になるよう名付けられた。',
+  'activation-function': '神経細胞が発火する＝活性化するという生物の比喩から。実体は非線形変換であり、発火の有無を模す必要はない。',
+  'mlp': '単層パーセプトロンの限界を、層を重ねて超えたという経緯がそのまま名前になった。実体は「全結合層＋活性化」の積み重ね。',
+  'perceptron': 'perceive（知覚する）＋ 装置を表す接尾辞 -tron（cyclotron などと同じ）。知覚する機械、という 1950 年代の期待が名前に表れている。',
+  'linear-regression': 'linear は「パラメータについて線形」の意。特徴を二乗しても、係数の入り方が線形なら線形回帰と呼ぶ。',
+  'backpropagation': 'backward propagation of errors（誤差の後ろ向き伝播）を縮めた呼び名。日本語は「誤差逆伝播（法）」と訳された。',
+  'regularization': '解が一つに定まらない不良設定問題を、正則（regular）な問題へ直すという数値解析の用語から。Tikhonov 正則化がその代表。',
+  'dropout': 'ユニットを一時的に抜けさせる（drop out）操作そのものが名前。学校を中退する意味とは関係がない。',
+  'vanishing-gradient': '勾配が消えてなくなる（vanish）現象をそのまま名にしたもの。逆に膨れ上がる場合は exploding gradient（勾配爆発）と対で呼ぶ。',
+  'batch-normalization': 'ミニバッチという軸で統計を取るので batch normalization。層方向で取れば layer norm、チャネルを束ねれば group norm と、どの軸で揃えるかが名前になる。',
+  'residual-connection': '学ぶ対象を H(x) ではなく残差 F(x)=H(x)−x に置き換えたことが名前の由来。接続そのものは skip connection やショートカットとも呼ばれる。',
+  'transfer-learning': '心理学の transfer of learning（学習転移＝前に学んだことが次に生きる現象）から借りた名前。',
+  'knowledge-distillation': '先行研究の model compression を、蒸留の比喩で言い直した呼び名。軟らかさを決める temperature（温度）という語も、熱の比喩で揃えてある。',
+  'convolution': '数学の畳み込み積分と同じ名前だが、深層学習の実装は多くの場合フィルタを反転しない相互相関である。名前と実装が少しずれている例。',
+
+  // ── 評価・実験 ──
+  'confusion-matrix': 'どのクラスをどのクラスと取り違えた（confuse）かを並べた表だから。error matrix と呼ばれることもある。',
+  'precision-recall': '情報検索の用語で、precision は取り出したものの純度、recall は取り出すべきものをどれだけ思い出せたか。',
+  'roc-auc': 'AUC は Area Under the Curve の頭字語で、どの曲線かは文脈による。ROC 曲線なら ROC-AUC、PR 曲線なら PR-AUC と書き分ける。',
+  'cross-validation': '検証役を分割どうしで交差させる（cross）ことから。k 個に折り畳んで回すので k-fold（fold＝折り）と呼ぶ。',
+  'model-evaluation': 'evaluate は value（価値）を測る語。数値計算そのものではなく、目的に照らした価値判断だという含みがある。',
+  'calibration': '計器の目盛りを実測に合わせる「校正」と同じ語。確率という目盛りが現実の頻度と合うよう直すことを指す。',
+  'confidence-interval': 'Neyman による命名。信頼するのは区間そのものではなく区間を作る手続きの方で、この語感のずれが誤解の元になっている。',
+  'ablation': '原義は削り取ること。氷河が溶けて削れる現象にも使う語で、取り除いた後に何が失われるかで役割を測る発想が共通する。',
+
+  // ── 古典・クラスタ ──
+  'logistic-regression': 'logistic は人口増加を表すロジスティック曲線から。その S 字を確率に使うので logistic、係数を当てはめるので regression。',
+  'decision-boundary': '決定（どのクラスと判定するか）が切り替わる境目、という文字通りの名前。決定面（decision surface）とも呼ぶ。',
+  'decision-tree': '根から葉へ判断をたどる図が木に見えることから。計算機科学の木は根を上に描く慣習なので、絵は逆さの木になる。',
+  'random-forest': '木を多数集めるので forest、乱択を効かせるので random。Breiman らによる命名で、Random Forests は登録商標でもある。',
+  'gradient-boosting': 'boost は押し上げる意で、弱い学習器を押し上げて強くする boosting の系譜。そこへ「損失の勾配方向に足す」という定式化を重ねた名前。',
+  'knn': '近い順に k 個の隣人（nearest neighbors）を見るから。ハイパーパラメータの記号 k が、そのまま手法名に入った例。',
+  'svm': '境界を支える（support）データ点＝サポートベクトルが名前の由来。machine は当時の「学習する機械」という言い方の名残。',
+  'naive-bayes': 'ベイズ則を使い、かつ特徴が条件付き独立という素朴（naive）な仮定を置くから。但し書きが名前として残った珍しい例。',
+  'k-means': 'k 個の平均（means）で代表するから。代表値を実データ点にすれば k-medoids、中央値にすれば k-medians と名前が変わる。',
+  'gmm': 'ガウス分布を混ぜ合わせる（mixture）モデル、という構造そのままの名前。混合の重みが各成分の割合になる。',
+  'dbscan': '正式名の末尾 with Noise が要点で、全点をどれかの塊へ入れる k-means と違い、どこにも属さない点を認めることを名前で宣言している。',
+  'hierarchical-clustering': '結果が入れ子（階層）構造になるから。下から併合するものを凝集型（agglomerative）、上から割るものを分枝型（divisive）と呼ぶ。',
+  'som': '外から配置を指示されず、競合学習だけで格子が整っていくので「自己組織化」。提案者の名から Kohonen map とも呼ばれる。',
+  'hopfield-network': '提案者 John Hopfield の姓から。物理学者らしく、状態がエネルギーの低い方へ落ちる力学系として定式化されている。',
+  'anomaly-detection': 'anomaly はギリシャ語 anomalos（不揃いな）に由来し、規則から外れたものを指す。単に数値が端にある outlier（外れ値）とは含みが少し違う。',
+  'pca': '分散を最も多く担う「主たる成分」から順に取り出すので principal component。principal は主要な、の意。',
+  'tsne': '先行手法 SNE（Stochastic Neighbor Embedding）の低次元側に t 分布を使ったので t- を冠した。名前が改良点そのものになっている。',
+
+  // ── 画像・系列・グラフ ──
+  'rnn': '日本語では「再帰型」と訳されるが、関数が自分を呼ぶ recursive ではなく、同じ層を時刻ごとに再訪する recurrent。訳語が同じなので混同しやすい。',
+  'lstm': '区切りは long (short-term memory)。重みに蓄える長期記憶ではなく、活性に載る短期記憶を長持ちさせる、という主張が名前になっている。',
+  'hmm': 'マルコフ性（次は現在だけで決まる）を持つ状態が hidden（観測できない）なので hidden Markov。Markov は提案者 A. A. Markov の姓。',
+  'kalman-filter': 'Rudolf Kálmán の姓と、雑音から信号を取り出す信号処理の filter から。推定なのに filter と呼ぶのは通信工学の用語法。',
+  'gnn': '格子（画像）でも系列でもなくグラフを入力に取るニューラルネット、という素直な命名。畳み込みに相当する演算は graph convolution と呼ぶ。',
+  'power-flow': '英語は power flow / load flow で、流れを潮の満ち引きになぞらえた「潮流」は日本語側の訳語。水流の比喩だが、実際は位相差が流れを決める。',
+  'pinn': 'informed は「情報を与えられた」で、物理法則を損失として教え込まれたネットの意。法則を発見する手法ではない、と名前が示している。',
+
+  // ── 言語モデル ──
+  'word-embedding': '互いに直交して無関係な one-hot 表現に対し、距離が意味を持つ空間へ移すことを強調した名前。',
+  'positional-encoding': '位置を符号（code）へ変えて足すから。固定式でなく学習で得る場合は positional embedding と呼び分けることがある。',
+  'self-attention': '注意を向ける相手が別系列ではなく自分自身の系列だから self。原文と訳文をまたぐ cross-attention と対になる。',
+  'transformer': '一般名詞の「変換するもの」を固有名として使った例。原論文は注意中心の構成を提案しており、名前自体に特別な由来説明は置かれていない。',
+  'token': '代用貨幣やしるしを意味する token から。文字列を、モデルが数えられる「しるし」の列へ置き換えることを指す。',
+  'gpt': 'pre-trained の pre- は「本番の課題より前に」の意で、事前学習＋微調整が前提だった時代の名残。微調整せず使う今も名前は当時のまま。',
+  'moe': '専門家（experts）の意見を混ぜる（mixture）から。1991 年の適応的混合エキスパートに遡る古い名前で、近年は少数だけ呼ぶ疎ゲート版が主流。',
+  'rag': 'Retrieval-Augmented Generation の頭字語で、「検索で補強された生成」と読む。生成に外部検索を足す構成全般を指す語として広まった。',
+
+  // ── 生成・表現学習 ──
+  'matrix-factorization': '整数の因数分解（factorization）と同じ発想で、行列を積の形へ分ける。分け方によって SVD・NMF などの名前が付く。',
+  'autoencoder': 'auto- は「自動」ではなく「自分自身」。autobiography（自伝）と同じ使い方で、自分を写して自分へ戻す構造を指している。',
+  'contrastive-learning': '正例と負例を対比（contrast）させて表現を作るから。日本語の「対照」は照らし合わせる意で、左右対称の「対称」ではない。',
+  'vae': 'variational は変分法（関数を動かして最良を探す手法）に由来し、解けない真の事後分布を、扱える近似分布で置き換える推論法を指す。',
+  'gan': '原論文 Generative Adversarial Nets の直訳。adversarial は生成器と識別器が利害の反する二人ゲーム（ミニマックス）を戦うことを指し、入力に細工をする adversarial example（敵対的サンプル）とは別概念。',
+  'diffusion-model': '非平衡熱力学の拡散過程を借りた名前。データが少しずつ散らばる前向き過程と、その逆をたどる生成過程を同じ言葉で扱う。',
+  'surrogate-model': 'surrogate は代理母（surrogate mother）と同じ語で、本人の代わりを務めるもの。分野によっては metamodel、応答曲面とも呼ばれる。',
+  'black-box': '中身を問わず入出力だけを見る箱、という工学の言い方。対義語は内部が見える white box / glass box。',
+
+  // ── 強化学習 ──
+  'reward': '行動の後に与える価値、という心理学の語をそのまま使う。目的そのものではなく目的の代理指標だという但し書きは、名前には現れない。',
+  'bandit': 'スロットマシンの俗称 one-armed bandit（レバー 1 本で金を奪う「片腕の追い剥ぎ」）が元。腕を増やして multi-armed とした言葉遊びである。',
+  'q-learning': '学習する対象が行動価値関数 Q そのものだから Q-learning。表で持てば tabular Q-learning、ネットで近似すれば DQN と名前が変わる。',
+  'dqn': 'Deep（深層ネットで近似する）＋ Q-Network の合成。Q の表をネットへ置き換えた、という一点だけを名前が言っている。',
+  'policy-gradient': '価値ではなく方策（policy）のパラメータについて勾配を取るから。日本語の「方策」は policy の訳語で、政治の政策とは無関係。',
+  'actor-critic': '演じる側（actor）と批評する側（critic）という劇場の比喩。1983 年の Barto らの研究で使われた呼び方が定着した。',
+  'mcts': '乱数を使う計算法の総称 Monte Carlo と、木を探索する tree search の合成。ロールアウトで乱数を振る点と、木を伸ばす点の両方が名前に入っている。',
+  'rlhf': '報酬をどこから得るかを名前で明示した例。人の評価なら RLHF、AI の評価に置き換えれば RLAIF と呼び分ける。',
+
+  // ── 説明可能AI ──
+  'xai': 'explainable AI の訳で、2016 年ごろの研究計画名を通じて広まった呼称。interpretable（解釈可能）との使い分けは論者によって揺れる。',
+  'lime': 'Local Interpretable Model-agnostic Explanations の頭字語。局所・読める・モデル不問という三つの設計方針が、名前に畳み込まれている。',
+  'shap': 'Shapley 値（協力ゲーム理論）と additive（加法的）な説明を掛け合わせた造語。LIME などの既存手法を「加法的な説明」という枠で統一した、という主張が名前に入っている。',
+};
+
+TERM_NOTES.forEach(term => { term.naming = TERM_NAMING[term.id] || null; });
 
 export const PAGE_TERMS = {
   'viz/map.html':['machine-learning','supervised-learning','unsupervised-learning'],
