@@ -44,6 +44,8 @@
         padding:2px 5px;border-radius:2px;font:9.5px/1.4 var(--mono,monospace)}.tn-part b{color:var(--accent,#1f9e8a)}
       .tn-line{font-size:11.5px;line-height:1.7;color:var(--ink-2,#52504a);margin:6px 0 0}
       .tn-label{display:block;font:700 9px/1.35 var(--mono,monospace);letter-spacing:.09em;color:var(--ink-3,#6e6a60);margin-bottom:1px}
+      .tn-naming{margin-top:2px;padding-bottom:7px;border-bottom:1px dashed var(--rule,#dcd8cc)}
+      .tn-naming .tn-label{color:var(--upd,#6f54c4)}
       .tn-human{color:var(--ink,#1a1a17)}.tn-human .tn-label{color:var(--accent,#1f9e8a)}
       .tn-coffee{border-left:2px solid var(--warm,#b3812f);padding:5px 6px;background:var(--panel-2,#f2efe6)}
       .tn-coffee .tn-label{color:var(--warm,#b3812f)}
@@ -75,6 +77,7 @@
       parts.appendChild(chip);
     });
     article.appendChild(parts);
+    if (term.naming) article.appendChild(line('なぜこの名前？', term.naming, 'tn-naming'));
     article.appendChild(line('人間の感覚でいうと', term.plain, 'tn-human'));
     article.appendChild(line('なぜこの考え方？', term.why));
     article.appendChild(line('COFFEE BREAK', term.coffee, 'tn-coffee'));
@@ -92,7 +95,7 @@
     intro.appendChild(title);
     intro.appendChild(el('span', 'tn-kicker', 'INTERPRETATION / ' + terms.length + ' NOTES'));
     section.appendChild(intro);
-    section.appendChild(el('p', 'tn-guide', '専門語を名前の部品へほどき、意味だけでなく「なぜそう考えるのか」まで本文の前に置きます。リンク先を読まなくても、この場で理解できます。'));
+    section.appendChild(el('p', 'tn-guide', '専門語を名前の部品へほどき、「なぜその名前なのか」から「なぜそう考えるのか」までを本文の前に置きます。リンク先を読まなくても、この場で理解できます。'));
     const grid = el('div', 'tn-grid');
     terms.forEach(term => grid.appendChild(note(term)));
     section.appendChild(grid);
