@@ -230,7 +230,7 @@ export const TERM_NAMING = {
 
   // ── 評価・実験 ──
   'confusion-matrix': 'どのクラスをどのクラスと取り違えた（confuse）かを並べた表だから。error matrix と呼ばれることもある。',
-  'precision-recall': '情報検索の用語で、precision は取り出したものの純度、recall は取り出すべきものをどれだけ思い出せたか。',
+  'precision-recall': '日本語の「適合率」「再現率」は情報検索からの訳語。英語の日常語 precision（正確さ）とは指すものがずれるので、語感で読まず定義に戻る必要がある。',
   'roc-auc': 'AUC は Area Under the Curve の頭字語で、どの曲線かは文脈による。ROC 曲線なら ROC-AUC、PR 曲線なら PR-AUC と書き分ける。',
   'cross-validation': '検証役を分割どうしで交差させる（cross）ことから。k 個に折り畳んで回すので k-fold（fold＝折り）と呼ぶ。',
   'model-evaluation': 'evaluate は value（価値）を測る語。数値計算そのものではなく、目的に照らした価値判断だという含みがある。',
@@ -259,18 +259,18 @@ export const TERM_NAMING = {
 
   // ── 画像・系列・グラフ ──
   'rnn': '日本語では「再帰型」と訳されるが、関数が自分を呼ぶ recursive ではなく、同じ層を時刻ごとに再訪する recurrent。訳語が同じなので混同しやすい。',
-  'lstm': '区切りは long (short-term memory)。重みに蓄える長期記憶ではなく、活性に載る短期記憶を長持ちさせる、という主張が名前になっている。',
+  'lstm': '区切りは long (short-term memory) で、long-term memory ではない。重みに蓄えられる長期記憶と、活性に載る短期記憶を区別したうえで、後者を修飾しているのが要点。',
   'hmm': 'マルコフ性（次は現在だけで決まる）を持つ状態が hidden（観測できない）なので hidden Markov。Markov は提案者 A. A. Markov の姓。',
   'kalman-filter': 'Rudolf Kálmán の姓と、雑音から信号を取り出す信号処理の filter から。推定なのに filter と呼ぶのは通信工学の用語法。',
   'gnn': '格子（画像）でも系列でもなくグラフを入力に取るニューラルネット、という素直な命名。畳み込みに相当する演算は graph convolution と呼ぶ。',
-  'power-flow': '英語は power flow / load flow で、流れを潮の満ち引きになぞらえた「潮流」は日本語側の訳語。水流の比喩だが、実際は位相差が流れを決める。',
+  'power-flow': '英語は power flow / load flow。潮の満ち引きになぞらえた「潮流」は日本語側の訳語で、英語名に潮の含みはない。',
   'pinn': 'informed は「情報を与えられた」で、物理法則を損失として教え込まれたネットの意。法則を発見する手法ではない、と名前が示している。',
 
   // ── 言語モデル ──
   'word-embedding': '互いに直交して無関係な one-hot 表現に対し、距離が意味を持つ空間へ移すことを強調した名前。',
   'positional-encoding': '位置を符号（code）へ変えて足すから。固定式でなく学習で得る場合は positional embedding と呼び分けることがある。',
   'self-attention': '注意を向ける相手が別系列ではなく自分自身の系列だから self。原文と訳文をまたぐ cross-attention と対になる。',
-  'transformer': '一般名詞の「変換するもの」を固有名として使った例。原論文は注意中心の構成を提案しており、名前自体に特別な由来説明は置かれていない。',
+  'transformer': 'transform（作り変える）＋ -er（するもの）の素直な合成で、系列の表現を層ごとに別の表現へ作り変える処理を指す。電気の変圧器や同名の玩具とは無関係。',
   'token': '代用貨幣やしるしを意味する token から。文字列を、モデルが数えられる「しるし」の列へ置き換えることを指す。',
   'gpt': 'pre-trained の pre- は「本番の課題より前に」の意で、事前学習＋微調整が前提だった時代の名残。微調整せず使う今も名前は当時のまま。',
   'moe': '専門家（experts）の意見を混ぜる（mixture）から。1991 年の適応的混合エキスパートに遡る古い名前で、近年は少数だけ呼ぶ疎ゲート版が主流。',
@@ -293,7 +293,7 @@ export const TERM_NAMING = {
   'dqn': 'Deep（深層ネットで近似する）＋ Q-Network の合成。Q の表をネットへ置き換えた、という一点だけを名前が言っている。',
   'policy-gradient': '価値ではなく方策（policy）のパラメータについて勾配を取るから。日本語の「方策」は policy の訳語で、政治の政策とは無関係。',
   'actor-critic': '演じる側（actor）と批評する側（critic）という劇場の比喩。1983 年の Barto らの研究で使われた呼び方が定着した。',
-  'mcts': '乱数を使う計算法の総称 Monte Carlo と、木を探索する tree search の合成。ロールアウトで乱数を振る点と、木を伸ばす点の両方が名前に入っている。',
+  'mcts': '既存の二つの技法名をつないだ合成語。選択則に UCB を使う代表的な版は UCT（Upper Confidence bounds applied to Trees）と呼ばれ、そちらは中身まで名前で説明している。',
   'rlhf': '報酬をどこから得るかを名前で明示した例。人の評価なら RLHF、AI の評価に置き換えれば RLAIF と呼び分ける。',
 
   // ── 説明可能AI ──
