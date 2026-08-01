@@ -32,6 +32,17 @@ check(TERM_NOTES.every(term => term.naming && term.naming.length <= 140),
   'naming origins: every entry says why it carries that name (<= 140 chars)');
 check(Object.keys(TERM_NAMING).every(id => termIdSet.has(id)),
   'naming origins: every key refers to an existing term');
+// 由来と小話が同じ話になっていないか。4-gram の重なりで、書き写しに近いものだけを落とす。
+const shingles = text => new Set(Array.from({ length: Math.max(0, text.length - 3) }, (_, i) => text.slice(i, i + 4)));
+const overlap = (a, b) => {
+  const [x, y] = [shingles(a), shingles(b)];
+  let shared = 0;
+  for (const gram of x) if (y.has(gram)) shared++;
+  return shared / Math.max(1, Math.min(x.size, y.size));
+};
+const echoed = TERM_NOTES.filter(term => overlap(term.naming, term.coffee) > 0.3).map(term => term.id);
+check(echoed.length === 0,
+  'naming origins: none merely repeat the coffee break' + (echoed.length ? ' — ' + echoed.join(', ') : ''));
 const expectedTermPages = [
   ...readdirSync(resolve(root, 'viz')).filter(file => file.endsWith('.html')).map(file => 'viz/' + file),
   'gpt2/index.html',
