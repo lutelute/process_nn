@@ -35,7 +35,13 @@ for (const path of pages) {
           if (await page.locator('#stepper[aria-busy="true"]').count()) deferred++;
           break;
         }
-        await next.click({ timeout: 2500 });
+        // 恒久的な UI 停止（同期処理でイベントループが返らない）だけを落とすため、
+        // 1 度だけ待ち直す。CI マシンが一時的に詰まっただけなら 2 回目で応答し、
+        // 本当に止まっているページは 2 回目も超過して NG になる。
+        await next.click({ timeout: 2500 }).catch(async () => {
+          await page.waitForTimeout(500);
+          await next.click({ timeout: 2500 });
+        });
         clicks++;
         await page.waitForTimeout(60);
       }
