@@ -92,6 +92,7 @@ const CATS={
 //   xai=下端中央左(0.22-0.38, 0.02-0.10)=評価の隣 / supervised=中下(0.38-0.72, 0.02-0.30)
 //   nnbasic=中央帯(0.33-0.60, 0.24-0.80) / imgseq=中右(0.58-0.86, 0.32-0.50)
 //   opt=右中(0.70-0.94, 0.54-0.68) / rl=右下(0.76-0.96, 0.06-0.34) / lang=右上(0.66-0.96, 0.70-0.94)
+// mypage（lutelute.github.io）の scripts/build_learn.py がこの形を読む（M・CATS・SPINE は 1 行ずつこの書き方のまま）
 const M=[
   {n:'数学の道具箱',h:'foundations.html',c:'nnbasic',x:0.34,y:0.72,mo:'pixel'},
   {n:'勾配降下',h:'gradient.html',c:'opt',x:0.79,y:0.56,mo:'descent'},
@@ -163,6 +164,7 @@ const M=[
   {n:'知識蒸留',h:'distill.html',c:'nnbasic',x:0.43,y:0.78,mo:'net'},
   {n:'PINN',h:'pinn.html',c:'imgseq',x:0.61,y:0.40,mo:'curve'},
   {n:'推薦・行列分解',h:'recommend.html',c:'dimred',x:0.28,y:0.60,mo:'pixel'},
+  {n:'逆伝播ラボ',h:'backprop-lab.html',c:'nnbasic',x:0.48,y:0.41,mo:'net'},
 ];
 const SPINE=['数学の道具箱','信号の流れ','勾配降下','誤差逆伝播','決定境界','測定・校正','CNN','RNN','自己注意','Transformer','GPT-2'];
 

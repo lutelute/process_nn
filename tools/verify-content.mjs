@@ -1,5 +1,5 @@
 // 教材の説明と実装が再び食い違わないための、小さく決定的な内容検証。
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cosineDiffusionSchedule } from '../viz/lib/diffusion-schedule.mjs';
@@ -52,6 +52,45 @@ check(JSON.stringify(Object.keys(PAGE_TERMS).sort()) === JSON.stringify(expected
 check(read('viz/nav.js').includes("script.src = 'term-notes.js'")
   && read('gpt2/index.html').includes('../viz/term-notes.js'),
   'interpretation notes: in-page renderer reaches viz notes and GPT-2');
+
+// 手法マップの載せ忘れを防ぐ。viz/*.html は地図の M に載るか、意図して載せない一覧に入るかのどちらか。
+// 行は mypage（lutelute.github.io）の scripts/build_learn.py と同じ正規表現で読む。ここで読めない行は mypage の帯にも出ない。
+const vizPages = readdirSync(resolve(root, 'viz')).filter(file => file.endsWith('.html')).sort();
+const mapSource = read('viz/map.html');
+const mapNodes = [...mapSource.matchAll(/\{n:'([^']+)',h:'([^']+)',c:'(\w+)',x:([\d.]+),y:([\d.]+),mo:'\w+'\}/g)]
+  .map(([, name, href]) => ({ name, href }));
+const mapHrefs = new Set(mapNodes.map(node => node.href));
+const OFF_MAP = [
+  'map.html',         // 地図そのもの
+  'mlp3d.html',       // 3D 表示 5 本は同じ手法の立体版。地図には平面版（信号の流れ・CNN・RNN・自己注意・GPT-2）を載せる
+  'cnn3d.html',
+  'rnn3d.html',
+  'attention3d.html',
+  'gpt3d.html',
+  'dronerace2.html',  // 9c49fa3 でドローンレース①（dronerace.html）の 1 点にまとめた。②へは①から辿る
+];
+check(mapNodes.length === (mapSource.match(/\{n:'/g) || []).length,
+  `method map: all ${mapNodes.length} rows of M keep the shape mypage reads`);
+const unmapped = vizPages.filter(file => !mapHrefs.has(file) && !OFF_MAP.includes(file));
+check(unmapped.length === 0,
+  'method map: every viz page is on the map or listed as intentionally off it' + (unmapped.length ? ' — ' + unmapped.join(', ') : ''));
+const offListMismatch = OFF_MAP.filter(file => mapHrefs.has(file) || !vizPages.includes(file));
+check(offListMismatch.length === 0,
+  'method map: the off-map list names existing pages that are not on the map' + (offListMismatch.length ? ' — ' + offListMismatch.join(', ') : ''));
+const deadMapLinks = mapNodes.filter(node => !existsSync(resolve(root, 'viz', node.href.endsWith('/') ? node.href + 'index.html' : node.href)));
+check(deadMapLinks.length === 0,
+  'method map: every card links to an existing page' + (deadMapLinks.length ? ' — ' + deadMapLinks.map(node => node.href).join(', ') : ''));
+
+// 「NN テーマ」「NN ページ」は viz/*.html の数（地図そのもの・3D 版も含む）。ページを足したら数も直す。mypage の帯にも同じ数を出している。
+const statedCounts = [
+  ...[...read('index.html').matchAll(/(\d+)テーマ/g)].map(m => ['index.html', +m[1]]),
+  ...[...read('README.md').matchAll(/全(\d+)の `viz` ノート|（(\d+) ページ＋GPT-2 ビューア）/g)].map(m => ['README.md', +(m[1] || m[2])]),
+  ...[...read('docs/PROMPT_GUIDE.md').matchAll(/機械学習 (\d+) テーマ|`viz\/\*\.html` (\d+) 本/g)].map(m => ['docs/PROMPT_GUIDE.md', +(m[1] || m[2])]),
+];
+const wrongCounts = statedCounts.filter(([, count]) => count !== vizPages.length);
+check(statedCounts.length === 7 && wrongCounts.length === 0,
+  `theme count: index.html, README, and PROMPT_GUIDE state ${vizPages.length} pages (${statedCounts.length} places)`
+  + (wrongCounts.length ? ' — ' + wrongCounts.map(([file, count]) => `${file}: ${count}`).join(', ') : ''));
 
 // 数学の道具箱で表示する計算を、画面とは独立した参照値で固定する。
 check(close(dot([2, -1], [1.5, -0.8]), 3.8), 'foundations dot product: scalar reference');
