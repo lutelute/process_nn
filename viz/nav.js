@@ -134,6 +134,7 @@
       { href: 'perceptron.html',  label: 'パーセプトロン' },
       { href: 'linreg.html',      label: '線形回帰' },
       { href: 'backprop.html',    label: '逆伝播' },
+      { href: 'backprop-lab.html', label: '逆伝播ラボ' },
     ]},
     { name: '訓練・正則化', items: [
       { href: 'reg.html',         label: '正則化' },

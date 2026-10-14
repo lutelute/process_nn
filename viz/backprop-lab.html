@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>逆伝播ラボ — 1 つの重みを追いかける</title>
+<meta name="description" content="1→2→1 の小さなネットで、重みを少し動かした実験と逆伝播で求めた勾配が同じ傾きであることを、同じ実数のまま確かめる。">
+<style>
+  :root{
+    --bg:#faf8f1; --panel:#ffffff; --panel-2:#f2efe6; --line:#dcd8cc;
+    --ink:#1a1a17; --ink-2:#52504a; --ink-3:#6e6a60; --rule:#dcd8cc;
+    --accent:#1f9e8a; --neg:#cf4f5f; --loss:#c2891b; --upd:#6f54c4;
+    --gothic:"Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  .stp{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 6px;cursor:pointer;position:relative;border:0;border-radius:0;background:transparent;}
+  .stp .n{display:inline-flex;align-items:center;justify-content:center;}
+  .stp.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;}
+  .stepper{display:flex;}
+  .body{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);}
+  .vis{padding:12px 14px 10px;}
+  .explain{padding:14px 18px 12px;min-height:0;}
+  .bar{display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap;}
+  .bar .spacer{flex:1;}
+  .bar .sep{width:1px;height:24px;background:var(--rule);margin:0 4px;}
+  button{padding:8px 13px;cursor:pointer;}
+  button:disabled{opacity:.4;cursor:default;}
+  select{padding:7px 9px;}
+
+  /* 計算図（SVG）— 値・勾配・更新を同じ図の上に重ねる */
+  #graph{display:block;width:100%;height:auto;background:#fffdf6;border:1px solid var(--rule);border-radius:2px;}
+  #graph text{font-family:var(--mono);}
+  #graph .lbl{font-size:10px;fill:var(--ink-3);}
+  #graph .val{font-size:15px;font-weight:700;fill:var(--ink);}
+  #graph .cap{font-size:10.5px;fill:var(--ink-3);}
+  #graph .dl{font-size:11px;font-weight:700;fill:var(--loss);}
+  #graph .node circle{fill:#fff;stroke:var(--ink);stroke-width:1.2;}
+  #graph .dim{opacity:.32;}
+  #graph .pill rect{fill:#fff;stroke:var(--ink-3);stroke-width:1;}
+  #graph .pill text{font-size:11px;fill:var(--ink);}
+  #graph .pill{cursor:pointer;}
+  #graph .pill:focus{outline:none;}
+  #graph .pill:focus rect,#graph .pill:hover rect{stroke:var(--ink);stroke-width:1.6;}
+  #graph .pill.sel rect{fill:var(--ink);stroke:var(--ink);}
+  #graph .pill.sel text{fill:#fff;font-weight:700;}
+  #graph .hl circle,#graph .hl rect{stroke:var(--upd)!important;stroke-width:2.6!important;}
+  #graph .edge.hl{stroke:var(--upd)!important;}
+  #graph .badge{font-size:10.5px;font-weight:700;}
+  #timeline[hidden]{display:none;}
+  #timeline{display:block;width:100%;height:auto;margin-top:8px;background:#fffdf6;border:1px solid var(--rule);border-radius:2px;cursor:pointer;}
+  #timeline text{font-family:var(--mono);font-size:10px;fill:var(--ink-3);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:7px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:14px;height:3px;display:inline-block;}
+
+  /* 計算ノート（右）— 数は図と同じ住所(data-a)を持ち、指すと図の同じ場所が光る */
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;border:1px solid var(--ink-3);color:var(--ink-2);padding:1px 7px;border-radius:2px;}
+  .chip b{color:var(--ink);}
+  .explain h3{margin:2px 0 8px;}
+  .eq{padding:9px 12px;margin:7px 0;font-size:14.5px;}
+  .eq .ln{padding-left:1.2em;text-indent:-1.2em;}
+  .m{font-family:var(--mono);}
+  .v{border-bottom:1px dotted currentColor;cursor:default;padding:0 1px;border-radius:2px;}
+  .v.hl{background:#ece6fb;color:var(--upd);}
+  .v.g{color:var(--loss);font-weight:700;}
+  .v.u{color:var(--upd);font-weight:700;}
+  .desc{margin:6px 0 0;}
+  .cmp{width:100%;border-collapse:collapse;font-size:11.5px;margin:6px 0;}
+  .cmp td,.cmp th{padding:3px 6px;text-align:right;}
+  .cmp th:first-child,.cmp td:first-child{text-align:left;}
+  .cmp tr.f td{background:#f4f0fd;font-weight:700;}
+  .cmp .dn{color:var(--accent);} .cmp .up{color:var(--neg);}
+  #slice{display:block;width:100%;height:auto;margin-top:6px;background:#fffdf6;border:1px solid var(--rule);border-radius:2px;}
+  #slice text{font-family:var(--mono);font-size:10px;fill:var(--ink-3);}
+  .note{font-family:var(--gothic);font-size:11.5px;color:var(--ink-3);margin-top:6px;}
+  .q{font-family:var(--gothic);font-size:13px;color:var(--ink-2);margin:6px 0 12px;}
+  .q b{color:var(--ink);}
+  body .wrap.lab{max-width:1200px;padding-top:18px;}
+  .lab .nav{margin-bottom:10px;}
+  .lab h1{font-size:19px;padding-bottom:8px;}
+  .after{margin-top:22px;}
+  @media(max-width:860px){.body{grid-template-columns:1fr;}.vis{border-right:none!important;border-bottom:1px dashed var(--rule);}.stp .t{display:none;}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap lab">
+  <div class="nav"></div>
+  <h1>逆伝播ラボ：この重みを増やすと、誤差は減る？</h1>
+  <p class="q">小さなネットの<b>同じ 1 つの計算</b>を、最後まで同じ実数で追います。重みを少し動かした<b>実験</b>と、逆伝播で求めた<b>勾配</b>が同じ傾きになることを確かめてから、学習を進めます。図の数字や重みの札は押せます。</p>
+
+  <div class="stage">
+    <div class="stepper" id="stepper" role="tablist" aria-label="手順"></div>
+    <div class="body">
+      <div class="vis">
+        <svg id="graph" viewBox="0 0 640 372" role="img" aria-label="1入力・隠れ2・1出力のネットの計算図">
+          <g id="gEdges"></g><g id="gNodes"></g><g id="gPulse"></g>
+        </svg>
+        <svg id="timeline" viewBox="0 0 640 92" hidden aria-label="学習の履歴（損失）。押すとその時点に戻る"></svg>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="explain" id="explain" aria-live="polite"></div>
+    </div>
+    <div class="bar">
+      <button id="prevBtn">◀ 前へ</button>
+      <button class="primary" id="nextBtn">次へ ▶</button>
+      <span class="sep"></span>
+      <span id="acts" style="display:contents"></span>
+      <span class="spacer"></span>
+      <label for="focusSel" style="font-size:12px">注目する数</label>
+      <select id="focusSel"></select>
+    </div>
+  </div>
+
+  <div class="after">
+    <div class="aha">
+      <div class="aha-h">💡 見方が変わる一文</div>
+      <p>勾配は「どこか遠くで計算される抽象的な量」ではなく、<b>いま目の前の予測を作った重みを少し動かしたら、損失がどれだけ動くか</b>という実験の答えそのもの。逆伝播は、その実験を全部の重みについて<b>一度の逆流で</b>済ませる方法です。</p>
+    </div>
+    <div class="myth">
+      <div class="myth-h">⚠ よくある誤解</div>
+      <div class="row"><span class="x">✗</span>勾配がマイナス＝その重みは悪い</div>
+      <div class="row"><span class="o">✓</span>符号は<b>向き</b>だけを表します。∂L/∂w₁ が負なら「w₁ を増やすと損失が減る」。だから更新は w₁ − η·(負) で<b>増える</b>向きに動きます。</div>
+      <div class="row"><span class="x">✗</span>1 回の更新で予測が変わるのは、注目した重みが動いたから</div>
+      <div class="row"><span class="o">✓</span>更新では<b>全 7 個が同時に</b>動きます。手順④で、w₁ だけ動かした場合との差を数字で見比べられます。</div>
+    </div>
+    <div class="tn-slot"></div>
+    <p class="note">このページは 1 サンプル（x=1, y=1）への当てはめです。勾配の意味と計算を確かめるための例で、未知の入力への汎化は扱いません。関数全体への当てはめは <a href="backprop.html">誤差逆伝播法</a>、坂を下る動きは <a href="gradient.html">勾配降下</a> で。計算は共通エンジン <code>viz/engine/</code> の同じ記録（Trace）から図・式・表を作っています。</p>
+  </div>
+</div>
+
+<script type="module">
+import { defineModel, explainDelta, explainGrad, explainValue, lossSlice, nudge, run, thetaFrom } from './engine/core.mjs';
+import { Session } from './engine/session.mjs';
+
+// ===== モデル（教材の具体例）— 計算はすべて engine に任せ、ここは見せ方だけを持つ =====
+const model = defineModel({
+  input: { id: 'x', size: 1 },
+  layers: [
+    { id: 'z1', kind: 'dense', W: 'W1', b: 'b1', size: 2 },
+    { id: 'h', kind: 'relu' },
+    { id: 'yhat', kind: 'dense', W: 'W2', b: 'b2', size: 1 },
+  ],
+});
+const theta0 = thetaFrom(model, { W1: [[0.5], [1.0]], b1: [0, 0], W2: [[0.4, -0.2]], b2: [0] });
+const batch = [{ x: [1], y: [1] }];
+const LR = 0.1, NUDGE = 0.01, MAXK = 300;
+const session = new Session(model, theta0, batch, { lr: LR });
+
+// 住所 → 記号。図・式・表・セレクトが同じ記号を使う
+const SYM = { 'W1:0': 'w₁', 'W1:1': 'w₂', 'b1:0': 'b₁', 'b1:1': 'b₂', 'W2:0': 'v₁', 'W2:1': 'v₂', 'b2:0': 'c',
+  'x:0': 'x', 'z1:0': 'z₁', 'z1:1': 'z₂', 'h:0': 'h₁', 'h:1': 'h₂', 'yhat:0': 'ŷ', 'L': 'L', 'y': 'y' };
+const PARAMS = ['W1:0', 'W1:1', 'b1:0', 'b1:1', 'W2:0', 'W2:1', 'b2:0'];
+const key = f => f.tensor + ':' + f.index;
+const parse = a => { const [tensor, i] = a.split(':'); return { tensor, index: +i }; };
+
+const STEPS = [
+  { t: '予測をつくる' }, { t: '少し変えて確かめる' }, { t: '逆伝播で傾きを求める' }, { t: '1 回学習する' }, { t: '繰り返す' },
+];
+
+const state = {
+  step: 0, focus: { tensor: 'W1', index: 0 }, k: 0,
+  branch: 0,            // ② で試している変化量（0 = 元のまま）
+  tried: 0,             // ② で最後に試した変化量（③ の「実験」はこれを使う。注目・時点を変えたら 0）
+  upd: 'after',         // ④ の表示：before / after
+  hl: null,             // 指している住所（図⇄式の対応）
+  running: false,
+};
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ===== 書式 =====
+const M = '−';
+const n2 = (v, d = 2) => { const s = Math.abs(v) < 0.5 * 10 ** -d ? (0).toFixed(d) : Math.abs(v).toFixed(d); return (v < 0 && s !== (0).toFixed(d) ? M : '') + s; };
+const sg = (v, d = 2) => (v > 0 ? '+' : '') + n2(v, d);
+const nL = v => v >= 1e-3 ? v.toFixed(4) : v.toExponential(2).replace('-', M);
+const par = (v, d = 2) => v < 0 ? '(' + n2(v, d) + ')' : n2(v, d);
+const V = (a, text, cls = '') => `<span class="v ${cls}" data-a="${a}">${text}</span>`;
+
+// ===== 時点・分岐ごとの Trace（図も式も必ずこれだけを読む） =====
+const cur = () => session.at(state.k);
+function shown() {
+  if (state.step === 1 && state.branch) return nudge(model, session.theta(state.k), batch, state.focus, state.branch);
+  if (state.step === 3 && state.upd === 'after') return session.preview(state.k);
+  return cur();
+}
+
+// 注目パラメータが影響する道（図で太く・ほかは薄く）
+function pathOf(f) {
+  const s = new Set(['L', 'yhat:0', 'e:yhat-L']);
+  if (f.tensor === 'W1' || f.tensor === 'b1') { const i = f.index; s.add('h:' + i); s.add('e:h' + i + '-y'); if (f.tensor === 'W1') s.add('e:x-h' + i); }
+  if (f.tensor === 'W2') { s.add('e:h' + f.index + '-y'); }
+  s.add(key(f));
+  return s;
+}
+
+// ===== 計算図（SVG） =====
+const P = { x: [80, 186], h0: [300, 102], h1: [300, 272], y: [500, 186], L: [600, 186] };
+const R = 30;
+const EDGES = [
+  { id: 'e:x-h0', a: 'W1:0', from: 'x', to: 'h0' }, { id: 'e:x-h1', a: 'W1:1', from: 'x', to: 'h1' },
+  { id: 'e:h0-y', a: 'W2:0', from: 'h0', to: 'y' }, { id: 'e:h1-y', a: 'W2:1', from: 'h1', to: 'y' },
+];
+const width = w => Math.min(10, 1.2 + 5 * Math.abs(w));   // 固定尺度（ページ内のどの時点でも同じ）
+
+function pill(a, x, y, text, sel, extra = '') {
+  const w = 10 + text.length * 7.1;
+  return `<g class="pill${sel ? ' sel' : ''}${state.hl === a ? ' hl' : ''}" data-a="${a}" tabindex="0" role="button" aria-label="${SYM[a]} を注目する">`
+    + `<rect x="${x - w / 2}" y="${y - 11}" width="${w}" height="22" rx="2"></rect>`
+    + `<text x="${x}" y="${y + 4}" text-anchor="middle">${text}</text>${extra}</g>`;
+}
+
+function drawGraph() {
+  // 札を作り直すとキーボードのフォーカスが外れるので、同じ住所の札へ戻す
+  const act = document.activeElement, keep = act && act.closest && act.closest('#graph [data-a]') ? act.dataset.a : null;
+  const t = shown(), base = cur();
+  const th = t.theta, v = t.samples[0].values, d = t.samples[0].deltas;
+  const fk = key(state.focus), path = pathOf(state.focus);
+  const showD = state.step === 2 || state.step === 4;
+  const dimOf = id => path.has(id) ? '' : ' dim';
+  let e = '';
+  for (const ed of EDGES) {
+    const f = parse(ed.a), w = th[f.tensor][f.index];
+    const [x1, y1] = P[ed.from], [x2, y2] = P[ed.to];
+    const col = w >= 0 ? 'var(--accent)' : 'var(--neg)';
+    e += `<line class="edge${state.hl === ed.a ? ' hl' : ''}${dimOf(ed.id)}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${width(w).toFixed(2)}" stroke-linecap="round"></line>`;
+  }
+  e += `<line class="edge${dimOf('e:yhat-L')}" x1="${P.y[0] + R}" y1="${P.y[1]}" x2="${P.L[0] - R}" y2="${P.L[1]}" stroke="var(--ink-3)" stroke-width="1.4" stroke-dasharray="4 3"></line>`;
+  e += `<line x1="${P.L[0]}" y1="${P.L[1] + R}" x2="${P.L[0]}" y2="${P.L[1] + 74}" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"></line>`;
+  // 重みの札（辺の中点）
+  for (const ed of EDGES) {
+    const f = parse(ed.a), w = th[f.tensor][f.index], w0 = base.theta[f.tensor][f.index];
+    const [x1, y1] = P[ed.from], [x2, y2] = P[ed.to];
+    e += pillFor(ed.a, (x1 + x2) / 2, (y1 + y2) / 2 + (y2 < y1 ? -2 : 2), w, w0, t, fk);
+  }
+  document.getElementById('gEdges').innerHTML = e;
+
+  let n = '';
+  const node = (id, a, [x, y], sym, val, cap, dl, prev) => {
+    const ch = prev !== undefined && Math.abs(val - prev) > 1e-12;
+    n += `<g class="node${state.hl === a ? ' hl' : ''}${a === 'x:0' ? '' : dimOf(a)}" data-a="${a}">`
+      + `<circle cx="${x}" cy="${y}" r="${R}"></circle>`
+      + `<text class="lbl" x="${x}" y="${y - 10}" text-anchor="middle">${sym}</text>`
+      + `<text class="val" x="${x}" y="${y + 10}" text-anchor="middle">${val}</text>`
+      + (cap ? `<text class="cap" x="${x}" y="${y + R + 15}" text-anchor="middle">${cap}</text>` : '')
+      + (dl ? `<text class="dl" x="${x}" y="${y + R + 30}" text-anchor="middle">${dl}</text>` : '')
+      + (ch ? `<text class="badge" x="${x + R + 64 > 640 ? x : x + R + 4}" y="${x + R + 64 > 640 ? y - R - 6 : y - R + 6}"${x + R + 64 > 640 ? ' text-anchor="middle"' : ''} fill="${val - prev < 0 ? 'var(--neg)' : 'var(--accent)'}">${sg(val - prev, 3)}</text>` : '')
+      + '</g>';
+  };
+  const b0 = base.samples[0].values;
+  const cmp = state.step === 1 && state.branch;
+  node('x', 'x:0', P.x, 'x', n2(v.x[0]), '入力', '', undefined);
+  for (const i of [0, 1]) {
+    node('h' + i, 'h:' + i, P['h' + i], 'h' + (i ? '₂' : '₁'), n2(v.h[i]), `ReLU(z${i ? '₂' : '₁'}=${n2(v.z1[i])})`,
+      showD && path.has('h:' + i) ? 'δ ' + n2(d.z1[i]) : '', cmp ? b0.h[i] : undefined);
+  }
+  node('y', 'yhat:0', P.y, 'ŷ', n2(v.yhat[0], 3), '予測', showD ? 'δ ' + n2(d.yhat[0]) : '', cmp ? b0.yhat[0] : undefined);
+  node('L', 'L', P.L, 'L', t.loss.toFixed(3), '損失 ½(ŷ−y)²', '', cmp ? base.loss : undefined);
+  n += `<g><rect x="${P.L[0] - 34}" y="${P.L[1] + 74}" width="68" height="24" fill="#fff" stroke="var(--ink-3)" rx="2"></rect>`
+    + `<text class="cap" x="${P.L[0]}" y="${P.L[1] + 90}" text-anchor="middle" style="fill:var(--ink)">正解 y=${n2(batch[0].y[0])}</text></g>`;
+  // バイアスの札（ノードの上）
+  n += pillFor('b1:0', P.h0[0], P.h0[1] - R - 18, th.b1[0], base.theta.b1[0], t, fk);
+  n += pillFor('b1:1', P.h1[0], P.h1[1] - R - 18, th.b1[1], base.theta.b1[1], t, fk);
+  n += pillFor('b2:0', P.y[0], P.y[1] - R - 18, th.b2[0], base.theta.b2[0], t, fk);
+  document.getElementById('gNodes').innerHTML = n;
+  if (keep) { const el = document.querySelector(`#graph .pill[data-a="${keep}"]`); if (el) el.focus({ preventScroll: true }); }
+}
+
+function pillFor(a, x, y, w, w0, t, fk) {
+  const f = parse(a), sel = a === fk;
+  let label = SYM[a] + ' ' + n2(w);
+  let extra = '';
+  if (state.step === 2 || state.step === 4) {
+    if (sel) label = '∂L/∂' + SYM[a] + ' ' + n2(t.grads[f.tensor][f.index]);
+  }
+  const changed = sel && Math.abs(w - w0) > 1e-12;   // 動いた量は注目の 1 個だけ図に出す（全部は右の表）
+  if (changed) extra = `<text class="badge" x="${x + 9 + label.length * 3.55}" y="${y + 4}" fill="var(--upd)">${sg(w - w0)}</text>`;
+  const out = pill(a, x, y, label, sel, extra);
+  return (state.step === 2 || state.step === 4) && sel ? out.replace('<rect ', '<rect style="fill:var(--loss);stroke:var(--loss)" ') : out;
+}
+
+// 信号の粒（順伝播=青緑、逆伝播=琥珀）。reduced-motion では出さない
+let pulseRaf = 0;
+function pulse(dir) {
+  cancelAnimationFrame(pulseRaf);
+  const g = document.getElementById('gPulse');
+  if (reduce) { g.innerHTML = ''; return; }
+  const path = pathOf(state.focus);
+  const segs = [];
+  for (const ed of EDGES) segs.push({ ...ed, on: path.has(ed.id), from: P[ed.from], to: P[ed.to], phase: ed.from === 'x' ? 0 : 1 });
+  segs.push({ id: 'e:yhat-L', on: true, from: [P.y[0] + R, P.y[1]], to: [P.L[0] - R, P.L[1]], phase: 2 });
+  const use = dir === 'back' ? segs.filter(s => s.on) : segs;
+  const T0 = performance.now(), dur = 1500;
+  const tick = now => {
+    const u = Math.min(1, (now - T0) / dur);
+    let html = '';
+    for (const s of use) {
+      let ph = dir === 'back' ? 2 - s.phase : s.phase;
+      const loc = u * 3 - ph;
+      if (loc < 0 || loc > 1) continue;
+      const q = dir === 'back' ? 1 - loc : loc;
+      const px = s.from[0] + (s.to[0] - s.from[0]) * q, py = s.from[1] + (s.to[1] - s.from[1]) * q;
+      html += `<circle cx="${px}" cy="${py}" r="${s.on ? 6 : 4}" fill="${dir === 'back' ? 'var(--loss)' : 'var(--accent)'}" opacity="${s.on ? .95 : .45}"></circle>`;
+    }
+    g.innerHTML = html;
+    if (u < 1) pulseRaf = requestAnimationFrame(tick); else g.innerHTML = '';
+  };
+  pulseRaf = requestAnimationFrame(tick);
+}
+
+// ===== 学習履歴（時間軸）: 点 k = k 回更新後。押すとその時点を全体で表示 =====
+function drawTimeline() {
+  const svg = document.getElementById('timeline');
+  svg.toggleAttribute('hidden', state.step < 3);   // SVG 要素には .hidden プロパティが無い
+  if (state.step < 3) return;
+  const Ls = session.losses, K = Math.max(20, Ls.length - 1);
+  const lo = Math.log10(Math.max(1e-8, Math.min(...Ls))), hi = Math.log10(Math.max(...Ls));
+  const X = k => 36 + (k / K) * 590, Y = L => 12 + (1 - (Math.log10(Math.max(1e-8, L)) - lo) / Math.max(1e-9, hi - lo)) * 56;
+  let d = '';
+  Ls.forEach((L, k) => d += (k ? 'L' : 'M') + X(k).toFixed(1) + ' ' + Y(L).toFixed(1));
+  const k = state.k;
+  svg.innerHTML = `<text x="6" y="16">L</text><text x="6" y="72">log</text>`
+    + `<line x1="36" y1="70" x2="626" y2="70" stroke="var(--rule)"></line>`
+    + `<path d="${d}" fill="none" stroke="var(--loss)" stroke-width="1.8"></path>`
+    + Ls.map((L, j) => `<circle cx="${X(j)}" cy="${Y(L)}" r="${j === k ? 4.5 : 1.8}" fill="${j === k ? 'var(--ink)' : 'var(--loss)'}"></circle>`).join('')
+    + `<line x1="${X(k)}" y1="8" x2="${X(k)}" y2="72" stroke="var(--ink)" stroke-dasharray="3 3"></line>`
+    + `<text x="36" y="86">更新回数 k → （押す／←→ でその時点へ）</text>`
+    + `<text x="626" y="86" text-anchor="end" style="fill:var(--ink)">k=${k} · L=${nL(Ls[k])}</text>`;
+  svg.onclick = ev => {
+    const r = svg.getBoundingClientRect();
+    const kk = Math.round(((ev.clientX - r.left) / r.width * 640 - 36) / 590 * K);
+    selectK(Math.max(0, Math.min(Ls.length - 1, kk)));
+  };
+}
+
+// ===== 損失の切り口: 他の 6 個を固定して注目の 1 個だけ動かした実損失＋接線 =====
+function sliceSvg(t) {
+  const f = state.focus, c = t.theta[f.tensor][f.index], g = t.grads[f.tensor][f.index];
+  const xs = Array.from({ length: 121 }, (_, i) => c - 2 + 4 * i / 120);
+  const ys = lossSlice(model, t.theta, batch, f, xs);
+  const yMax = Math.max(...ys, t.loss) * 1.08 || 1;
+  const X = x => 34 + (x - xs[0]) / 4 * 320, Y = y => 10 + (1 - y / yMax) * 112;
+  let d = '';
+  xs.forEach((x, i) => d += (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(ys[i]).toFixed(1));
+  const span = 0.6, ta = c - span, tb = c + span;
+  return `<svg id="slice" viewBox="0 0 370 150" aria-label="${SYM[key(f)]} だけを動かした損失の曲線と接線">`
+    + `<line x1="34" y1="122" x2="354" y2="122" stroke="var(--rule)"></line><line x1="34" y1="10" x2="34" y2="122" stroke="var(--rule)"></line>`
+    + `<path d="${d}" fill="none" stroke="var(--ink-2)" stroke-width="1.6"></path>`
+    + `<line x1="${X(ta)}" y1="${Y(t.loss + g * (ta - c))}" x2="${X(tb)}" y2="${Y(t.loss + g * (tb - c))}" stroke="var(--loss)" stroke-width="2.4"></line>`
+    + `<circle cx="${X(c)}" cy="${Y(t.loss)}" r="4.5" fill="var(--ink)"></circle>`
+    + `<text x="${X(c) + 8}" y="${Y(t.loss) - 8}" style="fill:var(--loss);font-weight:700">傾き ${n2(g)}</text>`
+    + `<text x="34" y="138">${n2(xs[0], 1)}</text><text x="354" y="138" text-anchor="end">${n2(xs[120], 1)}</text>`
+    + `<text x="194" y="138" text-anchor="middle">横軸 = ${SYM[key(f)]}（他の 6 個は固定）</text>`
+    + `<text x="4" y="16">L</text></svg>`;
+}
+
+// ===== 計算ノート（右） =====
+function chips(extra = '') {
+  const kTxt = state.k === 0 ? '学習前' : state.k + ' 回更新後';
+  return `<div class="chips"><span class="chip">STEP ${state.step + 1} / 5</span><span class="chip">時点 <b>k=${state.k}</b>（${kTxt}）</span>`
+    + `<span class="chip">注目 <b>${SYM[key(state.focus)]}</b></span>${extra}</div>`;
+}
+
+// 順伝播の 1 行（engine の explainValue から組み立てる）
+function forwardLines(t) {
+  const lines = [];
+  for (const i of [0, 1]) {
+    const ev = explainValue(model, t, 0, 'z1', i), tm = ev.terms[0], s = i ? '₂' : '₁';
+    lines.push(`h${s} = ReLU(${V(key(tm.weight), SYM[key(tm.weight)])}·x + ${V(key(ev.bias), SYM[key(ev.bias)])}) = ReLU(${V(key(tm.weight), n2(tm.w))} × ${V('x:0', n2(tm.a))} + ${V(key(ev.bias), n2(ev.b))}) = ${V('h:' + i, n2(t.samples[0].values.h[i]))}`);
+  }
+  const ey = explainValue(model, t, 0, 'yhat', 0);
+  lines.push(`ŷ = v₁·h₁ + v₂·h₂ + c = ` + ey.terms.map(tm => `${V(key(tm.weight), par(tm.w))} × ${V(key(tm.input), n2(tm.a))}`).join(' + ')
+    + ` + ${V('b2:0', n2(ey.b))} = ${V('yhat:0', n2(ey.value, 3))}`);
+  lines.push(`L = ½(ŷ − y)² = ½(${V('yhat:0', n2(ey.value, 3))} − ${V('y', n2(batch[0].y[0]))})² = ${V('L', t.loss.toFixed(4))}`);
+  return lines;
+}
+
+// 勾配を「どの数の積か」に分解（explainGrad → explainDelta を出力側へたどる）
+function gradFactors(t) {
+  const eg = explainGrad(model, t, 0, state.focus);
+  const chain = [];
+  let d = explainDelta(model, t, 0, eg.out.tensor, eg.out.index);
+  for (;;) {
+    if (d.kind === 'loss') { chain.push({ sym: '(ŷ − y)', val: d.yhat - d.y, a: 'yhat:0' }); break; }
+    if (d.kind === 'act') { chain.push({ sym: `ReLU′(${SYM[key(d)]})`, val: d.deriv, a: key(d), int: true }); d = explainDelta(model, t, 0, d.next.tensor, d.next.index); continue; }
+    if (d.terms.length === 1) { const tm = d.terms[0]; chain.push({ sym: SYM[key(tm.weight)], val: tm.w, a: key(tm.weight) }); d = explainDelta(model, t, 0, tm.next.tensor, tm.next.index); continue; }
+    chain.push({ sym: 'δ(' + SYM[key(d)] + ')', val: d.value, a: key(d) }); break;
+  }
+  chain.reverse();
+  if (eg.kind === 'weight') chain.push({ sym: SYM[key(eg.input)], val: eg.a, a: key(eg.input) });
+  return { chain, value: eg.total };
+}
+
+function gradLine(t) {
+  const { chain, value } = gradFactors(t);
+  const s = SYM[key(state.focus)];
+  return `∂L/∂${s} = ` + chain.map(c => c.sym).join(' × ')
+    + `<br>　　= ` + chain.map(c => V(c.a, c.int ? String(c.val) : par(c.val))).join(' × ')
+    + ` = ${V(key(state.focus), n2(value), 'g')}`;
+}
+
+function renderExplain() {
+  const el = document.getElementById('explain');
+  const t = cur(), f = state.focus, s = SYM[key(f)], fk = key(f);
+  const g = t.grads[f.tensor][f.index], w = t.theta[f.tensor][f.index];
+  let h = '';
+  if (state.step === 0) {
+    h = chips() + `<h3>① 予測をつくる</h3>`
+      + `<div class="eq curr">${forwardLines(t).map(l => `<div class="ln">${l}</div>`).join('')}`
+      + `<span class="read">読み：入力 x が 2 本の道（h₁・h₂）を通って予測 <span class="m">ŷ</span> になり、正解 y とのズレの 2 乗の半分が損失 L。</span></div>`
+      + `<p class="desc">注目している <b>${s}</b> から損失 L までの道を図で濃く示しました。${s} を変えると、この道に沿って影響が L まで届きます。式の数字を指すと、図の同じ場所が光ります。</p>`;
+  } else if (state.step === 1) {
+    const b = state.branch ? nudge(model, session.theta(state.k), batch, f, state.branch) : null;
+    h = chips() + `<h3>② 少し変えて確かめる</h3>`;
+    if (!b) {
+      h += `<p class="desc">いまの損失は <b>L = ${t.loss.toFixed(6)}</b>。下の <b>［${s} を +${NUDGE}］</b>で、${s} <b>だけ</b>を ${NUDGE} 動かしてみます（他の 6 個は固定）。</p>`
+        + `<div class="eq">予想してから押してください：損失は<b>増える</b>？ <b>減る</b>？</div>`
+        + `<p class="note">これは元の状態のコピーで試すだけの実験です。学習はまだしません。</p>`;
+    } else {
+      const rows = [[s, w, w + state.branch, fk], ['h₁', t.samples[0].values.h[0], b.samples[0].values.h[0], 'h:0'], ['h₂', t.samples[0].values.h[1], b.samples[0].values.h[1], 'h:1'],
+        ['ŷ', t.samples[0].values.yhat[0], b.samples[0].values.yhat[0], 'yhat:0'], ['L', t.loss, b.loss, 'L']];
+      const dL = b.loss - t.loss;
+      const dOpp = nudge(model, session.theta(state.k), batch, f, -state.branch).loss - t.loss;
+      const dir = state.branch > 0 ? '増やす' : '減らす', opp = state.branch > 0 ? '減らす' : '増やす';
+      const verdict = dL < 0 ? `<b>${s} は${dir}向きが正しい</b>と、実験で分かりました。`
+        : dOpp < 0 ? `${dir}と損失は増えました。逆に${opp}と ${sg(dOpp, 6)} なので、<b>${s} は${opp}向きが正しい</b>と分かります。`
+        : dL > 0 ? `<b>どちらへ動かしても損失は増えます</b>（${dir}: ${sg(dL, 6)}、${opp}: ${sg(dOpp, 6)}）。${s} についてはほぼ谷の底にいます。`
+        : `この ${s} は、いまの状態では損失に効いていません。`;
+      h += `<table class="cmp"><tr><th>数</th><th>元</th><th>試した後</th><th>変化</th></tr>`
+        + rows.map(([n, a, c, ad]) => `<tr class="${ad === fk ? 'f' : ''}"><td>${V(ad, n)}</td><td>${(ad === 'L' ? a.toFixed(6) : n2(a, 3))}</td><td>${(ad === 'L' ? c.toFixed(6) : n2(c, 3))}</td>`
+          + `<td class="${ad === 'L' ? (c - a < 0 ? 'dn' : 'up') : ''}">${ad === 'L' ? sg(c - a, 6) : sg(c - a, 3)}</td></tr>`).join('') + `</table>`
+        + `<div class="eq curr">ΔL = ${V('L', sg(dL, 6))}（${s} を ${sg(state.branch)}）<span class="read">読み：${s} を${state.branch > 0 ? '増やす' : '減らす'}と、損失は ${dL < 0 ? '減った' : dL > 0 ? '増えた' : '変わらなかった'}。</span></div>`
+        + `<p class="desc">${verdict}次の手順で、同じ答えを逆伝播から求めます。</p>`;
+    }
+  } else if (state.step === 2) {
+    const dd = state.tried || NUDGE;
+    const b = nudge(model, session.theta(state.k), batch, f, dd);
+    h = chips() + `<h3>③ 逆伝播で同じ傾きを求める</h3>`
+      + `<div class="eq curr">${gradLine(t)}<span class="read">読み：出口の誤差 (<span class="m">ŷ</span>−y) を、${s} に届くまでの道の数（重み・ReLU が通したか 1/0・入ってきた値）で順に掛けていく。</span></div>`
+      + `<div class="eq"><div class="ln">逆伝播の予想　ΔL ≈ ${V(fk, n2(g), 'g')} × ${par(dd)} = <b>${sg(g * dd, 4)}</b></div><div class="ln">${state.tried ? '②の実験' : '実験'}（${s} を ${sg(dd)}）　ΔL = <b>${sg(b.loss - t.loss, 6)}</b></div></div>`
+      + sliceSvg(t)
+      + `<p class="desc">${Math.abs(g * dd) > 10 * Math.abs(b.loss - t.loss - g * dd)
+          ? `${state.tried ? '②の' : ''}実験の答えと、逆伝播の積がほぼ一致します。`
+          : `いまは谷の底近くで傾きがほぼ 0 なので、傾き×変化量の予想より、曲線の曲がりの分のほうが目立ちます。`}勾配とは<b>この曲線の、いまの点での接線の傾き</b>です。</p>`;
+  } else if (state.step === 3) {
+    const t1 = session.preview(state.k);   // 「もしいま 1 回更新したら」。履歴には記録しない
+    const only = nudge(model, t.theta, batch, f, t1.theta[f.tensor][f.index] - w);
+    h = chips(`<span class="chip">表示 <b>${state.upd === 'after' ? '更新後' : '更新前'}</b></span>`) + `<h3>④ 1 回学習する（η = ${LR}）</h3><p class="note" style="margin:-2px 0 4px">時点 k から 1 回更新した場合を計算して見せます（履歴には記録しません。学習を進めるのは⑤）。</p>`
+      + `<div class="eq curr">${s} ← ${s} − η·∂L/∂${s} = ${V(fk, n2(w))} − ${LR} × ${V(fk, par(g), 'g')} = ${V(fk, n2(t1.theta[f.tensor][f.index]), 'u')}<span class="read">読み：傾きの逆向きへ、学習率 η の分だけ動かす。傾きが負なら増える。</span></div>`
+      + `<table class="cmp"><tr><th>パラメータ</th><th>前</th><th>∂L/∂θ</th><th>後</th></tr>`
+      + PARAMS.map(a => { const q = parse(a); return `<tr class="${a === fk ? 'f' : ''}"><td>${V(a, SYM[a])}</td><td>${n2(t.theta[q.tensor][q.index])}</td><td style="color:var(--loss)">${n2(t.grads[q.tensor][q.index])}</td><td style="color:var(--upd)">${n2(t1.theta[q.tensor][q.index])}</td></tr>`; }).join('')
+      + `</table>`
+      + `<p class="desc">7 個が<b>同時に</b>動き、予測は <span class="m">ŷ</span> ${n2(t.samples[0].values.yhat[0], 3)} → <b>${n2(t1.samples[0].values.yhat[0], 3)}</b>、損失は ${t.loss.toFixed(4)} → <b>${t1.loss.toFixed(4)}</b>。${s} だけを動かした場合の <span class="m">ŷ</span> は ${n2(only.samples[0].values.yhat[0], 3)} なので、残りは他の 6 個の更新の分です。</p>`;
+  } else {
+    h = chips() + `<h3>⑤ 繰り返す</h3>`
+      + `<div class="eq curr">${gradLine(t)}<span class="read">読み：時点 k の状態で計算し直した勾配。坂の底に近づくほど 0 に近づく。</span></div>`
+      + sliceSvg(t)
+      + `<div class="eq">どの重みでも　∂L/∂w = δ(出口側) × 入力(入口側)<span class="read">読み：δ（その重みの出口で、損失がどれだけ動くか）は出力側から 1 回逆に流せば全部そろう。だから全パラメータの勾配が一度に求まる。</span></div>`
+      + `<p class="note">下の履歴を押すか ←→ キーで、任意の時点の同じ ${s} を調べられます。時点を変えても学習は進みません。</p>`;
+  }
+  el.innerHTML = h;
+}
+
+// ===== 操作バー（手順ごとの操作だけを出す） =====
+function renderActs() {
+  const acts = document.getElementById('acts');
+  const s = SYM[key(state.focus)];
+  let h = '';
+  if (state.step === 0) h = `<button data-act="replay">⏵ 流れを見る</button>`;
+  if (state.step === 1) h = `<button data-act="nudge+">${s} を +${NUDGE}</button><button data-act="nudge-">${s} を −${NUDGE}</button><button data-act="undo"${state.branch ? '' : ' disabled'}>元に戻す</button>`;
+  if (state.step === 2) h = `<button data-act="back">⏴ 逆流を見る</button>`;
+  if (state.step === 3) h = `<button data-act="before"${state.upd === 'before' ? ' class="primary"' : ''}>更新前</button><button data-act="after"${state.upd === 'after' ? ' class="primary"' : ''}>更新後</button>`;
+  if (state.step === 4) h = `<button data-act="train"${state.running || session.length - 1 >= MAXK ? ' disabled' : ''}>⏵ 学習を続ける（+40 回）</button><button data-act="stop"${state.running ? '' : ' disabled'}>⏸ 止める</button><button data-act="k0"${state.k ? '' : ' disabled'}>k=0 へ</button>`;
+  acts.innerHTML = h;
+}
+
+function renderStepper() {
+  document.getElementById('stepper').innerHTML = STEPS.map((s, i) =>
+    `<button type="button" class="stp${i === state.step ? ' active' : ''}${i < state.step ? ' done' : ''}" data-i="${i}" role="tab" aria-selected="${i === state.step}">`
+    + `<span class="n">${i < state.step ? '✓' : i + 1}</span><span class="t">${s.t}</span></button>`).join('');
+  document.getElementById('prevBtn').disabled = state.step === 0;
+  document.getElementById('nextBtn').disabled = state.step === STEPS.length - 1;
+}
+
+function renderLegend() {
+  document.getElementById('legend').innerHTML = `<span class="legend"><span><i style="background:var(--accent)"></i>正の重み・順伝播</span>`
+    + `<span><i style="background:var(--neg)"></i>負の重み</span><span><i style="background:var(--loss)"></i>勾配（逆伝播）</span>`
+    + `<span><i style="background:var(--upd)"></i>更新・指している数</span><span>線の太さ＝|重み|（全時点で同じ尺度）</span></span>`;
+}
+
+function renderAll() {
+  renderStepper(); drawGraph(); drawTimeline(); renderExplain(); renderActs(); applyHl();
+}
+
+// ===== 図⇄式の対応（同じ住所を光らせる） =====
+function applyHl() {
+  document.querySelectorAll('.v.hl').forEach(e => e.classList.remove('hl'));
+  if (!state.hl) return;
+  document.querySelectorAll(`.v[data-a="${state.hl}"]`).forEach(e => e.classList.add('hl'));
+}
+function setHl(a) {
+  if (state.hl === a) return;
+  state.hl = a; drawGraph(); applyHl();
+}
+
+// ===== 操作 =====
+function goStep(i) {
+  state.step = Math.max(0, Math.min(STEPS.length - 1, i));
+  if (state.step !== 1) state.branch = 0;
+  if (state.step === 3) state.upd = 'after';   // 手順の移動では学習しない（履歴を伸ばすのは⑤の操作だけ）
+  if (state.step !== 4) stopTrain();
+  renderAll();
+  if (state.step === 0) pulse('fwd');
+  if (state.step === 2) pulse('back');
+}
+function selectK(k) { state.k = k; state.tried = 0; renderAll(); }
+function setFocus(a) { state.focus = parse(a); state.branch = state.tried = 0; document.getElementById('focusSel').value = a; renderAll(); }
+
+let trainTimer = 0;
+function stopTrain() { clearTimeout(trainTimer); if (state.running) { state.running = false; renderActs(); } }
+function startTrain() {
+  if (state.running) return;
+  state.running = true;
+  let left = Math.min(40, MAXK - (session.length - 1));
+  const tick = () => {
+    if (!state.running || left <= 0) { state.running = false; renderAll(); return; }
+    session.train(1); left--;
+    state.k = session.length - 1; state.tried = 0;
+    renderAll();
+    trainTimer = setTimeout(tick, reduce ? 0 : 60);
+  };
+  renderActs();
+  tick();
+}
+
+document.getElementById('prevBtn').onclick = () => goStep(state.step - 1);
+document.getElementById('nextBtn').onclick = () => goStep(state.step + 1);
+document.getElementById('stepper').onclick = e => { const b = e.target.closest('.stp'); if (b) goStep(+b.dataset.i); };
+document.getElementById('acts').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'replay') pulse('fwd');
+  if (a === 'back') pulse('back');
+  if (a === 'nudge+') { state.branch = state.tried = NUDGE; renderAll(); pulse('fwd'); }
+  if (a === 'nudge-') { state.branch = state.tried = -NUDGE; renderAll(); pulse('fwd'); }
+  if (a === 'undo') { state.branch = 0; renderAll(); }
+  if (a === 'before' || a === 'after') { state.upd = a; renderAll(); }
+  if (a === 'train') startTrain();
+  if (a === 'stop') stopTrain();
+  if (a === 'k0') selectK(0);
+};
+const sel = document.getElementById('focusSel');
+sel.innerHTML = PARAMS.map(a => `<option value="${a}">${SYM[a]}</option>`).join('');
+sel.onchange = () => setFocus(sel.value);
+
+const graph = document.getElementById('graph');
+graph.addEventListener('click', e => { const p = e.target.closest('.pill'); if (p) setFocus(p.dataset.a); });
+graph.addEventListener('keydown', e => { const p = e.target.closest('.pill'); if (p && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setFocus(p.dataset.a); } });
+graph.addEventListener('mouseover', e => { const g = e.target.closest('[data-a]'); setHl(g ? g.dataset.a : null); });
+graph.addEventListener('mouseleave', () => setHl(null));
+const explain = document.getElementById('explain');
+explain.addEventListener('mouseover', e => { const v = e.target.closest('.v'); setHl(v ? v.dataset.a : null); });
+explain.addEventListener('mouseleave', () => setHl(null));
+document.addEventListener('keydown', e => {
+  if (state.step < 3 || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); selectK(Math.max(0, state.k - 1)); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); selectK(Math.min(session.length - 1, state.k + 1)); }
+});
+
+renderLegend();
+renderAll();
+pulse('fwd');
+window.__lab = { session, state };
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

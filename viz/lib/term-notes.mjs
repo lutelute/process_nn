@@ -316,6 +316,7 @@ export const PAGE_TERMS = {
   'viz/perceptron.html':['perceptron','decision-boundary','supervised-learning'],
   'viz/linreg.html':['linear-regression','loss-function','gradient-descent'],
   'viz/backprop.html':['backpropagation','gradient','forward-propagation'],
+  'viz/backprop-lab.html':['gradient','loss-function','parameter'],
   'viz/reg.html':['regularization','overfitting','generalization'],
   'viz/dropout.html':['dropout','regularization','inference'],
   'viz/vanishing.html':['vanishing-gradient','backpropagation','activation-function'],

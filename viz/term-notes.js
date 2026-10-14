@@ -95,11 +95,16 @@
     intro.appendChild(title);
     intro.appendChild(el('span', 'tn-kicker', 'INTERPRETATION / ' + terms.length + ' NOTES'));
     section.appendChild(intro);
-    section.appendChild(el('p', 'tn-guide', '専門語を名前の部品へほどき、「なぜその名前なのか」から「なぜそう考えるのか」までを本文の前に置きます。リンク先を読まなくても、この場で理解できます。'));
+    // 図を主役にするページは .tn-slot を置き、注釈を図の後ろへ回す（置かないページは従来どおり導入直後）。
+    const slot = document.querySelector('.tn-slot');
+    section.appendChild(el('p', 'tn-guide', slot
+      ? '図で追った専門語を名前の部品へほどき、「なぜその名前なのか」から「なぜそう考えるのか」までをここにまとめます。'
+      : '専門語を名前の部品へほどき、「なぜその名前なのか」から「なぜそう考えるのか」までを本文の前に置きます。リンク先を読まなくても、この場で理解できます。'));
     const grid = el('div', 'tn-grid');
     terms.forEach(term => grid.appendChild(note(term)));
     section.appendChild(grid);
 
+    if (slot) { slot.replaceWith(section); window.__TERM_NOTES_READY__ = { page: pageKey(), count: terms.length, inline: true }; return; }
     const purpose = document.querySelector('.purpose');
     const lead = document.querySelector('.lead');
     const anchor = purpose || lead || document.querySelector('h1');
